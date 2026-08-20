@@ -1,5 +1,6 @@
 import { NAV_GROUPS, type NavGroupId } from "~/core/nav";
 import { theme } from "~/core/theme";
+import { fitText } from "~/lib/text";
 import { NavIcon } from "~/ui/components/NavIcon";
 import { useImageSupport } from "~/ui/hooks/useImageSupport";
 
@@ -55,8 +56,8 @@ export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
             ) : null}
             {orgSlug ? (
               <text fg={theme.text} attributes={1}>
-                {orgSlug.slice(
-                  0,
+                {fitText(
+                  orgSlug,
                   hasImages && avatarUrl ? contentWidth - AVATAR_SIZE - 1 : contentWidth,
                 )}
               </text>
