@@ -76,6 +76,7 @@ export const COMMANDS: readonly Command[] = [
     category: "app",
     defaultKeys: ["o"],
     description: "Open the organization picker",
+    palette: "always",
   },
   {
     id: "sentry.app.focusNext",

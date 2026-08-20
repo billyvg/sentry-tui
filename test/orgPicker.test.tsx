@@ -167,3 +167,20 @@ test("the picker explains itself while the list is still empty", async () => {
     await h.cleanup();
   }
 });
+
+test("the command palette opens the picker too", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await h.waitForFrame((f) => f.includes("acmeError"));
+
+    await h.press((i) => i.pressKey("k", { ctrl: true }));
+    await h.press((i) => i.pressKey("switch org"));
+    await h.press((i) => i.pressKey("\r"));
+
+    await h.waitForFrame((f) => f.includes("Globex"));
+    expect(h.frame()).toContain("Organization");
+  } finally {
+    await h.cleanup();
+  }
+});

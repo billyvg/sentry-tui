@@ -356,6 +356,9 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
         case "sentry.app.refresh":
           refresh();
           return;
+        case "sentry.app.switchOrg":
+          setShowOrgPicker(true);
+          return;
         case "sentry.nav.search":
           focus.focus("content");
           focusSearch();
