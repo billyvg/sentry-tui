@@ -7,11 +7,34 @@
  * old value on screen (dimmed) rather than flashing back to skeletons.
  */
 
+import { ApiError } from "~/api/client";
+
 export interface AsyncError {
   message: string;
   retryable: boolean;
   /** Seconds to wait before retrying, when the server said so. */
   retryAfterSeconds?: number;
+}
+
+/**
+ * Narrow anything thrown by a fetch into the shape the UI renders.
+ *
+ * An `ApiError` already knows whether it is worth retrying; anything else is a
+ * surprise, and surprises are assumed transient so the user gets a retry hint
+ * rather than a dead end.
+ */
+export function toAsyncError(error: unknown): AsyncError {
+  if (error instanceof ApiError) {
+    return {
+      message: error.message,
+      retryable: error.retryable,
+      retryAfterSeconds: error.retryAfterSeconds,
+    };
+  }
+  return {
+    message: error instanceof Error ? error.message : String(error),
+    retryable: true,
+  };
 }
 
 export type AsyncStatus<T> =

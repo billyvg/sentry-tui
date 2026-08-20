@@ -78,8 +78,11 @@ test("typing filters the list down to the match", async () => {
 
     const frame = h.frame();
     expect(frame).toContain("Logs");
-    // "Feed" is not a subsequence of "logs", so the rest of Issues is gone.
-    expect(frame).not.toContain("Feed");
+    // Not a subsequence of "logs", so the rest of Issues is gone. "Feed" would
+    // be the obvious thing to check, but it doubles as the active view's
+    // header behind the palette — these appear nowhere but the palette list.
+    expect(frame).not.toContain("Warnings");
+    expect(frame).not.toContain("All Views");
   } finally {
     await h.cleanup();
   }

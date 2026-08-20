@@ -26,6 +26,7 @@ export const SORT_OPTIONS = [
   { value: "freq", label: "Events" },
   { value: "user", label: "Users" },
   { value: "inbox", label: "Date Added" },
+  { value: "progress", label: "Progress" },
 ] as const;
 
 export type SortOption = (typeof SORT_OPTIONS)[number]["value"];
