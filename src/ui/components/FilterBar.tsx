@@ -4,6 +4,7 @@ import type { SentryClient } from "~/api/client";
 import { listEnvironments, listProjects, type Environment } from "~/api/issues";
 import type { Project } from "~/api/types";
 import { theme } from "~/core/theme";
+import { ChipRow, chipOffsets, type ChipSpec } from "~/ui/components/Chip";
 import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
 
 /** Pre-defined date range options matching Sentry's web UI. */
@@ -20,6 +21,11 @@ export type FilterDropdownType = "project" | "env" | "date" | null;
 
 /** Blank rows rendered above and below the selector row to give it breathing room. */
 const ROW_GAP = 1;
+
+/** Chip order in the filter row, so a click and the open state agree. */
+const CHIP_ORDER = ["project", "env", "date"] as const satisfies ReadonlyArray<
+  Exclude<FilterDropdownType, null>
+>;
 
 export interface FilterBarProps {
   client: SentryClient | null;
@@ -42,6 +48,8 @@ export interface FilterBarProps {
   onEnvChange: (envs: string[]) => void;
   onPeriodChange: (period: string) => void;
   onDropdownClose: () => void;
+  /** Open a dropdown by clicking its chip; the keyboard route lives in `App`. */
+  onDropdownOpen?: (which: FilterDropdownType) => void;
 }
 
 /**
@@ -62,6 +70,7 @@ export function FilterBar({
   onEnvChange,
   onPeriodChange,
   onDropdownClose,
+  onDropdownOpen,
 }: FilterBarProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [environments, setEnvironments] = useState<Environment[]>([]);
@@ -106,13 +115,13 @@ export function FilterBar({
         ? selectedEnvs[0]!
         : `${selectedEnvs.length} envs`;
 
-  // Compute anchor positions for each dropdown.
-  // The filter row shows: [projects] [envs] [period]
-  const projectAnchorLeft = 0;
-  const projectChip = `[${projectLabel}]`;
-  const envAnchorLeft = projectChip.length + 1;
-  const envChip = `[${envLabel}]`;
-  const dateAnchorLeft = envAnchorLeft + envChip.length + 1;
+  // The filter row is three chips; each dropdown drops from its own left edge.
+  const chips: ChipSpec[] = [
+    { command: "sentry.view.filterProject", label: projectLabel, caret: true },
+    { command: "sentry.view.filterEnv", label: envLabel, caret: true },
+    { command: "sentry.view.filterDate", label: statsPeriod, caret: true },
+  ];
+  const [projectAnchorLeft = 0, envAnchorLeft = 0, dateAnchorLeft = 0] = chipOffsets(chips);
 
   const handleProjectSelect = useCallback(
     (values: string[]) => {
@@ -148,11 +157,11 @@ export function FilterBar({
           marginBottom: ROW_GAP,
         }}
       >
-        <text fg={openDropdown === "project" ? theme.accent : theme.muted}>{projectChip}</text>
-        <text fg={theme.muted}> </text>
-        <text fg={openDropdown === "env" ? theme.accent : theme.muted}>{envChip}</text>
-        <text fg={theme.muted}> </text>
-        <text fg={openDropdown === "date" ? theme.accent : theme.muted}>{`[${statsPeriod}]`}</text>
+        <ChipRow
+          chips={chips}
+          activeIndex={openDropdown ? CHIP_ORDER.indexOf(openDropdown) : undefined}
+          onPress={(_chip, index) => onDropdownOpen?.(CHIP_ORDER[index] ?? null)}
+        />
         <box style={{ flexGrow: 1 }} />
         <text fg={theme.muted}>{`Sort: ${sortLabel}`}</text>
       </box>

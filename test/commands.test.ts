@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import { COMMANDS, formatKey, getCommand, matchesCommand, primaryKey } from "~/core/commands";
+import { measureTextWidth } from "~/lib/text";
+import { HELP_CHROME, HELP_KEY_COLUMN, HELP_WIDTH } from "~/ui/components/HelpDialog";
 
 const key = (name: string, mods: { shift?: boolean; ctrl?: boolean; meta?: boolean } = {}) => ({
   name,
@@ -85,5 +87,30 @@ describe("catalog", () => {
   test("getCommand looks up by id", () => {
     expect(getCommand("sentry.app.quit")?.title).toBe("Quit");
     expect(getCommand("nope")).toBeUndefined();
+  });
+});
+
+describe("the help overlay can render the whole catalog", () => {
+  // The overlay pads keys into a fixed column and truncates what overflows,
+  // which would print an ellipsis where a real chord should be.
+  test("every command's key list fits the help dialog's key column", () => {
+    for (const command of COMMANDS) {
+      const keys = command.defaultKeys.map(formatKey).join(", ");
+      expect({ id: command.id, width: measureTextWidth(keys) }).toEqual({
+        id: command.id,
+        width: Math.min(measureTextWidth(keys), HELP_KEY_COLUMN),
+      });
+    }
+  });
+
+  test("every command's row fits the dialog's width", () => {
+    for (const command of COMMANDS) {
+      const label = command.description ?? command.title;
+      const row = HELP_KEY_COLUMN + measureTextWidth(label);
+      expect({ id: command.id, fits: row <= HELP_WIDTH - HELP_CHROME }).toEqual({
+        id: command.id,
+        fits: true,
+      });
+    }
   });
 });
