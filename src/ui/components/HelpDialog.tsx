@@ -6,6 +6,7 @@ import { ModalFrame } from "~/ui/components/ModalFrame";
 const SECTIONS: Array<{ category: CommandCategory; title: string }> = [
   { category: "nav", title: "Navigation" },
   { category: "issue", title: "Issue actions" },
+  { category: "view", title: "View / Filters" },
   { category: "app", title: "Application" },
 ];
 

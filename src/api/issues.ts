@@ -222,3 +222,19 @@ export async function listProjects(
   const page = await client.request<Project[]>(`/organizations/${org}/projects/`, { signal });
   return page.data;
 }
+
+export interface Environment {
+  id: string;
+  name: string;
+}
+
+/** Fetch visible environments for the organization. */
+export async function listEnvironments(
+  client: SentryClient,
+  { org, signal }: { org: string; signal?: AbortSignal },
+): Promise<Environment[]> {
+  const page = await client.request<Environment[]>(`/organizations/${org}/environments/`, {
+    signal,
+  });
+  return page.data;
+}
