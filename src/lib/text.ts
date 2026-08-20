@@ -29,8 +29,19 @@ export function fitText(text: string, width: number, ellipsis = "…"): string {
 }
 
 /** Pad to exactly `width` cells (truncating if too long). */
-export function padText(text: string, width: number, align: "left" | "right" = "left"): string {
+export function padText(
+  text: string,
+  width: number,
+  align: "left" | "right" | "center" = "left",
+): string {
   const fitted = fitText(text, width);
-  const pad = " ".repeat(Math.max(0, width - measureTextWidth(fitted)));
+  const slack = Math.max(0, width - measureTextWidth(fitted));
+  if (align === "center") {
+    // Odd slack leans left, so a label sits against the leading edge of its
+    // cell rather than drifting right of centre.
+    const left = Math.floor(slack / 2);
+    return " ".repeat(left) + fitted + " ".repeat(slack - left);
+  }
+  const pad = " ".repeat(slack);
   return align === "left" ? fitted + pad : pad + fitted;
 }

@@ -15,12 +15,20 @@ import { BOLD } from "~/ui/lib/attributes";
 const COLUMN_WIDTH = {
   lastSeen: 10,
   age: 6,
-  sparkline: 11,
+  sparkline: 12,
   events: 7,
   users: 7,
   priority: 6,
   assignee: 5,
 } as const;
+
+/**
+ * The sparkline fills its cell edge to edge, so unlike the right-aligned text
+ * columns it has no whitespace of its own to separate it from its neighbours.
+ * It is bracketed instead: gap, rule, glyphs, rule — `COLUMN_WIDTH.sparkline`
+ * split four ways.
+ */
+const SPARKLINE_GLYPHS = COLUMN_WIDTH.sparkline - 3;
 
 export type ColumnKey = keyof typeof COLUMN_WIDTH;
 
@@ -123,6 +131,37 @@ function RowRule({
   return <text fg={fg}>{glyph.repeat(Math.max(0, width))}</text>;
 }
 
+/**
+ * The Trend cell — bracketed content at exactly `COLUMN_WIDTH.sparkline`.
+ * Shared by the header, the row and the skeleton so the rules stay in one
+ * column all the way down the list.
+ *
+ * @param content Cell body, already `SPARKLINE_GLYPHS` wide.
+ * @param rules Draw the bracketing rules. The header blanks them — its label
+ *   is already set apart by the row rule beneath it — while still spending the
+ *   cells, so the column stays aligned with the rows.
+ */
+function TrendCell({
+  content,
+  fg,
+  rules = true,
+}: {
+  content: string;
+  fg: string;
+  rules?: boolean;
+}) {
+  const rule = rules ? "│" : " ";
+
+  return (
+    <>
+      <text> </text>
+      <text fg={theme.border}>{rule}</text>
+      <text fg={fg}>{content}</text>
+      <text fg={theme.border}>{rule}</text>
+    </>
+  );
+}
+
 /** Column headers, aligned with the rows below them. */
 export function IssueListHeader({
   width,
@@ -144,11 +183,20 @@ export function IssueListHeader({
         }}
       >
         <text fg={theme.muted}>{padText("Issue", MARKER_WIDTH + layout.title)}</text>
-        {layout.columns.map((key) => (
-          <text key={key} fg={theme.muted}>
-            {padText(COLUMN_LABEL[key], COLUMN_WIDTH[key], "right")}
-          </text>
-        ))}
+        {layout.columns.map((key) =>
+          key === "sparkline" ? (
+            <TrendCell
+              key={key}
+              content={padText(COLUMN_LABEL[key], SPARKLINE_GLYPHS, "center")}
+              fg={theme.muted}
+              rules={false}
+            />
+          ) : (
+            <text key={key} fg={theme.muted}>
+              {padText(COLUMN_LABEL[key], COLUMN_WIDTH[key], "right")}
+            </text>
+          ),
+        )}
       </box>
       <RowRule width={width} selectionBelow={selectionBelow} />
     </box>
@@ -241,7 +289,9 @@ function Column({ column, group }: { column: ColumnKey; group: Group }) {
 
   switch (column) {
     case "sparkline":
-      return <text fg={theme.muted}>{sparkline(group.stats?.["24h"], width)}</text>;
+      return (
+        <TrendCell content={sparkline(group.stats?.["24h"], SPARKLINE_GLYPHS)} fg={theme.muted} />
+      );
     case "events":
       return <text fg={theme.text}>{padText(formatCount(group.count), width, "right")}</text>;
     case "users":
@@ -320,15 +370,15 @@ export function IssueRowSkeleton({ width, seed }: { width: number; seed: number 
       <box style={{ flexDirection: "row" }}>
         <text>{"   "}</text>
         <text fg={theme.panelAlt}>{padText("─".repeat(titleBar), layout.title)}</text>
-        {layout.columns.map((key) => (
-          <text key={key} fg={theme.panelAlt}>
-            {padText(
-              key === "sparkline" ? "╌".repeat(COLUMN_WIDTH[key]) : "··",
-              COLUMN_WIDTH[key],
-              "right",
-            )}
-          </text>
-        ))}
+        {layout.columns.map((key) =>
+          key === "sparkline" ? (
+            <TrendCell key={key} content={"╌".repeat(SPARKLINE_GLYPHS)} fg={theme.panelAlt} />
+          ) : (
+            <text key={key} fg={theme.panelAlt}>
+              {padText("··", COLUMN_WIDTH[key], "right")}
+            </text>
+          ),
+        )}
       </box>
       <box style={{ flexDirection: "row" }}>
         <text>{"   "}</text>
