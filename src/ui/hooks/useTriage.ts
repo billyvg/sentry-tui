@@ -81,7 +81,7 @@ export function useTriage(
           onOptimistic(original); // roll back
           onNotice({
             kind: "error",
-            text: `Failed: ${error instanceof ApiError ? error.message : String(error)}`,
+            text: `failed: ${error instanceof ApiError ? error.message : String(error)}`,
           });
         } finally {
           if (!controller.signal.aborted) {

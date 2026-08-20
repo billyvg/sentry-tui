@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import type { Group } from "~/api/types";
-import { applyUpdate, findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
+import { applyUpdate, findTriageAction, noOpNotice, TRIAGE_ACTIONS } from "~/core/triage";
 import { App } from "~/ui/App";
 import { eventFixture, groupsFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
@@ -19,6 +19,19 @@ describe("triage actions", () => {
   test("every action maps to a real command", () => {
     for (const action of TRIAGE_ACTIONS) {
       expect(findTriageAction(action.commandId)).toBe(action);
+    }
+  });
+
+  // The status bar speaks in lower case, and these strings are half of what it
+  // says. A capitalised one would read as a heading rather than an aside.
+  test("notice text is lower case", () => {
+    const phrases = [
+      ...TRIAGE_ACTIONS.map((a) => a.pastTense),
+      ...TRIAGE_ACTIONS.map((a) => noOpNotice(a.commandId)),
+      noOpNotice("sentry.issue.bookmark"),
+    ];
+    for (const phrase of phrases) {
+      expect({ phrase, lower: phrase }).toEqual({ phrase, lower: phrase.toLowerCase() });
     }
   });
 
@@ -122,10 +135,10 @@ describe("triage from the issue list", () => {
     const h = await renderList(impl);
     try {
       await h.press((i) => i.pressKey("r"));
-      await h.waitForFrame((f) => f.includes("Resolved"));
+      await h.waitForFrame((f) => f.includes("resolved PUMP-STATION-1"));
 
       expect(puts).toEqual([{ status: "resolved" }]);
-      expect(h.frame()).toContain("Resolved PUMP-STATION-1");
+      expect(h.frame()).toContain("resolved PUMP-STATION-1");
     } finally {
       await h.cleanup();
     }
@@ -136,7 +149,7 @@ describe("triage from the issue list", () => {
     const h = await renderList(impl);
     try {
       await h.press((i) => i.pressKey("a"));
-      await h.waitForFrame((f) => f.includes("Archived"));
+      await h.waitForFrame((f) => f.includes("archived PUMP-STATION-1"));
 
       expect(puts).toEqual([{ status: "ignored", substatus: "archived_until_escalating" }]);
     } finally {
@@ -150,10 +163,10 @@ describe("triage from the issue list", () => {
     try {
       await h.press((i) => i.pressKey("j")); // move to ValueError
       await h.press((i) => i.pressKey("r"));
-      await h.waitForFrame((f) => f.includes("Resolved"));
+      await h.waitForFrame((f) => f.includes("resolved PUMP-STATION-2"));
 
       expect(puts).toHaveLength(1);
-      expect(h.frame()).toContain("Resolved PUMP-STATION-2");
+      expect(h.frame()).toContain("resolved PUMP-STATION-2");
     } finally {
       await h.cleanup();
     }
@@ -164,10 +177,10 @@ describe("triage from the issue list", () => {
     const h = await renderList(impl);
     try {
       await h.press((i) => i.pressKey("b")); // bookmark
-      await h.waitForFrame((f) => f.includes("Failed"));
+      await h.waitForFrame((f) => f.includes("failed"));
 
       const frame = h.frame();
-      expect(frame).toContain("Failed");
+      expect(frame).toContain("failed");
       // The row is still there and readable — no crash, no blank state.
       expect(frame).toContain("TypeError");
     } finally {
@@ -183,11 +196,11 @@ describe("triage from the issue list", () => {
       // again — the second press has nothing to do.
       await h.press((i) => i.pressKey("G", { shift: true }));
       await h.press((i) => i.pressKey("u"));
-      await h.waitForFrame((f) => f.includes("Unresolved"));
+      await h.waitForFrame((f) => f.includes("unresolved PUMP-STATION-3"));
       const after = puts.length;
 
       await h.press((i) => i.pressKey("u"));
-      await h.waitForFrame((f) => f.includes("Already unresolved"));
+      await h.waitForFrame((f) => f.includes("already unresolved"));
       expect(puts).toHaveLength(after);
     } finally {
       await h.cleanup();

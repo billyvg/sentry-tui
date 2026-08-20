@@ -30,11 +30,10 @@ export interface Theme {
   warning: string;
   success: string;
   /**
-   * Sentry pink — for announcing that the context changed rather than that
-   * something succeeded or failed. Deliberately not the `1200` tint the other
-   * semantic colors use: at that step pink lands next to `danger`'s salmon, and
-   * two notices in the same status-bar slot must never be mistaken for each
-   * other.
+   * Sentry pink — the status bar's own voice, worn by every notice that isn't
+   * a failure. Deliberately not the `1200` tint the other semantic colors use:
+   * at that step pink lands next to `danger`'s salmon, and those two take turns
+   * in the same slot, so they must never be mistaken for each other.
    */
   highlight: string;
 

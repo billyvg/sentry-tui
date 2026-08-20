@@ -120,7 +120,7 @@ test("selecting an org refetches the stream against it and stores the default", 
     await h.waitForFrame((f) => f.includes("globexError"));
     const frame = h.frame();
     expect(frame).toContain("globex");
-    expect(frame).toContain("Switched to globex");
+    expect(frame).toContain("switched to globex");
     // The old org's rows are gone rather than left behind under the new slug.
     expect(frame).not.toContain("acmeError");
     expect(listedOrgs).toContain("globex");

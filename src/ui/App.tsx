@@ -255,7 +255,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
       setLogSelected(0);
       setLogSelectedProjects([]);
       setLogSelectedEnvs([]);
-      showNotice({ kind: "highlight", text: `Switched to ${slug}` });
+      showNotice({ kind: "info", text: `switched to ${slug}` });
 
       void writeConfig({ org: slug }).catch(() => {
         // A read-only config dir shouldn't undo a switch that already happened;
@@ -835,12 +835,12 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
 function toNotice(status: StreamStatus, showIssues: boolean): Notice {
   if (!showIssues) return { kind: "idle", text: "" };
   if (status.error) return { kind: "error", text: status.error };
-  if (status.loading) return { kind: "loading", text: "Loading issues…" };
+  if (status.loading) return { kind: "loading", text: "loading issues…" };
   return { kind: "idle", text: "" };
 }
 
 function toLogNotice(status: StreamStatus): Notice {
   if (status.error) return { kind: "error", text: status.error };
-  if (status.loading) return { kind: "loading", text: "Loading logs…" };
+  if (status.loading) return { kind: "loading", text: "loading logs…" };
   return { kind: "idle", text: "" };
 }
