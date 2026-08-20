@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, type SentryClient } from "~/api/client";
-import { fetchIssueStats, listIssues, type SortOption } from "~/api/issues";
+import { fetchIssueStats, listIssues, type IssueStats, type SortOption } from "~/api/issues";
 import type { Group } from "~/api/types";
 import {
   type AsyncError,
@@ -120,9 +120,24 @@ export function useIssues(
   return { issues, statsLoading, nextCursor, reload };
 }
 
-function mergeStats(groups: Group[], stats: Record<string, unknown>): Group[] {
+/**
+ * Fold phase-two data onto the list rows.
+ *
+ * `collapse=stats` strips the counts and seen timestamps as well as the graph
+ * series, so all of them arrive here — not just `stats`.
+ */
+function mergeStats(groups: Group[], stats: IssueStats): Group[] {
   return groups.map((group) => {
-    const entry = stats[group.id] as Group["stats"] | undefined;
-    return entry ? { ...group, stats: { ...group.stats, ...entry } } : group;
+    const entry = stats[group.id];
+    if (!entry) return group;
+    return {
+      ...group,
+      count: entry.count ?? group.count,
+      userCount: entry.userCount ?? group.userCount,
+      firstSeen: entry.firstSeen ?? group.firstSeen,
+      lastSeen: entry.lastSeen ?? group.lastSeen,
+      isUnhandled: entry.isUnhandled ?? group.isUnhandled,
+      stats: { ...group.stats, ...entry.stats },
+    };
   });
 }

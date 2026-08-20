@@ -35,3 +35,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # CI / build artifacts
 *.tsbuildinfo
+
+# Local agent tooling
+.pi

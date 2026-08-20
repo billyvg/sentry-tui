@@ -31,34 +31,51 @@ function deferredClient() {
     const url = String(input);
     if (url.includes("issues-stats")) {
       await statsGate;
-      // Stats keyed by group id, as /issues-stats/ returns them.
-      return json({
-        "1": {
-          "24h": [
-            [0, 1],
-            [1, 9],
-            [2, 4],
-          ],
+      // An *array* of entries carrying their own id — the real response shape.
+      // Counts live here too, because collapse=stats strips them from the list.
+      return json([
+        {
+          id: "1",
+          count: "1428",
+          userCount: 92,
+          lastSeen: groupsFixture[0]!.lastSeen,
+          stats: {
+            "24h": [
+              [0, 1],
+              [1, 9],
+              [2, 4],
+            ],
+          },
         },
-        "2": {
-          "24h": [
-            [0, 2],
-            [1, 3],
-            [2, 1],
-          ],
+        {
+          id: "2",
+          count: "312",
+          userCount: 41,
+          stats: {
+            "24h": [
+              [0, 2],
+              [1, 3],
+              [2, 1],
+            ],
+          },
         },
-        "3": {
-          "24h": [
-            [0, 0],
-            [1, 1],
-            [2, 0],
-          ],
+        {
+          id: "3",
+          count: "58",
+          userCount: 7,
+          stats: {
+            "24h": [
+              [0, 0],
+              [1, 1],
+              [2, 0],
+            ],
+          },
         },
-      });
+      ]);
     }
     await listGate;
-    // Mirror the API: collapse=stats means no stats on the list response.
-    return json(groupsFixture.map(({ stats: _s, ...rest }) => rest));
+    // Mirror the API: collapse=stats omits the graph series *and* the counts.
+    return json(groupsFixture.map(({ stats: _s, count: _c, userCount: _u, ...rest }) => rest));
   }) as unknown as typeof fetch;
 
   return {
@@ -102,11 +119,14 @@ test("renders text before sparklines — the point of the two-phase fetch", asyn
     await h.press(() => releaseList());
     await h.waitForFrame((f) => f.includes("TypeError"));
 
-    // List has landed; stats have not.
+    // List has landed; stats have not. Counts show a placeholder rather than
+    // a fabricated 0 — an absent count is pending, not zero.
     const afterList = h.frame();
     expect(afterList).toContain("TypeError");
     expect(afterList).toContain("PUMP-STATION-1");
     expect(afterList).toContain(SPARKLINE_PENDING);
+    expect(afterList).toContain("··");
+    expect(afterList).not.toContain("1.4k");
 
     await h.press(() => releaseStats());
     await h.waitForFrame((f) => !f.includes(SPARKLINE_PENDING));
@@ -114,6 +134,9 @@ test("renders text before sparklines — the point of the two-phase fetch", asyn
     const afterStats = h.frame();
     expect(afterStats).toContain("TypeError"); // rows unchanged
     expect(afterStats).not.toContain(SPARKLINE_PENDING);
+    // collapse=stats strips the counts as well as the graphs, so phase two
+    // fills in both.
+    expect(afterStats).toContain("1.4k");
   } finally {
     await h.cleanup();
   }

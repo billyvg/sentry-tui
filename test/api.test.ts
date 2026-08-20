@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { createTokenAuthProvider, MissingTokenError } from "~/api/auth";
 import { ApiError, parseLinkHeader, SentryClient } from "~/api/client";
-import { listIssues, updateIssue } from "~/api/issues";
+import { fetchIssueStats, listIssues, updateIssue } from "~/api/issues";
 import { groupsFixture } from "./fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
@@ -108,6 +108,32 @@ describe("SentryClient", () => {
     expect(url).toContain("collapse=unhandled");
     expect(url).toContain("limit=25");
     expect(url).toContain("shortIdLookup=1");
+  });
+
+  test("keys the /issues-stats/ array response by issue id", async () => {
+    // The endpoint returns an array whose entries carry their own `id`, not an
+    // object keyed by id. Getting this wrong silently yields no stats at all.
+    const { impl } = stubFetch(() =>
+      json([
+        { id: "1", count: "42", userCount: 7, stats: { "24h": [[0, 1]] } },
+        { id: "2", count: "9", userCount: 1 },
+      ]),
+    );
+    const client = new SentryClient({ auth, fetchImpl: impl });
+
+    const stats = await fetchIssueStats(client, { org: "acme", groups: ["1", "2"] });
+
+    expect(Object.keys(stats).sort()).toEqual(["1", "2"]);
+    expect(stats["1"]?.count).toBe("42");
+    expect(stats["1"]?.stats?.["24h"]).toEqual([[0, 1]]);
+  });
+
+  test("skips the stats request entirely when there are no ids", async () => {
+    const { impl, calls } = stubFetch(() => json([]));
+    const client = new SentryClient({ auth, fetchImpl: impl });
+
+    expect(await fetchIssueStats(client, { org: "acme", groups: [] })).toEqual({});
+    expect(calls).toHaveLength(0);
   });
 
   test("repeats array params rather than joining them", async () => {

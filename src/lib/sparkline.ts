@@ -52,7 +52,10 @@ function downsample(values: number[], width: number): number[] {
 }
 
 /** Compact counts the way Sentry's `<Count>` does: 1.4k, 12k, 1.2m. */
-export function formatCount(value: number | string): string {
+export function formatCount(value: number | string | undefined): string {
+  // An absent count is pending phase two, not zero — say so rather than
+  // asserting a number we don't have yet.
+  if (value === undefined) return "··";
   const n = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(n)) return "0";
   if (n < 1000) return String(n);
@@ -62,7 +65,8 @@ export function formatCount(value: number | string): string {
 }
 
 /** Short relative time, as the issue stream shows it: 5s, 12m, 3h, 2d, 4w. */
-export function timeAgo(iso: string, now = Date.now()): string {
+export function timeAgo(iso: string | undefined, now = Date.now()): string {
+  if (!iso) return "";
   const then = Date.parse(iso);
   if (Number.isNaN(then)) return "";
   const seconds = Math.max(0, Math.floor((now - then) / 1000));

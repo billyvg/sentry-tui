@@ -60,11 +60,16 @@ export interface Group {
   status: GroupStatus;
   substatus: GroupSubstatus | null;
   priority?: PriorityLevel;
-  /** Event count as a string — Sentry returns these stringified. */
-  count: string;
-  userCount: number;
-  firstSeen: string;
-  lastSeen: string;
+  /**
+   * Event count as a string — Sentry returns these stringified.
+   *
+   * Optional because `collapse=stats` on the list request omits the counts
+   * and seen timestamps; they arrive from `/issues-stats/` in phase two.
+   */
+  count?: string;
+  userCount?: number;
+  firstSeen?: string;
+  lastSeen?: string;
   permalink: string;
   project: AvatarProject;
   isBookmarked: boolean;

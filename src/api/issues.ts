@@ -78,11 +78,29 @@ export async function listIssues(
   });
 }
 
-export type IssueStats = Record<string, { "24h"?: TimeseriesValue[] } & Record<string, unknown>>;
+/**
+ * One entry from `/issues-stats/`.
+ *
+ * `collapse=stats` on the list request strips more than the graph data — the
+ * counts and seen timestamps come back here too, which is why phase two fills
+ * in numbers as well as sparklines.
+ */
+export interface IssueStatsEntry {
+  id: string;
+  count?: string;
+  userCount?: number;
+  firstSeen?: string;
+  lastSeen?: string;
+  isUnhandled?: boolean;
+  stats?: Record<string, TimeseriesValue[]>;
+}
+
+/** Stats keyed by issue id, for merging back onto the list. */
+export type IssueStats = Record<string, IssueStatsEntry>;
 
 /**
- * Phase two: sparkline data for the ids just returned, so rows can be read and
- * navigated while the graphs are still in flight.
+ * Phase two: counts and sparkline data for the ids just returned, so rows can
+ * be read and navigated while the graphs are still in flight.
  */
 export async function fetchIssueStats(
   client: SentryClient,
@@ -101,11 +119,14 @@ export async function fetchIssueStats(
   },
 ): Promise<IssueStats> {
   if (groups.length === 0) return {};
-  const page = await client.request<IssueStats>(`/organizations/${org}/issues-stats/`, {
+  // The endpoint returns an array of entries carrying their own `id`, not an
+  // object keyed by issue id — key it here so callers can merge by lookup.
+  const page = await client.request<IssueStatsEntry[]>(`/organizations/${org}/issues-stats/`, {
     query: { groups, statsPeriod, groupStatsPeriod },
     signal,
   });
-  return page.data;
+  const entries = Array.isArray(page.data) ? page.data : [];
+  return Object.fromEntries(entries.map((entry) => [entry.id, entry]));
 }
 
 export async function fetchIssue(
