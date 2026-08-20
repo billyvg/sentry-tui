@@ -23,10 +23,7 @@ export type AsyncStatus<T> =
 export const idle = <T>(): AsyncStatus<T> => ({ state: "idle" });
 
 /** Begin a load, carrying forward whatever value is currently on screen. */
-export function startLoading<T>(
-  current: AsyncStatus<T> | undefined,
-  now: number,
-): AsyncStatus<T> {
+export function startLoading<T>(current: AsyncStatus<T> | undefined, now: number): AsyncStatus<T> {
   return { state: "loading", since: now, previous: valueOf(current) };
 }
 
@@ -70,16 +67,11 @@ export function isInitialLoad<T>(status: AsyncStatus<T> | undefined): boolean {
   return status?.state === "loading" && status.previous === undefined;
 }
 
-export function errorOf<T>(
-  status: AsyncStatus<T> | undefined,
-): AsyncError | undefined {
+export function errorOf<T>(status: AsyncStatus<T> | undefined): AsyncError | undefined {
   return status?.state === "error" ? status.error : undefined;
 }
 
 /** How long the current load has been running, for the status bar. */
-export function elapsedMs<T>(
-  status: AsyncStatus<T> | undefined,
-  now: number,
-): number | undefined {
+export function elapsedMs<T>(status: AsyncStatus<T> | undefined, now: number): number | undefined {
   return status?.state === "loading" ? now - status.since : undefined;
 }

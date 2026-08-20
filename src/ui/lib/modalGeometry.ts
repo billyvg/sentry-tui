@@ -19,14 +19,8 @@ export function resolveModalGeometry({
   terminalHeight: number;
   margin?: number;
 }): ModalGeometry {
-  const clampedWidth = Math.max(
-    1,
-    Math.min(width, terminalWidth - margin * 2),
-  );
-  const clampedHeight = Math.max(
-    1,
-    Math.min(height, terminalHeight - margin * 2),
-  );
+  const clampedWidth = Math.max(1, Math.min(width, terminalWidth - margin * 2));
+  const clampedHeight = Math.max(1, Math.min(height, terminalHeight - margin * 2));
   return {
     width: clampedWidth,
     height: clampedHeight,

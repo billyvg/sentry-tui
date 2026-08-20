@@ -27,7 +27,5 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  createRoot(renderer).render(
-    <App onQuit={shutdown} client={client} org={org} />,
-  );
+  createRoot(renderer).render(<App onQuit={shutdown} client={client} org={org} />);
 }

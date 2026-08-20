@@ -44,9 +44,7 @@ export function StatusBar({
   if (loading) {
     // Only surface elapsed time once the wait is long enough to worry about.
     const suffix =
-      elapsedMs !== undefined && elapsedMs >= 2000
-        ? ` ${(elapsedMs / 1000).toFixed(1)}s`
-        : "";
+      elapsedMs !== undefined && elapsedMs >= 2000 ? ` ${(elapsedMs / 1000).toFixed(1)}s` : "";
     text = `${frame} ${notice.text}${suffix}`;
   }
 

@@ -1,4 +1,8 @@
-import type { TimeseriesValue } from "~/api/types";
+/**
+ * `[unixSeconds, count]`. Declared structurally rather than imported from
+ * `~/api/types` so this stays a dependency-free leaf module.
+ */
+export type SeriesPoint = readonly [number, number];
 
 const BLOCKS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"] as const;
 /** Shown while stats are still in flight, so the column doesn't reflow. */
@@ -10,10 +14,7 @@ export const SPARKLINE_PENDING = "╌";
  * Downsamples by averaging buckets so the shape survives a narrow column, and
  * pads on the left so a short series stays right-aligned with its neighbours.
  */
-export function sparkline(
-  series: TimeseriesValue[] | undefined,
-  width: number,
-): string {
+export function sparkline(series: readonly SeriesPoint[] | undefined, width: number): string {
   if (width <= 0) return "";
   if (!series || series.length === 0) return SPARKLINE_PENDING.repeat(width);
 

@@ -11,6 +11,7 @@ import { NavRail, NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
 import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
+import { IssueDetail } from "~/ui/screens/IssueDetail";
 import { IssueStream } from "~/ui/screens/IssueStream";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
 
@@ -38,6 +39,8 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   const [issues, setIssues] = useState<Group[]>([]);
   const [selected, setSelected] = useState(0);
   const [status, setStatus] = useState<StreamStatus>({ loading: false });
+  // A view stack rather than a router: Enter pushes a detail view, Esc pops.
+  const [openIssue, setOpenIssue] = useState<Group | null>(null);
   const focus = useFocusRing<Region>(REGIONS);
 
   const showIssues = group === "issues";
@@ -55,15 +58,21 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         // 1. Overlays swallow everything while open.
         () => {
           if (!showHelp) return "notMine";
-          if (
-            matchesCommand("sentry.nav.back", key) ||
-            matchesCommand("sentry.app.help", key)
-          ) {
+          if (matchesCommand("sentry.nav.back", key) || matchesCommand("sentry.app.help", key)) {
             setShowHelp(false);
           }
           return "mine";
         },
-        // 2. Global app commands.
+        // 2. The detail view owns Escape (back) before anything else claims it.
+        () => {
+          if (!openIssue) return "notMine";
+          if (matchesCommand("sentry.nav.back", key)) {
+            setOpenIssue(null);
+            return "mine";
+          }
+          return "notMine";
+        },
+        // 3. Global app commands.
         () => {
           if (matchesCommand("sentry.app.help", key)) {
             setShowHelp(true);
@@ -83,8 +92,9 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 3. Nav rail.
+        // 4. Nav rail. Suspended while a detail view is open.
         () => {
+          if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "nav") return "notMine";
           const index = NAV_GROUPS.findIndex((g) => g.id === group);
           const step = matchesCommand("sentry.nav.down", key)
@@ -93,14 +103,14 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               ? -1
               : 0;
           if (step === 0) return "notMine";
-          const next =
-            NAV_GROUPS[(index + step + NAV_GROUPS.length) % NAV_GROUPS.length]!;
+          const next = NAV_GROUPS[(index + step + NAV_GROUPS.length) % NAV_GROUPS.length]!;
           setGroup(next.id);
           setItem(next.sections[0]?.items[0] ?? "");
           return "mine";
         },
-        // 4. Secondary nav.
+        // 5. Secondary nav.
         () => {
+          if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "secondary") return "notMine";
           const items = getNavGroup(group).sections.flatMap((s) => s.items);
           const index = items.indexOf(item);
@@ -114,10 +124,16 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 5. Issue list cursor.
+        // 6. Issue list cursor and open.
         () => {
+          if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "content") return "notMine";
           const last = Math.max(0, issues.length - 1);
+          if (matchesCommand("sentry.nav.open", key)) {
+            const target = issues[selected];
+            if (target) setOpenIssue(target);
+            return "mine";
+          }
           if (matchesCommand("sentry.nav.down", key)) {
             setSelected((i) => Math.min(i + 1, last));
             return "mine";
@@ -142,10 +158,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
     );
   });
 
-  const contentWidth = Math.max(
-    20,
-    width - NAV_RAIL_WIDTH - SECONDARY_NAV_WIDTH - 2,
-  );
+  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - SECONDARY_NAV_WIDTH - 2);
   const contentHeight = Math.max(3, height - 1);
 
   return (
@@ -159,23 +172,26 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
     >
       <box style={{ flexGrow: 1, flexDirection: "row" }}>
         <NavRail active={group} focused={focus.isFocused("nav")} />
-        <SecondaryNav
-          group={group}
-          activeItem={item}
-          focused={focus.isFocused("secondary")}
-        />
+        <SecondaryNav group={group} activeItem={item} focused={focus.isFocused("secondary")} />
         <box
           style={{
             flexGrow: 1,
             flexDirection: "column",
             paddingLeft: 1,
             border: ["left"],
-            borderColor: focus.isFocused("content")
-              ? theme.borderFocused
-              : theme.border,
+            borderColor: focus.isFocused("content") ? theme.borderFocused : theme.border,
           }}
         >
-          {showIssues ? (
+          {openIssue ? (
+            <IssueDetail
+              client={client}
+              org={org}
+              group={openIssue}
+              width={contentWidth}
+              height={contentHeight}
+              focused={focus.isFocused("content")}
+            />
+          ) : showIssues ? (
             <IssueStream
               client={client}
               org={org}
@@ -198,14 +214,25 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
       </box>
 
       <StatusBar
-        notice={toNotice(status, showIssues, org)}
-        elapsedMs={status.elapsedMs}
-        hints={[
-          { command: "sentry.nav.open", label: "open" },
-          { command: "sentry.app.refresh", label: "reload" },
-          { command: "sentry.app.help", label: "help" },
-          { command: "sentry.app.quit", label: "quit" },
-        ]}
+        notice={
+          openIssue ? { kind: "idle", text: openIssue.shortId } : toNotice(status, showIssues, org)
+        }
+        elapsedMs={openIssue ? undefined : status.elapsedMs}
+        hints={
+          openIssue
+            ? [
+                { command: "sentry.nav.back", label: "back" },
+                { command: "sentry.issue.resolve", label: "resolve" },
+                { command: "sentry.issue.archive", label: "archive" },
+                { command: "sentry.app.help", label: "help" },
+              ]
+            : [
+                { command: "sentry.nav.open", label: "open" },
+                { command: "sentry.app.refresh", label: "reload" },
+                { command: "sentry.app.help", label: "help" },
+                { command: "sentry.app.quit", label: "quit" },
+              ]
+        }
       />
 
       {showHelp ? <HelpDialog onClose={() => setShowHelp(false)} /> : null}
@@ -213,11 +240,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   );
 }
 
-function toNotice(
-  status: StreamStatus,
-  showIssues: boolean,
-  org: string,
-): Notice {
+function toNotice(status: StreamStatus, showIssues: boolean, org: string): Notice {
   if (!showIssues) return { kind: "idle", text: org || "Ready" };
   if (status.error) return { kind: "error", text: status.error };
   if (status.loading) return { kind: "loading", text: "Loading issues…" };

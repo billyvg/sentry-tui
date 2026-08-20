@@ -6,13 +6,7 @@
  * modules for context interfaces, so they can't be vendored wholesale.
  */
 
-export type Level =
-  | "error"
-  | "fatal"
-  | "info"
-  | "warning"
-  | "sample"
-  | "unknown";
+export type Level = "error" | "fatal" | "info" | "warning" | "sample" | "unknown";
 
 export const GroupStatus = {
   RESOLVED: "resolved",
@@ -31,8 +25,7 @@ export const GroupSubstatus = {
   REGRESSED: "regressed",
   NEW: "new",
 } as const;
-export type GroupSubstatus =
-  (typeof GroupSubstatus)[keyof typeof GroupSubstatus];
+export type GroupSubstatus = (typeof GroupSubstatus)[keyof typeof GroupSubstatus];
 
 export const PriorityLevel = {
   HIGH: "high",
@@ -242,7 +235,5 @@ export function findEntry<T extends Entry["type"]>(
   entries: Entry[],
   type: T,
 ): Extract<Entry, { type: T }> | undefined {
-  return entries.find((e) => e.type === type) as
-    | Extract<Entry, { type: T }>
-    | undefined;
+  return entries.find((e) => e.type === type) as Extract<Entry, { type: T }> | undefined;
 }

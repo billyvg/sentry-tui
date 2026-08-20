@@ -37,9 +37,7 @@ export function SecondaryNav({
       {nav.sections.map((section, si) => (
         <box key={si} style={{ flexDirection: "column" }}>
           <text fg={theme.border}>{"─".repeat(CONTENT_WIDTH)}</text>
-          {section.title ? (
-            <text fg={theme.muted}>{section.title}</text>
-          ) : null}
+          {section.title ? <text fg={theme.muted}>{section.title}</text> : null}
           {section.items.map((item) => {
             const isActive = item === activeItem;
             return (

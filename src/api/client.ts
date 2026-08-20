@@ -97,9 +97,7 @@ function parseRateLimit(headers: Headers): RateLimit {
   };
 }
 
-function buildQuery(
-  query: RequestOptions["query"],
-): string {
+function buildQuery(query: RequestOptions["query"]): string {
   if (!query) return "";
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
@@ -140,8 +138,7 @@ export class SentryClient {
   constructor(options: SentryClientOptions) {
     this.auth = options.auth;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
-    this.latencyMs =
-      options.latencyMs ?? Number(process.env["SENTRY_TUI_LATENCY"] ?? 0);
+    this.latencyMs = options.latencyMs ?? Number(process.env["SENTRY_TUI_LATENCY"] ?? 0);
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -195,10 +192,10 @@ export class SentryClient {
     } catch (error) {
       // A caller-initiated abort is not a failure — let it propagate as-is.
       if (signal?.aborted) throw error;
-      throw new ApiError(
-        error instanceof Error ? error.message : "Network request failed",
-        { status: 0, retryable: true },
-      );
+      throw new ApiError(error instanceof Error ? error.message : "Network request failed", {
+        status: 0,
+        retryable: true,
+      });
     }
 
     this.rateLimit = parseRateLimit(response.headers);
@@ -222,9 +219,7 @@ export class SentryClient {
 
     if (response.status === 429) {
       const reset = this.rateLimit.reset;
-      const seconds = reset
-        ? Math.max(1, Math.ceil(reset - Date.now() / 1000))
-        : undefined;
+      const seconds = reset ? Math.max(1, Math.ceil(reset - Date.now() / 1000)) : undefined;
       return new ApiError(message, {
         status: 429,
         retryable: true,

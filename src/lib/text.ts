@@ -29,11 +29,7 @@ export function fitText(text: string, width: number, ellipsis = "…"): string {
 }
 
 /** Pad to exactly `width` cells (truncating if too long). */
-export function padText(
-  text: string,
-  width: number,
-  align: "left" | "right" = "left",
-): string {
+export function padText(text: string, width: number, align: "left" | "right" = "left"): string {
   const fitted = fitText(text, width);
   const pad = " ".repeat(Math.max(0, width - measureTextWidth(fitted)));
   return align === "left" ? fitted + pad : pad + fitted;

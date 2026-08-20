@@ -4,13 +4,7 @@ import { theme } from "~/core/theme";
 import { IssueRowSkeleton, ROW_HEIGHT } from "~/ui/components/IssueRow";
 
 /** Skeleton rows sized to the page, so the list has its final height at once. */
-export function IssueListSkeleton({
-  width,
-  rows,
-}: {
-  width: number;
-  rows: number;
-}) {
+export function IssueListSkeleton({ width, rows }: { width: number; rows: number }) {
   return (
     <box style={{ flexDirection: "column", width }}>
       {Array.from({ length: rows }, (_, i) => (
@@ -43,9 +37,7 @@ export function IssueListError({ error }: { error: AsyncError }) {
       <text fg={theme.danger}>Failed to load issues</text>
       <text fg={theme.muted}>{error.message}</text>
       {error.retryable ? (
-        <text fg={theme.muted}>
-          {`${formatKey(primaryKey("sentry.app.refresh"))} to retry`}
-        </text>
+        <text fg={theme.muted}>{`${formatKey(primaryKey("sentry.app.refresh"))} to retry`}</text>
       ) : null}
     </box>
   );

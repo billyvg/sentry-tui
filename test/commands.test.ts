@@ -1,17 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  COMMANDS,
-  formatKey,
-  getCommand,
-  matchesCommand,
-  primaryKey,
-} from "~/core/commands";
+import { COMMANDS, formatKey, getCommand, matchesCommand, primaryKey } from "~/core/commands";
 
-const key = (
-  name: string,
-  mods: { shift?: boolean; ctrl?: boolean; meta?: boolean } = {},
-) => ({ name, ...mods });
+const key = (name: string, mods: { shift?: boolean; ctrl?: boolean; meta?: boolean } = {}) => ({
+  name,
+  ...mods,
+});
 
 describe("matchesCommand", () => {
   test("matches a plain letter chord", () => {
@@ -22,12 +16,8 @@ describe("matchesCommand", () => {
     // Regression: a bare "g" chord used to match shift+g, so "jump to top"
     // swallowed "jump to bottom" purely because it was declared first.
     expect(matchesCommand("sentry.nav.top", key("g"))).toBe(true);
-    expect(matchesCommand("sentry.nav.top", key("g", { shift: true }))).toBe(
-      false,
-    );
-    expect(matchesCommand("sentry.nav.bottom", key("g", { shift: true }))).toBe(
-      true,
-    );
+    expect(matchesCommand("sentry.nav.top", key("g", { shift: true }))).toBe(false);
+    expect(matchesCommand("sentry.nav.bottom", key("g", { shift: true }))).toBe(true);
     expect(matchesCommand("sentry.nav.bottom", key("g"))).toBe(false);
   });
 
@@ -52,9 +42,7 @@ describe("matchesCommand", () => {
   });
 
   test("modifier chords require their modifier", () => {
-    expect(matchesCommand("sentry.nav.pageDown", key("d", { ctrl: true }))).toBe(
-      true,
-    );
+    expect(matchesCommand("sentry.nav.pageDown", key("d", { ctrl: true }))).toBe(true);
     expect(matchesCommand("sentry.nav.pageDown", key("d"))).toBe(false);
   });
 
@@ -62,9 +50,7 @@ describe("matchesCommand", () => {
     expect(matchesCommand("sentry.nav.open", key("return"))).toBe(true);
     expect(matchesCommand("sentry.nav.back", key("escape"))).toBe(true);
     expect(matchesCommand("sentry.app.focusNext", key("tab"))).toBe(true);
-    expect(
-      matchesCommand("sentry.app.focusPrev", key("tab", { shift: true })),
-    ).toBe(true);
+    expect(matchesCommand("sentry.app.focusPrev", key("tab", { shift: true }))).toBe(true);
   });
 
   test("an unknown command matches nothing", () => {

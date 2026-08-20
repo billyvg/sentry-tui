@@ -210,10 +210,7 @@ function matchesChord(
   const isLetter = name.length === 1 && /[a-zA-Z]/.test(name);
   if (isLetter) {
     const needsShift = wantShift || name === name.toUpperCase();
-    return (
-      key.name.toLowerCase() === name.toLowerCase() &&
-      Boolean(key.shift) === needsShift
-    );
+    return key.name.toLowerCase() === name.toLowerCase() && Boolean(key.shift) === needsShift;
   }
 
   if (Boolean(key.shift) !== wantShift) return false;

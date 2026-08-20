@@ -4,13 +4,7 @@ import { theme } from "~/core/theme";
 export const NAV_RAIL_WIDTH = 3;
 
 /** The narrow icon rail — the terminal analogue of Sentry's 74px primary sidebar. */
-export function NavRail({
-  active,
-  focused,
-}: {
-  active: NavGroupId;
-  focused: boolean;
-}) {
+export function NavRail({ active, focused }: { active: NavGroupId; focused: boolean }) {
   return (
     <box
       style={{

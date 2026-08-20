@@ -15,9 +15,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
   // Rows are generated from the catalog, so an unbound command simply has no
   // row rather than advertising a dead key.
   const rows = SECTIONS.flatMap(({ category, title }) => {
-    const commands = COMMANDS.filter(
-      (c) => c.category === category && c.defaultKeys.length > 0,
-    );
+    const commands = COMMANDS.filter((c) => c.category === category && c.defaultKeys.length > 0);
     return commands.length ? [{ heading: title }, ...commands] : [];
   });
 

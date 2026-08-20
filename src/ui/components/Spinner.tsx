@@ -14,10 +14,7 @@ export function useSpinnerFrame(active = true): string {
 
   useEffect(() => {
     if (!active) return;
-    const timer = setInterval(
-      () => setIndex((i) => (i + 1) % FRAMES.length),
-      FRAME_MS,
-    );
+    const timer = setInterval(() => setIndex((i) => (i + 1) % FRAMES.length), FRAME_MS);
     return () => clearInterval(timer);
   }, [active]);
 

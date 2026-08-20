@@ -10,10 +10,7 @@ export interface Store<S, A> {
   dispatch(action: A): S;
 }
 
-export function createStore<S, A>(
-  initial: S,
-  reduce: (state: S, action: A) => S,
-): Store<S, A> {
+export function createStore<S, A>(initial: S, reduce: (state: S, action: A) => S): Store<S, A> {
   let snapshot = initial;
   const listeners = new Set<() => void>();
 

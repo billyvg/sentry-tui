@@ -6,13 +6,7 @@
  * recent IA change moved Alerts under Monitors and Releases under Explore.
  */
 
-export type NavGroupId =
-  | "issues"
-  | "explore"
-  | "dashboards"
-  | "insights"
-  | "monitors"
-  | "settings";
+export type NavGroupId = "issues" | "explore" | "dashboards" | "insights" | "monitors" | "settings";
 
 export interface NavGroup {
   id: NavGroupId;

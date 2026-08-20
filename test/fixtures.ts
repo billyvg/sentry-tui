@@ -3,10 +3,7 @@ import type { Group, SentryEvent, TimeseriesValue } from "~/api/types";
 function stats24h(peak: number): TimeseriesValue[] {
   const base = 1_700_000_000;
   const shape = [0.1, 0.3, 0.2, 0.6, 1, 0.8, 0.4, 0.2];
-  return shape.map((factor, i) => [
-    base + i * 3600,
-    Math.round(peak * factor),
-  ]);
+  return shape.map((factor, i) => [base + i * 3600, Math.round(peak * factor)]);
 }
 
 export const groupFixture: Group = {

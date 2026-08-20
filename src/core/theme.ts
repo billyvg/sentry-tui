@@ -41,13 +41,7 @@ export interface Theme {
   };
 }
 
-export type LevelKey =
-  | "error"
-  | "fatal"
-  | "info"
-  | "warning"
-  | "sample"
-  | "unknown";
+export type LevelKey = "error" | "fatal" | "info" | "warning" | "sample" | "unknown";
 
 export const darkTheme: Theme = {
   bg: "#0D0A10", // neutral.dark.100
@@ -88,3 +82,32 @@ export const darkTheme: Theme = {
 };
 
 export const theme = darkTheme;
+
+/**
+ * Tree-sitter token styles for `<code>`, in Sentry's palette.
+ *
+ * Built lazily and cached: `SyntaxStyle.create` reaches into the native
+ * renderer, so it must not run at module load (importing this file in a plain
+ * unit test would then require a renderer).
+ */
+let syntaxStyle: import("@opentui/core").SyntaxStyle | undefined;
+
+export async function getSyntaxStyle() {
+  if (!syntaxStyle) {
+    const { SyntaxStyle } = await import("@opentui/core");
+    syntaxStyle = SyntaxStyle.fromStyles({
+      default: { fg: theme.text },
+      keyword: { fg: "#F6938C" },
+      string: { fg: "#5ECE73" },
+      number: { fg: "#FF9838" },
+      comment: { fg: theme.muted, italic: true },
+      function: { fg: "#9A94F1" },
+      type: { fg: "#FFCE00" },
+      variable: { fg: theme.text },
+      constant: { fg: "#FF9838" },
+      operator: { fg: theme.muted },
+      punctuation: { fg: theme.muted },
+    });
+  }
+  return syntaxStyle;
+}

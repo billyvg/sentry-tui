@@ -7,9 +7,7 @@ import { groupsFixture } from "./fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 
-function stubFetch(
-  handler: (url: string, init: RequestInit) => Response | Promise<Response>,
-) {
+function stubFetch(handler: (url: string, init: RequestInit) => Response | Promise<Response>) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const impl = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = String(input);
@@ -140,9 +138,7 @@ describe("SentryClient", () => {
     const { impl, calls } = stubFetch(() => new Response("", { status: 401 }));
     const client = new SentryClient({ auth, fetchImpl: impl });
 
-    const error = (await listIssues(client, { org: "acme" }).catch(
-      (e: unknown) => e,
-    )) as ApiError;
+    const error = (await listIssues(client, { org: "acme" }).catch((e: unknown) => e)) as ApiError;
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error.retryable).toBe(false);
@@ -154,9 +150,7 @@ describe("SentryClient", () => {
     let attempts = 0;
     const { impl } = stubFetch(() => {
       attempts++;
-      return attempts < 3
-        ? new Response("boom", { status: 503 })
-        : json(groupsFixture);
+      return attempts < 3 ? new Response("boom", { status: 503 }) : json(groupsFixture);
     });
     const client = new SentryClient({ auth, fetchImpl: impl });
 
@@ -195,9 +189,7 @@ describe("SentryClient", () => {
     });
     const client = new SentryClient({ auth, fetchImpl: impl });
 
-    expect(
-      listIssues(client, { org: "acme", signal: controller.signal }),
-    ).rejects.toThrow();
+    expect(listIssues(client, { org: "acme", signal: controller.signal })).rejects.toThrow();
     expect(calls).toHaveLength(1);
   });
 

@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, type SentryClient } from "~/api/client";
-import {
-  fetchIssueStats,
-  listIssues,
-  type SortOption,
-} from "~/api/issues";
+import { fetchIssueStats, listIssues, type SortOption } from "~/api/issues";
 import type { Group } from "~/api/types";
 import {
   type AsyncError,
@@ -124,10 +120,7 @@ export function useIssues(
   return { issues, statsLoading, nextCursor, reload };
 }
 
-function mergeStats(
-  groups: Group[],
-  stats: Record<string, unknown>,
-): Group[] {
+function mergeStats(groups: Group[], stats: Record<string, unknown>): Group[] {
   return groups.map((group) => {
     const entry = stats[group.id] as Group["stats"] | undefined;
     return entry ? { ...group, stats: { ...group.stats, ...entry } } : group;

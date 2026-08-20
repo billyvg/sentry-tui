@@ -89,16 +89,12 @@ test("G and g jump to the last and first rows", async () => {
 
     await h.press((i) => i.pressKey("G", { shift: true }));
     const bottom = h.frame();
-    const lastRow = bottom
-      .split("\n")
-      .findIndex((line) => line.includes("Slow database query"));
+    const lastRow = bottom.split("\n").findIndex((line) => line.includes("Slow database query"));
     expect(bottom.split("\n")[lastRow]).toContain("▸");
 
     await h.press((i) => i.pressKey("g"));
     const top = h.frame();
-    const firstRow = top
-      .split("\n")
-      .findIndex((line) => line.includes("TypeError"));
+    const firstRow = top.split("\n").findIndex((line) => line.includes("TypeError"));
     expect(top.split("\n")[firstRow]).toContain("▸");
   } finally {
     await h.cleanup();
@@ -131,9 +127,7 @@ test("selection survives a reload of the same list", async () => {
     await h.press((i) => i.pressKey("j")); // select row 2
 
     const before = h.frame();
-    const valueErrorRow = before
-      .split("\n")
-      .findIndex((l) => l.includes("ValueError"));
+    const valueErrorRow = before.split("\n").findIndex((l) => l.includes("ValueError"));
     expect(before.split("\n")[valueErrorRow]).toContain("▸");
 
     await h.press((i) => i.pressKey("R", { shift: true }));

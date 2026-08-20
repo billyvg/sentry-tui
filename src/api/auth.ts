@@ -25,8 +25,7 @@ export const REQUIRED_SCOPES = [
   "team:read",
 ] as const;
 
-export const TOKEN_SETTINGS_URL =
-  "https://sentry.io/settings/account/api/auth-tokens/";
+export const TOKEN_SETTINGS_URL = "https://sentry.io/settings/account/api/auth-tokens/";
 
 export class MissingTokenError extends Error {
   constructor() {
@@ -67,9 +66,7 @@ export async function readConfig(): Promise<StoredConfig> {
  * legacy SENTRY_TOKEN, and the stored config is the last resort. Blank or
  * whitespace-only values count as unset.
  */
-export function createTokenAuthProvider(
-  config: StoredConfig = {},
-): AuthProvider {
+export function createTokenAuthProvider(config: StoredConfig = {}): AuthProvider {
   const fromEnv = (name: string) => {
     const value = process.env[name]?.trim();
     return value ? value : undefined;

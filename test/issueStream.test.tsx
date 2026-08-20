@@ -33,9 +33,27 @@ function deferredClient() {
       await statsGate;
       // Stats keyed by group id, as /issues-stats/ returns them.
       return json({
-        "1": { "24h": [[0, 1], [1, 9], [2, 4]] },
-        "2": { "24h": [[0, 2], [1, 3], [2, 1]] },
-        "3": { "24h": [[0, 0], [1, 1], [2, 0]] },
+        "1": {
+          "24h": [
+            [0, 1],
+            [1, 9],
+            [2, 4],
+          ],
+        },
+        "2": {
+          "24h": [
+            [0, 2],
+            [1, 3],
+            [2, 1],
+          ],
+        },
+        "3": {
+          "24h": [
+            [0, 0],
+            [1, 1],
+            [2, 0],
+          ],
+        },
       });
     }
     await listGate;
@@ -115,8 +133,7 @@ test("renders the empty state only once the load has settled", async () => {
 });
 
 test("a failed load renders an in-place retryable error", async () => {
-  const fetchImpl = (async () =>
-    new Response("", { status: 401 })) as unknown as typeof fetch;
+  const fetchImpl = (async () => new Response("", { status: 401 })) as unknown as typeof fetch;
   const client = new SentryClient({ auth, fetchImpl });
 
   const h = await render(client);
@@ -134,8 +151,7 @@ test("a failed load renders an in-place retryable error", async () => {
 });
 
 test("a retryable failure offers a retry key", async () => {
-  const fetchImpl = (async () =>
-    new Response("", { status: 500 })) as unknown as typeof fetch;
+  const fetchImpl = (async () => new Response("", { status: 500 })) as unknown as typeof fetch;
   const client = new SentryClient({ auth, fetchImpl, maxRetries: 0 });
 
   const h = await render(client);

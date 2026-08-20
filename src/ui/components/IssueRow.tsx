@@ -51,32 +51,19 @@ export function IssueRow({
   return (
     <box style={{ flexDirection: "column", width, backgroundColor: bg }}>
       <box style={{ flexDirection: "row", width }}>
-        <text fg={selected ? theme.accent : theme.muted}>
-          {selected ? "▸" : " "}
-        </text>
+        <text fg={selected ? theme.accent : theme.muted}>{selected ? "▸" : " "}</text>
         {/* Unread dot, as the web app shows for !hasSeen. */}
         <text fg={theme.accent}>{group.hasSeen ? " " : "●"}</text>
         {/* Level bar — the terminal analogue of errorLevel.tsx's 3px rule. */}
         <text fg={theme.level[group.level] ?? theme.level.unknown}>│</text>
-        <text
-          fg={theme.text}
-          attributes={group.hasSeen ? 0 : 1 /* BOLD when unread */}
-        >
+        <text fg={theme.text} attributes={group.hasSeen ? 0 : 1 /* BOLD when unread */}>
           {padText(group.title, titleWidth)}
         </text>
         <text fg={theme.muted}>{sparkline(group.stats?.["24h"], COLUMNS.sparkline)}</text>
-        <text fg={theme.text}>
-          {padText(formatCount(group.count), COLUMNS.events, "right")}
-        </text>
-        <text fg={theme.text}>
-          {padText(formatCount(group.userCount), COLUMNS.users, "right")}
-        </text>
+        <text fg={theme.text}>{padText(formatCount(group.count), COLUMNS.events, "right")}</text>
+        <text fg={theme.text}>{padText(formatCount(group.userCount), COLUMNS.users, "right")}</text>
         <text fg={theme.muted}>
-          {padText(
-            group.priority ? PRIORITY_GLYPH[group.priority] : "",
-            COLUMNS.priority,
-            "right",
-          )}
+          {padText(group.priority ? PRIORITY_GLYPH[group.priority] : "", COLUMNS.priority, "right")}
         </text>
       </box>
 
@@ -105,13 +92,7 @@ function metaLine(group: Group, width: number): string {
  * A row-shaped placeholder at the exact geometry of a real row, so content
  * never jumps when the data lands.
  */
-export function IssueRowSkeleton({
-  width,
-  seed,
-}: {
-  width: number;
-  seed: number;
-}) {
+export function IssueRowSkeleton({ width, seed }: { width: number; seed: number }) {
   const titleWidth = Math.max(10, width - FIXED_WIDTH);
   // Vary the bar widths so the list reads as pending content, not a progress
   // bar. Deterministic in the index so frames are stable across renders.

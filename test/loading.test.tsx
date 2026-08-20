@@ -90,7 +90,13 @@ describe("sparkline", () => {
   });
 
   test("an all-zero window is data, not absence", () => {
-    const line = sparkline([[0, 0], [1, 0]], 4);
+    const line = sparkline(
+      [
+        [0, 0],
+        [1, 0],
+      ],
+      4,
+    );
     expect(line).toHaveLength(4);
     expect(line).not.toContain(SPARKLINE_PENDING);
   });
@@ -164,10 +170,10 @@ describe("IssueRow", () => {
     const realLines = real.frame().split("\n");
     await real.cleanup();
 
-    const skeleton = await renderHarness(
-      <IssueRowSkeleton width={WIDTH} seed={0} />,
-      { width: WIDTH, height: 4 },
-    );
+    const skeleton = await renderHarness(<IssueRowSkeleton width={WIDTH} seed={0} />, {
+      width: WIDTH,
+      height: 4,
+    });
     const skeletonLines = skeleton.frame().split("\n");
     await skeleton.cleanup();
 

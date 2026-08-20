@@ -1,8 +1,4 @@
-import {
-  createTokenAuthProvider,
-  MissingTokenError,
-  readConfig,
-} from "~/api/auth";
+import { createTokenAuthProvider, MissingTokenError, readConfig } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 
 export interface AppContext {

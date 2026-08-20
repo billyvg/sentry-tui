@@ -44,9 +44,7 @@ export async function renderHarness(
     pressEscape: async () => {
       await act(async () => {
         setup.mockInput.pressEscape();
-        await new Promise((resolve) =>
-          setTimeout(resolve, ESCAPE_DISAMBIGUATION_MS),
-        );
+        await new Promise((resolve) => setTimeout(resolve, ESCAPE_DISAMBIGUATION_MS));
       });
       await setup.flush();
     },

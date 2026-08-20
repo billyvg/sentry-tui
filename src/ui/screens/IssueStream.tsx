@@ -14,11 +14,7 @@ import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
 import { IssueRow } from "~/ui/components/IssueRow";
-import {
-  IssueListEmpty,
-  IssueListError,
-  IssueListSkeleton,
-} from "~/ui/components/IssueListStates";
+import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useIssues } from "~/ui/hooks/useIssues";
 
@@ -100,9 +96,7 @@ export function IssueStream({
 
       {/* Filter row: project / environment / period, then sort. */}
       <box style={{ flexDirection: "row", width, flexShrink: 0 }}>
-        <text fg={theme.muted}>
-          {`[all projects] [all envs] [${DEFAULT_STATS_PERIOD}]`}
-        </text>
+        <text fg={theme.muted}>{`[all projects] [all envs] [${DEFAULT_STATS_PERIOD}]`}</text>
         <box style={{ flexGrow: 1 }} />
         <text fg={theme.muted}>{`Sort: ${sortLabel}`}</text>
       </box>
@@ -131,9 +125,7 @@ export function IssueStream({
       </scrollbox>
 
       {stale ? (
-        <text fg={theme.muted}>
-          {error ? `⚠ ${fitText(error.message, listWidth - 2)}` : ""}
-        </text>
+        <text fg={theme.muted}>{error ? `⚠ ${fitText(error.message, listWidth - 2)}` : ""}</text>
       ) : null}
     </box>
   );

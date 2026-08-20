@@ -101,10 +101,10 @@ export async function fetchIssueStats(
   },
 ): Promise<IssueStats> {
   if (groups.length === 0) return {};
-  const page = await client.request<IssueStats>(
-    `/organizations/${org}/issues-stats/`,
-    { query: { groups, statsPeriod, groupStatsPeriod }, signal },
-  );
+  const page = await client.request<IssueStats>(`/organizations/${org}/issues-stats/`, {
+    query: { groups, statsPeriod, groupStatsPeriod },
+    signal,
+  });
   return page.data;
 }
 
@@ -112,10 +112,7 @@ export async function fetchIssue(
   client: SentryClient,
   { org, issueId, signal }: { org: string; issueId: string; signal?: AbortSignal },
 ): Promise<Group> {
-  const page = await client.request<Group>(
-    `/organizations/${org}/issues/${issueId}/`,
-    { signal },
-  );
+  const page = await client.request<Group>(`/organizations/${org}/issues/${issueId}/`, { signal });
   return page.data;
 }
 
@@ -168,10 +165,11 @@ export async function updateIssue(
     signal?: AbortSignal;
   },
 ): Promise<Group> {
-  const page = await client.request<Group>(
-    `/organizations/${org}/issues/${issueId}/`,
-    { method: "PUT", body: update, signal },
-  );
+  const page = await client.request<Group>(`/organizations/${org}/issues/${issueId}/`, {
+    method: "PUT",
+    body: update,
+    signal,
+  });
   return page.data;
 }
 
@@ -189,9 +187,6 @@ export async function listProjects(
   client: SentryClient,
   { org, signal }: { org: string; signal?: AbortSignal },
 ): Promise<Project[]> {
-  const page = await client.request<Project[]>(
-    `/organizations/${org}/projects/`,
-    { signal },
-  );
+  const page = await client.request<Project[]>(`/organizations/${org}/projects/`, { signal });
   return page.data;
 }
