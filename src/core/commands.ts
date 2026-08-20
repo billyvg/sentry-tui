@@ -7,7 +7,7 @@
  * instead of advertising a dead key.
  */
 
-export type CommandCategory = "app" | "nav" | "issue" | "view";
+export type CommandCategory = "app" | "nav" | "issue" | "view" | "seer";
 
 /**
  * When the command palette offers a command.
@@ -196,6 +196,29 @@ export const COMMANDS: readonly Command[] = [
     category: "issue",
     defaultKeys: ["m"],
     palette: "issue",
+  },
+
+  // seer
+  {
+    id: "sentry.seer.compose",
+    title: "Ask Seer",
+    category: "seer",
+    defaultKeys: ["i"],
+    description: "Focus the Seer composer",
+  },
+  {
+    id: "sentry.seer.newChat",
+    title: "New chat",
+    category: "seer",
+    defaultKeys: ["n"],
+    description: "Start a fresh Seer conversation",
+  },
+  {
+    id: "sentry.seer.interrupt",
+    title: "Interrupt Seer",
+    category: "seer",
+    defaultKeys: ["x"],
+    description: "Ask Seer to stop the current turn",
   },
 
   // view / filter

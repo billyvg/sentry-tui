@@ -28,6 +28,55 @@ export function fitText(text: string, width: number, ellipsis = "…"): string {
   return out + ellipsis;
 }
 
+/**
+ * Break text into lines that each fit `width` cells, preserving existing
+ * newlines.
+ *
+ * Wrapping happens at spaces; a single word longer than `width` (a URL, a
+ * stack frame path) is hard-split rather than allowed to overflow the pane.
+ */
+export function wrapText(text: string, width: number): string[] {
+  if (width <= 0) return [];
+
+  const lines: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    if (paragraph === "") {
+      lines.push("");
+      continue;
+    }
+
+    let current = "";
+    for (const word of paragraph.split(" ")) {
+      const candidate = current === "" ? word : `${current} ${word}`;
+      if (measureTextWidth(candidate) <= width) {
+        current = candidate;
+        continue;
+      }
+      if (current !== "") {
+        lines.push(current);
+        current = "";
+      }
+      // A word that can't fit on a line of its own gets hard-split.
+      let rest = word;
+      while (measureTextWidth(rest) > width) {
+        let chunk = "";
+        let used = 0;
+        for (const char of rest) {
+          const w = measureTextWidth(char);
+          if (used + w > width) break;
+          chunk += char;
+          used += w;
+        }
+        lines.push(chunk);
+        rest = rest.slice(chunk.length);
+      }
+      current = rest;
+    }
+    lines.push(current);
+  }
+  return lines;
+}
+
 /** Pad to exactly `width` cells (truncating if too long). */
 export function padText(
   text: string,
