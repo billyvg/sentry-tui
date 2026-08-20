@@ -8,7 +8,14 @@ import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
-const HEIGHT = 44;
+/**
+ * Tall enough that the stack trace's expanded frames clear the header.
+ *
+ * The detail screen is a scrollbox, so anything past this is simply off-view —
+ * a height that "nearly" fits produces assertion failures that read like
+ * rendering bugs.
+ */
+const HEIGHT = 52;
 
 function stubClient({ eventDelayMs = 0 } = {}) {
   const fetchImpl = (async (input: RequestInfo | URL) => {
@@ -46,9 +53,81 @@ test("enter opens the issue detail with header metadata", async () => {
     const frame = h.frame();
     expect(frame).toContain("Issues / PUMP-STATION-1"); // breadcrumb
     expect(frame).toContain("TypeError");
-    expect(frame).toContain("events");
-    expect(frame).toContain("users");
-    expect(frame).toContain("[r] Resolve"); // action bar
+    expect(frame).toContain("1.4k events");
+    expect(frame).toContain("92 users");
+    expect(frame).toContain("(r) resolve"); // action chip
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the header separates current state from the actions that change it", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("Issues / PUMP-STATION-1"));
+    const frame = h.frame();
+
+    // State — what the issue is. No key, so it can't read as a control.
+    expect(frame).toContain("unresolved · error · javascript · high priority · unassigned");
+    // Actions — what you can do, each carrying the key that does it.
+    expect(frame).toContain("(r) resolve");
+    expect(frame).toContain("(a) archive");
+    // `p` and `A` have no handler, so the header must not advertise them.
+    expect(frame).not.toContain("(p)");
+    expect(frame).not.toContain("(A)");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a numbered section folds and unfolds from its own digit", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("▾ 1 Stack Trace"));
+    expect(h.frame()).toContain("renderRoot");
+
+    await h.press((i) => i.pressKey("1"));
+    expect(h.frame()).toContain("▸ 1 Stack Trace");
+    expect(h.frame()).not.toContain("renderRoot");
+
+    await h.press((i) => i.pressKey("1"));
+    expect(h.frame()).toContain("▾ 1 Stack Trace");
+    expect(h.frame()).toContain("renderRoot");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("z folds every section at once, and unfolds them again", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("▾ 1 Stack Trace"));
+
+    await h.press((i) => i.pressKey("z"));
+    const folded = h.frame();
+    expect(folded).toContain("▸ 1 Stack Trace");
+    expect(folded).toContain("▸ 2 Breadcrumbs");
+    expect(folded).not.toContain("renderRoot");
+
+    await h.press((i) => i.pressKey("z"));
+    expect(h.frame()).toContain("▾ 1 Stack Trace");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a folded section says how many rows it is hiding", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("▾ 1 Stack Trace"));
+    // Folded is the state the count is for, and it also brings every section
+    // header onto one screen.
+    await h.press((i) => i.pressKey("z"));
+
+    const frame = h.frame();
+    expect(frame).toContain("▸ 2 Breadcrumbs (2)");
+    expect(frame).toContain("▸ 4 Tags (4)");
+    expect(frame).toContain("▸ 5 Contexts (2)");
   } finally {
     await h.cleanup();
   }
@@ -109,7 +188,7 @@ test("renders breadcrumbs, request, tags, contexts and sdk sections", async () =
   const client = stubClient();
   const h = await renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
     width: WIDTH,
-    height: 90,
+    height: 100,
   });
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));

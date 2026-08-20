@@ -116,4 +116,11 @@ describe("theme contrast", () => {
     // Subtle selection highlight just needs to be noticeable, not high contrast
     expect(ratio).toBeGreaterThanOrEqual(1.1);
   });
+
+  // `panelAlt` is the surface every interactive chip wears. If it stops reading
+  // as raised against the page, the app loses its only "you can press this"
+  // signal — a terminal has no cursor change or hover state to fall back on.
+  test("a control surface is distinguishable from the background it sits on", () => {
+    expect(contrastRatio(theme.panelAlt, theme.bg)).toBeGreaterThanOrEqual(1.15);
+  });
 });

@@ -178,6 +178,23 @@ export const COMMANDS: readonly Command[] = [
     defaultKeys: ["D"],
     description: "Open the date range selector",
   },
+  {
+    // Every section is bound at once rather than one command per section: the
+    // number is printed in the section's own header, so the binding is read off
+    // the screen instead of memorised.
+    id: "sentry.view.toggleSection",
+    title: "Fold section",
+    category: "view",
+    defaultKeys: ["1", "2", "3", "4", "5", "6"],
+    description: "Fold the numbered section",
+  },
+  {
+    id: "sentry.view.toggleAllSections",
+    title: "Fold all sections",
+    category: "view",
+    defaultKeys: ["z"],
+    description: "Fold or unfold every section at once",
+  },
 ] as const;
 
 const BY_ID = new Map(COMMANDS.map((c) => [c.id, c]));

@@ -516,6 +516,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               onEnvChange={setSelectedEnvs}
               onPeriodChange={setStatsPeriod}
               onDropdownClose={() => setOpenDropdown(null)}
+              onDropdownOpen={setOpenDropdown}
               query={committedQuery}
               searchValue={searchQuery}
               onSearchInput={setSearchQuery}
@@ -541,6 +542,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               onEnvChange={setLogSelectedEnvs}
               onPeriodChange={setLogStatsPeriod}
               onDropdownClose={() => setLogOpenDropdown(null)}
+              onDropdownOpen={setLogOpenDropdown}
               query={logCommittedQuery}
               searchValue={logSearchQuery}
               onSearchInput={setLogSearchQuery}

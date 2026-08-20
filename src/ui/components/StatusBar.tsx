@@ -1,5 +1,6 @@
-import { formatKey, primaryKey } from "~/core/commands";
+import { primaryKey } from "~/core/commands";
 import { theme } from "~/core/theme";
+import { KeyHint } from "~/ui/components/KeyHint";
 import { SentryLogo } from "~/ui/components/NavIcon";
 import { useSpinnerFrame } from "~/ui/components/Spinner";
 import { useImageSupport } from "~/ui/hooks/useImageSupport";
@@ -19,17 +20,14 @@ const NOTICE_COLOR: Record<Notice["kind"], string> = {
   error: theme.danger,
 };
 
-/** Rendered hint item: parenthesised key in accent color + label in muted. */
+/** Rendered hint item: parenthesised key + label in muted. */
 function HintItem({ commandId, label }: { commandId: string; label?: string }) {
-  const key = primaryKey(commandId);
-  if (!key) return null;
-  const formatted = formatKey(key);
+  if (!primaryKey(commandId)) return null;
   return (
     <>
-      <text fg={theme.subText}>{"("}</text>
-      <text fg={theme.text}>{formatted}</text>
-      <text fg={theme.subText}>{")"} </text>
-      {label ? <text fg={theme.muted}>{`${label}`}</text> : null}
+      <KeyHint command={commandId} />
+      <text> </text>
+      {label ? <text fg={theme.muted}>{label}</text> : null}
     </>
   );
 }

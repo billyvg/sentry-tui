@@ -219,14 +219,17 @@ test("triage works from the detail view and updates its header", async () => {
   try {
     await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Issues / PUMP-STATION-1"));
-    expect(h.frame()).toContain("[r] Resolve");
+    expect(h.frame()).toContain("(r) resolve");
+    expect(h.frame()).toContain("unresolved · error");
 
     await h.press((i) => i.pressKey("r"));
-    await h.waitForFrame((f) => f.includes("[u] Unresolve"));
+    await h.waitForFrame((f) => f.includes("(u) unresolve"));
 
     expect(puts).toEqual([{ status: "resolved" }]);
-    // The action bar reflects the new status without a refetch.
-    expect(h.frame()).toContain("[u] Unresolve");
+    // Both the action chip and the state line reflect the new status without a
+    // refetch — they are derived from the same optimistically-updated group.
+    expect(h.frame()).toContain("(u) unresolve");
+    expect(h.frame()).toContain("resolved · error");
   } finally {
     await h.cleanup();
   }

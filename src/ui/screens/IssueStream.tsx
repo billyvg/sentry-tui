@@ -51,6 +51,7 @@ export interface IssueStreamProps {
   onEnvChange?: (envs: string[]) => void;
   onPeriodChange?: (period: string) => void;
   onDropdownClose?: () => void;
+  onDropdownOpen?: (which: FilterDropdownType) => void;
   /** The committed query sent to the API for fetching. */
   query?: string;
   /** The live input value displayed in the search bar (may differ while editing). */
@@ -84,6 +85,7 @@ export function IssueStream({
   onEnvChange,
   onPeriodChange,
   onDropdownClose,
+  onDropdownOpen,
   query: queryProp,
   searchValue,
   onSearchInput,
@@ -214,6 +216,7 @@ export function IssueStream({
         onEnvChange={onEnvChange ?? (() => {})}
         onPeriodChange={onPeriodChange ?? (() => {})}
         onDropdownClose={onDropdownClose ?? (() => {})}
+        onDropdownOpen={onDropdownOpen}
       />
 
       {/* The header's rule doubles as the first row's top edge. */}
