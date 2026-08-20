@@ -32,8 +32,14 @@ export interface IssueStreamProps {
     error?: string;
     count?: number;
   }) => void;
-  /** Injected in tests to render a fixed state without a client. */
+  /**
+   * Rows to render instead of the fetched ones. The App owns the list once
+   * loaded so optimistic triage updates can rewrite it; also lets tests render
+   * a fixed state without a client.
+   */
   issuesOverride?: Group[];
+  /** Issue ids with a mutation in flight. */
+  pendingIds?: ReadonlySet<string>;
 }
 
 export function IssueStream({
@@ -46,6 +52,7 @@ export function IssueStream({
   onIssuesChange,
   onStatusChange,
   issuesOverride,
+  pendingIds,
 }: IssueStreamProps) {
   const [query] = useState(DEFAULT_QUERY);
   const [sort] = useState<SortOption>(DEFAULT_SORT);
@@ -118,6 +125,7 @@ export function IssueStream({
             group={group}
             selected={focused && index === selectedIndex}
             width={listWidth}
+            pending={pendingIds?.has(group.id) ?? false}
           />
         ))}
 

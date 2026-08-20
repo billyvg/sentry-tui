@@ -236,7 +236,7 @@ function SectionBody({
     case "tags":
       return (
         <box style={{ flexDirection: "column", width }}>
-          {event.tags.map((tag) => (
+          {(event.tags ?? []).map((tag) => (
             <text key={tag.key} fg={theme.muted}>
               {fitText(`  ${padText(tag.key, 18)} ${tag.value}`, width)}
             </text>
@@ -247,7 +247,7 @@ function SectionBody({
     case "contexts":
       return (
         <box style={{ flexDirection: "column", width }}>
-          {Object.entries(event.contexts).map(([name, values]) => (
+          {Object.entries(event.contexts ?? {}).map(([name, values]) => (
             <text key={name} fg={theme.muted}>
               {fitText(`  ${padText(name, 18)} ${summarize(values)}`, width)}
             </text>

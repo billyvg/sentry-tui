@@ -230,10 +230,17 @@ export interface Project {
   platform?: string | null;
 }
 
-/** Narrow an entry union member by type, preserving its data shape. */
+/**
+ * Narrow an entry union member by type, preserving its data shape.
+ *
+ * Tolerates a missing or non-array `entries`: event payloads vary by issue
+ * type, and a surprising shape should render an empty section rather than
+ * take down the whole detail view.
+ */
 export function findEntry<T extends Entry["type"]>(
-  entries: Entry[],
+  entries: Entry[] | undefined,
   type: T,
 ): Extract<Entry, { type: T }> | undefined {
+  if (!Array.isArray(entries)) return undefined;
   return entries.find((e) => e.type === type) as Extract<Entry, { type: T }> | undefined;
 }

@@ -40,10 +40,13 @@ export function IssueRow({
   group,
   selected,
   width,
+  pending = false,
 }: {
   group: Group;
   selected: boolean;
   width: number;
+  /** A mutation is in flight for this issue. */
+  pending?: boolean;
 }) {
   const titleWidth = Math.max(10, width - FIXED_WIDTH);
   const bg = selected ? theme.selected : undefined;
@@ -52,8 +55,8 @@ export function IssueRow({
     <box style={{ flexDirection: "column", width, backgroundColor: bg }}>
       <box style={{ flexDirection: "row", width }}>
         <text fg={selected ? theme.accent : theme.muted}>{selected ? "▸" : " "}</text>
-        {/* Unread dot, as the web app shows for !hasSeen. */}
-        <text fg={theme.accent}>{group.hasSeen ? " " : "●"}</text>
+        {/* In-flight mutation takes the dot's slot; unread otherwise. */}
+        <text fg={theme.accent}>{pending ? "⟳" : group.hasSeen ? " " : "●"}</text>
         {/* Level bar — the terminal analogue of errorLevel.tsx's 3px rule. */}
         <text fg={theme.level[group.level] ?? theme.level.unknown}>│</text>
         <text fg={theme.text} attributes={group.hasSeen ? 0 : 1 /* BOLD when unread */}>

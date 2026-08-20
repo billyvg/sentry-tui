@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
@@ -6,11 +6,13 @@ import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
 import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
 import { theme } from "~/core/theme";
+import { TRIAGE_ACTIONS } from "~/core/triage";
 import { HelpDialog } from "~/ui/components/HelpDialog";
 import { NavRail, NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
 import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
+import { useTriage } from "~/ui/hooks/useTriage";
 import { IssueDetail } from "~/ui/screens/IssueDetail";
 import { IssueStream } from "~/ui/screens/IssueStream";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
@@ -43,6 +45,8 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   const [openIssue, setOpenIssue] = useState<Group | null>(null);
   const focus = useFocusRing<Region>(REGIONS);
 
+  const [triageNotice, setTriageNotice] = useState<Notice | null>(null);
+
   const showIssues = group === "issues";
 
   const handleIssues = useCallback((next: Group[]) => {
@@ -51,6 +55,31 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
     // the user was looking at.
     setSelected((current) => Math.min(current, Math.max(0, next.length - 1)));
   }, []);
+
+  /** Replace one issue in place — used for the optimistic write and rollback. */
+  const replaceIssue = useCallback((next: Group) => {
+    setIssues((current) => current.map((g) => (g.id === next.id ? next : g)));
+    setOpenIssue((current) => (current && current.id === next.id ? next : current));
+  }, []);
+
+  // Triage notices are transient: they announce what just happened, then get
+  // out of the way so the ambient load/count notice is visible again.
+  const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const showTriageNotice = useCallback((notice: Notice) => {
+    setTriageNotice(notice);
+    clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setTriageNotice(null), 4000);
+  }, []);
+
+  useEffect(() => () => clearTimeout(noticeTimer.current), []);
+
+  const triage = useTriage(client, org, {
+    onOptimistic: replaceIssue,
+    onNotice: showTriageNotice,
+  });
+
+  // The row the keyboard acts on: the open issue, else the list cursor.
+  const activeIssue = openIssue ?? issues[selected];
 
   useKeyboard((key) => {
     routeKeyOwnership(
@@ -92,7 +121,24 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 4. Nav rail. Suspended while a detail view is open.
+        // 4. Triage actions, valid in both the list and the detail view.
+        () => {
+          if (!activeIssue) return "notMine";
+          // In the list these belong to the content pane; the nav panes keep
+          // their own j/k. In the detail view there is only one issue, so no
+          // focus check is needed.
+          if (!openIssue && focus.focusedRef.current !== "content") {
+            return "notMine";
+          }
+          for (const action of TRIAGE_ACTIONS) {
+            if (matchesCommand(action.commandId, key)) {
+              triage.run(action.commandId, activeIssue);
+              return "mine";
+            }
+          }
+          return "notMine";
+        },
+        // 5. Nav rail. Suspended while a detail view is open.
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "nav") return "notMine";
@@ -108,7 +154,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           setItem(next.sections[0]?.items[0] ?? "");
           return "mine";
         },
-        // 5. Secondary nav.
+        // 6. Secondary nav.
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "secondary") return "notMine";
@@ -124,7 +170,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 6. Issue list cursor and open.
+        // 7. Issue list cursor and open.
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "content") return "notMine";
@@ -201,6 +247,10 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               selectedIndex={selected}
               onIssuesChange={handleIssues}
               onStatusChange={setStatus}
+              // Once loaded, the App owns the list so optimistic triage edits
+              // survive; before that the stream renders its own fetch state.
+              issuesOverride={issues.length > 0 ? issues : undefined}
+              pendingIds={triage.pending}
             />
           ) : (
             <box style={{ flexDirection: "column" }}>
@@ -215,7 +265,12 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
 
       <StatusBar
         notice={
-          openIssue ? { kind: "idle", text: openIssue.shortId } : toNotice(status, showIssues, org)
+          // A triage result is the most recent thing the user did, so it
+          // outranks the ambient load/count notice.
+          triageNotice ??
+          (openIssue
+            ? { kind: "idle", text: openIssue.shortId }
+            : toNotice(status, showIssues, org))
         }
         elapsedMs={openIssue ? undefined : status.elapsedMs}
         hints={
