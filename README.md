@@ -5,14 +5,18 @@ mirroring Sentry's real information architecture and screen layouts.
 
 ## Status
 
-Work in progress (Hackweek 2026).
+Hackweek 2026. The Issues path is built end to end; other nav sections are
+honest stubs.
 
 - [x] Phase 1 — app shell, focus ring, theme, command catalog
-- [ ] Phase 2 — API client, auth, domain types
-- [ ] Phase 2.5 — loading states
-- [ ] Phase 3 — issue stream
-- [ ] Phase 4 — issue detail + stack traces
-- [ ] Phase 5 — triage actions
+- [x] Phase 2 — API client, auth, domain types
+- [x] Phase 2.5 — loading states
+- [x] Phase 3 — issue stream
+- [x] Phase 4 — issue detail + stack traces
+- [x] Phase 5 — triage actions
+
+Next: OAuth device-flow login, command palette, org/project switcher, and the
+remaining nav sections.
 
 ## Requirements
 
