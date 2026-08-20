@@ -227,7 +227,7 @@ export function LogStream({
         }}
       >
         <text fg={theme.subText}>{"("}</text>
-        <text fg={searchFocused ? theme.accent : theme.text}>{"/"}</text>
+        <text fg={theme.hotkey}>{"/"}</text>
         <text fg={theme.subText}>{")"} </text>
         <input
           ref={inputRefCallback}

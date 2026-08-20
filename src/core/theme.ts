@@ -36,6 +36,14 @@ export interface Theme {
    * in the same slot, so they must never be mistaken for each other.
    */
   highlight: string;
+  /**
+   * The glyph inside a `(k)` key hint — the same pink, doing a different job.
+   *
+   * Keys are scattered across chips, the nav rail and the status bar, so the
+   * only thing tying them together is that they share a color no prose uses.
+   * Kept as its own token because the two roles can be retuned apart.
+   */
+  hotkey: string;
 
   /** Issue severity colors, keyed by `Level`. */
   level: Record<LevelKey, string>;
@@ -51,6 +59,9 @@ export interface Theme {
 }
 
 export type LevelKey = "error" | "fatal" | "info" | "warning" | "sample" | "unknown";
+
+/** pink.dark.1000 — the ramp's brand anchor step, named once so the two roles that wear it can't drift. */
+const PINK = "#FF45A8";
 
 export const darkTheme: Theme = {
   bg: "#0D0A10", // neutral.dark.100
@@ -72,7 +83,8 @@ export const darkTheme: Theme = {
   danger: "#F6938C", // red.dark.1200
   warning: "#FFCE00", // yellow.dark.1200
   success: "#5ECE73", // green.dark.1200
-  highlight: "#FF45A8", // pink.dark.1000 — the ramp's brand anchor step
+  highlight: PINK,
+  hotkey: PINK,
 
   // errorLevel.tsx: sample/info -> accent, warning -> meh, error -> orange,
   // fatal -> bad, unknown -> other.
