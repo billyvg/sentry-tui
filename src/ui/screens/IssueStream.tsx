@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -48,6 +50,18 @@ export interface IssueStreamProps {
   onEnvChange?: (envs: string[]) => void;
   onPeriodChange?: (period: string) => void;
   onDropdownClose?: () => void;
+  /** The committed query sent to the API for fetching. */
+  query?: string;
+  /** The live input value displayed in the search bar (may differ while editing). */
+  searchValue?: string;
+  /** Called as the user types into the search bar. */
+  onSearchInput?: (value: string) => void;
+  /** Whether the search input is focused. */
+  searchFocused?: boolean;
+  /** Called when the input gains focus (e.g. via mouse click). */
+  onSearchFocus?: () => void;
+  /** Called when the input loses focus. */
+  onSearchBlur?: () => void;
 }
 
 export function IssueStream({
@@ -69,9 +83,35 @@ export function IssueStream({
   onEnvChange,
   onPeriodChange,
   onDropdownClose,
+  query: queryProp,
+  searchValue,
+  onSearchInput,
+  searchFocused = false,
+  onSearchFocus,
+  onSearchBlur,
 }: IssueStreamProps) {
-  const [query] = useState(DEFAULT_QUERY);
+  const [localQuery] = useState(DEFAULT_QUERY);
+  const query = queryProp ?? localQuery;
+  const displayValue = searchValue ?? query;
   const [sort] = useState<SortOption>(DEFAULT_SORT);
+  const inputRef = useRef<InputRenderable>(null);
+
+  // Sync native focus/blur (e.g. mouse clicks) back to the parent.
+  const inputRefCallback = useCallback(
+    (node: InputRenderable | null) => {
+      const prev = inputRef.current;
+      if (prev) {
+        prev.removeAllListeners(RenderableEvents.FOCUSED);
+        prev.removeAllListeners(RenderableEvents.BLURRED);
+      }
+      inputRef.current = node;
+      if (node) {
+        node.on(RenderableEvents.FOCUSED, () => onSearchFocus?.());
+        node.on(RenderableEvents.BLURRED, () => onSearchBlur?.());
+      }
+    },
+    [onSearchFocus, onSearchBlur],
+  );
 
   const { issues, statsLoading } = useIssues(client, {
     org,
@@ -112,14 +152,41 @@ export function IssueStream({
     [sort],
   );
 
-  const listWidth = Math.max(20, width - 2);
+  const listWidth = Math.max(20, width);
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
       {/* Search query, mirroring the web app's search bar. */}
-      <box style={{ flexDirection: "row", width, flexShrink: 0 }}>
-        <text fg={theme.muted}>{"/ "}</text>
-        <text fg={theme.text}>{fitText(query, listWidth - 2)}</text>
+      <box
+        style={{
+          flexDirection: "row",
+          width,
+          flexShrink: 0,
+          height: 3,
+          border: true,
+          borderStyle: "rounded",
+          borderColor: searchFocused ? theme.accent : theme.border,
+          backgroundColor: theme.panel,
+          paddingLeft: 1,
+          paddingRight: 1,
+        }}
+      >
+        <text fg={searchFocused ? theme.accent : theme.muted}>{"/ "}</text>
+        <input
+          ref={inputRefCallback}
+          value={displayValue}
+          placeholder="Search issues…"
+          focused={searchFocused}
+          onInput={onSearchInput}
+          style={{
+            flexGrow: 1,
+            textColor: theme.text,
+            backgroundColor: theme.panel,
+            focusedTextColor: theme.text,
+            focusedBackgroundColor: theme.panel,
+            placeholderColor: theme.subText,
+          }}
+        />
       </box>
 
       {/* Filter row: project / environment / period, then sort. */}
@@ -163,7 +230,7 @@ export function IssueStream({
       </scrollbox>
 
       {stale ? (
-        <text fg={theme.muted}>{error ? `⚠ ${fitText(error.message, listWidth - 2)}` : ""}</text>
+        <text fg={theme.muted}>{error ? ` ⚠ ${fitText(error.message, listWidth - 3)}` : ""}</text>
       ) : null}
     </box>
   );

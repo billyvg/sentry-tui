@@ -63,7 +63,7 @@ export function IssueDetail({
   const inner = Math.max(20, width - 2);
 
   return (
-    <scrollbox focused={focused} style={{ width, height, flexDirection: "column" }}>
+    <scrollbox focused={focused} style={{ width, height, flexDirection: "column", paddingLeft: 1 }}>
       <IssueHeader group={group} width={inner} />
 
       {loading ? <text fg={theme.muted}>Loading event…</text> : null}
