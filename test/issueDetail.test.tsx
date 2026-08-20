@@ -8,7 +8,7 @@ import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
-const HEIGHT = 40;
+const HEIGHT = 44;
 
 function stubClient({ eventDelayMs = 0 } = {}) {
   const fetchImpl = (async (input: RequestInfo | URL) => {
