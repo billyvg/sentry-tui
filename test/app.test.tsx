@@ -118,6 +118,43 @@ test("escape from secondary nav hides it and returns focus to the rail", async (
   }
 });
 
+// Rail rows start just inside the top border, one per group: Issues on row 1,
+// Explore on row 2. Column 14 is the far right of the row — clicking there
+// proves the hit area is the whole row, not just the label's glyphs.
+const EXPLORE_ROW = 2;
+const RAIL_ROW_RIGHT_EDGE = 14;
+
+test("clicking a rail group opens its secondary nav, without tabbing to the rail", async () => {
+  const h = await renderApp();
+  try {
+    await h.click(RAIL_ROW_RIGHT_EDGE, EXPLORE_ROW);
+
+    const frame = h.frame();
+    expect(frame).toContain("Traces"); // Explore's secondary list
+    expect(frame).toContain("Logs");
+    // Selecting hasn't happened yet, so the content pane still shows issues.
+    expect(frame).toContain("Last Seen");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("clicking a secondary nav item selects it and hides the secondary nav", async () => {
+  const h = await renderApp();
+  try {
+    await h.click(RAIL_ROW_RIGHT_EDGE, EXPLORE_ROW);
+    // "Logs" is the second item in Explore's first section — see the frame
+    // above: header on row 2, rule on row 3, Traces on 4, Logs on 5.
+    await h.click(20, 5);
+
+    const frame = h.frame();
+    expect(frame).toContain("Search logs…"); // the log stream is now the content
+    expect(frame).not.toContain("Traces"); // secondary is hidden
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("tab cycles between nav and content when secondary is hidden", async () => {
   const h = await renderApp();
   try {
