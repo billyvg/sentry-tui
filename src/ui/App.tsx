@@ -450,8 +450,8 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   });
 
   const secondaryWidth = showSecondary ? SECONDARY_NAV_WIDTH : 0;
-  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 1);
-  const contentHeight = Math.max(3, height - 1);
+  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
+  const contentHeight = Math.max(3, height - 3);
 
   return (
     <box
@@ -480,7 +480,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           style={{
             flexGrow: 1,
             flexDirection: "column",
-            border: ["left"],
+            border: true,
             borderColor:
               focus.isFocused("content") && !anySearchFocused ? theme.borderFocused : theme.border,
           }}
@@ -582,11 +582,13 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
                   { command: "sentry.nav.back", label: "back" },
                   { command: "sentry.issue.resolve", label: "resolve" },
                   { command: "sentry.issue.archive", label: "archive" },
+                  { command: "sentry.app.focusNext", label: "pane" },
                   { command: "sentry.app.help", label: "help" },
                 ]
               : [
                   { command: "sentry.nav.open", label: "open" },
                   { command: "sentry.nav.search", label: "search" },
+                  { command: "sentry.app.focusNext", label: "pane" },
                   { command: "sentry.app.help", label: "help" },
                   { command: "sentry.app.quit", label: "quit" },
                 ]

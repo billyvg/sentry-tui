@@ -19,10 +19,19 @@ const NOTICE_COLOR: Record<Notice["kind"], string> = {
   error: theme.danger,
 };
 
-function hint(commandId: string, label?: string): string {
+/** Rendered hint item: parenthesised key in accent color + label in muted. */
+function HintItem({ commandId, label }: { commandId: string; label?: string }) {
   const key = primaryKey(commandId);
-  if (!key) return "";
-  return `${formatKey(key)} ${label ?? ""}`.trim();
+  if (!key) return null;
+  const formatted = formatKey(key);
+  return (
+    <>
+      <text fg={theme.subText}>{"("}</text>
+      <text fg={theme.text}>{formatted}</text>
+      <text fg={theme.subText}>{")"} </text>
+      {label ? <text fg={theme.muted}>{`${label}`}</text> : null}
+    </>
+  );
 }
 
 /**
@@ -63,12 +72,16 @@ export function StatusBar({
     >
       <text fg={NOTICE_COLOR[notice.kind]}>{text}</text>
       <box style={{ flexGrow: 1 }} />
-      <text fg={theme.muted}>
-        {hints
-          .map(({ command, label }) => hint(command, label))
-          .filter(Boolean)
-          .join(" · ")}
-      </text>
+      {hints.map(({ command, label }, i) => {
+        const key = primaryKey(command);
+        if (!key) return null;
+        return (
+          <box key={command} style={{ flexDirection: "row" }}>
+            {i > 0 ? <text fg={theme.subText}>{" · "}</text> : null}
+            <HintItem commandId={command} label={label} />
+          </box>
+        );
+      })}
       <SentryBadge />
     </box>
   );

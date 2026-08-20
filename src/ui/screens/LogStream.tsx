@@ -199,7 +199,9 @@ export function LogStream({
           paddingRight: 1,
         }}
       >
-        <text fg={searchFocused ? theme.accent : theme.muted}>{"/ "}</text>
+        <text fg={theme.subText}>{"("}</text>
+        <text fg={searchFocused ? theme.accent : theme.text}>{"/"}</text>
+        <text fg={theme.subText}>{")"} </text>
         <input
           ref={inputRefCallback}
           value={displayValue}
