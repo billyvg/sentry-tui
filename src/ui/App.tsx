@@ -221,6 +221,41 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   // The row the keyboard acts on: the open issue, else the list cursor.
   const activeIssue = openIssue ?? issues[selected];
 
+  /**
+   * Open a nav group's secondary list — the one path Enter on the rail and a
+   * click on a rail item both take.
+   */
+  const openNavGroup = useCallback(
+    (group: NavGroupId) => {
+      setRailGroup(group);
+      // Re-entering the active group starts on the current item.
+      const startItem =
+        group === activeGroup ? activeItem : (getNavGroup(group).sections[0]?.items[0] ?? "");
+      setSecondaryItem(startItem);
+      setShowSecondary(true);
+      focus.focus("secondary");
+    },
+    [activeGroup, activeItem, focus],
+  );
+
+  /**
+   * Commit a secondary nav item as the active view — shared by Enter on the
+   * secondary cursor and a click on a secondary item.
+   */
+  const selectNavItem = useCallback(
+    (item: string) => {
+      setActiveGroup(railGroup);
+      setActiveItem(item);
+      setSecondaryItem(item);
+      setShowSecondary(false);
+      // Navigating away supersedes whatever detail view is on the stack;
+      // otherwise the detail keeps rendering over the group just chosen.
+      setOpenIssue(null);
+      focus.focus("content");
+    },
+    [railGroup, focus],
+  );
+
   useKeyboard((key) => {
     routeKeyOwnership(
       [
@@ -347,13 +382,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "nav") return "notMine";
           if (matchesCommand("sentry.nav.open", key)) {
-            const navGroup = getNavGroup(railGroup);
-            // Re-entering the active group starts on the current item.
-            const startItem =
-              railGroup === activeGroup ? activeItem : (navGroup.sections[0]?.items[0] ?? "");
-            setSecondaryItem(startItem);
-            setShowSecondary(true);
-            focus.focus("secondary");
+            openNavGroup(railGroup);
             return "mine";
           }
           const index = NAV_GROUPS.findIndex((g) => g.id === railGroup);
@@ -375,10 +404,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           const items = getNavGroup(railGroup).sections.flatMap((s) => s.items);
           const index = items.indexOf(secondaryItem);
           if (matchesCommand("sentry.nav.open", key)) {
-            setActiveGroup(railGroup);
-            setActiveItem(secondaryItem);
-            setShowSecondary(false);
-            focus.focus("content");
+            selectNavItem(secondaryItem);
             return "mine";
           }
           if (matchesCommand("sentry.nav.down", key)) {
@@ -478,12 +504,14 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           focused={focus.isFocused("nav")}
           avatarUrl={avatarUrl}
           orgSlug={org}
+          onSelect={openNavGroup}
         />
         {showSecondary ? (
           <SecondaryNav
             group={railGroup}
             activeItem={secondaryItem}
             focused={focus.isFocused("secondary")}
+            onSelect={selectNavItem}
           />
         ) : null}
         <box

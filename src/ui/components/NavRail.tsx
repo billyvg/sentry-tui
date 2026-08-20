@@ -51,10 +51,12 @@ interface NavRailProps {
   avatarUrl?: string;
   /** Organization slug, shown next to the avatar. */
   orgSlug?: string;
+  /** Clicking a group opens it, exactly as Enter does on the rail cursor. */
+  onSelect?: (group: NavGroupId) => void;
 }
 
 /** Primary navigation rail — shows icons (when supported) plus text labels. */
-export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
+export function NavRail({ active, focused, avatarUrl, orgSlug, onSelect }: NavRailProps) {
   /** Usable content width: total minus borders (left+right) and horizontal padding. */
   const contentWidth = NAV_RAIL_WIDTH - RAIL_CHROME_WIDTH;
   const { supportsHighRes: hasImages } = useImageSupport();
@@ -108,33 +110,25 @@ export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
         {NAV_GROUPS.map((group) => {
           const isActive = group.id === active;
 
-          if (hasImages) {
-            return (
-              <box
-                key={group.id}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: NAV_ICON_GAP,
-                  height: NAV_ITEM_HEIGHT,
-                }}
-              >
-                <NavIcon groupId={group.id} active={isActive} />
-                <text fg={isActive ? theme.accent : theme.muted} attributes={isActive ? 1 : 0}>
-                  {group.label}
-                </text>
-              </box>
-            );
-          }
-
+          // The row wrapper exists even without icons: it stretches to the
+          // rail's content width, so the click target is the whole row rather
+          // than just the label's glyphs.
           return (
-            <text
+            <box
               key={group.id}
-              fg={isActive ? theme.accent : theme.muted}
-              attributes={isActive ? 1 : 0}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: hasImages ? NAV_ICON_GAP : 0,
+                height: NAV_ITEM_HEIGHT,
+              }}
+              onMouseDown={() => onSelect?.(group.id)}
             >
-              {group.label}
-            </text>
+              {hasImages ? <NavIcon groupId={group.id} active={isActive} /> : null}
+              <text fg={isActive ? theme.accent : theme.muted} attributes={isActive ? 1 : 0}>
+                {group.label}
+              </text>
+            </box>
           );
         })}
       </box>

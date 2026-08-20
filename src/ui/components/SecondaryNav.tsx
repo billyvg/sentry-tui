@@ -11,10 +11,13 @@ export function SecondaryNav({
   group,
   activeItem,
   focused,
+  onSelect,
 }: {
   group: NavGroupId;
   activeItem: string;
   focused: boolean;
+  /** Clicking an item commits it, exactly as Enter does on the cursor. */
+  onSelect?: (item: string) => void;
 }) {
   const nav = getNavGroup(group);
 
@@ -41,14 +44,18 @@ export function SecondaryNav({
           {section.title ? <text fg={theme.muted}>{section.title}</text> : null}
           {section.items.map((item) => {
             const isActive = item === activeItem;
+            // The wrapper stretches to the pane's content width, so a click
+            // anywhere on the row counts — not just on the label's glyphs.
             return (
-              <text
+              <box
                 key={item}
-                fg={isActive ? theme.accent : theme.muted}
-                attributes={isActive ? 1 : 0}
+                style={{ flexDirection: "row", height: 1 }}
+                onMouseDown={() => onSelect?.(item)}
               >
-                {item}
-              </text>
+                <text fg={isActive ? theme.accent : theme.muted} attributes={isActive ? 1 : 0}>
+                  {item}
+                </text>
+              </box>
             );
           })}
         </box>

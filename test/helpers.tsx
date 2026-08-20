@@ -19,6 +19,11 @@ export interface Harness extends TestRendererSetup {
    * of an escape sequence (`ESC[A` etc.), so it needs a real wait, not a flush.
    */
   pressEscape: () => Promise<void>;
+  /**
+   * Click a terminal cell, in the same `act()` envelope `press` uses so the
+   * resulting state update reaches the renderer before the next capture.
+   */
+  click: (x: number, y: number) => Promise<void>;
   frame: () => string;
   /**
    * The rendered span containing `needle`, with its real color and attribute
@@ -52,6 +57,12 @@ export async function renderHarness(
       await act(async () => {
         setup.mockInput.pressEscape();
         await new Promise((resolve) => setTimeout(resolve, ESCAPE_DISAMBIGUATION_MS));
+      });
+      await setup.flush();
+    },
+    click: async (x: number, y: number) => {
+      await act(async () => {
+        await setup.mockMouse.click(x, y);
       });
       await setup.flush();
     },
