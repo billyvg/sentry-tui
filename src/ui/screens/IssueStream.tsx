@@ -13,6 +13,7 @@ import type { Group } from "~/api/types";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
+import { FilterBar, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
 import { useElapsed } from "~/ui/hooks/useElapsed";
@@ -35,6 +36,18 @@ export interface IssueStreamProps {
   issuesOverride?: Group[];
   /** Issue ids with a mutation in flight. */
   pendingIds?: ReadonlySet<string>;
+  /** Which filter dropdown is open (null = none). */
+  openDropdown?: FilterDropdownType;
+  /** Selected project slugs (empty = all). */
+  selectedProjects?: string[];
+  /** Selected environment names (empty = all). */
+  selectedEnvs?: string[];
+  /** Stats period for the query. */
+  statsPeriod?: string;
+  onProjectChange?: (projects: string[]) => void;
+  onEnvChange?: (envs: string[]) => void;
+  onPeriodChange?: (period: string) => void;
+  onDropdownClose?: () => void;
 }
 
 export function IssueStream({
@@ -48,6 +61,14 @@ export function IssueStream({
   onStatusChange,
   issuesOverride,
   pendingIds,
+  openDropdown = null,
+  selectedProjects = [],
+  selectedEnvs = [],
+  statsPeriod = DEFAULT_STATS_PERIOD,
+  onProjectChange,
+  onEnvChange,
+  onPeriodChange,
+  onDropdownClose,
 }: IssueStreamProps) {
   const [query] = useState(DEFAULT_QUERY);
   const [sort] = useState<SortOption>(DEFAULT_SORT);
@@ -56,7 +77,9 @@ export function IssueStream({
     org,
     query,
     sort,
-    statsPeriod: DEFAULT_STATS_PERIOD,
+    statsPeriod,
+    project: selectedProjects.length > 0 ? selectedProjects : undefined,
+    environment: selectedEnvs.length > 0 ? selectedEnvs : undefined,
   });
 
   const loading = issues.state === "loading";
@@ -100,11 +123,20 @@ export function IssueStream({
       </box>
 
       {/* Filter row: project / environment / period, then sort. */}
-      <box style={{ flexDirection: "row", width, flexShrink: 0 }}>
-        <text fg={theme.muted}>{`[all projects] [all envs] [${DEFAULT_STATS_PERIOD}]`}</text>
-        <box style={{ flexGrow: 1 }} />
-        <text fg={theme.muted}>{`Sort: ${sortLabel}`}</text>
-      </box>
+      <FilterBar
+        client={client}
+        org={org}
+        openDropdown={openDropdown}
+        selectedProjects={selectedProjects}
+        selectedEnvs={selectedEnvs}
+        statsPeriod={statsPeriod}
+        sortLabel={sortLabel}
+        anchorTop={2}
+        onProjectChange={onProjectChange ?? (() => {})}
+        onEnvChange={onEnvChange ?? (() => {})}
+        onPeriodChange={onPeriodChange ?? (() => {})}
+        onDropdownClose={onDropdownClose ?? (() => {})}
+      />
 
       <IssueListHeader width={listWidth} />
 

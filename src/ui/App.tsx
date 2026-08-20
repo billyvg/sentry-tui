@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
-import { getOrganization } from "~/api/issues";
+import { DEFAULT_STATS_PERIOD, getOrganization } from "~/api/issues";
 import type { LogEntry } from "~/api/logs";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
@@ -13,6 +13,7 @@ import { HelpDialog } from "~/ui/components/HelpDialog";
 import { NavRail, NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
 import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
+import type { FilterDropdownType } from "~/ui/components/FilterBar";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
 import { useTriage } from "~/ui/hooks/useTriage";
 import { IssueDetail } from "~/ui/screens/IssueDetail";
@@ -69,6 +70,12 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   // A view stack rather than a router: Enter pushes a detail view, Esc pops.
   const [openIssue, setOpenIssue] = useState<Group | null>(null);
   const focus = useFocusRing<Region>(REGIONS);
+
+  // Filter state.
+  const [openDropdown, setOpenDropdown] = useState<FilterDropdownType>(null);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [selectedEnvs, setSelectedEnvs] = useState<string[]>([]);
+  const [statsPeriod, setStatsPeriod] = useState(DEFAULT_STATS_PERIOD);
 
   const [triageNotice, setTriageNotice] = useState<Notice | null>(null);
 
@@ -128,6 +135,14 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "mine";
         },
+        // 1b. Filter dropdowns swallow keys while open — the Dropdown handles
+        // its own navigation internally via useKeyboard.
+        () => {
+          if (!openDropdown) return "notMine";
+          // Escape closes the dropdown (handled by the Dropdown component).
+          // All other keys are consumed by the Dropdown's own useKeyboard.
+          return "notMine";
+        },
         // 2. The detail view owns Escape (back) before anything else claims it.
         () => {
           if (!openIssue) return "notMine";
@@ -149,6 +164,21 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         },
         // 4. Global app commands. Tab cycles only through visible regions.
         () => {
+          // Filter dropdown shortcuts — only in the issue list, not in detail.
+          if (showIssues && !openIssue && focus.focusedRef.current === "content") {
+            if (matchesCommand("sentry.view.filterProject", key)) {
+              setOpenDropdown("project");
+              return "mine";
+            }
+            if (matchesCommand("sentry.view.filterEnv", key)) {
+              setOpenDropdown("env");
+              return "mine";
+            }
+            if (matchesCommand("sentry.view.filterDate", key)) {
+              setOpenDropdown("date");
+              return "mine";
+            }
+          }
           if (matchesCommand("sentry.app.help", key)) {
             setShowHelp(true);
             return "mine";
@@ -361,6 +391,14 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               // survive; before that the stream renders its own fetch state.
               issuesOverride={issues.length > 0 ? issues : undefined}
               pendingIds={triage.pending}
+              openDropdown={openDropdown}
+              selectedProjects={selectedProjects}
+              selectedEnvs={selectedEnvs}
+              statsPeriod={statsPeriod}
+              onProjectChange={setSelectedProjects}
+              onEnvChange={setSelectedEnvs}
+              onPeriodChange={setStatsPeriod}
+              onDropdownClose={() => setOpenDropdown(null)}
             />
           ) : showLogs ? (
             <LogStream
