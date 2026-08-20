@@ -55,7 +55,7 @@ describe("auth", () => {
     try {
       const provider = createTokenAuthProvider({ token: "sntryu_from_file" });
       expect(await provider.getToken()).toBe("sntryu_from_env");
-      expect(provider.describe()).toBe("env:SENTRY_AUTH_TOKEN");
+      expect(provider.describe()).toBe("$SENTRY_AUTH_TOKEN");
     } finally {
       delete process.env["SENTRY_AUTH_TOKEN"];
     }

@@ -75,10 +75,12 @@ export function createTokenAuthProvider(
     return value ? value : undefined;
   };
 
+  // Labels are shown in error messages, so they name the source without
+  // leaking an absolute path from the user's home directory.
   const sources: Array<{ token: string | undefined; label: string }> = [
-    { token: fromEnv("SENTRY_AUTH_TOKEN"), label: "env:SENTRY_AUTH_TOKEN" },
-    { token: fromEnv("SENTRY_TOKEN"), label: "env:SENTRY_TOKEN" },
-    { token: config.token?.trim() || undefined, label: `file:${CONFIG_PATH}` },
+    { token: fromEnv("SENTRY_AUTH_TOKEN"), label: "$SENTRY_AUTH_TOKEN" },
+    { token: fromEnv("SENTRY_TOKEN"), label: "$SENTRY_TOKEN" },
+    { token: config.token?.trim() || undefined, label: "the config file" },
   ];
 
   const resolved = sources.find((s) => s.token);
