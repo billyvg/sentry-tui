@@ -15,7 +15,7 @@ import type { Group } from "~/api/types";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { assigneeAvatarUrl } from "~/core/avatars";
 import { theme } from "~/core/theme";
-import { fitText } from "~/lib/text";
+import { fitText, measureTextWidth } from "~/lib/text";
 import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
@@ -23,6 +23,7 @@ import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useIssues } from "~/ui/hooks/useIssues";
 import { useMemberAvatars } from "~/ui/hooks/useMemberAvatars";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
+import { BOLD } from "~/ui/lib/attributes";
 
 /**
  * Column the scrollbox's vertical scrollbar takes out of its own viewport.
@@ -32,6 +33,9 @@ import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
  * rows' right padding.
  */
 const SCROLLBAR_GUTTER = 1;
+
+/** Rows the view-title line occupies when a `title` is given. */
+const TITLE_ROWS = 1;
 
 export interface IssueStreamProps {
   client: SentryClient | null;
@@ -82,6 +86,15 @@ export interface IssueStreamProps {
    * cursor can both move it and act on the issue itself.
    */
   onRowClick?: (index: number, group: Group) => void;
+  /**
+   * Sort passed to the API. Owned by the App because a saved or taxonomy view
+   * can carry its own — see `src/core/issueViews.ts`.
+   */
+  sort?: SortOption;
+  /** Name of the view being shown, rendered above the search bar. */
+  title?: string;
+  /** One-line explanation of the view, shown beside the title. */
+  description?: string;
 }
 
 export function IssueStream({
@@ -112,11 +125,13 @@ export function IssueStream({
   onSearchBlur,
   reloadToken,
   onRowClick,
+  sort = DEFAULT_SORT,
+  title,
+  description,
 }: IssueStreamProps) {
   const [localQuery] = useState(DEFAULT_QUERY);
   const query = queryProp ?? localQuery;
   const displayValue = searchValue ?? query;
-  const [sort] = useState<SortOption>(DEFAULT_SORT);
   const inputRef = useRef<InputRenderable>(null);
   const listRef = useRef<ScrollBoxRenderable>(null);
 
@@ -196,6 +211,24 @@ export function IssueStream({
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
+      {/*
+       * Which view this is. The secondary nav closes on selection, so without
+       * this line Warnings and Feed are indistinguishable. Mirrors the web's
+       * page title and `titleDescription`.
+       */}
+      {title ? (
+        <box style={{ flexDirection: "row", width, flexShrink: 0, paddingLeft: 1 }}>
+          <text fg={theme.text} attributes={BOLD}>
+            {title}
+          </text>
+          {description ? (
+            <text fg={theme.muted}>
+              {`  ${fitText(description, Math.max(0, listWidth - measureTextWidth(title) - 3))}`}
+            </text>
+          ) : null}
+        </box>
+      ) : null}
+
       {/* Search query, mirroring the web app's search bar. */}
       <box
         style={{
@@ -240,7 +273,7 @@ export function IssueStream({
         selectedEnvs={selectedEnvs}
         statsPeriod={statsPeriod}
         sortLabel={sortLabel}
-        anchorTop={SEARCH_ROWS}
+        anchorTop={SEARCH_ROWS + (title ? TITLE_ROWS : 0)}
         onProjectChange={onProjectChange ?? (() => {})}
         onEnvChange={onEnvChange ?? (() => {})}
         onPeriodChange={onPeriodChange ?? (() => {})}

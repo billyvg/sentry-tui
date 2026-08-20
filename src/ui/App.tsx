@@ -3,10 +3,11 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
 import { writeConfig } from "~/api/config";
-import { DEFAULT_QUERY, DEFAULT_STATS_PERIOD, getOrganization } from "~/api/issues";
+import { DEFAULT_SORT, DEFAULT_STATS_PERIOD, getOrganization, type SortOption } from "~/api/issues";
 import { DEFAULT_LOG_PERIOD, type LogEntry } from "~/api/logs";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
+import { ALL_VIEWS_LABEL, DEFAULT_ISSUE_VIEW, getIssueView } from "~/core/issueViews";
 import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { theme } from "~/core/theme";
@@ -27,6 +28,7 @@ import { useFocusRing } from "~/ui/hooks/useFocusRing";
 import { useTriage } from "~/ui/hooks/useTriage";
 import { IssueDetail } from "~/ui/screens/IssueDetail";
 import { IssueStream } from "~/ui/screens/IssueStream";
+import { IssueViewsList, type SavedViewRow } from "~/ui/screens/IssueViewsList";
 import { LogStream } from "~/ui/screens/LogStream";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
 
@@ -104,12 +106,22 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
 
   // Search bar state — the query is owned here so it survives navigation and
   // is sent to the API as the user edits it.
-  const [searchQuery, setSearchQuery] = useState<string>(DEFAULT_QUERY);
+  const [searchQuery, setSearchQuery] = useState<string>(DEFAULT_ISSUE_VIEW.query);
   const [searchFocused, setSearchFocused] = useState(false);
   /** The committed query — what was last submitted (Enter / Escape). */
-  const [committedQuery, setCommittedQuery] = useState<string>(DEFAULT_QUERY);
+  const [committedQuery, setCommittedQuery] = useState<string>(DEFAULT_ISSUE_VIEW.query);
   /** Stash the query value before editing so Escape can revert. */
-  const queryBeforeEdit = useRef<string>(DEFAULT_QUERY);
+  const queryBeforeEdit = useRef<string>(DEFAULT_ISSUE_VIEW.query);
+  /** Sort sent with the issue query — a view can carry its own. */
+  const [sort, setSort] = useState<SortOption>(DEFAULT_ISSUE_VIEW.sort ?? DEFAULT_SORT);
+
+  // Saved views (Issues › All Views): the list's cursor, its rows, and the one
+  // that's been opened. A non-null `savedView` means the stream is showing that
+  // saved search rather than the list.
+  const [savedViewRows, setSavedViewRows] = useState<SavedViewRow[]>([]);
+  const [savedViewSelected, setSavedViewSelected] = useState(0);
+  const [savedView, setSavedView] = useState<SavedViewRow | null>(null);
+  const [savedViewStatus, setSavedViewStatus] = useState<StreamStatus>({ loading: false });
 
   const [transientNotice, setTransientNotice] = useState<Notice | null>(null);
 
@@ -133,7 +145,14 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const [logCommittedQuery, setLogCommittedQuery] = useState<string>("");
   const logQueryBeforeEdit = useRef<string>("");
 
-  const showIssues = activeGroup === "issues";
+  // Which Issues view is on screen. A saved view outranks the nav item, since
+  // opening one is a step *inside* All Views rather than a nav change.
+  const navView = activeGroup === "issues" ? getIssueView(activeItem) : undefined;
+  const streamTitle = savedView ? savedView.view.name : navView?.label;
+  const streamDescription = savedView ? savedView.view.query : navView?.description;
+
+  const showIssues = navView !== undefined || savedView !== null;
+  const showAllViews = activeGroup === "issues" && activeItem === ALL_VIEWS_LABEL && !savedView;
   const showLogs = activeGroup === "explore" && activeItem === "Logs";
   const anySearchFocused = searchFocused || logSearchFocused;
 
@@ -311,6 +330,18 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
       // otherwise the detail keeps rendering over the group just chosen.
       setOpenIssue(null);
       setLogDetailOpen(false);
+      // …and supersedes an opened saved view, for the same reason.
+      setSavedView(null);
+      // Each Issues item is its own query, so selecting one resets the search
+      // bar to that view's default. Done here rather than in an effect so it
+      // can never overwrite a query the user is part-way through editing.
+      const view = group === "issues" ? getIssueView(item) : undefined;
+      if (view) {
+        setSearchQuery(view.query);
+        setCommittedQuery(view.query);
+        queryBeforeEdit.current = view.query;
+        setSort(view.sort ?? DEFAULT_SORT);
+      }
       focus.focus("content");
     },
     [focus],
@@ -411,6 +442,23 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
     [focus, selected],
   );
 
+  /** Open a saved view: show its results in the stream instead of the list. */
+  const openSavedView = useCallback((row: SavedViewRow) => {
+    setSavedView(row);
+    setSearchQuery(row.view.query);
+    setCommittedQuery(row.view.query);
+    queryBeforeEdit.current = row.view.query;
+    setSort(row.view.querySort ?? DEFAULT_SORT);
+    setStatsPeriod(row.statsPeriod);
+    setSelectedProjects(row.projectSlugs);
+    setSelectedEnvs(row.view.environments);
+  }, []);
+
+  const handleSavedViewRows = useCallback((rows: SavedViewRow[]) => {
+    setSavedViewRows(rows);
+    setSavedViewSelected((current) => Math.min(current, Math.max(0, rows.length - 1)));
+  }, []);
+
   useKeyboard((key) => {
     routeKeyOwnership(
       [
@@ -467,6 +515,16 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
             return "mine";
           }
           return "notMine";
+        },
+        // 3b. Escape backs out of an opened saved view to the All Views list.
+        //     Sits below the detail view so Escape pops one level at a time.
+        () => {
+          if (!savedView) return "notMine";
+          if (showSecondary) return "notMine";
+          if (!matchesCommand("sentry.nav.back", key)) return "notMine";
+          setSavedView(null);
+          focus.focus("content");
+          return "mine";
         },
         // 4. Escape closes the secondary nav and returns focus to the rail.
         () => {
@@ -628,7 +686,35 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 9. Log list cursor navigation, and the detail panel it opens.
+        // 11. Saved-view list cursor and open.
+        () => {
+          if (focus.focusedRef.current !== "content") return "notMine";
+          if (!showAllViews) return "notMine";
+          const last = Math.max(0, savedViewRows.length - 1);
+          if (matchesCommand("sentry.nav.open", key)) {
+            const target = savedViewRows[savedViewSelected];
+            if (target) openSavedView(target);
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.down", key)) {
+            setSavedViewSelected((i) => Math.min(i + 1, last));
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.up", key)) {
+            setSavedViewSelected((i) => Math.max(i - 1, 0));
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.top", key)) {
+            setSavedViewSelected(0);
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.bottom", key)) {
+            setSavedViewSelected(last);
+            return "mine";
+          }
+          return "notMine";
+        },
+        // 12. Log list cursor navigation, and the detail panel it opens.
         () => {
           if (focus.focusedRef.current !== "content") return "notMine";
           if (!showLogs) return "notMine";
@@ -750,6 +836,21 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
               onSearchBlur={handleSearchBlur}
               reloadToken={reloadToken}
               onRowClick={handleRowClick}
+              sort={sort}
+              title={streamTitle}
+              description={streamDescription}
+            />
+          ) : showAllViews ? (
+            <IssueViewsList
+              client={client}
+              org={org}
+              width={contentWidth}
+              height={contentHeight}
+              focused={focus.isFocused("content")}
+              selectedIndex={savedViewSelected}
+              onRowsChange={handleSavedViewRows}
+              onStatusChange={setSavedViewStatus}
+              reloadToken={reloadToken}
             />
           ) : showLogs ? (
             <LogStream
@@ -799,7 +900,9 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
             ? { kind: "idle", text: openIssue.shortId }
             : showLogs
               ? toLogNotice(logStatus)
-              : toNotice(status, showIssues))
+              : showAllViews
+                ? toViewsNotice(savedViewStatus)
+                : toNotice(status, showIssues))
         }
         elapsedMs={openIssue ? undefined : status.elapsedMs}
         hints={
@@ -869,5 +972,11 @@ function toNotice(status: StreamStatus, showIssues: boolean): Notice {
 function toLogNotice(status: StreamStatus): Notice {
   if (status.error) return { kind: "error", text: status.error };
   if (status.loading) return { kind: "loading", text: "loading logs…" };
+  return { kind: "idle", text: "" };
+}
+
+function toViewsNotice(status: StreamStatus): Notice {
+  if (status.error) return { kind: "error", text: status.error };
+  if (status.loading) return { kind: "loading", text: "Loading views…" };
   return { kind: "idle", text: "" };
 }

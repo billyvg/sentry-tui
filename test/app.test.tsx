@@ -97,7 +97,11 @@ test("j/k in secondary nav moves items, Enter selects and hides secondary", asyn
     // Select Inbox — secondary hides, focus moves to content.
     await h.press((i) => i.pressEnter());
     const frame = h.frame();
-    expect(frame).not.toContain("Inbox"); // secondary is hidden
+    // "Inbox" itself stays on screen as the content pane's view header, so the
+    // proof that the secondary list is gone is one of its *other* entries.
+    expect(frame).not.toContain("Breached Metrics");
+    expect(frame).not.toContain("All Views");
+    expect(frame).toContain("Inbox");
   } finally {
     await h.cleanup();
   }

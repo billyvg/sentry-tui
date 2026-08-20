@@ -1,30 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError, type SentryClient } from "~/api/client";
+import type { SentryClient } from "~/api/client";
 import { fetchIssueStats, listIssues, type IssueStats, type SortOption } from "~/api/issues";
 import type { Group } from "~/api/types";
 import {
-  type AsyncError,
   type AsyncStatus,
   idle,
   rejected,
   resolved,
   startLoading,
+  toAsyncError,
 } from "~/core/async";
-
-function toAsyncError(error: unknown): AsyncError {
-  if (error instanceof ApiError) {
-    return {
-      message: error.message,
-      retryable: error.retryable,
-      retryAfterSeconds: error.retryAfterSeconds,
-    };
-  }
-  return {
-    message: error instanceof Error ? error.message : String(error),
-    retryable: true,
-  };
-}
 
 export interface IssuesQuery {
   org: string;

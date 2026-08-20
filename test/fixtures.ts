@@ -1,3 +1,4 @@
+import type { GroupSearchView } from "~/api/groupSearchViews";
 import type { Group, OrgMember, SentryEvent, TimeseriesValue } from "~/api/types";
 
 function stats24h(peak: number): TimeseriesValue[] {
@@ -254,4 +255,47 @@ export const eventFixture: SentryEvent = {
   ],
   nextEventID: null,
   previousEventID: null,
+};
+
+/** Saved issue views, as `/organizations/:org/group-search-views/` returns them. */
+export const savedViewsFixture: {
+  mine: GroupSearchView[];
+  others: GroupSearchView[];
+} = {
+  mine: [
+    {
+      id: "10",
+      name: "Prod errors",
+      query: "is:unresolved level:error",
+      querySort: "freq",
+      // `-1` is Sentry's "all projects" sentinel, mixed in here so the screen's
+      // handling of it is exercised alongside a real project id.
+      projects: [42, -1],
+      environments: ["production"],
+      timeFilters: { start: null, end: null, period: "7d", utc: null },
+      lastVisited: "2026-08-19T12:00:00Z",
+      dateCreated: "2026-06-01T09:00:00Z",
+      dateUpdated: "2026-08-01T09:00:00Z",
+      starred: true,
+      stars: 4,
+      createdBy: { id: "1", name: "Ada Lovelace", email: "ada@example.com" },
+    },
+  ],
+  others: [
+    {
+      id: "11",
+      name: "Team backlog",
+      query: "is:unresolved assigned:#platform",
+      querySort: "date",
+      projects: [],
+      environments: [],
+      timeFilters: { period: "14d" },
+      lastVisited: null,
+      dateCreated: "2026-05-14T09:00:00Z",
+      dateUpdated: "2026-05-14T09:00:00Z",
+      starred: false,
+      stars: 0,
+      createdBy: { id: "2", name: "Grace Hopper", email: "grace@example.com" },
+    },
+  ],
 };

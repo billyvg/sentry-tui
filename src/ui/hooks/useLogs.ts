@@ -1,29 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError, type SentryClient } from "~/api/client";
+import type { SentryClient } from "~/api/client";
 import { listLogs, listLogTimeseries, type LogEntry, type LogTimeseriesBucket } from "~/api/logs";
 import {
-  type AsyncError,
   type AsyncStatus,
   idle,
   rejected,
   resolved,
   startLoading,
+  toAsyncError,
 } from "~/core/async";
-
-function toAsyncError(error: unknown): AsyncError {
-  if (error instanceof ApiError) {
-    return {
-      message: error.message,
-      retryable: error.retryable,
-      retryAfterSeconds: error.retryAfterSeconds,
-    };
-  }
-  return {
-    message: error instanceof Error ? error.message : String(error),
-    retryable: true,
-  };
-}
 
 export interface LogsQuery {
   org: string;

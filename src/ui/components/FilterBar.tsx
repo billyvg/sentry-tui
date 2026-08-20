@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listEnvironments, listProjects, type Environment } from "~/api/issues";
-import type { Project } from "~/api/types";
+import { listEnvironments, type Environment } from "~/api/issues";
 import { theme } from "~/core/theme";
 import { ChipRow, CHIP_HEIGHT, chipOffsets, type ChipSpec } from "~/ui/components/Chip";
 import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
+import { useProjects } from "~/ui/hooks/useProjects";
 
 /**
  * Rows the search box occupies: its input line plus the border above and
@@ -78,17 +78,14 @@ export function FilterBar({
   onDropdownClose,
   onDropdownOpen,
 }: FilterBarProps) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const projects = useProjects(client, org);
   const [environments, setEnvironments] = useState<Environment[]>([]);
 
-  // Fetch projects and environments once when the client is available.
+  // Fetch environments once when the client is available; projects come from
+  // the shared hook, which the saved-views screen reads too.
   useEffect(() => {
     if (!client) return;
     const controller = new AbortController();
-
-    void listProjects(client, { org, signal: controller.signal })
-      .then((data) => setProjects(data))
-      .catch(() => {});
 
     void listEnvironments(client, { org, signal: controller.signal })
       .then((data) => setEnvironments(data))
