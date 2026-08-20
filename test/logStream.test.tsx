@@ -225,3 +225,104 @@ test("bar chart is hidden when timeseries data is empty", async () => {
     await h.cleanup();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Search bar
+// ---------------------------------------------------------------------------
+
+test("log stream shows the search bar with placeholder", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+
+    await h.waitForFrame((f) => f.includes("Search logs"));
+    const frame = h.frame();
+    expect(frame).toContain("Search logs");
+    // The / prefix should be visible.
+    expect(frame).toContain("/");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("/ focuses the log search bar and shows submit/cancel hints", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+    await h.waitForFrame((f) => f.includes("card declined"));
+
+    // Press / to focus the search bar.
+    await h.press((i) => i.pressKey("/"));
+
+    const frame = h.frame();
+    expect(frame).toContain("submit");
+    expect(frame).toContain("cancel");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("Escape reverts log search to the empty query", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+    await h.waitForFrame((f) => f.includes("card declined"));
+
+    // Focus search and type something.
+    await h.press((i) => i.pressKey("/"));
+    await h.press((i) => i.pressKey("hello"));
+
+    // Cancel with Escape.
+    await h.pressEscape();
+
+    const frame = h.frame();
+    // Should revert to placeholder (empty query).
+    expect(frame).toContain("Search logs");
+    expect(frame).not.toContain("submit");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Filter bar (shared FilterBar component)
+// ---------------------------------------------------------------------------
+
+test("log stream shows filter chips for project, env, and period", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+    await h.waitForFrame((f) => f.includes("card declined"));
+
+    const frame = h.frame();
+    expect(frame).toContain("all projects");
+    expect(frame).toContain("all envs");
+    expect(frame).toContain("1h");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("D opens the date range selector on the logs view", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+    await h.waitForFrame((f) => f.includes("card declined"));
+
+    // Press D to open the date dropdown.
+    await h.press((i) => i.pressKey("D", { shift: true }));
+
+    const frame = h.frame();
+    expect(frame).toContain("Date Range");
+    // Should list date options.
+    expect(frame).toContain("1 hour");
+    expect(frame).toContain("24 hours");
+  } finally {
+    await h.cleanup();
+  }
+});

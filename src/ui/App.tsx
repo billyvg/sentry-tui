@@ -3,7 +3,7 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
 import { DEFAULT_QUERY, DEFAULT_STATS_PERIOD, getOrganization } from "~/api/issues";
-import type { LogEntry } from "~/api/logs";
+import { DEFAULT_LOG_PERIOD, type LogEntry } from "~/api/logs";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
 import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
@@ -93,11 +93,32 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   const [logSelected, setLogSelected] = useState(0);
   const [logStatus, setLogStatus] = useState<StreamStatus>({ loading: false });
 
+  // Log-specific filter state.
+  const [logOpenDropdown, setLogOpenDropdown] = useState<FilterDropdownType>(null);
+  const [logSelectedProjects, setLogSelectedProjects] = useState<string[]>([]);
+  const [logSelectedEnvs, setLogSelectedEnvs] = useState<string[]>([]);
+  const [logStatsPeriod, setLogStatsPeriod] = useState(DEFAULT_LOG_PERIOD);
+
+  // Log search bar state.
+  const [logSearchQuery, setLogSearchQuery] = useState<string>("");
+  const [logSearchFocused, setLogSearchFocused] = useState(false);
+  const [logCommittedQuery, setLogCommittedQuery] = useState<string>("");
+  const logQueryBeforeEdit = useRef<string>("");
+
+  const showIssues = activeGroup === "issues";
+  const showLogs = activeGroup === "explore" && activeItem === "Logs";
+  const anySearchFocused = searchFocused || logSearchFocused;
+
   /** Focus the search input, stashing the current query for Escape revert. */
   const focusSearch = useCallback(() => {
-    queryBeforeEdit.current = searchQuery;
-    setSearchFocused(true);
-  }, [searchQuery]);
+    if (showLogs) {
+      logQueryBeforeEdit.current = logSearchQuery;
+      setLogSearchFocused(true);
+    } else {
+      queryBeforeEdit.current = searchQuery;
+      setSearchFocused(true);
+    }
+  }, [searchQuery, logSearchQuery, showLogs]);
 
   /** Guards against the native blur handler reverting after submit/cancel. */
   const searchExitHandled = useRef(false);
@@ -105,16 +126,26 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   /** Submit the search query and return focus to the content pane. */
   const submitSearch = useCallback(() => {
     searchExitHandled.current = true;
-    setCommittedQuery(searchQuery);
-    setSearchFocused(false);
-  }, [searchQuery]);
+    if (showLogs) {
+      setLogCommittedQuery(logSearchQuery);
+      setLogSearchFocused(false);
+    } else {
+      setCommittedQuery(searchQuery);
+      setSearchFocused(false);
+    }
+  }, [searchQuery, logSearchQuery, showLogs]);
 
   /** Cancel editing — revert to the last committed query. */
   const cancelSearch = useCallback(() => {
     searchExitHandled.current = true;
-    setSearchQuery(queryBeforeEdit.current);
-    setSearchFocused(false);
-  }, []);
+    if (showLogs) {
+      setLogSearchQuery(logQueryBeforeEdit.current);
+      setLogSearchFocused(false);
+    } else {
+      setSearchQuery(queryBeforeEdit.current);
+      setSearchFocused(false);
+    }
+  }, [showLogs]);
 
   /** Handle native blur (e.g. clicking away) — revert unless already handled. */
   const handleSearchBlur = useCallback(() => {
@@ -122,12 +153,30 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
       searchExitHandled.current = false;
       return;
     }
-    setSearchQuery(queryBeforeEdit.current);
-    setSearchFocused(false);
-  }, []);
+    if (showLogs) {
+      setLogSearchQuery(logQueryBeforeEdit.current);
+      setLogSearchFocused(false);
+    } else {
+      setSearchQuery(queryBeforeEdit.current);
+      setSearchFocused(false);
+    }
+  }, [showLogs]);
 
-  const showIssues = activeGroup === "issues";
-  const showLogs = activeGroup === "explore" && activeItem === "Logs";
+  /** Focus the log search input. */
+  const focusLogSearch = useCallback(() => {
+    logQueryBeforeEdit.current = logSearchQuery;
+    setLogSearchFocused(true);
+  }, [logSearchQuery]);
+
+  /** Handle native blur for log search. */
+  const handleLogSearchBlur = useCallback(() => {
+    if (searchExitHandled.current) {
+      searchExitHandled.current = false;
+      return;
+    }
+    setLogSearchQuery(logQueryBeforeEdit.current);
+    setLogSearchFocused(false);
+  }, []);
 
   const handleIssues = useCallback((next: Group[]) => {
     setIssues(next);
@@ -180,7 +229,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         // 1b. Filter dropdowns swallow keys while open — the Dropdown handles
         // its own navigation internally via useKeyboard.
         () => {
-          if (!openDropdown) return "notMine";
+          if (!openDropdown && !logOpenDropdown) return "notMine";
           // Escape closes the dropdown (handled by the Dropdown component).
           // All other keys are consumed by the Dropdown's own useKeyboard.
           return "notMine";
@@ -188,7 +237,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         // 2. Search input intercepts Escape (cancel) and Enter (submit);
         //    all other keys pass through to the focused <input>.
         () => {
-          if (!searchFocused) return "notMine";
+          if (!anySearchFocused) return "notMine";
           if (matchesCommand("sentry.nav.back", key)) {
             cancelSearch();
             return "mine";
@@ -221,18 +270,19 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         },
         // 5. Global app commands. Tab cycles only through visible regions.
         () => {
-          // Filter dropdown shortcuts — only in the issue list, not in detail.
-          if (showIssues && !openIssue && focus.focusedRef.current === "content") {
+          // Filter dropdown shortcuts — available for both issues and logs.
+          if ((showIssues || showLogs) && !openIssue && focus.focusedRef.current === "content") {
+            const setDropdown = showLogs ? setLogOpenDropdown : setOpenDropdown;
             if (matchesCommand("sentry.view.filterProject", key)) {
-              setOpenDropdown("project");
+              setDropdown("project");
               return "mine";
             }
             if (matchesCommand("sentry.view.filterEnv", key)) {
-              setOpenDropdown("env");
+              setDropdown("env");
               return "mine";
             }
             if (matchesCommand("sentry.view.filterDate", key)) {
-              setOpenDropdown("date");
+              setDropdown("date");
               return "mine";
             }
           }
@@ -431,7 +481,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
             flexDirection: "column",
             border: ["left"],
             borderColor:
-              focus.isFocused("content") && !searchFocused ? theme.borderFocused : theme.border,
+              focus.isFocused("content") && !anySearchFocused ? theme.borderFocused : theme.border,
           }}
         >
           {openIssue ? (
@@ -482,6 +532,20 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               selectedIndex={logSelected}
               onLogsChange={handleLogs}
               onStatusChange={setLogStatus}
+              openDropdown={logOpenDropdown}
+              selectedProjects={logSelectedProjects}
+              selectedEnvs={logSelectedEnvs}
+              statsPeriod={logStatsPeriod}
+              onProjectChange={setLogSelectedProjects}
+              onEnvChange={setLogSelectedEnvs}
+              onPeriodChange={setLogStatsPeriod}
+              onDropdownClose={() => setLogOpenDropdown(null)}
+              query={logCommittedQuery}
+              searchValue={logSearchQuery}
+              onSearchInput={setLogSearchQuery}
+              searchFocused={logSearchFocused}
+              onSearchFocus={focusLogSearch}
+              onSearchBlur={handleLogSearchBlur}
             />
           ) : (
             <box style={{ flexDirection: "column", paddingLeft: 1 }}>
@@ -507,7 +571,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         }
         elapsedMs={openIssue ? undefined : status.elapsedMs}
         hints={
-          searchFocused
+          anySearchFocused
             ? [
                 { command: "sentry.nav.open", label: "submit" },
                 { command: "sentry.nav.back", label: "cancel" },
