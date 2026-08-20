@@ -56,7 +56,7 @@ export function StatusBar({
         height: 1,
         flexShrink: 0,
         flexDirection: "row",
-        backgroundColor: theme.panelAlt,
+        backgroundColor: theme.panel,
         paddingLeft: 1,
         paddingRight: 1,
       }}

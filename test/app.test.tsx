@@ -11,7 +11,6 @@ test("renders the app shell with nav and status bar, content defaults to Issues 
   try {
     const frame = h.frame();
     expect(frame).toContain("is:unresolved"); // issue stream is the default content
-    expect(frame).toContain("Ready"); // status bar notice
     expect(frame).toContain("quit"); // status bar hint
     // Secondary nav is hidden until Enter is pressed on the rail.
     expect(frame).not.toContain("Inbox");

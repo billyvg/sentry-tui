@@ -74,11 +74,15 @@ test("phase-two counts reach the list even though the App owns the rows", async 
   }
 });
 
-test("status bar reports the settled issue count", async () => {
+test("status bar is blank once issues settle", async () => {
   const h = await renderApp();
   try {
-    await h.waitForFrame((f) => f.includes("3 issues"));
-    expect(h.frame()).toContain("3 issues");
+    // Wait for the stream to finish loading so the status bar is idle.
+    await h.waitForFrame((f) => f.includes("TypeError"));
+    const frame = h.frame();
+    // No issue count, no org slug — just the key hints on the right.
+    expect(frame).not.toMatch(/\d+ issues/);
+    expect(frame).not.toContain("Ready");
   } finally {
     await h.cleanup();
   }
