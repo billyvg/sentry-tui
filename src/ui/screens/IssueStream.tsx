@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { RenderableEvents, type InputRenderable } from "@opentui/core";
+import { RenderableEvents, type InputRenderable, type ScrollBoxRenderable } from "@opentui/core";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -16,10 +16,11 @@ import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
 import { FilterBar, type FilterDropdownType } from "~/ui/components/FilterBar";
-import { IssueListHeader, IssueRow } from "~/ui/components/IssueRow";
+import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useIssues } from "~/ui/hooks/useIssues";
+import { scrollTopForRow } from "~/ui/lib/listScroll";
 
 export interface IssueStreamProps {
   client: SentryClient | null;
@@ -95,6 +96,7 @@ export function IssueStream({
   const displayValue = searchValue ?? query;
   const [sort] = useState<SortOption>(DEFAULT_SORT);
   const inputRef = useRef<InputRenderable>(null);
+  const listRef = useRef<ScrollBoxRenderable>(null);
 
   // Sync native focus/blur (e.g. mouse clicks) back to the parent.
   const inputRefCallback = useCallback(
@@ -146,6 +148,25 @@ export function IssueStream({
       error: error?.message,
     });
   }, [loading, statsLoading, elapsed, error, rows, issues, onStatusChange]);
+
+  // The cursor keys are consumed by the App, so the scrollbox never sees them
+  // and would happily leave the selected row off screen. Follow it by hand.
+  const rowCount = rows?.length ?? 0;
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || rowCount === 0) return;
+    const viewportHeight = list.viewport.height;
+    if (viewportHeight <= 0) return;
+
+    const next = scrollTopForRow({
+      index: selectedIndex,
+      rowCount,
+      rowHeight: ROW_HEIGHT,
+      viewportHeight,
+      scrollTop: list.scrollTop,
+    });
+    if (next !== list.scrollTop) list.scrollTop = next;
+  }, [selectedIndex, rowCount, height]);
 
   const sortLabel = useMemo(
     () => SORT_OPTIONS.find((o) => o.value === sort)?.label ?? sort,
@@ -213,7 +234,14 @@ export function IssueStream({
         selectionBelow={focused && selectedIndex === 0 && (rows?.length ?? 0) > 0}
       />
 
-      <scrollbox focused={focused} style={{ flexGrow: 1, width }}>
+      {/*
+       * `flexBasis: 0` is what makes this box scroll at all: on `auto` the
+       * scrollbox takes its content's height as its base size, grows past the
+       * pane, and ends up with a viewport as tall as the list — nothing
+       * overflows, so there is nothing to scroll. Starting from zero and
+       * growing into the leftover space bounds the viewport to the pane.
+       */}
+      <scrollbox ref={listRef} focused={focused} style={{ flexGrow: 1, flexBasis: 0, width }}>
         {rows === undefined && isInitialLoad(issues) ? (
           <IssueListSkeleton width={listWidth} rows={PAGE_SIZE} />
         ) : null}
