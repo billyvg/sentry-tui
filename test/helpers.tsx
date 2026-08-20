@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
+import type { CapturedSpan } from "@opentui/core";
 import type { TestRendererSetup } from "@opentui/core/testing";
 
 export interface Harness extends TestRendererSetup {
@@ -19,6 +20,12 @@ export interface Harness extends TestRendererSetup {
    */
   pressEscape: () => Promise<void>;
   frame: () => string;
+  /**
+   * The rendered span containing `needle`, with its real color and attribute
+   * bits. `frame()` flattens styling away, so this is the only way to assert
+   * that italic or a specific `fg` actually reached the terminal.
+   */
+  spanContaining: (needle: string) => CapturedSpan | undefined;
   /** Tear down the renderer, settling the unmount so React stays quiet. */
   cleanup: () => Promise<void>;
 }
@@ -49,6 +56,11 @@ export async function renderHarness(
       await setup.flush();
     },
     frame: () => setup.captureCharFrame(),
+    spanContaining: (needle: string) =>
+      setup
+        .captureSpans()
+        .lines.flatMap((line) => line.spans)
+        .find((span) => span.text.includes(needle)),
     cleanup: async () => {
       await act(async () => {
         setup.renderer.destroy();

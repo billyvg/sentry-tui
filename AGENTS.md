@@ -62,7 +62,50 @@ For rendering/interaction changes, also do a real terminal smoke run with `bun r
 - Prefer one source of truth per behavior. Extend existing paths, don't duplicate.
 - Add JSDoc comments to functions. Skip comments that only narrate what code says.
 
-## commits
+## worktrees
+
+Always work in a git worktree, never on `main` directly.
+
+```bash
+# create a worktree for your feature branch
+git worktree add ../sentry-tui-<branch-name> -b <branch-name>
+cd ../sentry-tui-<branch-name>
+bun install
+```
+
+Choose a short, descriptive branch name (e.g. `fix/sparkline-overflow`,
+`feat/replay-tab`). Clean up when the PR is merged:
+
+```bash
+git worktree remove ../sentry-tui-<branch-name>
+```
+
+## commits & pull requests
 
 Follow Conventional Commits: `<type>[scope]: <description>`.
 Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `build`.
+
+After finishing your changes:
+
+1. Run `bun run check` to verify everything passes.
+2. Stage and commit with a conventional commit message.
+3. Push and open a **draft** pull request:
+
+```bash
+git push -u origin <branch-name>
+gh pr create --draft --fill
+```
+
+## smoke-test pane
+
+Before finishing, make sure a Herdr pane is running the app so the user can
+manually test your changes. Use `herdr_panes` to check for an existing pane
+named `smoke-test`; if none exists, create one:
+
+```
+herdr_panes action=list          # look for an existing smoke-test pane
+herdr_panes action=split         # create a new pane if needed
+herdr_panes action=run command="bun run dev"   # start the app in watch mode
+```
+
+Leave the pane running — do not close it.

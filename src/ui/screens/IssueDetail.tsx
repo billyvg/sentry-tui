@@ -4,9 +4,12 @@ import type { SentryClient } from "~/api/client";
 import { findEntry, type Breadcrumb, type Group, type SentryEvent } from "~/api/types";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
+import { issueMessage, issueTitle } from "~/lib/issueText";
 import { formatCount, sparkline, timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
+import { Placeholder } from "~/ui/components/Placeholder";
 import { ExceptionSection } from "~/ui/components/StackTrace";
+import { BOLD } from "~/ui/lib/attributes";
 import { useIssueEvent } from "~/ui/hooks/useIssueEvent";
 
 /** Section ids, mirroring `views/issueDetails/context.tsx`'s SectionKey. */
@@ -108,15 +111,25 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
 
       <box style={{ flexDirection: "row", width }}>
         <text fg={theme.level[group.level] ?? theme.level.unknown}>│</text>
-        <text fg={theme.text} attributes={1 /* BOLD */}>
-          {fitText(group.title, width - 24)}
-        </text>
+        <Placeholder
+          text={issueTitle(group)}
+          fallback="(no title)"
+          width={width - 24}
+          fg={theme.text}
+          attributes={BOLD}
+        />
         <box style={{ flexGrow: 1 }} />
         <text fg={theme.muted}>{`${padText(formatCount(group.count), 7, "right")} events`}</text>
       </box>
 
+      {/* The exception value, as the row's second line shows it. */}
       <box style={{ flexDirection: "row", width }}>
-        <text fg={theme.muted}>{fitText(group.culprit, width - 24)}</text>
+        <Placeholder
+          text={issueMessage(group)}
+          fallback="(no error message)"
+          width={width - 24}
+          fg={theme.muted}
+        />
         <box style={{ flexGrow: 1 }} />
         <text fg={theme.muted}>{`${padText(formatCount(group.userCount), 7, "right")} users`}</text>
       </box>

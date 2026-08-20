@@ -21,6 +21,8 @@ export interface Theme {
   text: string;
   /** Secondary/dim text — culprits, metadata, hints. */
   muted: string;
+  /** One step below `muted`, for absent-value placeholders. */
+  subText: string;
   /** Sentry blurple. */
   accent: string;
 
@@ -47,12 +49,17 @@ export const darkTheme: Theme = {
   bg: "#0D0A10", // neutral.dark.100
   panel: "#1B1821", // neutral.dark.300
   panelAlt: "#24202B", // neutral.dark.400
-  selected: "#2E2936", // neutral.dark.500
+  // The web tints a selected row with a translucent overlay; a terminal cell
+  // needs an opaque value, so this is `neutral.dark.transparent300`
+  // (#D0B8F821) composited over `bg`. The nearest opaque step, #2E2936, is
+  // light enough that accent-on-selected drops to 2.99:1.
+  selected: "#26212E",
   border: "#393442", // neutral.dark.600
   borderFocused: "#7553FF", // blurple
 
   text: "#E7E5EA", // neutral.dark.1500
   muted: "#A49EAE", // neutral.dark.1100
+  subText: "#958E9F", // neutral.dark.1000
   accent: "#7553FF", // blurple — Sentry primary
 
   danger: "#F6938C", // red.dark.1200

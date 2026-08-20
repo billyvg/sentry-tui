@@ -42,6 +42,9 @@ describe("theme contrast", () => {
     { name: "bg", color: theme.bg },
     { name: "panel", color: theme.panel },
     { name: "panelAlt", color: theme.panelAlt },
+    // The selected row is a surface too: every row's text is read against it
+    // whenever the cursor lands there.
+    { name: "selected", color: theme.selected },
   ];
 
   // Primary text against all surfaces
@@ -53,6 +56,13 @@ describe("theme contrast", () => {
 
     test(`muted on ${bg.name} meets ${AA_NORMAL}:1`, () => {
       const ratio = contrastRatio(theme.muted, bg.color);
+      expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+    });
+
+    // subText carries real words — "(no error message)" — not just decoration,
+    // so it is held to the body-text ratio despite being a dimmed placeholder.
+    test(`subText on ${bg.name} meets ${AA_NORMAL}:1`, () => {
+      const ratio = contrastRatio(theme.subText, bg.color);
       expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
     });
 

@@ -13,7 +13,7 @@ import type { Group } from "~/api/types";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
-import { IssueRow } from "~/ui/components/IssueRow";
+import { IssueListHeader, IssueRow } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useIssues } from "~/ui/hooks/useIssues";
@@ -112,7 +112,7 @@ export function IssueStream({
         <text fg={theme.muted}>{`Sort: ${sortLabel}`}</text>
       </box>
 
-      <text fg={theme.border}>{"─".repeat(listWidth)}</text>
+      <IssueListHeader width={listWidth} />
 
       <scrollbox focused={focused} style={{ flexGrow: 1, width }}>
         {rows === undefined && isInitialLoad(issues) ? (

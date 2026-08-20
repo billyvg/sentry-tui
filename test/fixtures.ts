@@ -50,6 +50,10 @@ export const groupsFixture: Group[] = [
     numComments: 0,
     platform: "python",
     project: { id: "3", slug: "backend", name: "Backend", platform: "python" },
+    metadata: {
+      type: "ValueError",
+      value: "invalid literal for int() with base 10",
+    },
     stats: { "24h": stats24h(60) },
   },
   {
@@ -67,6 +71,9 @@ export const groupsFixture: Group[] = [
     hasSeen: true,
     isUnhandled: false,
     logger: "sentry.db",
+    // A performance issue carries no exception metadata, so the row falls back
+    // to the whole `title` — the other branch of `issueTitle`.
+    metadata: undefined,
     stats: { "24h": stats24h(12) },
   },
 ];

@@ -127,24 +127,10 @@ describe("formatting", () => {
   });
 });
 
+// Row anatomy, column layout and the skeleton's geometry live in
+// `issueRow.test.tsx`; what follows is only the loading-state behavior.
 describe("IssueRow", () => {
   const WIDTH = 90;
-
-  test("renders title, short id, culprit and counts", async () => {
-    const h = await renderHarness(
-      <IssueRow group={groupFixture} selected={false} width={WIDTH} />,
-      { width: WIDTH, height: 4 },
-    );
-    try {
-      const frame = h.frame();
-      expect(frame).toContain("TypeError");
-      expect(frame).toContain("PUMP-STATION-1");
-      expect(frame).toContain("Unhandled");
-      expect(frame).toContain("1.4k"); // 1428 events
-    } finally {
-      await h.cleanup();
-    }
-  });
 
   test("shows pending sparkline glyphs before stats arrive", async () => {
     const { stats: _dropped, ...withoutStats } = groupFixture;
@@ -159,28 +145,6 @@ describe("IssueRow", () => {
       expect(h.frame()).toContain("TypeError");
     } finally {
       await h.cleanup();
-    }
-  });
-
-  test("skeleton occupies the same geometry as a real row", async () => {
-    const real = await renderHarness(
-      <IssueRow group={groupFixture} selected={false} width={WIDTH} />,
-      { width: WIDTH, height: 4 },
-    );
-    const realLines = real.frame().split("\n");
-    await real.cleanup();
-
-    const skeleton = await renderHarness(<IssueRowSkeleton width={WIDTH} seed={0} />, {
-      width: WIDTH,
-      height: 4,
-    });
-    const skeletonLines = skeleton.frame().split("\n");
-    await skeleton.cleanup();
-
-    // Same number of rows, same cell width — no reflow when data lands.
-    expect(skeletonLines.length).toBe(realLines.length);
-    for (let i = 0; i < realLines.length; i++) {
-      expect(skeletonLines[i]!.length).toBe(realLines[i]!.length);
     }
   });
 
