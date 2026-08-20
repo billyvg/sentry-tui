@@ -130,7 +130,9 @@ export const COMMANDS: readonly Command[] = [
   },
   {
     id: "sentry.nav.open",
-    title: "Open issue",
+    // Not "Open issue": the same key opens a log's detail panel on the log
+    // stream, and the help overlay prints this title verbatim.
+    title: "Open",
     category: "nav",
     defaultKeys: ["return"],
   },

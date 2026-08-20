@@ -351,3 +351,91 @@ test("D opens the date range selector on the logs view", async () => {
     await h.cleanup();
   }
 });
+
+test("enter opens a detail panel for the selected log", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+    await h.waitForFrame((f) => f.includes("card declined"));
+
+    expect(h.frame()).not.toContain("Log Details");
+
+    await h.press((i) => i.pressEnter());
+
+    const frame = h.frame();
+    expect(frame).toContain("Log Details");
+    // The first fixture row: severity, project and trace all come from it.
+    expect(frame).toContain("Severity: error");
+    expect(frame).toContain("Project: billing");
+    expect(frame).toContain("Trace: abc123def456");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the detail panel follows the cursor while it is open", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+    await h.waitForFrame((f) => f.includes("card declined"));
+
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("Severity: error");
+
+    // j still moves the cursor with the panel open, and the panel redraws for
+    // the row it lands on — the second fixture row is a warning.
+    await h.press((i) => i.pressKey("j"));
+
+    const frame = h.frame();
+    expect(frame).toContain("Log Details");
+    expect(frame).toContain("Severity: warn");
+    expect(frame).not.toContain("Severity: error");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("enter again and escape both close the detail panel", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+    await h.waitForFrame((f) => f.includes("card declined"));
+
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("Log Details");
+
+    // Enter toggles.
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).not.toContain("Log Details");
+
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("Log Details");
+
+    // So does escape.
+    await h.pressEscape();
+    expect(h.frame()).not.toContain("Log Details");
+    // Closing the panel must not also pop the whole view.
+    expect(h.frame()).toContain("card declined");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the status bar names what enter will do to the detail panel", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+    await h.waitForFrame((f) => f.includes("card declined"));
+
+    expect(h.frame()).toContain("details");
+
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("close");
+  } finally {
+    await h.cleanup();
+  }
+});

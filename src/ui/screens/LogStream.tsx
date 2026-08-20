@@ -94,6 +94,11 @@ export interface LogStreamProps {
   onSearchBlur?: () => void;
   /** Bump to refetch the current query — the app's global refresh. */
   reloadToken?: number;
+  /**
+   * Show the detail panel for the selected row. Owned by the `App` so the
+   * status bar can name the key that closes it again.
+   */
+  detailOpen?: boolean;
 }
 
 export function LogStream({
@@ -121,6 +126,7 @@ export function LogStream({
   onSearchFocus,
   onSearchBlur,
   reloadToken,
+  detailOpen = false,
 }: LogStreamProps) {
   const [localQuery] = useState("");
   const query = queryProp ?? localQuery;
@@ -185,14 +191,15 @@ export function LogStream({
 
   const inner = Math.max(20, width - 2);
 
-  // Selected log entry detail panel (shown below the list)
+  /**
+   * The row the detail panel describes.
+   *
+   * It reads the cursor rather than a pinned entry, so the panel follows j/k
+   * while it is open — a log line is four fields, and freezing the list to
+   * read them would cost more than it shows.
+   */
   const selectedEntry = entries?.[selectedIndex] ?? null;
-  const [showDetail, setShowDetail] = useState(false);
-
-  // Reset detail when selection changes
-  useEffect(() => {
-    setShowDetail(false);
-  }, [selectedIndex]);
+  const showDetail = detailOpen && selectedEntry !== null;
 
   // The detail panel shortens the viewport, so it moves the offset too.
   useRowScrollFollow(listRef, {
@@ -272,7 +279,10 @@ export function LogStream({
        */}
       <scrollbox
         ref={listRef}
-        focused={focused && !showDetail}
+        // The list keeps focus while the panel is open: the panel has nothing
+        // of its own to scroll, and taking focus away would stop j/k moving
+        // the cursor the panel is following.
+        focused={focused}
         // Same scroll rail as the issue stream — see `IssueStream`.
         verticalScrollbarOptions={{
           showArrows: false,
