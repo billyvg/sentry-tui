@@ -67,8 +67,9 @@ For rendering/interaction changes, also do a real terminal smoke run with `bun r
 Always work in a git worktree, never on `main` directly.
 
 ```bash
-# create a worktree for your feature branch
-git worktree add ../sentry-tui-<branch-name> -b <branch-name>
+# create a worktree for your feature branch (always branch off latest main)
+git fetch origin
+git worktree add ../sentry-tui-<branch-name> -b <branch-name> origin/main
 cd ../sentry-tui-<branch-name>
 bun install
 ```
