@@ -71,6 +71,14 @@ export const COMMANDS: readonly Command[] = [
     palette: "always",
   },
   {
+    id: "sentry.app.switchOrg",
+    title: "Switch organization",
+    category: "app",
+    defaultKeys: ["o"],
+    description: "Open the organization picker",
+    palette: "always",
+  },
+  {
     id: "sentry.app.focusNext",
     title: "Next pane",
     category: "app",

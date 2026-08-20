@@ -5,20 +5,34 @@ import { SentryLogo } from "~/ui/components/NavIcon";
 import { useSpinnerFrame } from "~/ui/components/Spinner";
 import { useImageSupport } from "~/ui/hooks/useImageSupport";
 
+/**
+ * What a notice is announcing. The kind is the event, not the styling — the
+ * status bar decides how to paint it.
+ *
+ * Notice text is written in lower case throughout: the bar is the app talking
+ * under its breath, and a capital letter in the corner of the screen reads as
+ * a heading. Identifiers keep their own casing — `PUMP-STATION-1` is data, not
+ * prose.
+ */
 export type Notice =
   | { kind: "idle"; text: string }
   | { kind: "loading"; text: string }
   | { kind: "success"; text: string }
   | { kind: "warning"; text: string }
-  | { kind: "error"; text: string };
+  | { kind: "error"; text: string }
+  /** Something about what you're looking at changed — not a pass or a fail. */
+  | { kind: "info"; text: string };
 
-const NOTICE_COLOR: Record<Notice["kind"], string> = {
-  idle: theme.muted,
-  loading: theme.muted,
-  success: theme.success,
-  warning: theme.warning,
-  error: theme.danger,
-};
+/**
+ * Notices speak in the app's own voice — Sentry pink — with one exception.
+ *
+ * An error has to break the pattern to register at all: if failure wore the
+ * same color as every routine "loading issues…", the only thing distinguishing
+ * it would be reading it, which is precisely what nobody does with a status bar.
+ */
+function noticeColor(kind: Notice["kind"]): string {
+  return kind === "error" ? theme.danger : theme.highlight;
+}
 
 /** Rendered hint item: parenthesised key + label in muted. */
 function HintItem({ commandId, label }: { commandId: string; label?: string }) {
@@ -68,7 +82,7 @@ export function StatusBar({
         paddingRight: 1,
       }}
     >
-      <text fg={NOTICE_COLOR[notice.kind]}>{text}</text>
+      <text fg={noticeColor(notice.kind)}>{text}</text>
       <box style={{ flexGrow: 1 }} />
       {hints.map(({ command, label }, i) => {
         const key = primaryKey(command);

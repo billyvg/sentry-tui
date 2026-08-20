@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
+import { writeConfig } from "~/api/config";
 import { DEFAULT_QUERY, DEFAULT_STATS_PERIOD, getOrganization } from "~/api/issues";
 import { DEFAULT_LOG_PERIOD, type LogEntry } from "~/api/logs";
 import type { Group } from "~/api/types";
@@ -12,7 +13,13 @@ import { theme } from "~/core/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
 import { CommandPalette } from "~/ui/components/CommandPalette";
 import { HelpDialog } from "~/ui/components/HelpDialog";
-import { NavRail, NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
+import {
+  NavRail,
+  NAV_RAIL_WIDTH,
+  ORG_HEADER_ANCHOR_LEFT,
+  ORG_HEADER_ANCHOR_TOP,
+} from "~/ui/components/NavRail";
+import { OrgPicker } from "~/ui/components/OrgPicker";
 import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
 import type { FilterDropdownType } from "~/ui/components/FilterBar";
@@ -38,8 +45,13 @@ interface StreamStatus {
   error?: string;
 }
 
-export function App({ onQuit, client = null, org = "" }: AppProps) {
+export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const { width, height } = useTerminalDimensions();
+
+  // The open organization. Sourced from the CLI at startup, then owned here so
+  // the picker can repoint every screen at once — every fetch in the tree takes
+  // it as a dependency.
+  const [org, setOrg] = useState(initialOrg);
 
   // Rail cursor: which group is highlighted on the nav rail.
   const [railGroup, setRailGroup] = useState<NavGroupId>("issues");
@@ -54,6 +66,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
 
   const [showHelp, setShowHelp] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  const [showOrgPicker, setShowOrgPicker] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
 
   // One counter drives every fetch on screen: bumping it re-runs the data
@@ -62,8 +75,11 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   const [reloadToken, setReloadToken] = useState(0);
   const refresh = useCallback(() => setReloadToken((n) => n + 1), []);
 
-  // Fetch org details (including avatar) once on mount.
+  // Fetch org details (including avatar) for whichever org is open.
   useEffect(() => {
+    // Drop the previous org's avatar immediately — the wrong face in the rail
+    // is worse than none while the new one loads.
+    setAvatarUrl(undefined);
     if (!client || !org) return;
     const controller = new AbortController();
     getOrganization(client, { org, signal: controller.signal })
@@ -95,7 +111,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   /** Stash the query value before editing so Escape can revert. */
   const queryBeforeEdit = useRef<string>(DEFAULT_QUERY);
 
-  const [triageNotice, setTriageNotice] = useState<Notice | null>(null);
+  const [transientNotice, setTransientNotice] = useState<Notice | null>(null);
 
   // Logs state, parallel to issues.
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
@@ -205,20 +221,53 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
     setOpenIssue((current) => (current && current.id === next.id ? next : current));
   }, []);
 
-  // Triage notices are transient: they announce what just happened, then get
-  // out of the way so the ambient load notice is visible again.
+  // Notices about something the user just did are transient: they announce the
+  // action, then get out of the way so the ambient load notice is visible again.
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const showTriageNotice = useCallback((notice: Notice) => {
-    setTriageNotice(notice);
+  const showNotice = useCallback((notice: Notice) => {
+    setTransientNotice(notice);
     clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(() => setTriageNotice(null), 4000);
+    noticeTimer.current = setTimeout(() => setTransientNotice(null), 4000);
   }, []);
 
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
+  /**
+   * Point the whole app at a different organization.
+   *
+   * Everything on screen is org-scoped, so the loaded rows and the project and
+   * environment filters are dropped rather than carried across — a project slug
+   * from the old org selects nothing in the new one. The choice is persisted as
+   * the new default, matching what `--org` writes on first run.
+   */
+  const switchOrg = useCallback(
+    (slug: string) => {
+      setShowOrgPicker(false);
+      if (!slug || slug === org) return;
+
+      setOrg(slug);
+      setOpenIssue(null);
+      setIssues([]);
+      setSelected(0);
+      setSelectedProjects([]);
+      setSelectedEnvs([]);
+      setLogEntries([]);
+      setLogSelected(0);
+      setLogSelectedProjects([]);
+      setLogSelectedEnvs([]);
+      showNotice({ kind: "info", text: `switched to ${slug}` });
+
+      void writeConfig({ org: slug }).catch(() => {
+        // A read-only config dir shouldn't undo a switch that already happened;
+        // it only means the next launch opens the previous org.
+      });
+    },
+    [org, showNotice],
+  );
+
   const triage = useTriage(client, org, {
     onOptimistic: replaceIssue,
-    onNotice: showTriageNotice,
+    onNotice: showNotice,
   });
 
   // The row the keyboard acts on: the open issue, else the list cursor. The
@@ -307,6 +356,9 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         case "sentry.app.refresh":
           refresh();
           return;
+        case "sentry.app.switchOrg":
+          setShowOrgPicker(true);
+          return;
         case "sentry.nav.search":
           focus.focus("content");
           focusSearch();
@@ -376,7 +428,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         // (e.g. issue list cursor) don't steal j/k, while still letting the
         // Dropdown's global listener fire.
         () => {
-          if (!openDropdown && !logOpenDropdown) return "notMine";
+          if (!openDropdown && !logOpenDropdown && !showOrgPicker) return "notMine";
           return "focused";
         },
         // 1c. The palette opens from anywhere, including mid-edit in the
@@ -446,6 +498,10 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           if (matchesCommand("sentry.app.refresh", key)) {
             refresh();
+            return "mine";
+          }
+          if (matchesCommand("sentry.app.switchOrg", key)) {
+            setShowOrgPicker(true);
             return "mine";
           }
           if (matchesCommand("sentry.app.quit", key)) {
@@ -617,6 +673,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           avatarUrl={avatarUrl}
           orgSlug={org}
           onSelect={openNavGroup}
+          onOrgPress={() => setShowOrgPicker(true)}
         />
         {showSecondary ? (
           <SecondaryNav
@@ -720,9 +777,9 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
 
       <StatusBar
         notice={
-          // A triage result is the most recent thing the user did, so it
-          // outranks the ambient load notice.
-          triageNotice ??
+          // A triage result or an org switch is the most recent thing the user
+          // did, so it outranks the ambient load notice.
+          transientNotice ??
           (openIssue
             ? { kind: "idle", text: openIssue.shortId }
             : showLogs
@@ -763,6 +820,17 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           onClose={() => setShowPalette(false)}
         />
       ) : null}
+
+      {showOrgPicker ? (
+        <OrgPicker
+          client={client}
+          currentOrg={org}
+          anchorLeft={ORG_HEADER_ANCHOR_LEFT}
+          anchorTop={ORG_HEADER_ANCHOR_TOP}
+          onSelect={switchOrg}
+          onClose={() => setShowOrgPicker(false)}
+        />
+      ) : null}
     </box>
   );
 }
@@ -770,12 +838,12 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
 function toNotice(status: StreamStatus, showIssues: boolean): Notice {
   if (!showIssues) return { kind: "idle", text: "" };
   if (status.error) return { kind: "error", text: status.error };
-  if (status.loading) return { kind: "loading", text: "Loading issues…" };
+  if (status.loading) return { kind: "loading", text: "loading issues…" };
   return { kind: "idle", text: "" };
 }
 
 function toLogNotice(status: StreamStatus): Notice {
   if (status.error) return { kind: "error", text: status.error };
-  if (status.loading) return { kind: "loading", text: "Loading logs…" };
+  if (status.loading) return { kind: "loading", text: "loading logs…" };
   return { kind: "idle", text: "" };
 }

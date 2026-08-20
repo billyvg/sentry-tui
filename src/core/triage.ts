@@ -11,7 +11,7 @@ import { GroupStatus, GroupSubstatus, type Group } from "~/api/types";
 export interface TriageAction {
   /** Command id from the catalog, so keys and help stay in sync. */
   commandId: string;
-  /** Past-tense label for the confirmation notice. */
+  /** Past-tense label for the confirmation notice. Lower case, like every notice. */
   pastTense: string;
   /** The PUT body. Returns null when the action doesn't apply to this issue. */
   update: (group: Group) => IssueUpdate | null;
@@ -33,13 +33,13 @@ export function applyUpdate(group: Group, update: IssueUpdate): Group {
 export const TRIAGE_ACTIONS: readonly TriageAction[] = [
   {
     commandId: "sentry.issue.resolve",
-    pastTense: "Resolved",
+    pastTense: "resolved",
     update: (group) =>
       group.status === GroupStatus.RESOLVED ? null : { status: GroupStatus.RESOLVED },
   },
   {
     commandId: "sentry.issue.archive",
-    pastTense: "Archived",
+    pastTense: "archived",
     // Archiving an already-archived issue un-archives it, matching the web
     // app's toggle.
     update: (group) =>
@@ -52,18 +52,18 @@ export const TRIAGE_ACTIONS: readonly TriageAction[] = [
   },
   {
     commandId: "sentry.issue.unresolve",
-    pastTense: "Unresolved",
+    pastTense: "unresolved",
     update: (group) =>
       group.status === GroupStatus.UNRESOLVED ? null : { status: GroupStatus.UNRESOLVED },
   },
   {
     commandId: "sentry.issue.bookmark",
-    pastTense: "Bookmarked",
+    pastTense: "bookmarked",
     update: (group) => ({ isBookmarked: !group.isBookmarked }),
   },
   {
     commandId: "sentry.issue.markReviewed",
-    pastTense: "Marked reviewed",
+    pastTense: "marked reviewed",
     update: (group) => (group.hasSeen ? null : { inbox: false, hasSeen: true }),
   },
 ];
@@ -72,16 +72,16 @@ export function findTriageAction(commandId: string): TriageAction | undefined {
   return TRIAGE_ACTIONS.find((action) => action.commandId === commandId);
 }
 
-/** Notice text for an action that changed nothing. */
+/** Notice text for an action that changed nothing. Lower case, like every notice. */
 export function noOpNotice(commandId: string): string {
   switch (commandId) {
     case "sentry.issue.resolve":
-      return "Already resolved";
+      return "already resolved";
     case "sentry.issue.unresolve":
-      return "Already unresolved";
+      return "already unresolved";
     case "sentry.issue.markReviewed":
-      return "Already reviewed";
+      return "already reviewed";
     default:
-      return "Nothing to do";
+      return "nothing to do";
   }
 }

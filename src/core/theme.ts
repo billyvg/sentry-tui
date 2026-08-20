@@ -29,6 +29,13 @@ export interface Theme {
   danger: string;
   warning: string;
   success: string;
+  /**
+   * Sentry pink — the status bar's own voice, worn by every notice that isn't
+   * a failure. Deliberately not the `1200` tint the other semantic colors use:
+   * at that step pink lands next to `danger`'s salmon, and those two take turns
+   * in the same slot, so they must never be mistaken for each other.
+   */
+  highlight: string;
 
   /** Issue severity colors, keyed by `Level`. */
   level: Record<LevelKey, string>;
@@ -65,6 +72,7 @@ export const darkTheme: Theme = {
   danger: "#F6938C", // red.dark.1200
   warning: "#FFCE00", // yellow.dark.1200
   success: "#5ECE73", // green.dark.1200
+  highlight: "#FF45A8", // pink.dark.1000 — the ramp's brand anchor step
 
   // errorLevel.tsx: sample/info -> accent, warning -> meh, error -> orange,
   // fatal -> bad, unknown -> other.
