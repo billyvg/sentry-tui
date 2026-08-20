@@ -69,7 +69,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   const [status, setStatus] = useState<StreamStatus>({ loading: false });
   // A view stack rather than a router: Enter pushes a detail view, Esc pops.
   const [openIssue, setOpenIssue] = useState<Group | null>(null);
-  const focus = useFocusRing<Region>(REGIONS);
+  const focus = useFocusRing<Region>(REGIONS, "content");
 
   // Filter state.
   const [openDropdown, setOpenDropdown] = useState<FilterDropdownType>(null);
@@ -226,13 +226,14 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "mine";
         },
-        // 1b. Filter dropdowns swallow keys while open — the Dropdown handles
-        // its own navigation internally via useKeyboard.
+        // 1b. Filter dropdowns swallow keys while open — the Dropdown
+        // component handles its own navigation via a separate useKeyboard.
+        // Returning "focused" stops this routing chain so later handlers
+        // (e.g. issue list cursor) don't steal j/k, while still letting the
+        // Dropdown's global listener fire.
         () => {
           if (!openDropdown && !logOpenDropdown) return "notMine";
-          // Escape closes the dropdown (handled by the Dropdown component).
-          // All other keys are consumed by the Dropdown's own useKeyboard.
-          return "notMine";
+          return "focused";
         },
         // 2. Search input intercepts Escape (cancel) and Enter (submit);
         //    all other keys pass through to the focused <input>.
