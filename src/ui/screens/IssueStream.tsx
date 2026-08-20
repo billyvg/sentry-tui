@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { InputRenderable } from "@opentui/core";
+import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -58,6 +58,10 @@ export interface IssueStreamProps {
   onSearchInput?: (value: string) => void;
   /** Whether the search input is focused. */
   searchFocused?: boolean;
+  /** Called when the input gains focus (e.g. via mouse click). */
+  onSearchFocus?: () => void;
+  /** Called when the input loses focus. */
+  onSearchBlur?: () => void;
 }
 
 export function IssueStream({
@@ -83,12 +87,31 @@ export function IssueStream({
   searchValue,
   onSearchInput,
   searchFocused = false,
+  onSearchFocus,
+  onSearchBlur,
 }: IssueStreamProps) {
   const [localQuery] = useState(DEFAULT_QUERY);
   const query = queryProp ?? localQuery;
   const displayValue = searchValue ?? query;
   const [sort] = useState<SortOption>(DEFAULT_SORT);
   const inputRef = useRef<InputRenderable>(null);
+
+  // Sync native focus/blur (e.g. mouse clicks) back to the parent.
+  const inputRefCallback = useCallback(
+    (node: InputRenderable | null) => {
+      const prev = inputRef.current;
+      if (prev) {
+        prev.removeAllListeners(RenderableEvents.FOCUSED);
+        prev.removeAllListeners(RenderableEvents.BLURRED);
+      }
+      inputRef.current = node;
+      if (node) {
+        node.on(RenderableEvents.FOCUSED, () => onSearchFocus?.());
+        node.on(RenderableEvents.BLURRED, () => onSearchBlur?.());
+      }
+    },
+    [onSearchFocus, onSearchBlur],
+  );
 
   const { issues, statsLoading } = useIssues(client, {
     org,
@@ -150,7 +173,7 @@ export function IssueStream({
       >
         <text fg={searchFocused ? theme.accent : theme.muted}>{"/ "}</text>
         <input
-          ref={inputRef}
+          ref={inputRefCallback}
           value={displayValue}
           placeholder="Search issues…"
           focused={searchFocused}

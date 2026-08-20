@@ -99,14 +99,29 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
     setSearchFocused(true);
   }, [searchQuery]);
 
+  /** Guards against the native blur handler reverting after submit/cancel. */
+  const searchExitHandled = useRef(false);
+
   /** Submit the search query and return focus to the content pane. */
   const submitSearch = useCallback(() => {
+    searchExitHandled.current = true;
     setCommittedQuery(searchQuery);
     setSearchFocused(false);
   }, [searchQuery]);
 
   /** Cancel editing — revert to the last committed query. */
   const cancelSearch = useCallback(() => {
+    searchExitHandled.current = true;
+    setSearchQuery(queryBeforeEdit.current);
+    setSearchFocused(false);
+  }, []);
+
+  /** Handle native blur (e.g. clicking away) — revert unless already handled. */
+  const handleSearchBlur = useCallback(() => {
+    if (searchExitHandled.current) {
+      searchExitHandled.current = false;
+      return;
+    }
     setSearchQuery(queryBeforeEdit.current);
     setSearchFocused(false);
   }, []);
@@ -454,6 +469,8 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               searchValue={searchQuery}
               onSearchInput={setSearchQuery}
               searchFocused={searchFocused}
+              onSearchFocus={focusSearch}
+              onSearchBlur={handleSearchBlur}
             />
           ) : showLogs ? (
             <LogStream
