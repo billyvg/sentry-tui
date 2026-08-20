@@ -225,6 +225,7 @@ export function IssueRow({
   pending = false,
   selectionBelow = false,
   assigneeAvatarUrl,
+  onClick,
 }: {
   group: Group;
   selected: boolean;
@@ -243,6 +244,8 @@ export function IssueRow({
    * close the top edge of the highlight.
    */
   selectionBelow?: boolean;
+  /** The row was clicked. What that means is the list owner's call. */
+  onClick?: () => void;
 }) {
   const layout = resolveRowLayout(width);
   const bg = selected ? theme.selected : undefined;
@@ -252,7 +255,10 @@ export function IssueRow({
   const meta = metaRow(group, Math.max(0, layout.content - 5), message, iconWidth);
 
   return (
-    <box style={{ flexDirection: "column", width, flexShrink: 0 }}>
+    // The handler sits on the outer box so every cell of the row answers to a
+    // click, the shared rule included — a three-line row with dead columns in
+    // it would read as an unreliable target.
+    <box style={{ flexDirection: "column", width, flexShrink: 0 }} onMouseDown={onClick}>
       {/*
        * The highlight is painted here rather than on the outer box so the rule
        * below can opt in or out of it on its own — see `RowRule`.

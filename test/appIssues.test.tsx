@@ -118,6 +118,128 @@ test("j and k move the selection cursor within the list", async () => {
   }
 });
 
+/** Screen row of the line carrying `needle`, for aiming a click at it. */
+const rowOf = (frame: string, needle: string) =>
+  frame.split("\n").findIndex((line) => line.includes(needle));
+
+/** The line `needle` sits on, to check whether it wears the cursor. */
+const lineWith = (frame: string, needle: string) => frame.split("\n")[rowOf(frame, needle)];
+
+/** A column inside the title, clear of the rail and the metric columns. */
+const ROW_CLICK_X = 40;
+
+test("clicking a row moves the selection cursor to it", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+    expect(lineWith(h.frame(), "TypeError")).toContain("▸");
+
+    await h.click(ROW_CLICK_X, rowOf(h.frame(), "ValueError"));
+
+    const frame = h.frame();
+    expect(lineWith(frame, "ValueError")).toContain("▸");
+    expect(lineWith(frame, "TypeError")).not.toContain("▸");
+    // One click only selects — the list is still what's on screen.
+    expect(frame).toContain("Slow database query");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("clicking the already-selected row opens its detail", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+
+    const row = rowOf(h.frame(), "ValueError");
+    await h.click(ROW_CLICK_X, row); // select
+    await h.click(ROW_CLICK_X, row); // confirm
+
+    const frame = h.frame();
+    expect(frame).toContain("PUMP-STATION-2"); // the detail's own header
+    expect(frame).toContain("Stack Trace");
+    expect(frame).not.toContain("Slow database query"); // the list is gone
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("clicking a different row re-aims the cursor instead of opening", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+
+    await h.click(ROW_CLICK_X, rowOf(h.frame(), "ValueError"));
+    await h.click(ROW_CLICK_X, rowOf(h.frame(), "Slow database query"));
+
+    const frame = h.frame();
+    expect(frame).toContain("TypeError"); // still the list, no detail opened
+    expect(lineWith(frame, "Slow database query")).toContain("▸");
+    expect(lineWith(frame, "ValueError")).not.toContain("▸");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a click that focuses the list can only select, never open", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+    // Move focus off the list; the cursor stays on row 0 but stops rendering.
+    await h.press((i) => i.pressTab());
+    expect(h.frame()).not.toContain("▸");
+
+    // Clicking row 0 — the row the cursor is already on — must not count as
+    // confirming a cursor the user couldn't see.
+    await h.click(ROW_CLICK_X, rowOf(h.frame(), "TypeError"));
+
+    const frame = h.frame();
+    expect(frame).toContain("ValueError"); // still the list, not a detail view
+    expect(lineWith(frame, "TypeError")).toContain("▸");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("clicking a row closes the secondary nav drawer", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+    // Open the drawer from the rail.
+    await h.press((i) => i.pressTab());
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("Inbox");
+
+    await h.click(ROW_CLICK_X, rowOf(h.frame(), "ValueError"));
+
+    const frame = h.frame();
+    expect(frame).not.toContain("Inbox"); // drawer closed
+    expect(lineWith(frame, "ValueError")).toContain("▸");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a row click is inert while the command palette is open", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+    const target = rowOf(h.frame(), "ValueError");
+
+    await h.press((i) => i.pressKey("k", { ctrl: true }));
+    // Aim at where the row was. The palette's scrim is what's actually there.
+    await h.click(ROW_CLICK_X, target);
+
+    // The cursor has not moved and no detail opened: the modal above the list
+    // took the click, which is the whole point of the scrim.
+    const frame = h.frame();
+    expect(lineWith(frame, "TypeError")).toContain("▸");
+    expect(frame).not.toContain("Stack Trace");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("G and g jump to the last and first rows", async () => {
   const h = await renderApp();
   try {
@@ -183,6 +305,26 @@ test("moving within the visible rows does not scroll the list", async () => {
     const rowOf = (needle: string) => frame.split("\n").findIndex((line) => line.includes(needle));
     expect(frame).toContain("RowError0"); // top of the list never moved
     expect(frame.split("\n")[rowOf("RowError3")]).toContain("▸");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("clicking a row still hits the right issue once the list has scrolled", async () => {
+  const h = await renderApp(stubClient(longList));
+  try {
+    await h.waitForFrame((f) => f.includes("RowError0"));
+    await h.press((i) => i.pressKey("G", { shift: true }));
+    await h.waitForFrame((f) => f.includes("RowError23"));
+
+    // A row that is only on screen because the viewport scrolled: the click
+    // lands in screen space, so nothing may re-derive its index from the
+    // unscrolled list.
+    await h.click(ROW_CLICK_X, rowOf(h.frame(), "RowError21"));
+    expect(lineWith(h.frame(), "RowError21")).toContain("▸");
+
+    await h.click(ROW_CLICK_X, rowOf(h.frame(), "RowError21"));
+    expect(h.frame()).toContain("PUMP-STATION-22"); // its detail, not a neighbour's
   } finally {
     await h.cleanup();
   }
