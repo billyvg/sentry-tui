@@ -1,10 +1,6 @@
-import { join } from "node:path";
-
+import { platformIconBytes } from "~/assets/platformIcons";
 import { resolvePlatformIcon } from "~/lib/platformIcons";
 import { useImageSupport } from "~/ui/hooks/useImageSupport";
-
-/** Directory holding the rasterized platform icons (`bun run icons:build`). */
-const ICONS_DIR = join(import.meta.dir, "../../assets/platform-icons");
 
 /**
  * Cells a platform icon spans when rendered.
@@ -44,9 +40,12 @@ export function PlatformIcon({ platform }: PlatformIconProps) {
   const { supportsHighRes } = useImageSupport();
   if (!supportsHighRes) return null;
 
+  const source = platformIconBytes(resolvePlatformIcon(platform));
+  if (!source) return null;
+
   return (
     <image
-      source={join(ICONS_DIR, `${resolvePlatformIcon(platform)}.png`)}
+      source={source}
       fit="fit"
       style={{
         width: PLATFORM_ICON_WIDTH,
