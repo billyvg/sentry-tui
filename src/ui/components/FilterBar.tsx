@@ -18,6 +18,9 @@ const DATE_OPTIONS: readonly DropdownItem[] = [
 
 export type FilterDropdownType = "project" | "env" | "date" | null;
 
+/** Blank rows rendered above and below the selector row to give it breathing room. */
+const ROW_GAP = 1;
+
 export interface FilterBarProps {
   client: SentryClient | null;
   org: string;
@@ -30,7 +33,10 @@ export interface FilterBarProps {
   /** Selected stats period. */
   statsPeriod: string;
   sortLabel: string;
-  /** Row offset from the top of the terminal where the filter bar renders. */
+  /**
+   * Row offset from the top of the terminal where the filter bar area starts.
+   * The component adds its own leading gap when placing dropdowns.
+   */
   anchorTop: number;
   onProjectChange: (projects: string[]) => void;
   onEnvChange: (envs: string[]) => void;
@@ -134,7 +140,14 @@ export function FilterBar({
 
   return (
     <>
-      <box style={{ flexDirection: "row", flexShrink: 0 }}>
+      <box
+        style={{
+          flexDirection: "row",
+          flexShrink: 0,
+          marginTop: ROW_GAP,
+          marginBottom: ROW_GAP,
+        }}
+      >
         <text fg={openDropdown === "project" ? theme.accent : theme.muted}>{projectChip}</text>
         <text fg={theme.muted}> </text>
         <text fg={openDropdown === "env" ? theme.accent : theme.muted}>{envChip}</text>
@@ -150,7 +163,7 @@ export function FilterBar({
           items={projectItems}
           selected={selectedProjects}
           anchorLeft={projectAnchorLeft}
-          anchorTop={anchorTop}
+          anchorTop={anchorTop + ROW_GAP}
           onSelect={handleProjectSelect}
           onClose={onDropdownClose}
         />
@@ -162,7 +175,7 @@ export function FilterBar({
           items={envItems}
           selected={selectedEnvs}
           anchorLeft={envAnchorLeft}
-          anchorTop={anchorTop}
+          anchorTop={anchorTop + ROW_GAP}
           onSelect={handleEnvSelect}
           onClose={onDropdownClose}
         />
@@ -174,7 +187,7 @@ export function FilterBar({
           items={DATE_OPTIONS as DropdownItem[]}
           selected={[statsPeriod]}
           anchorLeft={dateAnchorLeft}
-          anchorTop={anchorTop}
+          anchorTop={anchorTop + ROW_GAP}
           showAll={false}
           onSelect={handleDateSelect}
           onClose={onDropdownClose}
