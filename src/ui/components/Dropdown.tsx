@@ -36,6 +36,8 @@ export interface DropdownProps {
 }
 
 const DROPDOWN_Z = 50;
+/** The `● `/`  ` selection dot that leads every row. */
+const PREFIX_WIDTH = 2;
 const MAX_VISIBLE = 12;
 const MIN_WIDTH = 20;
 
@@ -134,7 +136,9 @@ export function Dropdown({
   const iconSlot = allItems.some((item) => "platform" in item) ? platformIconWidth : 0;
 
   // Geometry: the dropdown drops below the anchor, clamped to the terminal.
-  const maxLabelWidth = Math.max(MIN_WIDTH, ...allItems.map((i) => i.label.length + 4)) + iconSlot;
+  // Each row is border + dot + icon + label + border.
+  const rowChrome = PREFIX_WIDTH + iconSlot + 2;
+  const maxLabelWidth = Math.max(MIN_WIDTH, ...allItems.map((i) => i.label.length + rowChrome));
   const dropdownWidth = Math.min(maxLabelWidth, termWidth - 2);
   const visibleRows = Math.min(allItems.length, MAX_VISIBLE, termHeight - anchorTop - 3);
   const dropdownHeight = visibleRows + 2; // +2 for border
@@ -181,11 +185,21 @@ export function Dropdown({
           const isActive =
             item.value === "__all__" ? selected.length === 0 : selected.includes(item.value);
 
-          const prefix = isActive ? "● " : "  ";
-          const label = fitText(`${prefix}${item.label}`, dropdownWidth - 2 - iconSlot);
+          const fg = isCursor ? theme.text : isActive ? theme.accent : theme.muted;
+          const label = fitText(item.label, dropdownWidth - 2 - iconSlot - PREFIX_WIDTH);
 
+          // The selection dot leads the row, ahead of the icon, so the only gap
+          // between an icon and its label is the icon's own trailing space.
           return (
-            <box key={item.value} style={{ flexDirection: "row", alignSelf: "flex-start" }}>
+            <box
+              key={item.value}
+              style={{
+                flexDirection: "row",
+                alignSelf: "flex-start",
+                backgroundColor: isCursor ? theme.selected : undefined,
+              }}
+            >
+              <text fg={fg}>{isActive ? "● " : "  "}</text>
               {iconSlot > 0 ? (
                 "platform" in item ? (
                   <PlatformIcon platform={item.platform} />
@@ -193,12 +207,7 @@ export function Dropdown({
                   <box style={{ width: iconSlot, flexShrink: 0 }} />
                 )
               ) : null}
-              <text
-                fg={isCursor ? theme.text : isActive ? theme.accent : theme.muted}
-                bg={isCursor ? theme.selected : undefined}
-              >
-                {label}
-              </text>
+              <text fg={fg}>{label}</text>
             </box>
           );
         })}
