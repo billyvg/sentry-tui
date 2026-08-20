@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
-import { groupsFixture } from "./fixtures";
+import { groupFixture, groupsFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
@@ -129,6 +129,56 @@ test("G and g jump to the last and first rows", async () => {
     const top = h.frame();
     const firstRow = top.split("\n").findIndex((line) => line.includes("TypeError"));
     expect(top.split("\n")[firstRow]).toContain("▸");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+/** More rows than fit on screen, each with a title that identifies its index. */
+const longList = Array.from({ length: 24 }, (_, i) => ({
+  ...groupFixture,
+  id: String(i + 1),
+  shortId: `PUMP-STATION-${i + 1}`,
+  metadata: { type: `RowError${i}`, value: `row ${i} failed` },
+}));
+
+test("the list scrolls to follow the cursor past the bottom of the viewport", async () => {
+  const h = await renderApp(stubClient(longList));
+  try {
+    await h.waitForFrame((f) => f.includes("RowError0"));
+    // The list is taller than the pane, so the tail starts off screen.
+    expect(h.frame()).not.toContain("RowError23");
+
+    await h.press((i) => i.pressKey("G", { shift: true }));
+    await h.waitForFrame((f) => f.includes("RowError23"));
+
+    const bottom = h.frame();
+    const lastRow = bottom.split("\n").findIndex((line) => line.includes("RowError23"));
+    expect(bottom.split("\n")[lastRow]).toContain("▸"); // cursor is on screen, not just the row
+    expect(bottom).not.toContain("RowError0"); // the top scrolled away
+
+    // And back up: the cursor pulls the viewport with it in both directions.
+    await h.press((i) => i.pressKey("g"));
+    await h.waitForFrame((f) => f.includes("RowError0"));
+    expect(h.frame()).not.toContain("RowError23");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("moving within the visible rows does not scroll the list", async () => {
+  const h = await renderApp(stubClient(longList));
+  try {
+    await h.waitForFrame((f) => f.includes("RowError0"));
+
+    // Three rows down is still on screen, so the viewport must stay put rather
+    // than re-centering the list under the cursor.
+    for (let i = 0; i < 3; i++) await h.press((k) => k.pressKey("j"));
+
+    const frame = h.frame();
+    const rowOf = (needle: string) => frame.split("\n").findIndex((line) => line.includes(needle));
+    expect(frame).toContain("RowError0"); // top of the list never moved
+    expect(frame.split("\n")[rowOf("RowError3")]).toContain("▸");
   } finally {
     await h.cleanup();
   }
