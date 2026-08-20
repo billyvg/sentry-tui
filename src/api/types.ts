@@ -222,10 +222,17 @@ export interface SentryEvent {
   previousEventID?: string | null;
 }
 
+export interface Avatar {
+  avatarType: "letter_avatar" | "upload" | "gravatar" | "default";
+  avatarUuid: string | null;
+  avatarUrl?: string | null;
+}
+
 export interface Organization {
   id: string;
   slug: string;
   name: string;
+  avatar?: Avatar;
 }
 
 export interface Project {

@@ -1,6 +1,8 @@
 import { formatKey, primaryKey } from "~/core/commands";
 import { theme } from "~/core/theme";
+import { SentryLogo } from "~/ui/components/NavIcon";
 import { useSpinnerFrame } from "~/ui/components/Spinner";
+import { useImageSupport } from "~/ui/hooks/useImageSupport";
 
 export type Notice =
   | { kind: "idle"; text: string }
@@ -67,6 +69,19 @@ export function StatusBar({
           .filter(Boolean)
           .join(" · ")}
       </text>
+      <SentryBadge />
+    </box>
+  );
+}
+
+/** Renders the Sentry logo in the bottom-right corner when the terminal supports images. */
+function SentryBadge() {
+  const { supportsHighRes } = useImageSupport();
+  if (!supportsHighRes) return null;
+
+  return (
+    <box style={{ marginLeft: 1 }}>
+      <SentryLogo />
     </box>
   );
 }
