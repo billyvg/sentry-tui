@@ -95,11 +95,15 @@ export function resolveRowLayout(width: number): RowLayout {
   return { content, title: Math.max(MIN_TITLE_WIDTH, titleFor(columns)), columns };
 }
 
-/** Sentry renders priority as a 3-bar signal icon; these are its glyphs. */
-const PRIORITY_GLYPH: Record<PriorityLevel, string> = {
-  high: "▁▄█",
-  medium: "▁▄ ",
-  low: "▁  ",
+/**
+ * The web renders priority as a 3-bar signal icon, but block glyphs next to the
+ * Trend column read as a second sparkline. A word carries the same information
+ * without competing with the bars beside it.
+ */
+const PRIORITY_LABEL: Record<PriorityLevel, string> = {
+  high: "high",
+  medium: "med",
+  low: "low",
 };
 
 /**
@@ -305,7 +309,7 @@ function Column({ column, group }: { column: ColumnKey; group: Group }) {
     case "priority":
       return (
         <text fg={theme.muted}>
-          {padText(group.priority ? PRIORITY_GLYPH[group.priority] : "", width, "right")}
+          {padText(group.priority ? PRIORITY_LABEL[group.priority] : "", width, "right")}
         </text>
       );
     case "assignee":
