@@ -6,8 +6,28 @@ import { useImageSupport } from "~/ui/hooks/useImageSupport";
 
 export const NAV_RAIL_WIDTH = 16;
 
-/** Icon size for the org avatar at the top of the rail. */
-const AVATAR_SIZE = 2;
+/**
+ * Footprint of the org avatar at the top of the rail. Two columns by one row is
+ * roughly square given terminal cell proportions.
+ */
+const AVATAR_WIDTH = 2;
+const AVATAR_HEIGHT = 1;
+
+/**
+ * Row height of a nav item when icons are rendered. Matches the icon height so
+ * items stack without a blank row between them.
+ */
+const NAV_ITEM_HEIGHT = 1;
+
+/** Blank rows between icon nav items, so single-row entries still breathe. */
+const NAV_ITEM_GAP = 1;
+
+/**
+ * Blank rows framing the org header. The bottom margin exceeds NAV_ITEM_GAP so
+ * the org reads as its own block rather than another nav entry.
+ */
+const ORG_HEADER_MARGIN_TOP = 1;
+const ORG_HEADER_MARGIN_BOTTOM = 2;
 
 interface NavRailProps {
   active: NavGroupId;
@@ -43,24 +63,25 @@ export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
       {orgSlug || (hasImages && avatarUrl) ? (
         <box
           style={{
-            height: hasImages ? AVATAR_SIZE + 1 : 1,
+            height: hasImages ? AVATAR_HEIGHT : 1,
             flexDirection: "column",
-            marginBottom: 1,
+            marginTop: ORG_HEADER_MARGIN_TOP,
+            marginBottom: ORG_HEADER_MARGIN_BOTTOM,
           }}
         >
-          <box style={{ flexDirection: "row", gap: 1 }}>
+          <box style={{ flexDirection: "row", alignItems: "center", gap: 1 }}>
             {hasImages && avatarUrl ? (
               <image
                 source={avatarUrl}
                 fit="fit"
-                style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
+                style={{ width: AVATAR_WIDTH, height: AVATAR_HEIGHT }}
               />
             ) : null}
             {orgSlug ? (
               <text fg={theme.text} attributes={1}>
                 {fitText(
                   orgSlug,
-                  hasImages && avatarUrl ? contentWidth - AVATAR_SIZE - 1 : contentWidth,
+                  hasImages && avatarUrl ? contentWidth - AVATAR_WIDTH - 1 : contentWidth,
                 )}
               </text>
             ) : null}
@@ -68,38 +89,40 @@ export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
         </box>
       ) : null}
 
-      {NAV_GROUPS.map((group) => {
-        const isActive = group.id === active;
+      <box style={{ flexDirection: "column", gap: hasImages ? NAV_ITEM_GAP : 0 }}>
+        {NAV_GROUPS.map((group) => {
+          const isActive = group.id === active;
 
-        if (hasImages) {
-          return (
-            <box
-              key={group.id}
-              style={{
-                flexDirection: "column",
-                height: 3,
-              }}
-            >
-              <box style={{ flexDirection: "row", gap: 1 }}>
+          if (hasImages) {
+            return (
+              <box
+                key={group.id}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 1,
+                  height: NAV_ITEM_HEIGHT,
+                }}
+              >
                 <NavIcon groupId={group.id} active={isActive} />
                 <text fg={isActive ? theme.accent : theme.muted} attributes={isActive ? 1 : 0}>
                   {group.label}
                 </text>
               </box>
-            </box>
-          );
-        }
+            );
+          }
 
-        return (
-          <text
-            key={group.id}
-            fg={isActive ? theme.accent : theme.muted}
-            attributes={isActive ? 1 : 0}
-          >
-            {group.label.slice(0, contentWidth)}
-          </text>
-        );
-      })}
+          return (
+            <text
+              key={group.id}
+              fg={isActive ? theme.accent : theme.muted}
+              attributes={isActive ? 1 : 0}
+            >
+              {group.label.slice(0, contentWidth)}
+            </text>
+          );
+        })}
+      </box>
     </box>
   );
 }
