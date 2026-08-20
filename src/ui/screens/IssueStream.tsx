@@ -134,7 +134,20 @@ export function IssueStream({
   return (
     <box style={{ flexDirection: "column", width, height }}>
       {/* Search query, mirroring the web app's search bar. */}
-      <box style={{ flexDirection: "row", width, flexShrink: 0, height: 1 }}>
+      <box
+        style={{
+          flexDirection: "row",
+          width,
+          flexShrink: 0,
+          height: 3,
+          border: true,
+          borderStyle: "rounded",
+          borderColor: searchFocused ? theme.accent : theme.border,
+          backgroundColor: theme.panel,
+          paddingLeft: 1,
+          paddingRight: 1,
+        }}
+      >
         <text fg={searchFocused ? theme.accent : theme.muted}>{"/ "}</text>
         <input
           ref={inputRef}
@@ -143,11 +156,11 @@ export function IssueStream({
           focused={searchFocused}
           onInput={onSearchInput}
           style={{
-            width: listWidth - 2,
+            flexGrow: 1,
             textColor: theme.text,
-            backgroundColor: theme.bg,
+            backgroundColor: theme.panel,
             focusedTextColor: theme.text,
-            focusedBackgroundColor: theme.bg,
+            focusedBackgroundColor: theme.panel,
             placeholderColor: theme.subText,
           }}
         />
