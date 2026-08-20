@@ -14,9 +14,12 @@ const ICON_BASE: Record<NavGroupId, string> = {
   settings: "settings",
 };
 
-/** Height of each icon in terminal rows. */
-const ICON_HEIGHT = 2;
-/** Width of each icon in terminal cells. */
+/**
+ * Icon footprint in terminal cells. A cell is roughly twice as tall as it is
+ * wide, so 2 columns by 1 row is close to square — the source PNGs are square,
+ * and this keeps each nav item a single row.
+ */
+const ICON_HEIGHT = 1;
 const ICON_WIDTH = 2;
 
 interface NavIconProps {
