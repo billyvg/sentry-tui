@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ApiError, type SentryClient } from "~/api/client";
 import { fetchIssueStats, listIssues, type IssueStats, type SortOption } from "~/api/issues";
@@ -33,6 +33,8 @@ export interface IssuesQuery {
   statsPeriod: string;
   project?: string[];
   environment?: string[];
+  /** Bump to refetch an unchanged query — the app's global refresh. */
+  reloadToken?: number;
 }
 
 export interface IssuesState {
@@ -40,7 +42,6 @@ export interface IssuesState {
   /** Tracked separately so rows can render before sparklines arrive. */
   statsLoading: boolean;
   nextCursor: string | null;
-  reload: () => void;
 }
 
 /**
@@ -52,18 +53,15 @@ export interface IssuesState {
  */
 export function useIssues(
   client: SentryClient | null,
-  { org, query, sort, statsPeriod, project, environment }: IssuesQuery,
+  { org, query, sort, statsPeriod, project, environment, reloadToken = 0 }: IssuesQuery,
 ): IssuesState {
   const [issues, setIssues] = useState<AsyncStatus<Group[]>>(idle);
   const [statsLoading, setStatsLoading] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [reloadToken, setReloadToken] = useState(0);
 
   // Read the live value in async callbacks without re-subscribing the effect.
   const issuesRef = useRef(issues);
   issuesRef.current = issues;
-
-  const reload = useCallback(() => setReloadToken((n) => n + 1), []);
 
   useEffect(() => {
     if (!client) return;
@@ -122,7 +120,7 @@ export function useIssues(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- serialized arrays are stable references
   }, [client, org, query, sort, statsPeriod, project?.join(), environment?.join(), reloadToken]);
 
-  return { issues, statsLoading, nextCursor, reload };
+  return { issues, statsLoading, nextCursor };
 }
 
 /**

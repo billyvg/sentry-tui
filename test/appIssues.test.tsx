@@ -1,10 +1,14 @@
 import { expect, test } from "bun:test";
 
+import type { TestRendererSetup } from "@opentui/core/testing";
+
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
 import { groupFixture, groupsFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
+
+type MockInput = TestRendererSetup["mockInput"];
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
@@ -223,6 +227,77 @@ test("selection survives a reload of the same list", async () => {
     const after = h.frame();
     const row = after.split("\n").findIndex((l) => l.includes("ValueError"));
     expect(after.split("\n")[row]).toContain("▸");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+/** A client whose issue list changes between fetches, so a refetch is visible. */
+function reloadingClient(pages: unknown[]) {
+  let listCalls = 0;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    // Only the list endpoint advances the page: the filter bar's project and
+    // environment lookups share this stub and would otherwise consume a page.
+    const isList = url.includes("/issues/") && !url.includes("issues-stats");
+    const payload = isList
+      ? (pages[Math.min(listCalls++, pages.length - 1)] ?? [])
+      : url.includes("issues-stats")
+        ? {}
+        : [];
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as unknown as typeof fetch;
+  return new SentryClient({ auth, fetchImpl });
+}
+
+const renamed = [{ ...groupFixture, metadata: { type: "FreshError", value: "after reload" } }];
+
+test.each([
+  ["ctrl+r", (i: MockInput) => i.pressKey("r", { ctrl: true })],
+  ["R", (i: MockInput) => i.pressKey("R", { shift: true })],
+])("%s refetches the issue list", async (_label, pressRefresh) => {
+  const h = await renderApp(reloadingClient([groupsFixture, renamed]));
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+
+    await h.press(pressRefresh);
+    await h.waitForFrame((f) => f.includes("FreshError"));
+    expect(h.frame()).toContain("FreshError");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("ctrl+r refetches the open issue's event", async () => {
+  let eventCalls = 0;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/events/")) {
+      eventCalls += 1;
+      return new Response(JSON.stringify({ id: "e1", entries: [], tags: [], contexts: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const payload = url.includes("issues-stats") ? {} : groupsFixture;
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as unknown as typeof fetch;
+
+  const h = await renderApp(new SentryClient({ auth, fetchImpl }));
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+    await h.press((i) => i.pressEnter()); // open the detail view
+    await h.waitForFrame(() => eventCalls === 1);
+
+    await h.press((i) => i.pressKey("r", { ctrl: true }));
+    await h.waitForFrame(() => eventCalls === 2);
+    expect(eventCalls).toBe(2);
   } finally {
     await h.cleanup();
   }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ApiError, type SentryClient } from "~/api/client";
 import { listLogs, listLogTimeseries, type LogEntry, type LogTimeseriesBucket } from "~/api/logs";
@@ -31,12 +31,13 @@ export interface LogsQuery {
   statsPeriod: string;
   project?: string[];
   environment?: string[];
+  /** Bump to refetch an unchanged query — the app's global refresh. */
+  reloadToken?: number;
 }
 
 export interface LogsState {
   logs: AsyncStatus<LogEntry[]>;
   nextCursor: string | null;
-  reload: () => void;
 }
 
 /**
@@ -47,16 +48,13 @@ export interface LogsState {
  */
 export function useLogs(
   client: SentryClient | null,
-  { org, query, statsPeriod, project, environment }: LogsQuery,
+  { org, query, statsPeriod, project, environment, reloadToken = 0 }: LogsQuery,
 ): LogsState {
   const [logs, setLogs] = useState<AsyncStatus<LogEntry[]>>(idle);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [reloadToken, setReloadToken] = useState(0);
 
   const logsRef = useRef(logs);
   logsRef.current = logs;
-
-  const reload = useCallback(() => setReloadToken((n) => n + 1), []);
 
   useEffect(() => {
     if (!client) return;
@@ -92,7 +90,7 @@ export function useLogs(
     };
   }, [client, org, query, statsPeriod, project, environment, reloadToken]);
 
-  return { logs, nextCursor, reload };
+  return { logs, nextCursor };
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +103,8 @@ export interface LogTimeseriesQuery {
   statsPeriod: string;
   project?: string[];
   environment?: string[];
+  /** Bump to refetch an unchanged query — the app's global refresh. */
+  reloadToken?: number;
 }
 
 /**
@@ -115,7 +115,7 @@ export interface LogTimeseriesQuery {
  */
 export function useLogTimeseries(
   client: SentryClient | null,
-  { org, query, statsPeriod, project, environment }: LogTimeseriesQuery,
+  { org, query, statsPeriod, project, environment, reloadToken = 0 }: LogTimeseriesQuery,
 ): AsyncStatus<LogTimeseriesBucket[]> {
   const [status, setStatus] = useState<AsyncStatus<LogTimeseriesBucket[]>>(idle);
   const statusRef = useRef(status);
@@ -152,7 +152,7 @@ export function useLogTimeseries(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod, project, environment]);
+  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
 
   return status;
 }

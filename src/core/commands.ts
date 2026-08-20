@@ -38,7 +38,7 @@ export const COMMANDS: readonly Command[] = [
     id: "sentry.app.refresh",
     title: "Refresh",
     category: "app",
-    defaultKeys: ["R"],
+    defaultKeys: ["ctrl+r", "R"],
     description: "Reload the current view from the API",
   },
   {

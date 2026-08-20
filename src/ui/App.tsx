@@ -53,6 +53,12 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   const [showHelp, setShowHelp] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
 
+  // One counter drives every fetch on screen: bumping it re-runs the data
+  // hooks' effects, so refresh stays a single command rather than one
+  // per-screen callback wired back up the tree.
+  const [reloadToken, setReloadToken] = useState(0);
+  const refresh = useCallback(() => setReloadToken((n) => n + 1), []);
+
   // Fetch org details (including avatar) once on mount.
   useEffect(() => {
     if (!client || !org) return;
@@ -291,6 +297,10 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
             setShowHelp(true);
             return "mine";
           }
+          if (matchesCommand("sentry.app.refresh", key)) {
+            refresh();
+            return "mine";
+          }
           if (matchesCommand("sentry.app.quit", key)) {
             onQuit();
             return "mine";
@@ -496,6 +506,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               width={contentWidth}
               height={contentHeight}
               focused={focus.isFocused("content")}
+              reloadToken={reloadToken}
             />
           ) : showIssues ? (
             <IssueStream
@@ -526,6 +537,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               searchFocused={searchFocused}
               onSearchFocus={focusSearch}
               onSearchBlur={handleSearchBlur}
+              reloadToken={reloadToken}
             />
           ) : showLogs ? (
             <LogStream
@@ -552,6 +564,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               searchFocused={logSearchFocused}
               onSearchFocus={focusLogSearch}
               onSearchBlur={handleLogSearchBlur}
+              reloadToken={reloadToken}
             />
           ) : (
             <box style={{ flexDirection: "column", paddingLeft: 1 }}>
