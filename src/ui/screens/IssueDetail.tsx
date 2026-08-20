@@ -296,7 +296,7 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
        * answer drawn. Everything but the chart is one line tall, so it centers
        * against the chart's middle row rather than sitting on its baseline.
        */}
-      <box style={{ flexDirection: "row", width, alignItems: "center" }}>
+      <box style={{ flexDirection: "row", width, alignItems: "center", paddingTop: 1 }}>
         <text>{BODY_INDENT}</text>
         <text fg={theme.muted}>{"24h "}</text>
         <box
@@ -324,7 +324,7 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
       </box>
 
       {/* Actions: what you can *do*. Always pressable. */}
-      <box style={{ flexDirection: "row", width }}>
+      <box style={{ flexDirection: "row", width, paddingTop: 1 }}>
         <text>{BODY_INDENT}</text>
         <ChipRow chips={headerActions(group)} />
       </box>
