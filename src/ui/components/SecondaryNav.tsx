@@ -3,8 +3,8 @@ import { theme } from "~/core/theme";
 
 export const SECONDARY_NAV_WIDTH = 22;
 
-/** Usable content width: total minus the right border and horizontal padding. */
-const CONTENT_WIDTH = SECONDARY_NAV_WIDTH - 3;
+/** Usable content width: total minus borders (left+right) and horizontal padding. */
+const CONTENT_WIDTH = SECONDARY_NAV_WIDTH - 4;
 
 /** Sentry's 190px secondary sidebar: section header + grouped links. */
 export function SecondaryNav({
@@ -24,8 +24,8 @@ export function SecondaryNav({
         width: SECONDARY_NAV_WIDTH,
         flexShrink: 0,
         flexDirection: "column",
-        backgroundColor: theme.panel,
-        border: ["right"],
+        // Untinted, on the app background — see `NavRail`.
+        border: true,
         borderColor: focused ? theme.borderFocused : theme.border,
         paddingTop: 1,
         paddingLeft: 1,

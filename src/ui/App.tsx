@@ -480,6 +480,9 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           style={{
             flexGrow: 1,
             flexDirection: "column",
+            // Clip rather than letting an over-tall screen paint over the
+            // pane's bottom border and the status bar below it.
+            overflow: "hidden",
             border: true,
             borderColor:
               focus.isFocused("content") && !anySearchFocused ? theme.borderFocused : theme.border,

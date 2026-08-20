@@ -20,8 +20,8 @@ interface NavRailProps {
 
 /** Primary navigation rail — shows icons (when supported) plus text labels. */
 export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
-  /** Usable content width: total minus border and horizontal padding. */
-  const contentWidth = NAV_RAIL_WIDTH - 3;
+  /** Usable content width: total minus borders (left+right) and horizontal padding. */
+  const contentWidth = NAV_RAIL_WIDTH - 4;
   const { supportsHighRes: hasImages } = useImageSupport();
 
   return (
@@ -30,8 +30,10 @@ export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
         width: NAV_RAIL_WIDTH,
         flexShrink: 0,
         flexDirection: "column",
-        backgroundColor: theme.panelAlt,
-        border: ["right"],
+        // No surface tint: the rail sits on the app background like the content
+        // pane does. A box paints its background over its border cells too, so
+        // any tint here would also thicken the border into a colored band.
+        border: true,
         borderColor: focused ? theme.borderFocused : theme.border,
         paddingLeft: 1,
         paddingRight: 1,
