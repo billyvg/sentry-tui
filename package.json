@@ -1,23 +1,27 @@
 {
   "name": "sentry-tui",
-  "module": "src/main.tsx",
-  "type": "module",
   "private": true,
   "bin": {
     "sentry-tui": "src/main.tsx"
   },
+  "type": "module",
+  "module": "src/main.tsx",
   "scripts": {
     "start": "bun run src/main.tsx",
     "dev": "bun --watch src/main.tsx",
-    "test": "bun test",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/react": "^19.2.18"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
+    "typecheck": "tsc --noEmit",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint . --deny-warnings",
+    "lint:fix": "oxlint . --fix",
+    "test": "bun test ./src ./test",
+    "test:theme-contrast": "bun test scripts/check-theme-contrast.test.ts",
+    "test:boundaries": "bun test scripts/source-boundaries.test.ts",
+    "deps:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known",
+    "deps:baseline": "depcruise src --config .dependency-cruiser.cjs --output-type baseline --output-to .dependency-cruiser-known-violations.json",
+    "build:bin": "bun run ./scripts/build-bin.ts",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run deps:check && bun run test:theme-contrast && bun run test",
+    "prepare": "simple-git-hooks"
   },
   "dependencies": {
     "@opentui/core": "0.5.4",
@@ -25,5 +29,20 @@
     "react": "^19.2.0",
     "string-width": "^8.2.2",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.18",
+    "dependency-cruiser": "^18.2.0",
+    "lint-staged": "^17.3.0",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0",
+    "simple-git-hooks": "^2.13.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "bunx lint-staged"
   }
 }
