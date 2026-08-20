@@ -384,7 +384,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   });
 
   const secondaryWidth = showSecondary ? SECONDARY_NAV_WIDTH : 0;
-  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
+  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 1);
   const contentHeight = Math.max(3, height - 1);
 
   return (
@@ -415,7 +415,6 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
             flexGrow: 1,
             flexDirection: "column",
             paddingTop: 1,
-            paddingLeft: 1,
             border: ["left"],
             borderColor: focus.isFocused("content") ? theme.borderFocused : theme.border,
           }}
@@ -468,7 +467,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               onStatusChange={setLogStatus}
             />
           ) : (
-            <box style={{ flexDirection: "column" }}>
+            <box style={{ flexDirection: "column", paddingLeft: 1 }}>
               <text fg={theme.text} attributes={1}>
                 {`${getNavGroup(activeGroup).label} › ${activeItem}`}
               </text>

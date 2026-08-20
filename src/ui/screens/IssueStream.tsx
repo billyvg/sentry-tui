@@ -129,7 +129,7 @@ export function IssueStream({
     [sort],
   );
 
-  const listWidth = Math.max(20, width - 2);
+  const listWidth = Math.max(20, width);
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
@@ -143,7 +143,7 @@ export function IssueStream({
           border: true,
           borderStyle: "rounded",
           borderColor: searchFocused ? theme.accent : theme.border,
-          backgroundColor: theme.panel,
+          backgroundColor: theme.bg,
           paddingLeft: 1,
           paddingRight: 1,
         }}
@@ -158,9 +158,9 @@ export function IssueStream({
           style={{
             flexGrow: 1,
             textColor: theme.text,
-            backgroundColor: theme.panel,
+            backgroundColor: theme.bg,
             focusedTextColor: theme.text,
-            focusedBackgroundColor: theme.panel,
+            focusedBackgroundColor: theme.bg,
             placeholderColor: theme.subText,
           }}
         />
@@ -207,7 +207,7 @@ export function IssueStream({
       </scrollbox>
 
       {stale ? (
-        <text fg={theme.muted}>{error ? `⚠ ${fitText(error.message, listWidth - 2)}` : ""}</text>
+        <text fg={theme.muted}>{error ? ` ⚠ ${fitText(error.message, listWidth - 3)}` : ""}</text>
       ) : null}
     </box>
   );
