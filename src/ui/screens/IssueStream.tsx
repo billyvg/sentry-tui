@@ -51,7 +51,7 @@ export interface IssueStreamProps {
    * loaded so optimistic triage updates can rewrite it; also lets tests render
    * a fixed state without a client.
    */
-  issuesOverride?: Group[];
+  issuesOverride?: readonly Group[];
   /** Issue ids with a mutation in flight. */
   pendingIds?: ReadonlySet<string>;
   /** Which filter dropdown is open (null = none). */
