@@ -332,6 +332,29 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
     [activeIssue, focus, focusSearch, navigateTo, onQuit, refresh, showLogs, triage],
   );
 
+  /**
+   * Mouse handling for an issue row: the first click puts the cursor on the
+   * row, a second click on that same row opens it. Two steps rather than one,
+   * because a stray click in a list is cheap to recover from only while it
+   * moves a cursor — and it mirrors the rail, where a click picks a group and
+   * a click in the list beside it commits.
+   */
+  const handleRowClick = useCallback(
+    (index: number, group: Group) => {
+      // A click that arrives while the list is unfocused is the one that
+      // focuses it, so it can only ever select — the cursor it would be
+      // "confirming" wasn't on screen to be aimed at.
+      const confirming = focus.focusedRef.current === "content" && index === selected;
+      setSelected(index);
+      // The secondary nav is a drawer over the nav rail; acting in the content
+      // pane closes it, exactly as choosing an item from it does.
+      setShowSecondary(false);
+      focus.focus("content");
+      if (confirming) setOpenIssue(group);
+    },
+    [focus, selected],
+  );
+
   useKeyboard((key) => {
     routeKeyOwnership(
       [
@@ -655,6 +678,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               onSearchFocus={focusSearch}
               onSearchBlur={handleSearchBlur}
               reloadToken={reloadToken}
+              onRowClick={handleRowClick}
             />
           ) : showLogs ? (
             <LogStream

@@ -77,6 +77,11 @@ export interface IssueStreamProps {
   onSearchBlur?: () => void;
   /** Bump to refetch the current query — the app's global refresh. */
   reloadToken?: number;
+  /**
+   * A row was clicked. The row is reported with its index so the owner of the
+   * cursor can both move it and act on the issue itself.
+   */
+  onRowClick?: (index: number, group: Group) => void;
 }
 
 export function IssueStream({
@@ -106,6 +111,7 @@ export function IssueStream({
   onSearchFocus,
   onSearchBlur,
   reloadToken,
+  onRowClick,
 }: IssueStreamProps) {
   const [localQuery] = useState(DEFAULT_QUERY);
   const query = queryProp ?? localQuery;
@@ -283,6 +289,7 @@ export function IssueStream({
             width={listWidth}
             pending={pendingIds?.has(group.id) ?? false}
             assigneeAvatarUrl={assigneeAvatarUrl(group.assignedTo, avatars)}
+            onClick={onRowClick ? () => onRowClick(index, group) : undefined}
           />
         ))}
 
