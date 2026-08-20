@@ -115,7 +115,8 @@ Agent skills live in `.agents/skills/<name>/SKILL.md` — add and edit them ther
 `.claude/skills` is a symlink to that directory so Claude Code picks up the same
 set; no per-harness copies.
 
-## smoke-test pane
+## dev pane
 
-Before finishing, load the `smoke-test` skill and follow its steps to launch
-the app in a Herdr pane for manual testing.
+Before finishing, load the `dev-pane` skill and follow its steps: when running
+under Herdr it splits a new pane in the current tab and runs the app from this
+agent's worktree for manual testing.
