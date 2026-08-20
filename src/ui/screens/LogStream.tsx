@@ -13,8 +13,9 @@ import { DEFAULT_LOG_PERIOD, type LogEntry, type LogSeverity } from "~/api/logs"
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText, padText } from "~/lib/text";
+import { BarChart } from "~/ui/components/BarChart";
 import { useElapsed } from "~/ui/hooks/useElapsed";
-import { useLogs } from "~/ui/hooks/useLogs";
+import { useLogs, useLogTimeseries } from "~/ui/hooks/useLogs";
 import { BOLD } from "~/ui/lib/attributes";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +48,9 @@ const COL_TIME = 10;
 const COL_SEVERITY = 6;
 const COL_PROJECT = 14;
 
+/** Height of the volume bar chart in terminal rows. */
+const CHART_HEIGHT = 8;
+
 export interface LogStreamProps {
   client: SentryClient | null;
   org: string;
@@ -72,6 +76,8 @@ export function LogStream({
   const [statsPeriod] = useState(DEFAULT_LOG_PERIOD);
 
   const { logs } = useLogs(client, { org, query, statsPeriod });
+  const timeseriesStatus = useLogTimeseries(client, { org, query, statsPeriod });
+  const timeseries = valueOf(timeseriesStatus);
 
   const loading = logs.state === "loading";
   const since = logs.state === "loading" ? logs.since : undefined;
@@ -119,6 +125,11 @@ export function LogStream({
         <box style={{ flexGrow: 1 }} />
         <text fg={theme.muted}>{entries ? `${entries.length} logs` : ""}</text>
       </box>
+
+      {/* Volume chart */}
+      {timeseries && timeseries.length > 0 ? (
+        <BarChart buckets={timeseries} width={inner} height={CHART_HEIGHT} />
+      ) : null}
 
       {/* Column header */}
       <LogListHeader width={inner} />
