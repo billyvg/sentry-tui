@@ -1,6 +1,14 @@
-import { createTokenAuthProvider, MissingTokenError, readConfig, writeConfig } from "~/api/auth";
+import { type AuthProvider, MissingTokenError, resolveAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
+import {
+  configPath,
+  credentialsPath,
+  migrateLegacyToken,
+  readConfig,
+  writeConfig,
+} from "~/api/config";
 import { listOrganizations } from "~/api/issues";
+import { offerLogin } from "~/app/login";
 import * as readline from "node:readline";
 
 export interface AppContext {
@@ -74,17 +82,30 @@ async function promptForOrg(client: SentryClient): Promise<string> {
   return selected.slug;
 }
 
+export const COMMANDS = ["run", "login", "logout", "status"] as const;
+export type Command = (typeof COMMANDS)[number];
+
 export interface CliArgs {
+  command: Command;
   org?: string;
   help: boolean;
+  /** `login` only: print the URL instead of launching a browser. */
+  noBrowser: boolean;
 }
 
+const isCommand = (value: string | undefined): value is Command =>
+  COMMANDS.includes(value as Command);
+
 export function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { help: false };
+  const args: CliArgs = { command: "run", help: false, noBrowser: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--help" || arg === "-h") args.help = true;
-    if (arg === "--org" || arg === "-o") args.org = argv[++i];
+    else if (arg === "--no-browser") args.noBrowser = true;
+    else if (arg === "--org" || arg === "-o") {
+      // Only take the next token as the value — never swallow the flag after it.
+      if (argv[i + 1] && !argv[i + 1]!.startsWith("-")) args.org = argv[++i];
+    } else if (isCommand(arg)) args.command = arg;
   }
   return args;
 }
@@ -92,17 +113,54 @@ export function parseArgs(argv: string[]): CliArgs {
 export const HELP_TEXT = `sentry-tui — sentry.io in your terminal
 
 Usage:
-  sentry-tui [--org <slug>]
+  sentry-tui [--org <slug>]        Open the TUI
+  sentry-tui login [--no-browser]  Sign in with your browser (OAuth device flow)
+  sentry-tui logout                Forget the stored credentials
+  sentry-tui status                Show who you're signed in as
 
 Options:
   -o, --org <slug>   Organization to open (or set SENTRY_ORG)
+      --no-browser   Print the login URL instead of opening a browser
   -h, --help         Show this help
 
 Environment:
-  SENTRY_AUTH_TOKEN    Personal auth token (see README for scopes)
+  SENTRY_AUTH_TOKEN    Personal auth token, used ahead of any stored login
   SENTRY_ORG           Default organization slug
+  SENTRY_CLIENT_ID     OAuth application to log in through (self-hosted)
+  SENTRY_URL           Sentry install to talk to (default https://sentry.io)
   SENTRY_TUI_LATENCY   Artificial request delay in ms, for testing
+
+Files:
+  ${configPath()}       preferences (org)
+  ${credentialsPath()}  credentials, written owner-readable only
 `;
+
+/**
+ * Relocate a token an older build left in the preferences file. Runs ahead of
+ * every command — `status` and `logout` should see the same credentials the
+ * app does.
+ */
+export async function migrateLegacyCredentials(): Promise<void> {
+  if (!(await migrateLegacyToken())) return;
+  process.stderr.write(
+    `Moved your token out of ${configPath()} into ${credentialsPath()} (owner-readable only).\n`,
+  );
+}
+
+/**
+ * Find credentials, offering the device flow when there are none. Declining
+ * the offer re-raises the original error, which also explains the
+ * personal-token route.
+ */
+async function resolveCredentials(): Promise<AuthProvider> {
+  try {
+    return await resolveAuthProvider();
+  } catch (error) {
+    if (!(error instanceof MissingTokenError)) throw error;
+    if (!(await offerLogin())) throw error;
+    return await resolveAuthProvider();
+  }
+}
 
 /**
  * Resolve everything the UI needs before the renderer starts, so credential
@@ -110,9 +168,9 @@ Environment:
  */
 export async function bootstrap(args: CliArgs): Promise<AppContext> {
   const config = await readConfig();
-  const auth = createTokenAuthProvider(config);
+  const auth = await resolveCredentials();
 
-  // Surface a missing token now rather than as a failed request later.
+  // Surface a missing or unrenewable token now rather than mid-render.
   await auth.getToken();
 
   let org = args.org ?? process.env["SENTRY_ORG"] ?? config.org;
