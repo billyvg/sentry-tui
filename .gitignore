@@ -42,3 +42,8 @@ credentials.json
 
 # Local agent tooling
 .pi
+
+# Demo recording: rendered audio and video, plus the per-machine capture
+# geometry that `bun run demo:calibrate` measures.
+demos/build
+demos/geometry.json
