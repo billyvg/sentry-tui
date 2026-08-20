@@ -14,9 +14,9 @@ honest stubs.
 - [x] Phase 3 — issue stream
 - [x] Phase 4 — issue detail + stack traces
 - [x] Phase 5 — triage actions
+- [x] Phase 6 — OAuth device-flow login
 
-Next: OAuth device-flow login, command palette, org/project switcher, and the
-remaining nav sections.
+Next: command palette, org/project switcher, and the remaining nav sections.
 
 ## Requirements
 
@@ -32,20 +32,46 @@ bun start
 
 ## Authentication
 
-Create a **personal token** at
-<https://sentry.io/settings/account/api/auth-tokens/> with these scopes:
+```bash
+sentry-tui login     # OAuth device flow — opens your browser
+sentry-tui status    # who you're signed in as, and for how long
+sentry-tui logout    # forget the stored credentials
+```
+
+`login` prints a short code, opens <https://sentry.io/oauth/device/>, and waits
+for you to approve it (RFC 8628). Starting the TUI with no credentials offers
+the same flow. Access tokens are renewed automatically; Sentry rotates the
+refresh token on each renewal, so the new pair is written back immediately.
+
+Use `--no-browser` to print the URL instead of opening one, and `SENTRY_URL` +
+`SENTRY_CLIENT_ID` to log in to a self-hosted install (needs Sentry ≥ 26.1.0 and
+a **public** OAuth application from Settings → Account → API → Applications).
+
+### Personal token instead
+
+Create one at <https://sentry.io/settings/account/api/auth-tokens/> with these
+scopes — the same set `login` requests:
 
 ```
 org:read  project:read  event:read  event:write  member:read  team:read
 ```
 
-Then expose it however you prefer:
-
 ```bash
 export SENTRY_AUTH_TOKEN=sntryu_…
 ```
 
-Resolution order is `SENTRY_AUTH_TOKEN` → `SENTRY_TOKEN` → `~/.config/sentry-tui/config.json`.
+Resolution order is `SENTRY_AUTH_TOKEN` → `SENTRY_TOKEN` → the credential file.
+Environment tokens are used exactly as given and never refreshed.
+
+### Files
+
+| Path                                    | Holds                                           |
+| --------------------------------------- | ----------------------------------------------- |
+| `~/.config/sentry-tui/config.json`      | preferences (default org), rewritten by the app |
+| `~/.config/sentry-tui/credentials.json` | tokens, written `0600`                          |
+
+Secrets live apart from the file the app has to keep writable. A token left in
+`config.json` by an older build is moved across on the next run.
 
 ## Development
 

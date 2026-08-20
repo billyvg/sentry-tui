@@ -143,7 +143,23 @@ export class SentryClient {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
+  /**
+   * A 401 from an expired OAuth token is indistinguishable from a 401 for a
+   * bad one, so renew once and replay the request before surfacing it. The
+   * provider says no when it has nothing to renew with (env or personal
+   * tokens), and a failed renewal throws its own, more useful, error.
+   */
   async request<T>(path: string, options: RequestOptions = {}): Promise<Page<T>> {
+    try {
+      return await this.attemptWithRetries<T>(path, options);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401) throw error;
+      if (!this.auth.refresh || !(await this.auth.refresh())) throw error;
+      return await this.attemptWithRetries<T>(path, options);
+    }
+  }
+
+  private async attemptWithRetries<T>(path: string, options: RequestOptions): Promise<Page<T>> {
     let lastError: ApiError | undefined;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
