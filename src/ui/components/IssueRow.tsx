@@ -137,14 +137,27 @@ function RowRule({
  * column all the way down the list.
  *
  * @param content Cell body, already `SPARKLINE_GLYPHS` wide.
+ * @param rules Draw the bracketing rules. The header blanks them — its label
+ *   is already set apart by the row rule beneath it — while still spending the
+ *   cells, so the column stays aligned with the rows.
  */
-function TrendCell({ content, fg }: { content: string; fg: string }) {
+function TrendCell({
+  content,
+  fg,
+  rules = true,
+}: {
+  content: string;
+  fg: string;
+  rules?: boolean;
+}) {
+  const rule = rules ? "│" : " ";
+
   return (
     <>
       <text> </text>
-      <text fg={theme.border}>│</text>
+      <text fg={theme.border}>{rule}</text>
       <text fg={fg}>{content}</text>
-      <text fg={theme.border}>│</text>
+      <text fg={theme.border}>{rule}</text>
     </>
   );
 }
@@ -176,6 +189,7 @@ export function IssueListHeader({
               key={key}
               content={padText(COLUMN_LABEL[key], SPARKLINE_GLYPHS, "center")}
               fg={theme.muted}
+              rules={false}
             />
           ) : (
             <text key={key} fg={theme.muted}>
