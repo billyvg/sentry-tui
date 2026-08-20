@@ -92,6 +92,8 @@ export interface LogStreamProps {
   onSearchFocus?: () => void;
   /** Called when the input loses focus. */
   onSearchBlur?: () => void;
+  /** Bump to refetch the current query — the app's global refresh. */
+  reloadToken?: number;
 }
 
 export function LogStream({
@@ -118,6 +120,7 @@ export function LogStream({
   searchFocused = false,
   onSearchFocus,
   onSearchBlur,
+  reloadToken,
 }: LogStreamProps) {
   const [localQuery] = useState("");
   const query = queryProp ?? localQuery;
@@ -149,6 +152,7 @@ export function LogStream({
     statsPeriod,
     project: selectedProjects.length > 0 ? selectedProjects : undefined,
     environment: selectedEnvs.length > 0 ? selectedEnvs : undefined,
+    reloadToken,
   });
   const timeseriesStatus = useLogTimeseries(client, {
     org,
@@ -156,6 +160,7 @@ export function LogStream({
     statsPeriod,
     project: selectedProjects.length > 0 ? selectedProjects : undefined,
     environment: selectedEnvs.length > 0 ? selectedEnvs : undefined,
+    reloadToken,
   });
   const timeseries = valueOf(timeseriesStatus);
 

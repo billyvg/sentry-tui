@@ -67,6 +67,7 @@ export function IssueDetail({
   width,
   height,
   focused,
+  reloadToken,
 }: {
   client: SentryClient | null;
   org: string;
@@ -74,8 +75,10 @@ export function IssueDetail({
   width: number;
   height: number;
   focused: boolean;
+  /** Bump to refetch the issue's event — the app's global refresh. */
+  reloadToken?: number;
 }) {
-  const status = useIssueEvent(client, { org, issueId: group.id });
+  const status = useIssueEvent(client, { org, issueId: group.id, reloadToken });
   const event = valueOf(status);
   const error = errorOf(status);
   const loading = isInitialLoad(status);

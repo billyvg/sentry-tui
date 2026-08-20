@@ -13,14 +13,25 @@ import { type AsyncStatus, idle, rejected, resolved, startLoading } from "~/core
  */
 export function useIssueEvent(
   client: SentryClient | null,
-  { org, issueId }: { org: string; issueId: string | null },
+  {
+    org,
+    issueId,
+    reloadToken = 0,
+  }: {
+    org: string;
+    issueId: string | null;
+    /** Bump to refetch the same issue — the app's global refresh. */
+    reloadToken?: number;
+  },
 ): AsyncStatus<SentryEvent> {
   const [event, setEvent] = useState<AsyncStatus<SentryEvent>>(idle);
   const eventRef = useRef(event);
   eventRef.current = event;
+  const lastIssueId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!client || !issueId) {
+      lastIssueId.current = null;
       setEvent(idle());
       return;
     }
@@ -29,8 +40,11 @@ export function useIssueEvent(
     let cancelled = false;
 
     // A different issue means the previous body is not "stale", it's wrong —
-    // start clean rather than carrying it forward.
-    setEvent(startLoading(idle(), Date.now()));
+    // start clean rather than carrying it forward. A refresh of the *same*
+    // issue keeps it, so the screen doesn't flash back to a skeleton.
+    const sameIssue = lastIssueId.current === issueId;
+    lastIssueId.current = issueId;
+    setEvent(startLoading(sameIssue ? eventRef.current : idle(), Date.now()));
 
     void (async () => {
       try {
@@ -56,7 +70,7 @@ export function useIssueEvent(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, issueId]);
+  }, [client, org, issueId, reloadToken]);
 
   return event;
 }

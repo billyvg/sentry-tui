@@ -73,6 +73,8 @@ export interface IssueStreamProps {
   onSearchFocus?: () => void;
   /** Called when the input loses focus. */
   onSearchBlur?: () => void;
+  /** Bump to refetch the current query — the app's global refresh. */
+  reloadToken?: number;
 }
 
 export function IssueStream({
@@ -101,6 +103,7 @@ export function IssueStream({
   searchFocused = false,
   onSearchFocus,
   onSearchBlur,
+  reloadToken,
 }: IssueStreamProps) {
   const [localQuery] = useState(DEFAULT_QUERY);
   const query = queryProp ?? localQuery;
@@ -133,6 +136,7 @@ export function IssueStream({
     statsPeriod,
     project: selectedProjects.length > 0 ? selectedProjects : undefined,
     environment: selectedEnvs.length > 0 ? selectedEnvs : undefined,
+    reloadToken,
   });
 
   const loading = issues.state === "loading";
