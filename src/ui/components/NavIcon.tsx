@@ -20,7 +20,7 @@ const ICON_BASE: Record<NavGroupId, string> = {
  * and this keeps each nav item a single row.
  */
 const ICON_HEIGHT = 1;
-const ICON_WIDTH = 2;
+export const NAV_ICON_WIDTH = 2;
 
 interface NavIconProps {
   groupId: NavGroupId;
@@ -44,7 +44,7 @@ export function NavIcon({ groupId, active }: NavIconProps) {
       source={source}
       fit="fit"
       style={{
-        width: ICON_WIDTH,
+        width: NAV_ICON_WIDTH,
         height: ICON_HEIGHT,
       }}
     />
@@ -60,7 +60,7 @@ export function SentryLogo() {
       source={source}
       fit="fit"
       style={{
-        width: ICON_WIDTH,
+        width: NAV_ICON_WIDTH,
         height: ICON_HEIGHT,
       }}
     />
