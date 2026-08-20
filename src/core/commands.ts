@@ -155,6 +155,29 @@ export const COMMANDS: readonly Command[] = [
     category: "issue",
     defaultKeys: ["p"],
   },
+
+  // view / filter
+  {
+    id: "sentry.view.filterProject",
+    title: "Filter by project",
+    category: "view",
+    defaultKeys: ["P"],
+    description: "Open the project selector",
+  },
+  {
+    id: "sentry.view.filterEnv",
+    title: "Filter by environment",
+    category: "view",
+    defaultKeys: ["E"],
+    description: "Open the environment selector",
+  },
+  {
+    id: "sentry.view.filterDate",
+    title: "Filter by date",
+    category: "view",
+    defaultKeys: ["D"],
+    description: "Open the date range selector",
+  },
 ] as const;
 
 const BY_ID = new Map(COMMANDS.map((c) => [c.id, c]));

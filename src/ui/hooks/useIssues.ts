@@ -31,6 +31,8 @@ export interface IssuesQuery {
   query: string;
   sort: SortOption;
   statsPeriod: string;
+  project?: string[];
+  environment?: string[];
 }
 
 export interface IssuesState {
@@ -50,7 +52,7 @@ export interface IssuesState {
  */
 export function useIssues(
   client: SentryClient | null,
-  { org, query, sort, statsPeriod }: IssuesQuery,
+  { org, query, sort, statsPeriod, project, environment }: IssuesQuery,
 ): IssuesState {
   const [issues, setIssues] = useState<AsyncStatus<Group[]>>(idle);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -79,6 +81,8 @@ export function useIssues(
           query,
           sort,
           statsPeriod,
+          project,
+          environment,
           signal,
         });
         if (cancelled) return;
@@ -115,7 +119,8 @@ export function useIssues(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, sort, statsPeriod, reloadToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- serialized arrays are stable references
+  }, [client, org, query, sort, statsPeriod, project?.join(), environment?.join(), reloadToken]);
 
   return { issues, statsLoading, nextCursor, reload };
 }

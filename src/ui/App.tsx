@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
-import { getOrganization } from "~/api/issues";
+import { DEFAULT_QUERY, DEFAULT_STATS_PERIOD, getOrganization } from "~/api/issues";
+import type { LogEntry } from "~/api/logs";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
 import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
@@ -12,10 +13,12 @@ import { HelpDialog } from "~/ui/components/HelpDialog";
 import { NavRail, NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
 import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
+import type { FilterDropdownType } from "~/ui/components/FilterBar";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
 import { useTriage } from "~/ui/hooks/useTriage";
 import { IssueDetail } from "~/ui/screens/IssueDetail";
 import { IssueStream } from "~/ui/screens/IssueStream";
+import { LogStream } from "~/ui/screens/LogStream";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
 
 const REGIONS = ["nav", "secondary", "content"] as const;
@@ -68,15 +71,74 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   const [openIssue, setOpenIssue] = useState<Group | null>(null);
   const focus = useFocusRing<Region>(REGIONS);
 
+  // Filter state.
+  const [openDropdown, setOpenDropdown] = useState<FilterDropdownType>(null);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [selectedEnvs, setSelectedEnvs] = useState<string[]>([]);
+  const [statsPeriod, setStatsPeriod] = useState(DEFAULT_STATS_PERIOD);
+
+  // Search bar state — the query is owned here so it survives navigation and
+  // is sent to the API as the user edits it.
+  const [searchQuery, setSearchQuery] = useState<string>(DEFAULT_QUERY);
+  const [searchFocused, setSearchFocused] = useState(false);
+  /** The committed query — what was last submitted (Enter / Escape). */
+  const [committedQuery, setCommittedQuery] = useState<string>(DEFAULT_QUERY);
+  /** Stash the query value before editing so Escape can revert. */
+  const queryBeforeEdit = useRef<string>(DEFAULT_QUERY);
+
   const [triageNotice, setTriageNotice] = useState<Notice | null>(null);
 
+  // Logs state, parallel to issues.
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
+  const [logSelected, setLogSelected] = useState(0);
+  const [logStatus, setLogStatus] = useState<StreamStatus>({ loading: false });
+
+  /** Focus the search input, stashing the current query for Escape revert. */
+  const focusSearch = useCallback(() => {
+    queryBeforeEdit.current = searchQuery;
+    setSearchFocused(true);
+  }, [searchQuery]);
+
+  /** Guards against the native blur handler reverting after submit/cancel. */
+  const searchExitHandled = useRef(false);
+
+  /** Submit the search query and return focus to the content pane. */
+  const submitSearch = useCallback(() => {
+    searchExitHandled.current = true;
+    setCommittedQuery(searchQuery);
+    setSearchFocused(false);
+  }, [searchQuery]);
+
+  /** Cancel editing — revert to the last committed query. */
+  const cancelSearch = useCallback(() => {
+    searchExitHandled.current = true;
+    setSearchQuery(queryBeforeEdit.current);
+    setSearchFocused(false);
+  }, []);
+
+  /** Handle native blur (e.g. clicking away) — revert unless already handled. */
+  const handleSearchBlur = useCallback(() => {
+    if (searchExitHandled.current) {
+      searchExitHandled.current = false;
+      return;
+    }
+    setSearchQuery(queryBeforeEdit.current);
+    setSearchFocused(false);
+  }, []);
+
   const showIssues = activeGroup === "issues";
+  const showLogs = activeGroup === "explore" && activeItem === "Logs";
 
   const handleIssues = useCallback((next: Group[]) => {
     setIssues(next);
     // Clamp rather than reset: a refresh shouldn't move the cursor off the row
     // the user was looking at.
     setSelected((current) => Math.min(current, Math.max(0, next.length - 1)));
+  }, []);
+
+  const handleLogs = useCallback((next: LogEntry[]) => {
+    setLogEntries(next);
+    setLogSelected((current) => Math.min(current, Math.max(0, next.length - 1)));
   }, []);
 
   /** Replace one issue in place — used for the optimistic write and rollback. */
@@ -115,7 +177,30 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "mine";
         },
-        // 2. The detail view owns Escape (back) before anything else claims it.
+        // 1b. Filter dropdowns swallow keys while open — the Dropdown handles
+        // its own navigation internally via useKeyboard.
+        () => {
+          if (!openDropdown) return "notMine";
+          // Escape closes the dropdown (handled by the Dropdown component).
+          // All other keys are consumed by the Dropdown's own useKeyboard.
+          return "notMine";
+        },
+        // 2. Search input intercepts Escape (cancel) and Enter (submit);
+        //    all other keys pass through to the focused <input>.
+        () => {
+          if (!searchFocused) return "notMine";
+          if (matchesCommand("sentry.nav.back", key)) {
+            cancelSearch();
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.open", key)) {
+            submitSearch();
+            return "mine";
+          }
+          // Let the focused input renderable handle all other keystrokes.
+          return "focused";
+        },
+        // 3. The detail view owns Escape (back) before anything else claims it.
         () => {
           if (!openIssue) return "notMine";
           if (matchesCommand("sentry.nav.back", key)) {
@@ -124,7 +209,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 3. Escape closes the secondary nav and returns focus to the rail.
+        // 4. Escape closes the secondary nav and returns focus to the rail.
         () => {
           if (!showSecondary) return "notMine";
           if (matchesCommand("sentry.nav.back", key)) {
@@ -134,8 +219,23 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 4. Global app commands. Tab cycles only through visible regions.
+        // 5. Global app commands. Tab cycles only through visible regions.
         () => {
+          // Filter dropdown shortcuts — only in the issue list, not in detail.
+          if (showIssues && !openIssue && focus.focusedRef.current === "content") {
+            if (matchesCommand("sentry.view.filterProject", key)) {
+              setOpenDropdown("project");
+              return "mine";
+            }
+            if (matchesCommand("sentry.view.filterEnv", key)) {
+              setOpenDropdown("env");
+              return "mine";
+            }
+            if (matchesCommand("sentry.view.filterDate", key)) {
+              setOpenDropdown("date");
+              return "mine";
+            }
+          }
           if (matchesCommand("sentry.app.help", key)) {
             setShowHelp(true);
             return "mine";
@@ -164,7 +264,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 5. Triage actions, valid in both the list and the detail view.
+        // 6. Triage actions, valid in both the list and the detail view.
         () => {
           if (!activeIssue) return "notMine";
           // In the list these belong to the content pane; the nav panes keep
@@ -181,7 +281,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 6. Nav rail: j/k moves the cursor, Enter opens secondary nav.
+        // 7. Nav rail: j/k moves the cursor, Enter opens secondary nav.
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "nav") return "notMine";
@@ -206,7 +306,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           setRailGroup(next.id);
           return "mine";
         },
-        // 7. Secondary nav: j/k moves the cursor, Enter selects and closes.
+        // 8. Secondary nav: j/k moves the cursor, Enter selects and closes.
         () => {
           if (openIssue) return "notMine";
           if (!showSecondary) return "notMine";
@@ -230,10 +330,21 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 8. Issue list cursor and open.
+        // 9. `/` focuses the search bar from the content pane.
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "content") return "notMine";
+          if (matchesCommand("sentry.nav.search", key)) {
+            focusSearch();
+            return "mine";
+          }
+          return "notMine";
+        },
+        // 10. Issue list cursor and open.
+        () => {
+          if (openIssue) return "notMine";
+          if (focus.focusedRef.current !== "content") return "notMine";
+          if (!showIssues) return "notMine";
           const last = Math.max(0, issues.length - 1);
           if (matchesCommand("sentry.nav.open", key)) {
             const target = issues[selected];
@@ -258,6 +369,29 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
+        // 9. Log list cursor navigation.
+        () => {
+          if (focus.focusedRef.current !== "content") return "notMine";
+          if (!showLogs) return "notMine";
+          const last = Math.max(0, logEntries.length - 1);
+          if (matchesCommand("sentry.nav.down", key)) {
+            setLogSelected((i) => Math.min(i + 1, last));
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.up", key)) {
+            setLogSelected((i) => Math.max(i - 1, 0));
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.top", key)) {
+            setLogSelected(0);
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.bottom", key)) {
+            setLogSelected(last);
+            return "mine";
+          }
+          return "notMine";
+        },
       ],
       key,
       consumeKey,
@@ -265,7 +399,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   });
 
   const secondaryWidth = showSecondary ? SECONDARY_NAV_WIDTH : 0;
-  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
+  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 1);
   const contentHeight = Math.max(3, height - 1);
 
   return (
@@ -295,10 +429,9 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           style={{
             flexGrow: 1,
             flexDirection: "column",
-            paddingTop: 1,
-            paddingLeft: 1,
             border: ["left"],
-            borderColor: focus.isFocused("content") ? theme.borderFocused : theme.border,
+            borderColor:
+              focus.isFocused("content") && !searchFocused ? theme.borderFocused : theme.border,
           }}
         >
           {openIssue ? (
@@ -324,9 +457,34 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               // survive; before that the stream renders its own fetch state.
               issuesOverride={issues.length > 0 ? issues : undefined}
               pendingIds={triage.pending}
+              openDropdown={openDropdown}
+              selectedProjects={selectedProjects}
+              selectedEnvs={selectedEnvs}
+              statsPeriod={statsPeriod}
+              onProjectChange={setSelectedProjects}
+              onEnvChange={setSelectedEnvs}
+              onPeriodChange={setStatsPeriod}
+              onDropdownClose={() => setOpenDropdown(null)}
+              query={committedQuery}
+              searchValue={searchQuery}
+              onSearchInput={setSearchQuery}
+              searchFocused={searchFocused}
+              onSearchFocus={focusSearch}
+              onSearchBlur={handleSearchBlur}
+            />
+          ) : showLogs ? (
+            <LogStream
+              client={client}
+              org={org}
+              width={contentWidth}
+              height={contentHeight}
+              focused={focus.isFocused("content")}
+              selectedIndex={logSelected}
+              onLogsChange={handleLogs}
+              onStatusChange={setLogStatus}
             />
           ) : (
-            <box style={{ flexDirection: "column" }}>
+            <box style={{ flexDirection: "column", paddingLeft: 1 }}>
               <text fg={theme.text} attributes={1}>
                 {`${getNavGroup(activeGroup).label} › ${activeItem}`}
               </text>
@@ -341,23 +499,32 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           // A triage result is the most recent thing the user did, so it
           // outranks the ambient load notice.
           triageNotice ??
-          (openIssue ? { kind: "idle", text: openIssue.shortId } : toNotice(status, showIssues))
+          (openIssue
+            ? { kind: "idle", text: openIssue.shortId }
+            : showLogs
+              ? toLogNotice(logStatus)
+              : toNotice(status, showIssues))
         }
         elapsedMs={openIssue ? undefined : status.elapsedMs}
         hints={
-          openIssue
+          searchFocused
             ? [
-                { command: "sentry.nav.back", label: "back" },
-                { command: "sentry.issue.resolve", label: "resolve" },
-                { command: "sentry.issue.archive", label: "archive" },
-                { command: "sentry.app.help", label: "help" },
+                { command: "sentry.nav.open", label: "submit" },
+                { command: "sentry.nav.back", label: "cancel" },
               ]
-            : [
-                { command: "sentry.nav.open", label: "open" },
-                { command: "sentry.app.refresh", label: "reload" },
-                { command: "sentry.app.help", label: "help" },
-                { command: "sentry.app.quit", label: "quit" },
-              ]
+            : openIssue
+              ? [
+                  { command: "sentry.nav.back", label: "back" },
+                  { command: "sentry.issue.resolve", label: "resolve" },
+                  { command: "sentry.issue.archive", label: "archive" },
+                  { command: "sentry.app.help", label: "help" },
+                ]
+              : [
+                  { command: "sentry.nav.open", label: "open" },
+                  { command: "sentry.nav.search", label: "search" },
+                  { command: "sentry.app.help", label: "help" },
+                  { command: "sentry.app.quit", label: "quit" },
+                ]
         }
       />
 
@@ -370,5 +537,11 @@ function toNotice(status: StreamStatus, showIssues: boolean): Notice {
   if (!showIssues) return { kind: "idle", text: "" };
   if (status.error) return { kind: "error", text: status.error };
   if (status.loading) return { kind: "loading", text: "Loading issues…" };
+  return { kind: "idle", text: "" };
+}
+
+function toLogNotice(status: StreamStatus): Notice {
+  if (status.error) return { kind: "error", text: status.error };
+  if (status.loading) return { kind: "loading", text: "Loading logs…" };
   return { kind: "idle", text: "" };
 }
