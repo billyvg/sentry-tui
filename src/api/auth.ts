@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -59,6 +60,17 @@ export async function readConfig(): Promise<StoredConfig> {
     // A corrupt config shouldn't be fatal — fall back to env vars.
     return {};
   }
+}
+
+/**
+ * Merge `updates` into the stored config and write it back.
+ * Creates the config directory if it doesn't exist.
+ */
+export async function writeConfig(updates: Partial<StoredConfig>): Promise<void> {
+  const existing = await readConfig();
+  const merged = { ...existing, ...updates };
+  mkdirSync(CONFIG_DIR, { recursive: true });
+  writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2) + "\n");
 }
 
 /**
