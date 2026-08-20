@@ -15,12 +15,16 @@ logs
 _.log
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
-# dotenv environment variable files
+# dotenv environment variable files — every variant, so a stray
+# .env.production or .env.staging can't slip through
 .env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+.env.*
+!.env.example
+
+# credentials, in case one is ever copied into the tree for debugging
+credentials.json
+*.pem
+*.key
 
 # caches
 .eslintcache
