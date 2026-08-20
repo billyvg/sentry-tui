@@ -35,8 +35,18 @@ interface StreamStatus {
 
 export function App({ onQuit, client = null, org = "" }: AppProps) {
   const { width, height } = useTerminalDimensions();
-  const [group, setGroup] = useState<NavGroupId>("issues");
-  const [item, setItem] = useState("Feed");
+
+  // Rail cursor: which group is highlighted on the nav rail.
+  const [railGroup, setRailGroup] = useState<NavGroupId>("issues");
+
+  // Active selection: what the content pane renders. Default: Issues › Feed.
+  const [activeGroup, setActiveGroup] = useState<NavGroupId>("issues");
+  const [activeItem, setActiveItem] = useState("Feed");
+
+  // Secondary nav: visible only after pressing Enter on the rail.
+  const [showSecondary, setShowSecondary] = useState(false);
+  const [secondaryItem, setSecondaryItem] = useState("Feed");
+
   const [showHelp, setShowHelp] = useState(false);
   const [issues, setIssues] = useState<Group[]>([]);
   const [selected, setSelected] = useState(0);
@@ -47,7 +57,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
 
   const [triageNotice, setTriageNotice] = useState<Notice | null>(null);
 
-  const showIssues = group === "issues";
+  const showIssues = activeGroup === "issues";
 
   const handleIssues = useCallback((next: Group[]) => {
     setIssues(next);
@@ -101,7 +111,17 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 3. Global app commands.
+        // 3. Escape closes the secondary nav and returns focus to the rail.
+        () => {
+          if (!showSecondary) return "notMine";
+          if (matchesCommand("sentry.nav.back", key)) {
+            setShowSecondary(false);
+            focus.focus("nav");
+            return "mine";
+          }
+          return "notMine";
+        },
+        // 4. Global app commands. Tab cycles only through visible regions.
         () => {
           if (matchesCommand("sentry.app.help", key)) {
             setShowHelp(true);
@@ -112,16 +132,26 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
             return "mine";
           }
           if (matchesCommand("sentry.app.focusNext", key)) {
-            focus.next();
+            const cur = focus.focusedRef.current;
+            if (showSecondary) {
+              focus.focus(cur === "nav" ? "secondary" : "nav");
+            } else {
+              focus.focus(cur === "nav" ? "content" : "nav");
+            }
             return "mine";
           }
           if (matchesCommand("sentry.app.focusPrev", key)) {
-            focus.prev();
+            const cur = focus.focusedRef.current;
+            if (showSecondary) {
+              focus.focus(cur === "secondary" ? "nav" : "secondary");
+            } else {
+              focus.focus(cur === "content" ? "nav" : "content");
+            }
             return "mine";
           }
           return "notMine";
         },
-        // 4. Triage actions, valid in both the list and the detail view.
+        // 5. Triage actions, valid in both the list and the detail view.
         () => {
           if (!activeIssue) return "notMine";
           // In the list these belong to the content pane; the nav panes keep
@@ -138,11 +168,21 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 5. Nav rail. Suspended while a detail view is open.
+        // 6. Nav rail: j/k moves the cursor, Enter opens secondary nav.
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "nav") return "notMine";
-          const index = NAV_GROUPS.findIndex((g) => g.id === group);
+          if (matchesCommand("sentry.nav.open", key)) {
+            const navGroup = getNavGroup(railGroup);
+            // Re-entering the active group starts on the current item.
+            const startItem =
+              railGroup === activeGroup ? activeItem : (navGroup.sections[0]?.items[0] ?? "");
+            setSecondaryItem(startItem);
+            setShowSecondary(true);
+            focus.focus("secondary");
+            return "mine";
+          }
+          const index = NAV_GROUPS.findIndex((g) => g.id === railGroup);
           const step = matchesCommand("sentry.nav.down", key)
             ? 1
             : matchesCommand("sentry.nav.up", key)
@@ -150,27 +190,34 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               : 0;
           if (step === 0) return "notMine";
           const next = NAV_GROUPS[(index + step + NAV_GROUPS.length) % NAV_GROUPS.length]!;
-          setGroup(next.id);
-          setItem(next.sections[0]?.items[0] ?? "");
+          setRailGroup(next.id);
           return "mine";
         },
-        // 6. Secondary nav.
+        // 7. Secondary nav: j/k moves the cursor, Enter selects and closes.
         () => {
           if (openIssue) return "notMine";
+          if (!showSecondary) return "notMine";
           if (focus.focusedRef.current !== "secondary") return "notMine";
-          const items = getNavGroup(group).sections.flatMap((s) => s.items);
-          const index = items.indexOf(item);
+          const items = getNavGroup(railGroup).sections.flatMap((s) => s.items);
+          const index = items.indexOf(secondaryItem);
+          if (matchesCommand("sentry.nav.open", key)) {
+            setActiveGroup(railGroup);
+            setActiveItem(secondaryItem);
+            setShowSecondary(false);
+            focus.focus("content");
+            return "mine";
+          }
           if (matchesCommand("sentry.nav.down", key)) {
-            setItem(items[Math.min(index + 1, items.length - 1)] ?? item);
+            setSecondaryItem(items[Math.min(index + 1, items.length - 1)] ?? secondaryItem);
             return "mine";
           }
           if (matchesCommand("sentry.nav.up", key)) {
-            setItem(items[Math.max(index - 1, 0)] ?? item);
+            setSecondaryItem(items[Math.max(index - 1, 0)] ?? secondaryItem);
             return "mine";
           }
           return "notMine";
         },
-        // 7. Issue list cursor and open.
+        // 8. Issue list cursor and open.
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "content") return "notMine";
@@ -204,7 +251,8 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
     );
   });
 
-  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - SECONDARY_NAV_WIDTH - 2);
+  const secondaryWidth = showSecondary ? SECONDARY_NAV_WIDTH : 0;
+  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
   const contentHeight = Math.max(3, height - 1);
 
   return (
@@ -217,8 +265,14 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
       }}
     >
       <box style={{ flexGrow: 1, flexDirection: "row" }}>
-        <NavRail active={group} focused={focus.isFocused("nav")} />
-        <SecondaryNav group={group} activeItem={item} focused={focus.isFocused("secondary")} />
+        <NavRail active={railGroup} focused={focus.isFocused("nav")} />
+        {showSecondary ? (
+          <SecondaryNav
+            group={railGroup}
+            activeItem={secondaryItem}
+            focused={focus.isFocused("secondary")}
+          />
+        ) : null}
         <box
           style={{
             flexGrow: 1,
@@ -255,7 +309,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           ) : (
             <box style={{ flexDirection: "column" }}>
               <text fg={theme.text} attributes={1}>
-                {`${getNavGroup(group).label} › ${item}`}
+                {`${getNavGroup(activeGroup).label} › ${activeItem}`}
               </text>
               <text fg={theme.muted}>Not implemented yet.</text>
             </box>

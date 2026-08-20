@@ -6,14 +6,15 @@ import { renderHarness } from "./helpers";
 const renderApp = (opts?: { width?: number; height?: number }) =>
   renderHarness(<App onQuit={() => {}} />, opts);
 
-test("renders the app shell with nav and status bar", async () => {
+test("renders the app shell with nav and status bar, content defaults to Issues Feed", async () => {
   const h = await renderApp();
   try {
     const frame = h.frame();
-    expect(frame).toContain("Issues"); // secondary nav header
-    expect(frame).toContain("Feed"); // default item
+    expect(frame).toContain("is:unresolved"); // issue stream is the default content
     expect(frame).toContain("Ready"); // status bar notice
     expect(frame).toContain("quit"); // status bar hint
+    // Secondary nav is hidden until Enter is pressed on the rail.
+    expect(frame).not.toContain("Inbox");
   } finally {
     await h.cleanup();
   }
@@ -46,32 +47,79 @@ test("escape closes the help overlay", async () => {
   }
 });
 
-test("navigating the rail switches the secondary nav contents", async () => {
+test("navigating the rail moves the rail cursor without showing secondary", async () => {
   const h = await renderApp();
   try {
-    expect(h.frame()).toContain("Feed");
-
-    // The rail owns focus by default; move down to Explore.
+    // Rail has focus by default; move down to Explore.
     await h.press((i) => i.pressKey("j"));
 
     const frame = h.frame();
-    expect(frame).toContain("Explore");
-    expect(frame).toContain("Traces");
+    // Secondary nav is still hidden — no Traces visible.
+    expect(frame).not.toContain("Traces");
+    // Content still shows the issue stream (unchanged by rail cursor).
+    expect(frame).toContain("is:unresolved");
   } finally {
     await h.cleanup();
   }
 });
 
-test("tab moves focus from the rail to the secondary nav", async () => {
+test("enter on the rail opens secondary nav and moves focus there", async () => {
   const h = await renderApp();
   try {
-    await h.press((i) => i.pressTab());
-    // With the secondary nav focused, j walks items rather than nav groups.
-    await h.press((i) => i.pressKey("j"));
+    // Press Enter on Issues (default rail position).
+    await h.press((i) => i.pressEnter());
 
     const frame = h.frame();
-    expect(frame).toContain("Issues"); // still in the Issues group
+    // Secondary nav is now visible with Items from Issues group.
+    expect(frame).toContain("Feed");
     expect(frame).toContain("Inbox");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("j/k in secondary nav moves items, Enter selects and hides secondary", async () => {
+  const h = await renderApp();
+  try {
+    // Open secondary nav.
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("Feed");
+
+    // Move to Inbox.
+    await h.press((i) => i.pressKey("j"));
+    expect(h.frame()).toContain("Inbox");
+
+    // Select Inbox — secondary hides, focus moves to content.
+    await h.press((i) => i.pressEnter());
+    const frame = h.frame();
+    expect(frame).not.toContain("Inbox"); // secondary is hidden
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("escape from secondary nav hides it and returns focus to the rail", async () => {
+  const h = await renderApp();
+  try {
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("Inbox");
+
+    await h.pressEscape();
+    const frame = h.frame();
+    expect(frame).not.toContain("Inbox"); // secondary hidden
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("tab cycles between nav and content when secondary is hidden", async () => {
+  const h = await renderApp();
+  try {
+    // Tab from nav → content (secondary is hidden).
+    await h.press((i) => i.pressTab());
+    // Now content is focused; the issue stream is still showing.
+    const frame = h.frame();
+    expect(frame).toContain("is:unresolved");
   } finally {
     await h.cleanup();
   }

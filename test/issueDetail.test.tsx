@@ -34,7 +34,7 @@ async function openFirstIssue(client = stubClient()) {
     height: HEIGHT,
   });
   await h.waitForFrame((f) => f.includes("TypeError"));
-  await h.press((i) => i.pressTab());
+  // One tab: nav -> content (secondary nav is hidden by default).
   await h.press((i) => i.pressTab());
   await h.press((i) => i.pressEnter());
   return h;
@@ -114,7 +114,7 @@ test("renders breadcrumbs, request, tags, contexts and sdk sections", async () =
   });
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
-    await h.press((i) => i.pressTab());
+    // One tab: nav -> content (secondary nav is hidden by default).
     await h.press((i) => i.pressTab());
     await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Breadcrumbs"));
