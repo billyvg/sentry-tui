@@ -135,7 +135,6 @@ export function IssueStream({
     <box style={{ flexDirection: "column", width, height }}>
       {/* Search query, mirroring the web app's search bar. */}
       <box
-        focused={searchFocused}
         style={{
           flexDirection: "row",
           width,
@@ -143,8 +142,7 @@ export function IssueStream({
           height: 3,
           border: true,
           borderStyle: "rounded",
-          borderColor: theme.border,
-          focusedBorderColor: theme.accent,
+          borderColor: searchFocused ? theme.accent : theme.border,
           backgroundColor: theme.panel,
           paddingLeft: 1,
           paddingRight: 1,
