@@ -109,6 +109,12 @@ git push -u origin <branch-name>
 gh pr create --draft --fill
 ```
 
+## skills
+
+Agent skills live in `.agents/skills/<name>/SKILL.md` — add and edit them there.
+`.claude/skills` is a symlink to that directory so Claude Code picks up the same
+set; no per-harness copies.
+
 ## smoke-test pane
 
 Before finishing, load the `smoke-test` skill and follow its steps to launch
