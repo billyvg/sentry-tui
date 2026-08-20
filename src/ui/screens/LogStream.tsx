@@ -268,6 +268,11 @@ export function LogStream({
       <scrollbox
         ref={listRef}
         focused={focused && !showDetail}
+        // Same scroll rail as the issue stream — see `IssueStream`.
+        verticalScrollbarOptions={{
+          showArrows: false,
+          trackOptions: { backgroundColor: theme.panel, foregroundColor: theme.muted },
+        }}
         style={{ flexGrow: 1, flexBasis: 0, width }}
       >
         {entries === undefined && isInitialLoad(logs) ? (

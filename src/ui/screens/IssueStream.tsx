@@ -22,6 +22,15 @@ import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useIssues } from "~/ui/hooks/useIssues";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
 
+/**
+ * Column the scrollbox's vertical scrollbar takes out of its own viewport.
+ * The list is laid out one column narrower so the bar lands in a gutter of its
+ * own; at full width the rows overflow the viewport instead, which clips every
+ * row rule a column short of the border and puts the thumb on top of the
+ * rows' right padding.
+ */
+const SCROLLBAR_GUTTER = 1;
+
 export interface IssueStreamProps {
   client: SentryClient | null;
   org: string;
@@ -163,7 +172,7 @@ export function IssueStream({
     [sort],
   );
 
-  const listWidth = Math.max(20, width);
+  const listWidth = Math.max(20, width - SCROLLBAR_GUTTER);
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
@@ -232,7 +241,17 @@ export function IssueStream({
        * overflows, so there is nothing to scroll. Starting from zero and
        * growing into the leftover space bounds the viewport to the pane.
        */}
-      <scrollbox ref={listRef} focused={focused} style={{ flexGrow: 1, flexBasis: 0, width }}>
+      <scrollbox
+        ref={listRef}
+        focused={focused}
+        // A continuously drawn track keeps the gutter reading as a scroll rail
+        // rather than as a gap the rules fail to reach.
+        verticalScrollbarOptions={{
+          showArrows: false,
+          trackOptions: { backgroundColor: theme.panel, foregroundColor: theme.muted },
+        }}
+        style={{ flexGrow: 1, flexBasis: 0, width }}
+      >
         {rows === undefined && isInitialLoad(issues) ? (
           <IssueListSkeleton width={listWidth} rows={PAGE_SIZE} />
         ) : null}
