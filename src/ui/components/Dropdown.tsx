@@ -31,6 +31,13 @@ export interface DropdownProps {
   anchorTop: number;
   /** Whether "All" is a valid meta-option at the top. */
   showAll?: boolean;
+  /**
+   * Row to show in place of the list while it has nothing selectable — a
+   * pending fetch, a failed one, or a genuinely empty set. Without it an
+   * item-less dropdown opens as a bare box, which reads as broken rather than
+   * as "still loading".
+   */
+  placeholder?: string;
   onSelect: (values: string[]) => void;
   onClose: () => void;
 }
@@ -55,6 +62,7 @@ export function Dropdown({
   anchorLeft,
   anchorTop,
   showAll = true,
+  placeholder,
   onSelect,
   onClose,
 }: DropdownProps) {
@@ -135,12 +143,21 @@ export function Dropdown({
   // one, so labels stay in a single column instead of stepping in and out.
   const iconSlot = allItems.some((item) => "platform" in item) ? platformIconWidth : 0;
 
+  // With nothing selectable, the list collapses to the placeholder row — the
+  // dropdown still has to occupy a row so it can say why it is empty.
+  const placeholderRow = allItems.length === 0 ? placeholder : undefined;
+  const rowCount = placeholderRow ? 1 : allItems.length;
+
   // Geometry: the dropdown drops below the anchor, clamped to the terminal.
   // Each row is border + dot + icon + label + border.
   const rowChrome = PREFIX_WIDTH + iconSlot + 2;
-  const maxLabelWidth = Math.max(MIN_WIDTH, ...allItems.map((i) => i.label.length + rowChrome));
+  const maxLabelWidth = Math.max(
+    MIN_WIDTH,
+    ...allItems.map((i) => i.label.length + rowChrome),
+    placeholderRow ? placeholderRow.length + rowChrome : 0,
+  );
   const dropdownWidth = Math.min(maxLabelWidth, termWidth - 2);
-  const visibleRows = Math.min(allItems.length, MAX_VISIBLE, termHeight - anchorTop - 3);
+  const visibleRows = Math.min(rowCount, MAX_VISIBLE, termHeight - anchorTop - 3);
   const dropdownHeight = visibleRows + 2; // +2 for border
   const windowStart = listWindowStart(cursor, allItems.length, visibleRows);
 
@@ -179,6 +196,10 @@ export function Dropdown({
         }}
         onMouseUp={(event) => event.stopPropagation()}
       >
+        {placeholderRow ? (
+          <text fg={theme.muted}>{` ${fitText(placeholderRow, dropdownWidth - 3)}`}</text>
+        ) : null}
+
         {allItems.slice(windowStart, windowStart + visibleRows).map((item, i) => {
           const realIndex = windowStart + i;
           const isCursor = realIndex === cursor;

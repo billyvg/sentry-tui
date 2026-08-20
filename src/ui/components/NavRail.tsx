@@ -1,8 +1,13 @@
+import { formatKey, primaryKey } from "~/core/commands";
 import { NAV_GROUPS, type NavGroupId } from "~/core/nav";
 import { theme } from "~/core/theme";
 import { fitText, measureTextWidth } from "~/lib/text";
+import { KeyHint } from "~/ui/components/KeyHint";
 import { NAV_ICON_WIDTH, NavIcon } from "~/ui/components/NavIcon";
 import { useImageSupport } from "~/ui/hooks/useImageSupport";
+
+/** The command the org header opens — its key is printed beside the slug. */
+const ORG_PICKER_COMMAND = "sentry.app.switchOrg";
 
 /**
  * Footprint of the org avatar at the top of the rail. Two columns by one row is
@@ -30,12 +35,33 @@ const RAIL_CHROME_WIDTH = 4;
 const WIDEST_NAV_LABEL = Math.max(...NAV_GROUPS.map((group) => measureTextWidth(group.label)));
 
 /**
- * Rail width, sized so the longest nav label always fits on one row. Derived
- * rather than hard-coded so renaming or adding a nav group can't silently wrap
- * a label. Always budgets for the icon column, even when the terminal can't
- * render images, so the rail doesn't change width between terminals.
+ * Cells the org picker's key takes beside the slug: a separating space plus the
+ * parenthesised key itself. Zero when the command is unbound, since `KeyHint`
+ * then renders nothing.
  */
-export const NAV_RAIL_WIDTH = RAIL_CHROME_WIDTH + NAV_ICON_WIDTH + NAV_ICON_GAP + WIDEST_NAV_LABEL;
+const ORG_KEY_HINT_WIDTH = (() => {
+  const key = formatKey(primaryKey(ORG_PICKER_COMMAND));
+  return key ? 1 + measureTextWidth(key) + 2 : 0;
+})();
+
+/** Widest row a nav item can produce: its icon, a gap, and its label. */
+const NAV_ITEM_ROW_WIDTH = NAV_ICON_WIDTH + NAV_ICON_GAP + WIDEST_NAV_LABEL;
+
+/**
+ * Widest row the org header can produce: the avatar, a gap, a slug given the
+ * same room as the widest nav label, and the picker's key.
+ */
+const ORG_HEADER_ROW_WIDTH = AVATAR_WIDTH + 1 + WIDEST_NAV_LABEL + ORG_KEY_HINT_WIDTH;
+
+/**
+ * Rail width, sized so no row in it ever wraps — the widest nav label and the
+ * org header both get their full run. Derived rather than hard-coded so
+ * renaming a nav group or rebinding the org key can't silently truncate one.
+ * Always budgets for the icon column, even when the terminal can't render
+ * images, so the rail doesn't change width between terminals.
+ */
+export const NAV_RAIL_WIDTH =
+  RAIL_CHROME_WIDTH + Math.max(NAV_ITEM_ROW_WIDTH, ORG_HEADER_ROW_WIDTH);
 
 /**
  * Blank rows framing the org header. The bottom margin exceeds NAV_ITEM_GAP so
@@ -43,6 +69,15 @@ export const NAV_RAIL_WIDTH = RAIL_CHROME_WIDTH + NAV_ICON_WIDTH + NAV_ICON_GAP 
  */
 const ORG_HEADER_MARGIN_TOP = 1;
 const ORG_HEADER_MARGIN_BOTTOM = 2;
+
+/** Column an overlay anchored to the org header starts at: inside the border. */
+export const ORG_HEADER_ANCHOR_LEFT = 1;
+
+/**
+ * Row an overlay anchored to the org header drops from — the rail's top border,
+ * the header's own top margin, and the header row itself.
+ */
+export const ORG_HEADER_ANCHOR_TOP = 1 + ORG_HEADER_MARGIN_TOP + AVATAR_HEIGHT;
 
 interface NavRailProps {
   active: NavGroupId;
@@ -53,13 +88,26 @@ interface NavRailProps {
   orgSlug?: string;
   /** Clicking a group opens it, exactly as Enter does on the rail cursor. */
   onSelect?: (group: NavGroupId) => void;
+  /** Open the organization picker — the header is a control, not a caption. */
+  onOrgPress?: () => void;
 }
 
 /** Primary navigation rail — shows icons (when supported) plus text labels. */
-export function NavRail({ active, focused, avatarUrl, orgSlug, onSelect }: NavRailProps) {
+export function NavRail({
+  active,
+  focused,
+  avatarUrl,
+  orgSlug,
+  onSelect,
+  onOrgPress,
+}: NavRailProps) {
   /** Usable content width: total minus borders (left+right) and horizontal padding. */
   const contentWidth = NAV_RAIL_WIDTH - RAIL_CHROME_WIDTH;
   const { supportsHighRes: hasImages } = useImageSupport();
+
+  /** What the slug has left after the avatar (when drawn) and the key hint. */
+  const slugWidth =
+    contentWidth - (hasImages && avatarUrl ? AVATAR_WIDTH + 1 : 0) - ORG_KEY_HINT_WIDTH;
 
   return (
     <box
@@ -85,6 +133,7 @@ export function NavRail({ active, focused, avatarUrl, orgSlug, onSelect }: NavRa
             marginTop: ORG_HEADER_MARGIN_TOP,
             marginBottom: ORG_HEADER_MARGIN_BOTTOM,
           }}
+          onMouseDown={onOrgPress}
         >
           <box style={{ flexDirection: "row", alignItems: "center", gap: 1 }}>
             {hasImages && avatarUrl ? (
@@ -96,12 +145,16 @@ export function NavRail({ active, focused, avatarUrl, orgSlug, onSelect }: NavRa
             ) : null}
             {orgSlug ? (
               <text fg={theme.text} attributes={1}>
-                {fitText(
-                  orgSlug,
-                  hasImages && avatarUrl ? contentWidth - AVATAR_WIDTH - 1 : contentWidth,
-                )}
+                {fitText(orgSlug, slugWidth)}
               </text>
             ) : null}
+            {/* The key rides the slug, so the org reads as something you press
+                rather than a label that happens to sit above the nav. Wrapped
+                so the row's gap falls beside the hint, not between its parens
+                and the key. */}
+            <box style={{ flexDirection: "row" }}>
+              <KeyHint command={ORG_PICKER_COMMAND} />
+            </box>
           </box>
         </box>
       ) : null}
