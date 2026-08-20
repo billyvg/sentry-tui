@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 import type { Group } from "~/api/types";
+import { theme } from "~/core/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
+import { ITALIC } from "~/ui/lib/attributes";
 import {
   IssueListHeader,
   IssueRow,
@@ -43,6 +45,110 @@ describe("issue text", () => {
       metadata: { type: "Error", value: "line one\n  line two" },
     };
     expect(issueMessage(group)).toBe("line one line two");
+  });
+});
+
+describe("empty values", () => {
+  /** `captureSpans` reports colors as RGBA floats; compare against the theme. */
+  const isColor = (span: { fg: { r: number; g: number; b: number } }, hex: string) => {
+    const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return (["r", "g", "b"] as const).every(
+      (key, i) => Math.round(span.fg[key] * 255) === channels[i],
+    );
+  };
+
+  test("an issue with no exception value says so, dimmed and italic", async () => {
+    // A `captureMessage("")` produces exactly this: metadata with a type but
+    // no value, and a culprit that is already the title.
+    const blank: Group = {
+      ...groupFixture,
+      title: "api/orders",
+      culprit: "api/orders",
+      metadata: { type: "api/orders", value: "" },
+    };
+
+    const h = await renderHarness(<IssueRow group={blank} selected={false} width={WIDTH} />, {
+      width: WIDTH,
+      height: ROW_HEIGHT + 1,
+    });
+    try {
+      expect(h.frame()).toContain("(no error message)");
+
+      // Styling has to reach the terminal, not just the text: `frame()`
+      // flattens attributes away, so assert on the span itself.
+      const span = h.spanContaining("(no error message)");
+      expect(span).toBeDefined();
+      expect(span!.attributes & ITALIC).toBe(ITALIC);
+      expect(isColor(span!, theme.subText)).toBe(true);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("a real message is neither dimmed nor italic", async () => {
+    const h = await renderHarness(
+      <IssueRow group={groupFixture} selected={false} width={WIDTH} />,
+      { width: WIDTH, height: ROW_HEIGHT + 1 },
+    );
+    try {
+      const span = h.spanContaining("Cannot read properties");
+      expect(span).toBeDefined();
+      expect(span!.attributes & ITALIC).toBe(0);
+      expect(isColor(span!, theme.muted)).toBe(true);
+      expect(h.frame()).not.toContain("(no error message)");
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("the placeholder holds the column width, so nothing shifts", async () => {
+    const blank: Group = { ...groupFixture, metadata: { type: "Error", value: "" } };
+    const withMessage = await renderHarness(
+      <IssueRow group={groupFixture} selected={false} width={WIDTH} />,
+      { width: WIDTH, height: ROW_HEIGHT + 1 },
+    );
+    const filled = withMessage.frame().split("\n");
+    await withMessage.cleanup();
+
+    const withoutMessage = await renderHarness(
+      <IssueRow group={blank} selected={false} width={WIDTH} />,
+      { width: WIDTH, height: ROW_HEIGHT + 1 },
+    );
+    const empty = withoutMessage.frame().split("\n");
+    await withoutMessage.cleanup();
+
+    expect(empty.length).toBe(filled.length);
+    for (let i = 0; i < filled.length; i++) {
+      expect(empty[i]!.length).toBe(filled[i]!.length);
+    }
+  });
+
+  test("a whitespace-only value counts as empty", async () => {
+    const blank: Group = { ...groupFixture, metadata: { type: "Error", value: "   " } };
+    const h = await renderHarness(<IssueRow group={blank} selected={false} width={WIDTH} />, {
+      width: WIDTH,
+      height: ROW_HEIGHT + 1,
+    });
+    try {
+      expect(h.frame()).toContain("(no error message)");
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("an issue with no title at all still names the gap", async () => {
+    const untitled: Group = { ...groupFixture, title: "", metadata: undefined };
+    const h = await renderHarness(<IssueRow group={untitled} selected={false} width={WIDTH} />, {
+      width: WIDTH,
+      height: ROW_HEIGHT + 1,
+    });
+    try {
+      const span = h.spanContaining("(no title)");
+      expect(span).toBeDefined();
+      expect(span!.attributes & ITALIC).toBe(ITALIC);
+    } finally {
+      await h.cleanup();
+    }
   });
 });
 

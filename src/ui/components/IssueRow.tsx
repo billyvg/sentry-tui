@@ -3,6 +3,8 @@ import { theme } from "~/core/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { formatCount, sparkline, timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
+import { Placeholder } from "~/ui/components/Placeholder";
+import { BOLD } from "~/ui/lib/attributes";
 
 /**
  * The right-hand column strip, mirroring the web stream's table header
@@ -132,6 +134,7 @@ export function IssueRow({
 }) {
   const layout = resolveRowLayout(width);
   const bg = selected ? theme.selected : undefined;
+  const title = issueTitle(group);
   const message = issueMessage(group);
 
   return (
@@ -153,9 +156,13 @@ export function IssueRow({
         {/* An in-flight mutation takes the dot's slot; unread otherwise. */}
         <text fg={theme.accent}>{pending ? "⟳" : group.hasSeen ? " " : "●"}</text>
         <text> </text>
-        <text fg={theme.text} attributes={1 /* BOLD */}>
-          {padText(issueTitle(group), layout.title)}
-        </text>
+        <Placeholder
+          text={title}
+          fallback="(no title)"
+          width={layout.title}
+          fg={theme.text}
+          attributes={BOLD}
+        />
         {layout.columns.map((key) => (
           <Column key={key} column={key} group={group} />
         ))}
@@ -165,7 +172,13 @@ export function IssueRow({
       <box style={{ flexDirection: "row" }}>
         <text>{"  "}</text>
         <text fg={theme.level[group.level] ?? theme.level.unknown}>│</text>
-        <text fg={theme.muted}>{` ${fitText(message, Math.max(0, layout.content - 4))}`}</text>
+        <text> </text>
+        <Placeholder
+          text={message}
+          fallback="(no error message)"
+          width={Math.max(0, layout.content - 4)}
+          fg={theme.muted}
+        />
       </box>
 
       {/* Line 3 — the dense divider-separated meta row from `groupMetaRow.tsx`. */}
