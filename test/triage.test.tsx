@@ -85,7 +85,7 @@ async function renderList(fetchImpl: typeof fetch, { width = WIDTH, height = HEI
     height,
   });
   await h.waitForFrame((f) => f.includes("TypeError"));
-  await h.press((i) => i.pressTab());
+  // One tab: nav -> content (secondary nav is hidden by default).
   await h.press((i) => i.pressTab());
   return h;
 }
