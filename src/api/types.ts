@@ -235,6 +235,32 @@ export interface Organization {
   avatar?: Avatar;
 }
 
+/**
+ * A Sentry account, as nested inside an organization member.
+ *
+ * `avatarUrl` is always populated — for a user who picked no picture it is a
+ * Gravatar URL with a generated placeholder — so `avatar.avatarType` is what
+ * says whether there is a real image behind it.
+ */
+export interface OrgUser {
+  id: string;
+  name: string;
+  username?: string;
+  email?: string;
+  avatarUrl?: string | null;
+  avatar?: Avatar;
+}
+
+/** One row of `/organizations/{org}/users/`: a membership plus its account. */
+export interface OrgMember {
+  /** Membership id — not the account id. Assignees are matched on `user.id`. */
+  id: string;
+  email: string;
+  name: string;
+  /** Absent until an invited member accepts. */
+  user?: OrgUser | null;
+}
+
 export interface Project {
   id: string;
   slug: string;

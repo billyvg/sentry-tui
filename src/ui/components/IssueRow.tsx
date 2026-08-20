@@ -1,10 +1,12 @@
 import type { Group, PriorityLevel } from "~/api/types";
+import { assigneeInitials } from "~/core/avatars";
 import { theme } from "~/core/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { formatCount, sparkline, timeAgo } from "~/lib/sparkline";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
 import { PlatformIcon, usePlatformIconWidth } from "~/ui/components/PlatformIcon";
 import { Placeholder } from "~/ui/components/Placeholder";
+import { useImageSupport } from "~/ui/hooks/useImageSupport";
 import { BOLD } from "~/ui/lib/attributes";
 
 /**
@@ -30,6 +32,14 @@ const COLUMN_WIDTH = {
  * split four ways.
  */
 const SPARKLINE_GLYPHS = COLUMN_WIDTH.sparkline - 3;
+
+/**
+ * Footprint of an assignee's avatar, in cells. Two by one is square given a
+ * terminal cell's proportions, so the picture sits on the row's first line
+ * rather than forcing the row taller — the same trade the platform icon makes.
+ */
+const AVATAR_WIDTH = 2;
+const AVATAR_HEIGHT = 1;
 
 export type ColumnKey = keyof typeof COLUMN_WIDTH;
 
@@ -214,12 +224,19 @@ export function IssueRow({
   width,
   pending = false,
   selectionBelow = false,
+  assigneeAvatarUrl,
 }: {
   group: Group;
   selected: boolean;
   width: number;
   /** A mutation is in flight for this issue. */
   pending?: boolean;
+  /**
+   * The assignee's own avatar, when they have one. Resolved by the list rather
+   * than the row: the lookup costs one request for the whole organization, so
+   * it can't be per-row work.
+   */
+  assigneeAvatarUrl?: string;
   /**
    * The row *below* this one is selected. A rule is shared between the two
    * rows it separates, so the row above the selection paints its own rule to
@@ -262,7 +279,7 @@ export function IssueRow({
             attributes={BOLD}
           />
           {layout.columns.map((key) => (
-            <Column key={key} column={key} group={group} />
+            <Column key={key} column={key} group={group} avatarUrl={assigneeAvatarUrl} />
           ))}
         </box>
 
@@ -293,7 +310,50 @@ export function IssueRow({
   );
 }
 
-function Column({ column, group }: { column: ColumnKey; group: Group }) {
+/**
+ * The Asgn cell — the assignee's own picture when there is one to show, and
+ * their initials otherwise.
+ *
+ * The image is right-aligned into the same cells the initials occupy, padded
+ * with a text run rather than a margin so the column keeps its exact width
+ * either way and the metric columns to its left stay in one line down the
+ * list.
+ *
+ * @param avatarUrl Remote URL of the assignee's avatar, if they set one.
+ */
+function AssigneeCell({ group, avatarUrl }: { group: Group; avatarUrl?: string }) {
+  const width = COLUMN_WIDTH.assignee;
+  const { supportsHighRes } = useImageSupport();
+
+  // Without kitty or sixel an avatar degrades to half-block mush, which reads
+  // as neither a face nor a name — initials say more in the same two cells.
+  if (!avatarUrl || !supportsHighRes) {
+    return (
+      <text fg={theme.muted}>{padText(assigneeInitials(group.assignedTo), width, "right")}</text>
+    );
+  }
+
+  return (
+    <>
+      <text>{" ".repeat(Math.max(0, width - AVATAR_WIDTH))}</text>
+      <image
+        source={avatarUrl}
+        fit="fit"
+        style={{ width: AVATAR_WIDTH, height: AVATAR_HEIGHT, flexShrink: 0 }}
+      />
+    </>
+  );
+}
+
+function Column({
+  column,
+  group,
+  avatarUrl,
+}: {
+  column: ColumnKey;
+  group: Group;
+  avatarUrl?: string;
+}) {
   const width = COLUMN_WIDTH[column];
 
   switch (column) {
@@ -318,7 +378,7 @@ function Column({ column, group }: { column: ColumnKey; group: Group }) {
         </text>
       );
     case "assignee":
-      return <text fg={theme.muted}>{padText(initials(group), width, "right")}</text>;
+      return <AssigneeCell group={group} avatarUrl={avatarUrl} />;
   }
 }
 
@@ -327,14 +387,6 @@ function relative(iso: string | undefined, suffix = false): string {
   if (!iso) return "··";
   const ago = timeAgo(iso);
   return suffix && ago ? `${ago} ago` : ago;
-}
-
-function initials(group: Group): string {
-  const name = group.assignedTo?.name;
-  if (!name) return "·";
-  const parts = name.split(/[\s@._-]+/).filter(Boolean);
-  const letters = parts.slice(0, 2).map((part) => part[0]!.toUpperCase());
-  return letters.join("") || "·";
 }
 
 /** The meta row, split either side of the project slug's icon. */

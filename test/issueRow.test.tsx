@@ -320,6 +320,55 @@ describe("IssueRow", () => {
     }
   });
 
+  test("an assignee's initials fill the Asgn column, unassigned shows a dot", async () => {
+    const assigned: Group = {
+      ...groupFixture,
+      assignedTo: { id: "100", name: "Ada Lovelace", type: "user" },
+    };
+
+    const h = await renderHarness(<IssueRow group={assigned} selected={false} width={WIDTH} />, {
+      width: WIDTH,
+      height: ROW_HEIGHT + 1,
+    });
+    const withAssignee = lines(h.frame())[0]!;
+    await h.cleanup();
+
+    const bare = await renderHarness(
+      <IssueRow group={groupFixture} selected={false} width={WIDTH} />,
+      { width: WIDTH, height: ROW_HEIGHT + 1 },
+    );
+    const unassigned = lines(bare.frame())[0]!;
+    await bare.cleanup();
+
+    expect(withAssignee.trimEnd().endsWith("AL")).toBe(true);
+    expect(unassigned.trimEnd().endsWith("·")).toBe(true);
+  });
+
+  test("an avatar URL still renders initials where images would be mush", async () => {
+    // The test renderer advertises no kitty or sixel support, which is the
+    // same position a plain terminal is in: the cell must degrade to text
+    // rather than leave the column blank.
+    const assigned: Group = {
+      ...groupFixture,
+      assignedTo: { id: "100", name: "Ada Lovelace", type: "user" },
+    };
+
+    const h = await renderHarness(
+      <IssueRow
+        group={assigned}
+        selected={false}
+        width={WIDTH}
+        assigneeAvatarUrl="https://sentry.io/avatar/aaaa1111/"
+      />,
+      { width: WIDTH, height: ROW_HEIGHT + 1 },
+    );
+    try {
+      expect(lines(h.frame())[0]!.trimEnd().endsWith("AL")).toBe(true);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
   test("skeleton occupies the same geometry as a real row", async () => {
     const real = await renderHarness(
       <IssueRow group={groupFixture} selected={false} width={WIDTH} />,

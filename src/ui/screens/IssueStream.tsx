@@ -13,6 +13,7 @@ import {
 } from "~/api/issues";
 import type { Group } from "~/api/types";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { assigneeAvatarUrl } from "~/core/avatars";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
 import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
@@ -20,6 +21,7 @@ import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow"
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useIssues } from "~/ui/hooks/useIssues";
+import { useMemberAvatars } from "~/ui/hooks/useMemberAvatars";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
 
 /**
@@ -171,6 +173,14 @@ export function IssueStream({
     layout: [height],
   });
 
+  // One member fetch serves the whole list, and only once a row is actually
+  // assigned to somebody — most streams never need it.
+  const hasAssignee = useMemo(
+    () => (rows ?? []).some((group) => group.assignedTo?.type === "user"),
+    [rows],
+  );
+  const avatars = useMemberAvatars(client, org, hasAssignee);
+
   const sortLabel = useMemo(
     () => SORT_OPTIONS.find((o) => o.value === sort)?.label ?? sort,
     [sort],
@@ -272,6 +282,7 @@ export function IssueStream({
             selectionBelow={focused && index + 1 === selectedIndex}
             width={listWidth}
             pending={pendingIds?.has(group.id) ?? false}
+            assigneeAvatarUrl={assigneeAvatarUrl(group.assignedTo, avatars)}
           />
         ))}
 
