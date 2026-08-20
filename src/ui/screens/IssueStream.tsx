@@ -205,7 +205,11 @@ export function IssueStream({
         onDropdownClose={onDropdownClose ?? (() => {})}
       />
 
-      <IssueListHeader width={listWidth} />
+      {/* The header's rule doubles as the first row's top edge. */}
+      <IssueListHeader
+        width={listWidth}
+        selectionBelow={focused && selectedIndex === 0 && (rows?.length ?? 0) > 0}
+      />
 
       <scrollbox focused={focused} style={{ flexGrow: 1, width }}>
         {rows === undefined && isInitialLoad(issues) ? (
@@ -221,6 +225,7 @@ export function IssueStream({
             key={group.id}
             group={group}
             selected={focused && index === selectedIndex}
+            selectionBelow={focused && index + 1 === selectedIndex}
             width={listWidth}
             pending={pendingIds?.has(group.id) ?? false}
           />
