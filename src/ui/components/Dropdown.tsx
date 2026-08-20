@@ -4,12 +4,19 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { matchesCommand } from "~/core/commands";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
+import { PlatformIcon, usePlatformIconWidth } from "~/ui/components/PlatformIcon";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
 import { listWindowStart } from "~/ui/lib/modalGeometry";
 
 export interface DropdownItem {
   label: string;
   value: string;
+  /**
+   * Sentry platform string to draw an icon for. Present but nullish still
+   * takes a slot (drawn as the generic icon); omitted entirely means the item
+   * has none — which is how meta-options like "All" avoid claiming one.
+   */
+  platform?: string | null;
 }
 
 export interface DropdownProps {
@@ -29,6 +36,8 @@ export interface DropdownProps {
 }
 
 const DROPDOWN_Z = 50;
+/** The `● `/`  ` selection dot that leads every row. */
+const PREFIX_WIDTH = 2;
 const MAX_VISIBLE = 12;
 const MIN_WIDTH = 20;
 
@@ -50,6 +59,7 @@ export function Dropdown({
   onClose,
 }: DropdownProps) {
   const { width: termWidth, height: termHeight } = useTerminalDimensions();
+  const platformIconWidth = usePlatformIconWidth();
 
   // Build the full option list: "All" + items.
   const allItems: DropdownItem[] = showAll
@@ -121,8 +131,14 @@ export function Dropdown({
     );
   });
 
+  // An icon column is reserved for the whole list as soon as one item asks for
+  // one, so labels stay in a single column instead of stepping in and out.
+  const iconSlot = allItems.some((item) => "platform" in item) ? platformIconWidth : 0;
+
   // Geometry: the dropdown drops below the anchor, clamped to the terminal.
-  const maxLabelWidth = Math.max(MIN_WIDTH, ...allItems.map((i) => i.label.length + 4));
+  // Each row is border + dot + icon + label + border.
+  const rowChrome = PREFIX_WIDTH + iconSlot + 2;
+  const maxLabelWidth = Math.max(MIN_WIDTH, ...allItems.map((i) => i.label.length + rowChrome));
   const dropdownWidth = Math.min(maxLabelWidth, termWidth - 2);
   const visibleRows = Math.min(allItems.length, MAX_VISIBLE, termHeight - anchorTop - 3);
   const dropdownHeight = visibleRows + 2; // +2 for border
@@ -169,17 +185,30 @@ export function Dropdown({
           const isActive =
             item.value === "__all__" ? selected.length === 0 : selected.includes(item.value);
 
-          const prefix = isActive ? "● " : "  ";
-          const label = fitText(`${prefix}${item.label}`, dropdownWidth - 2);
+          const fg = isCursor ? theme.text : isActive ? theme.accent : theme.muted;
+          const label = fitText(item.label, dropdownWidth - 2 - iconSlot - PREFIX_WIDTH);
 
+          // The selection dot leads the row, ahead of the icon, so the only gap
+          // between an icon and its label is the icon's own trailing space.
           return (
-            <text
+            <box
               key={item.value}
-              fg={isCursor ? theme.text : isActive ? theme.accent : theme.muted}
-              bg={isCursor ? theme.selected : undefined}
+              style={{
+                flexDirection: "row",
+                alignSelf: "flex-start",
+                backgroundColor: isCursor ? theme.selected : undefined,
+              }}
             >
-              {label}
-            </text>
+              <text fg={fg}>{isActive ? "● " : "  "}</text>
+              {iconSlot > 0 ? (
+                "platform" in item ? (
+                  <PlatformIcon platform={item.platform} />
+                ) : (
+                  <box style={{ width: iconSlot, flexShrink: 0 }} />
+                )
+              ) : null}
+              <text fg={fg}>{label}</text>
+            </box>
           );
         })}
       </box>

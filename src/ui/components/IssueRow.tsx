@@ -2,7 +2,8 @@ import type { Group, PriorityLevel } from "~/api/types";
 import { theme } from "~/core/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { formatCount, sparkline, timeAgo } from "~/lib/sparkline";
-import { fitText, padText } from "~/lib/text";
+import { fitText, measureTextWidth, padText } from "~/lib/text";
+import { PlatformIcon, usePlatformIconWidth } from "~/ui/components/PlatformIcon";
 import { Placeholder } from "~/ui/components/Placeholder";
 import { BOLD } from "~/ui/lib/attributes";
 
@@ -230,6 +231,8 @@ export function IssueRow({
   const bg = selected ? theme.selected : undefined;
   const title = issueTitle(group);
   const message = issueMessage(group);
+  const iconWidth = usePlatformIconWidth();
+  const meta = metaRow(group, Math.max(0, layout.content - 5), message, iconWidth);
 
   return (
     <box style={{ flexDirection: "column", width, flexShrink: 0 }}>
@@ -279,7 +282,9 @@ export function IssueRow({
         {/* Line 3 — the dense divider-separated meta row from `groupMetaRow.tsx`. */}
         <box style={{ flexDirection: "row" }}>
           <text>{"     "}</text>
-          <text fg={theme.muted}>{metaLine(group, Math.max(0, layout.content - 5), message)}</text>
+          <text fg={theme.muted}>{meta.lead}</text>
+          {meta.showIcon ? <PlatformIcon platform={group.project?.platform} /> : null}
+          <text fg={theme.muted}>{meta.rest}</text>
         </box>
       </box>
 
@@ -332,10 +337,28 @@ function initials(group: Group): string {
   return letters.join("") || "·";
 }
 
-function metaLine(group: Group, width: number, message: string): string {
-  const parts = [
-    group.shortId,
-    group.project?.slug,
+/** The meta row, split either side of the project slug's icon. */
+interface MetaRow {
+  /** Everything before the project slug, including its trailing divider. */
+  lead: string;
+  /** The project slug onward. */
+  rest: string;
+  /** Whether the gap between them holds a platform icon. */
+  showIcon: boolean;
+}
+
+/**
+ * Build the dense divider-separated meta row from `groupMetaRow.tsx`.
+ *
+ * Returned in two pieces rather than one string because the platform icon is
+ * an image element, which cannot live inside a text run. `iconWidth` comes off
+ * the budget up front so the row still totals `width` cells with the icon in it.
+ */
+function metaRow(group: Group, width: number, message: string, iconWidth: number): MetaRow {
+  const slug = group.project?.slug;
+  const before = [group.shortId].filter((part): part is string => Boolean(part));
+  const after = [
+    slug,
     group.isUnhandled ? "Unhandled" : null,
     // When there is no exception value the message line *is* the culprit, so
     // repeating it here would print the same string twice in one row.
@@ -344,7 +367,15 @@ function metaLine(group: Group, width: number, message: string): string {
     group.logger,
   ].filter((part): part is string => Boolean(part));
 
-  return fitText(parts.join(" │ "), width);
+  const showIcon = Boolean(slug) && iconWidth > 0;
+  const budget = Math.max(0, width - (showIcon ? iconWidth : 0));
+
+  // With no leading parts the row starts at the slug, so there is no divider
+  // to carry and `lead` is empty.
+  const lead = before.length > 0 ? fitText(`${before.join(" │ ")} │ `, budget) : "";
+  const rest = fitText(after.join(" │ "), Math.max(0, budget - measureTextWidth(lead)));
+
+  return { lead, rest, showIcon };
 }
 
 /**
