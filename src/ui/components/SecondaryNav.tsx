@@ -27,6 +27,7 @@ export function SecondaryNav({
         backgroundColor: theme.panel,
         border: ["right"],
         borderColor: focused ? theme.borderFocused : theme.border,
+        paddingTop: 1,
         paddingLeft: 1,
         paddingRight: 1,
       }}

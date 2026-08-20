@@ -194,6 +194,17 @@ export async function updateIssue(
   return page.data;
 }
 
+/** Fetch a single organization's details, including its avatar. */
+export async function getOrganization(
+  client: SentryClient,
+  { org, signal }: { org: string; signal?: AbortSignal },
+): Promise<Organization> {
+  const page = await client.request<Organization>(`/organizations/${org}/`, {
+    signal,
+  });
+  return page.data;
+}
+
 export async function listOrganizations(
   client: SentryClient,
   signal?: AbortSignal,

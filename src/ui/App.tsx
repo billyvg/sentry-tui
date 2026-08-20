@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
+import { getOrganization } from "~/api/issues";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
 import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
@@ -48,6 +49,19 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   const [secondaryItem, setSecondaryItem] = useState("Feed");
 
   const [showHelp, setShowHelp] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
+
+  // Fetch org details (including avatar) once on mount.
+  useEffect(() => {
+    if (!client || !org) return;
+    const controller = new AbortController();
+    getOrganization(client, { org, signal: controller.signal })
+      .then((orgData) => {
+        if (orgData.avatar?.avatarUrl) setAvatarUrl(orgData.avatar.avatarUrl);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [client, org]);
   const [issues, setIssues] = useState<Group[]>([]);
   const [selected, setSelected] = useState(0);
   const [status, setStatus] = useState<StreamStatus>({ loading: false });
@@ -265,7 +279,12 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
       }}
     >
       <box style={{ flexGrow: 1, flexDirection: "row" }}>
-        <NavRail active={railGroup} focused={focus.isFocused("nav")} />
+        <NavRail
+          active={railGroup}
+          focused={focus.isFocused("nav")}
+          avatarUrl={avatarUrl}
+          orgSlug={org}
+        />
         {showSecondary ? (
           <SecondaryNav
             group={railGroup}
@@ -277,6 +296,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           style={{
             flexGrow: 1,
             flexDirection: "column",
+            paddingTop: 1,
             paddingLeft: 1,
             border: ["left"],
             borderColor: focus.isFocused("content") ? theme.borderFocused : theme.border,

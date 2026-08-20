@@ -1,10 +1,28 @@
 import { NAV_GROUPS, type NavGroupId } from "~/core/nav";
 import { theme } from "~/core/theme";
+import { NavIcon } from "~/ui/components/NavIcon";
+import { useImageSupport } from "~/ui/hooks/useImageSupport";
 
-export const NAV_RAIL_WIDTH = 3;
+export const NAV_RAIL_WIDTH = 16;
 
-/** The narrow icon rail — the terminal analogue of Sentry's 74px primary sidebar. */
-export function NavRail({ active, focused }: { active: NavGroupId; focused: boolean }) {
+/** Icon size for the org avatar at the top of the rail. */
+const AVATAR_SIZE = 2;
+
+interface NavRailProps {
+  active: NavGroupId;
+  focused: boolean;
+  /** Remote URL for the organization's avatar image. */
+  avatarUrl?: string;
+  /** Organization slug, shown next to the avatar. */
+  orgSlug?: string;
+}
+
+/** Primary navigation rail — shows icons (when supported) plus text labels. */
+export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
+  /** Usable content width: total minus border and horizontal padding. */
+  const contentWidth = NAV_RAIL_WIDTH - 3;
+  const { supportsHighRes: hasImages } = useImageSupport();
+
   return (
     <box
       style={{
@@ -14,17 +32,59 @@ export function NavRail({ active, focused }: { active: NavGroupId; focused: bool
         backgroundColor: theme.panelAlt,
         border: ["right"],
         borderColor: focused ? theme.borderFocused : theme.border,
+        paddingLeft: 1,
+        paddingRight: 1,
       }}
     >
+      {/* Org header: always reserve space, show avatar when it arrives */}
+      {hasImages ? (
+        <box style={{ height: AVATAR_SIZE + 2, flexDirection: "column", paddingTop: 1 }}>
+          <box style={{ flexDirection: "row", gap: 1 }}>
+            {avatarUrl ? (
+              <image
+                source={avatarUrl}
+                fit="fit"
+                style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
+              />
+            ) : null}
+            {orgSlug ? (
+              <text fg={theme.text} attributes={1}>
+                {orgSlug.slice(0, avatarUrl ? contentWidth - AVATAR_SIZE - 1 : contentWidth)}
+              </text>
+            ) : null}
+          </box>
+        </box>
+      ) : null}
+
       {NAV_GROUPS.map((group) => {
         const isActive = group.id === active;
+
+        if (hasImages) {
+          return (
+            <box
+              key={group.id}
+              style={{
+                flexDirection: "column",
+                height: 3,
+              }}
+            >
+              <box style={{ flexDirection: "row", gap: 1 }}>
+                <NavIcon groupId={group.id} active={isActive} />
+                <text fg={isActive ? theme.accent : theme.muted} attributes={isActive ? 1 : 0}>
+                  {group.label}
+                </text>
+              </box>
+            </box>
+          );
+        }
+
         return (
           <text
             key={group.id}
-            fg={isActive ? theme.text : theme.muted}
-            bg={isActive ? theme.accent : undefined}
+            fg={isActive ? theme.accent : theme.muted}
+            attributes={isActive ? 1 : 0}
           >
-            {` ${group.glyph} `}
+            {group.label.slice(0, contentWidth)}
           </text>
         );
       })}
