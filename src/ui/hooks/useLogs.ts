@@ -29,6 +29,8 @@ export interface LogsQuery {
   org: string;
   query: string;
   statsPeriod: string;
+  project?: string[];
+  environment?: string[];
 }
 
 export interface LogsState {
@@ -45,7 +47,7 @@ export interface LogsState {
  */
 export function useLogs(
   client: SentryClient | null,
-  { org, query, statsPeriod }: LogsQuery,
+  { org, query, statsPeriod, project, environment }: LogsQuery,
 ): LogsState {
   const [logs, setLogs] = useState<AsyncStatus<LogEntry[]>>(idle);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -71,6 +73,8 @@ export function useLogs(
           org,
           query,
           statsPeriod,
+          project,
+          environment,
           signal,
         });
         if (cancelled) return;
@@ -86,7 +90,7 @@ export function useLogs(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod, reloadToken]);
+  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
 
   return { logs, nextCursor, reload };
 }
@@ -99,6 +103,8 @@ export interface LogTimeseriesQuery {
   org: string;
   query: string;
   statsPeriod: string;
+  project?: string[];
+  environment?: string[];
 }
 
 /**
@@ -109,7 +115,7 @@ export interface LogTimeseriesQuery {
  */
 export function useLogTimeseries(
   client: SentryClient | null,
-  { org, query, statsPeriod }: LogTimeseriesQuery,
+  { org, query, statsPeriod, project, environment }: LogTimeseriesQuery,
 ): AsyncStatus<LogTimeseriesBucket[]> {
   const [status, setStatus] = useState<AsyncStatus<LogTimeseriesBucket[]>>(idle);
   const statusRef = useRef(status);
@@ -130,6 +136,8 @@ export function useLogTimeseries(
           org,
           query,
           statsPeriod,
+          project,
+          environment,
           signal,
         });
         if (cancelled) return;
@@ -144,7 +152,7 @@ export function useLogTimeseries(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod]);
+  }, [client, org, query, statsPeriod, project, environment]);
 
   return status;
 }
