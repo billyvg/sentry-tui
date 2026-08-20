@@ -49,7 +49,9 @@ test("escape closes the help overlay", async () => {
 test("navigating the rail moves the rail cursor without showing secondary", async () => {
   const h = await renderApp();
   try {
-    // Rail has focus by default; move down to Explore.
+    // Content has focus by default; tab to the nav rail first.
+    await h.press((i) => i.pressTab());
+    // Move down to Explore.
     await h.press((i) => i.pressKey("j"));
 
     const frame = h.frame();
@@ -65,6 +67,8 @@ test("navigating the rail moves the rail cursor without showing secondary", asyn
 test("enter on the rail opens secondary nav and moves focus there", async () => {
   const h = await renderApp();
   try {
+    // Content has focus by default; tab to the nav rail first.
+    await h.press((i) => i.pressTab());
     // Press Enter on Issues (default rail position).
     await h.press((i) => i.pressEnter());
 
@@ -80,7 +84,8 @@ test("enter on the rail opens secondary nav and moves focus there", async () => 
 test("j/k in secondary nav moves items, Enter selects and hides secondary", async () => {
   const h = await renderApp();
   try {
-    // Open secondary nav.
+    // Tab to the nav rail, then open secondary nav.
+    await h.press((i) => i.pressTab());
     await h.press((i) => i.pressEnter());
     expect(h.frame()).toContain("Feed");
 
@@ -100,6 +105,8 @@ test("j/k in secondary nav moves items, Enter selects and hides secondary", asyn
 test("escape from secondary nav hides it and returns focus to the rail", async () => {
   const h = await renderApp();
   try {
+    // Tab to the nav rail, then open secondary nav.
+    await h.press((i) => i.pressTab());
     await h.press((i) => i.pressEnter());
     expect(h.frame()).toContain("Inbox");
 

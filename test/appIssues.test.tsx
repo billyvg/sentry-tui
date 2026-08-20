@@ -93,8 +93,7 @@ test("j and k move the selection cursor within the list", async () => {
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
 
-    // Focus the content pane: nav -> content (secondary is hidden).
-    await h.press((i) => i.pressTab());
+    // Content pane has focus by default.
 
     const rowOf = (frame: string, needle: string) =>
       frame.split("\n").findIndex((line) => line.includes(needle));
@@ -119,8 +118,7 @@ test("G and g jump to the last and first rows", async () => {
   const h = await renderApp();
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
-    // Focus content: one tab (secondary hidden).
-    await h.press((i) => i.pressTab());
+    // Content pane has focus by default.
 
     await h.press((i) => i.pressKey("G", { shift: true }));
     const bottom = h.frame();
@@ -141,7 +139,8 @@ test("selecting a different nav group via secondary nav shows its content", asyn
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
 
-    // Move rail cursor to Explore.
+    // Tab to the nav rail, then move to Explore.
+    await h.press((i) => i.pressTab());
     await h.press((i) => i.pressKey("j"));
     // Open secondary nav on Explore.
     await h.press((i) => i.pressEnter());
@@ -161,8 +160,7 @@ test("selection survives a reload of the same list", async () => {
   const h = await renderApp();
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
-    // Focus content: one tab (secondary hidden).
-    await h.press((i) => i.pressTab());
+    // Content pane has focus by default.
     await h.press((i) => i.pressKey("j")); // select row 2
 
     const before = h.frame();
@@ -184,8 +182,7 @@ test("an empty result set clamps the cursor without crashing", async () => {
   const h = await renderApp(stubClient([]));
   try {
     await h.waitForFrame((f) => f.includes("No issues match"));
-    // Focus content: one tab (secondary hidden).
-    await h.press((i) => i.pressTab());
+    // Content pane has focus by default.
     await h.press((i) => i.pressKey("j"));
     expect(h.frame()).toContain("No issues match");
   } finally {

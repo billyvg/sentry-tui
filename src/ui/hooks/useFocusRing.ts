@@ -6,8 +6,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
  * regions are an ordered list and components read `isFocused(region)` into the
  * `focused` prop rather than calling `focus()` imperatively.
  */
-export function useFocusRing<T extends string>(regions: readonly T[]) {
-  const [focused, setFocused] = useState<T>(regions[0]!);
+export function useFocusRing<T extends string>(regions: readonly T[], initial?: T) {
+  const [focused, setFocused] = useState<T>(initial ?? regions[0]!);
 
   // Keyboard handlers run against a stdin burst before any render answers, so
   // they must read the live value rather than a captured one.

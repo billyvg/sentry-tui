@@ -85,8 +85,7 @@ async function renderList(fetchImpl: typeof fetch, { width = WIDTH, height = HEI
     height,
   });
   await h.waitForFrame((f) => f.includes("TypeError"));
-  // One tab: nav -> content (secondary nav is hidden by default).
-  await h.press((i) => i.pressTab());
+  // Content pane has focus by default.
   return h;
 }
 
@@ -204,7 +203,8 @@ describe("triage from the issue list", () => {
     });
     try {
       await h.waitForFrame((f) => f.includes("TypeError"));
-      // Rail has focus by default — no tab presses.
+      // Content has focus by default — tab to the rail.
+      await h.press((i) => i.pressTab());
       await h.press((i) => i.pressKey("r"));
       expect(puts).toHaveLength(0);
     } finally {

@@ -43,9 +43,7 @@ test("/ focuses the search bar and shows submit/cancel hints", async () => {
   const h = await renderApp();
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
-    // Focus content pane first.
-    await h.press((i) => i.pressTab());
-    // Press / to focus the search bar.
+    // Content pane has focus by default; press / to focus the search bar.
     await h.press((i) => i.pressKey("/"));
 
     const frame = h.frame();
@@ -60,7 +58,7 @@ test("typing in the search bar updates the displayed text", async () => {
   const h = await renderApp();
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
-    await h.press((i) => i.pressTab());
+    // Content pane has focus by default.
     await h.press((i) => i.pressKey("/"));
 
     // Select all and type new query.
@@ -78,7 +76,7 @@ test("Escape reverts the search query to the last committed value", async () => 
   const h = await renderApp();
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
-    await h.press((i) => i.pressTab());
+    // Content pane has focus by default.
     await h.press((i) => i.pressKey("/"));
 
     // Type something.
@@ -101,7 +99,7 @@ test("j/k navigation keys do not type into the search bar when it is not focused
   const h = await renderApp();
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
-    await h.press((i) => i.pressTab());
+    // Content pane has focus by default.
 
     // Press j to move down (should navigate, not type).
     await h.press((i) => i.pressKey("j"));
