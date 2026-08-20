@@ -100,7 +100,7 @@ export function Chip({
         <text> </text>
         {key ? (
           <>
-            <KeyHint command={command} fg={labelFg} emphasised />
+            <KeyHint command={command} emphasised />
             <text> </text>
           </>
         ) : null}

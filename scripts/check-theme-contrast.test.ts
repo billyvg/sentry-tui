@@ -70,6 +70,14 @@ describe("theme contrast", () => {
       const ratio = contrastRatio(theme.accent, bg.color);
       expect(ratio).toBeGreaterThanOrEqual(AA_LARGE);
     });
+
+    // A key hint is one character of real text — the one character you have to
+    // read correctly before you press it — so it gets the body ratio, not the
+    // UI-component one, on every surface a `(k)` can land on.
+    test(`hotkey on ${bg.name} meets ${AA_NORMAL}:1`, () => {
+      const ratio = contrastRatio(theme.hotkey, bg.color);
+      expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+    });
   }
 
   // Level colors must be distinguishable against the main background
