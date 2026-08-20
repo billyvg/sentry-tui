@@ -53,6 +53,60 @@ export function sparkline(
   return glyphs.padStart(width);
 }
 
+/**
+ * Render a series as a block chart `rows` cells tall, topmost row first.
+ *
+ * One row of block glyphs has eight levels, and a series whose buckets differ
+ * by less than an eighth of its own maximum flattens onto the same glyph.
+ * Stacking rows multiplies the resolution — three rows resolve twenty-four
+ * levels — which is what turns a sparkline into something with a readable
+ * shape rather than a texture.
+ *
+ * Returns exactly `rows` strings of exactly `width` cells, so the caller can
+ * stack them in a column without measuring.
+ */
+export function sparklineBlock(
+  series: readonly SeriesPoint[] | undefined,
+  width: number,
+  rows: number,
+  { floor = false }: SparklineOptions = {},
+): string[] {
+  if (rows <= 0) return [];
+  if (width <= 0) return Array.from({ length: rows }, () => "");
+  if (!series || series.length === 0) {
+    return Array.from({ length: rows }, () => SPARKLINE_PENDING.repeat(width));
+  }
+
+  const buckets = downsample(
+    series.map(([, count]) => count),
+    width,
+  );
+  const max = Math.max(...buckets);
+  // Short series stay right-aligned, as the single-row form does.
+  const pad = " ".repeat(Math.max(0, width - buckets.length));
+
+  return Array.from({ length: rows }, (_, row) => {
+    const isBottom = row === rows - 1;
+    // Height of the column already accounted for by the rows beneath this one.
+    const below = rows - 1 - row;
+    // An all-zero window is real data, not missing data — it gets a floor
+    // whether or not one was asked for, or it reads as "nothing loaded".
+    const blank = isBottom && (floor || max === 0) ? BLOCKS[0]! : " ";
+
+    const glyphs = buckets
+      .map((value) => {
+        const filled = max === 0 ? 0 : (value / max) * rows;
+        const fill = Math.min(1, filled - below);
+        if (fill <= 0) return blank;
+        const level = Math.ceil(fill * BLOCKS.length) - 1;
+        return BLOCKS[Math.max(0, Math.min(BLOCKS.length - 1, level))]!;
+      })
+      .join("");
+
+    return pad + glyphs;
+  });
+}
+
 function downsample(values: number[], width: number): number[] {
   if (values.length <= width) return values;
 

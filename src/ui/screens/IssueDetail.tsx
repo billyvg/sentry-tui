@@ -14,7 +14,7 @@ import { errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { matchesCommand } from "~/core/commands";
 import { theme } from "~/core/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
-import { countLabel, sparkline, timeAgo } from "~/lib/sparkline";
+import { countLabel, sparklineBlock, timeAgo } from "~/lib/sparkline";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
 import { ChipRow, type ChipSpec } from "~/ui/components/Chip";
 import { Placeholder } from "~/ui/components/Placeholder";
@@ -55,8 +55,10 @@ const SECTION_TITLES: Record<SectionKey, string> = {
 const BODY_INDENT = "  ";
 /** Key column in the two-column bodies (tags, contexts, breadcrumb categories). */
 const KEY_COLUMN = 18;
-/** One glyph per hour of the 24h window, when the series is that long. */
+/** One column per hour of the 24h window, when the series is that long. */
 const HEADER_SPARKLINE_WIDTH = 24;
+/** Rows of block glyphs in the header chart — 24 levels of vertical detail. */
+const HEADER_SPARKLINE_ROWS = 3;
 
 export function IssueDetail({
   client,
@@ -216,29 +218,30 @@ function headerActions(group: Group): ChipSpec[] {
 }
 
 /**
- * The header's own sparkline, sized to the data rather than to a column.
+ * The header's own chart, sized to the data rather than to a column.
  *
- * `sparkline` left-pads a short series so a stream column stays right-aligned;
- * here there is no column to align to, and that padding just opens a gap
- * between the "24h" label and its chart.
+ * `sparklineBlock` left-pads a short series so a stream column stays
+ * right-aligned; here there is no column to align to, and that padding would
+ * just open a gap between the "24h" label and its chart.
  */
-function headerSparkline(group: Group): string {
+function headerSparkline(group: Group): string[] {
   const series = group.stats?.["24h"];
   const width = series?.length ? Math.min(HEADER_SPARKLINE_WIDTH, series.length) : 0;
-  return sparkline(series, width || HEADER_SPARKLINE_WIDTH, { floor: true });
+  return sparklineBlock(series, width || HEADER_SPARKLINE_WIDTH, HEADER_SPARKLINE_ROWS, {
+    floor: true,
+  });
 }
 
 function IssueHeader({ group, width }: { group: Group; width: number }) {
   const level = theme.level[group.level] ?? theme.level.unknown;
   const badge = statusBadge(group);
-
-  // Both metrics share a right edge, so the pair reads as one column rather
-  // than two strings that happen to end near each other.
-  const events = countLabel(group.count, "event");
-  const users = countLabel(group.userCount, "user");
-  const metricWidth = Math.max(measureTextWidth(events), measureTextWidth(users));
-  // "┃ " on the left, a two-space gutter before the metric column.
-  const titleWidth = Math.max(12, width - 2 - metricWidth - 2);
+  const titleWidth = Math.max(12, width - 2);
+  const chart = headerSparkline(group);
+  // Pinned rather than left to the content: the rows are equal length by
+  // construction, but their trailing cells are blank whenever the last hours
+  // were quiet, so an auto-sized column would be as wide as the issue happened
+  // to be busy and the metadata beside it would shift from issue to issue.
+  const chartWidth = Math.max(...chart.map(measureTextWidth));
 
   return (
     <box style={{ flexDirection: "column", width }}>
@@ -254,8 +257,6 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
           fg={theme.text}
           attributes={BOLD}
         />
-        <box style={{ flexGrow: 1 }} />
-        <text fg={theme.muted}>{padText(events, metricWidth, "right")}</text>
       </box>
 
       <box style={{ flexDirection: "row", width }}>
@@ -266,8 +267,6 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
           width={titleWidth}
           fg={theme.muted}
         />
-        <box style={{ flexGrow: 1 }} />
-        <text fg={theme.muted}>{padText(users, metricWidth, "right")}</text>
       </box>
 
       {/* State: what the issue currently *is*. Never pressable. */}
@@ -286,10 +285,33 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
         <text fg={theme.muted}>{group.assignedTo?.name ?? "unassigned"}</text>
       </box>
 
-      <box style={{ flexDirection: "row", width }}>
+      {/*
+       * Volume. The counts sit beside the timestamps because they answer the
+       * same question — how much, over what span — and the chart is the same
+       * answer drawn. Everything but the chart is one line tall, so it centers
+       * against the chart's middle row rather than sitting on its baseline.
+       */}
+      <box style={{ flexDirection: "row", width, alignItems: "center" }}>
         <text>{BODY_INDENT}</text>
         <text fg={theme.muted}>{"24h "}</text>
-        <text fg={theme.accent}>{headerSparkline(group)}</text>
+        <box
+          style={{
+            flexDirection: "column",
+            alignItems: "flex-start",
+            width: chartWidth,
+            flexShrink: 0,
+          }}
+        >
+          {chart.map((row, i) => (
+            <text key={i} fg={theme.accent}>
+              {row}
+            </text>
+          ))}
+        </box>
+        <text> </text>
+        <text fg={theme.muted}>{countLabel(group.count, "event")}</text>
+        <Divider />
+        <text fg={theme.muted}>{countLabel(group.userCount, "user")}</text>
         <Divider />
         <text fg={theme.muted}>{`first seen ${timeAgo(group.firstSeen)} ago`}</text>
         <Divider />

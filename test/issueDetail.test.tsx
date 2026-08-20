@@ -119,8 +119,15 @@ test("z folds every section at once, and unfolds them again", async () => {
 test("a folded section says how many rows it is hiding", async () => {
   const h = await openFirstIssue();
   try {
-    await h.waitForFrame((f) => f.includes("Breadcrumbs"));
-    expect(h.frame()).toContain("Breadcrumbs (2)");
+    await h.waitForFrame((f) => f.includes("▾ 1 Stack Trace"));
+    // Folded is the state the count is for, and it also brings every section
+    // header onto one screen.
+    await h.press((i) => i.pressKey("z"));
+
+    const frame = h.frame();
+    expect(frame).toContain("▸ 2 Breadcrumbs (2)");
+    expect(frame).toContain("▸ 4 Tags (4)");
+    expect(frame).toContain("▸ 5 Contexts (2)");
   } finally {
     await h.cleanup();
   }
