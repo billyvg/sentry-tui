@@ -9,6 +9,21 @@
 
 export type CommandCategory = "app" | "nav" | "issue" | "view";
 
+/**
+ * When the command palette offers a command.
+ *
+ * A command with no scope is never listed — that covers everything the palette
+ * can't meaningfully invoke (cursor movement, pane focus) as well as anything
+ * still unimplemented, so the palette can't advertise a dead action.
+ */
+export type PaletteScope =
+  /** No context needed. */
+  | "always"
+  /** Only on the issue or log stream — search and the filter selectors. */
+  | "stream"
+  /** Only with an issue selected or open — the triage actions. */
+  | "issue";
+
 export interface Command {
   id: string;
   title: string;
@@ -17,6 +32,8 @@ export interface Command {
   defaultKeys: readonly string[];
   /** Longer explanation for the help overlay. */
   description?: string;
+  /** When the command palette lists this command. Absent means never. */
+  palette?: PaletteScope;
 }
 
 export const COMMANDS: readonly Command[] = [
@@ -26,6 +43,7 @@ export const COMMANDS: readonly Command[] = [
     title: "Quit",
     category: "app",
     defaultKeys: ["q"],
+    palette: "always",
   },
   {
     id: "sentry.app.help",
@@ -33,6 +51,16 @@ export const COMMANDS: readonly Command[] = [
     category: "app",
     defaultKeys: ["?"],
     description: "Toggle this help overlay",
+    palette: "always",
+  },
+  {
+    // Deliberately not offered in the palette: the palette is the thing you
+    // would be closing to run it.
+    id: "sentry.app.commandPalette",
+    title: "Command palette",
+    category: "app",
+    defaultKeys: ["ctrl+k", "meta+k"],
+    description: "Search every command and destination",
   },
   {
     id: "sentry.app.refresh",
@@ -40,6 +68,7 @@ export const COMMANDS: readonly Command[] = [
     category: "app",
     defaultKeys: ["ctrl+r", "R"],
     description: "Reload the current view from the API",
+    palette: "always",
   },
   {
     id: "sentry.app.focusNext",
@@ -109,6 +138,7 @@ export const COMMANDS: readonly Command[] = [
     category: "nav",
     defaultKeys: ["/"],
     description: "Focus the issue search query",
+    palette: "stream",
   },
 
   // issue actions
@@ -117,6 +147,7 @@ export const COMMANDS: readonly Command[] = [
     title: "Resolve",
     category: "issue",
     defaultKeys: ["r"],
+    palette: "issue",
   },
   {
     id: "sentry.issue.archive",
@@ -124,26 +155,32 @@ export const COMMANDS: readonly Command[] = [
     category: "issue",
     defaultKeys: ["a"],
     description: "Archive until the issue escalates",
+    palette: "issue",
   },
   {
     id: "sentry.issue.unresolve",
     title: "Unresolve",
     category: "issue",
     defaultKeys: ["u"],
+    palette: "issue",
   },
   {
     id: "sentry.issue.bookmark",
     title: "Bookmark",
     category: "issue",
     defaultKeys: ["b"],
+    palette: "issue",
   },
   {
     id: "sentry.issue.markReviewed",
     title: "Mark reviewed",
     category: "issue",
     defaultKeys: ["m"],
+    palette: "issue",
   },
   {
+    // No palette scope: assign and priority have no handler yet, and listing
+    // them would advertise an action that does nothing.
     id: "sentry.issue.assign",
     title: "Assign",
     category: "issue",
@@ -163,6 +200,7 @@ export const COMMANDS: readonly Command[] = [
     category: "view",
     defaultKeys: ["P"],
     description: "Open the project selector",
+    palette: "stream",
   },
   {
     id: "sentry.view.filterEnv",
@@ -170,6 +208,7 @@ export const COMMANDS: readonly Command[] = [
     category: "view",
     defaultKeys: ["E"],
     description: "Open the environment selector",
+    palette: "stream",
   },
   {
     id: "sentry.view.filterDate",
@@ -177,6 +216,7 @@ export const COMMANDS: readonly Command[] = [
     category: "view",
     defaultKeys: ["D"],
     description: "Open the date range selector",
+    palette: "stream",
   },
   {
     // Every section is bound at once rather than one command per section: the
@@ -208,17 +248,26 @@ export function primaryKey(id: string): string {
   return getCommand(id)?.defaultKeys[0] ?? "";
 }
 
-/** Human label for a chord, e.g. `return` -> `enter`. */
+const KEY_LABELS: Record<string, string> = {
+  return: "enter",
+  escape: "esc",
+  pagedown: "pgdn",
+  pageup: "pgup",
+  down: "↓",
+  up: "↑",
+};
+
+/** `meta` is what the terminal reports; `cmd` is what's printed on the key. */
+const MODIFIER_LABELS: Record<string, string> = {
+  meta: "cmd",
+};
+
+/** Human label for a chord, e.g. `return` -> `enter`, `meta+k` -> `cmd+k`. */
 export function formatKey(chord: string): string {
-  const labels: Record<string, string> = {
-    return: "enter",
-    escape: "esc",
-    pagedown: "pgdn",
-    pageup: "pgup",
-    down: "↓",
-    up: "↑",
-  };
-  return labels[chord] ?? chord;
+  const parts = chord.split("+");
+  const name = parts.pop()!;
+  const modifiers = parts.map((part) => MODIFIER_LABELS[part] ?? part);
+  return [...modifiers, KEY_LABELS[name] ?? name].join("+");
 }
 
 /** Does this key event match any chord bound to `id`? */
