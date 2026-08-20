@@ -220,7 +220,7 @@ test("triage works from the detail view and updates its header", async () => {
     await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Issues / PUMP-STATION-1"));
     expect(h.frame()).toContain("(r) resolve");
-    expect(h.frame()).toContain("unresolved · error");
+    expect(h.frame()).toContain("unresolved · javascript");
 
     await h.press((i) => i.pressKey("r"));
     await h.waitForFrame((f) => f.includes("(u) unresolve"));
@@ -229,7 +229,7 @@ test("triage works from the detail view and updates its header", async () => {
     // Both the action chip and the state line reflect the new status without a
     // refetch — they are derived from the same optimistically-updated group.
     expect(h.frame()).toContain("(u) unresolve");
-    expect(h.frame()).toContain("resolved · error");
+    expect(h.frame()).toContain("resolved · javascript");
   } finally {
     await h.cleanup();
   }

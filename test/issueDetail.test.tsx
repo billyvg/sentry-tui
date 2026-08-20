@@ -70,7 +70,7 @@ test("the header separates current state from the actions that change it", async
     const frame = h.frame();
 
     // State — what the issue is. No key, so it can't read as a control.
-    expect(frame).toContain("unresolved · error · javascript · high priority · unassigned");
+    expect(frame).toContain("unresolved · javascript · high priority · unassigned");
     // Actions — what you can do, each carrying the key that does it.
     expect(frame).toContain("(r) resolve");
     expect(frame).toContain("(a) archive");

@@ -273,12 +273,13 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
         />
       </box>
 
-      {/* State: what the issue currently *is*. Never pressable. */}
+      {/*
+       * State: what the issue currently *is*. Never pressable. The level is
+       * absent because the bar beside the title already carries it in color.
+       */}
       <box style={{ flexDirection: "row", width, paddingTop: 1 }}>
         <text>{BODY_INDENT}</text>
         <text fg={badge.color}>{badge.label}</text>
-        <Divider />
-        <text fg={level}>{group.level}</text>
         <Divider />
         <PlatformIcon platform={group.project.platform} />
         <text fg={theme.muted}>{group.project.slug}</text>
