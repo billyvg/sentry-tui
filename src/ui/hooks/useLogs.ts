@@ -1,0 +1,92 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { ApiError, type SentryClient } from "~/api/client";
+import { listLogs, type LogEntry } from "~/api/logs";
+import {
+  type AsyncError,
+  type AsyncStatus,
+  idle,
+  rejected,
+  resolved,
+  startLoading,
+} from "~/core/async";
+
+function toAsyncError(error: unknown): AsyncError {
+  if (error instanceof ApiError) {
+    return {
+      message: error.message,
+      retryable: error.retryable,
+      retryAfterSeconds: error.retryAfterSeconds,
+    };
+  }
+  return {
+    message: error instanceof Error ? error.message : String(error),
+    retryable: true,
+  };
+}
+
+export interface LogsQuery {
+  org: string;
+  query: string;
+  statsPeriod: string;
+}
+
+export interface LogsState {
+  logs: AsyncStatus<LogEntry[]>;
+  nextCursor: string | null;
+  reload: () => void;
+}
+
+/**
+ * Fetch structured log entries and expose them as async state.
+ *
+ * Mirrors `useIssues` in shape: a superseded request is aborted so fast
+ * query changes don't race.
+ */
+export function useLogs(
+  client: SentryClient | null,
+  { org, query, statsPeriod }: LogsQuery,
+): LogsState {
+  const [logs, setLogs] = useState<AsyncStatus<LogEntry[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const logsRef = useRef(logs);
+  logsRef.current = logs;
+
+  const reload = useCallback(() => setReloadToken((n) => n + 1), []);
+
+  useEffect(() => {
+    if (!client) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    let cancelled = false;
+
+    setLogs(startLoading(logsRef.current, Date.now()));
+
+    void (async () => {
+      try {
+        const result = await listLogs(client, {
+          org,
+          query,
+          statsPeriod,
+          signal,
+        });
+        if (cancelled) return;
+        setLogs(resolved(result.data, Date.now()));
+        setNextCursor(result.nextCursor);
+      } catch (error) {
+        if (cancelled || signal.aborted) return;
+        setLogs(rejected(logsRef.current, toAsyncError(error)));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [client, org, query, statsPeriod, reloadToken]);
+
+  return { logs, nextCursor, reload };
+}

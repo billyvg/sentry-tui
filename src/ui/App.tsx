@@ -3,6 +3,7 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
 import { getOrganization } from "~/api/issues";
+import type { LogEntry } from "~/api/logs";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
 import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
@@ -16,6 +17,7 @@ import { useFocusRing } from "~/ui/hooks/useFocusRing";
 import { useTriage } from "~/ui/hooks/useTriage";
 import { IssueDetail } from "~/ui/screens/IssueDetail";
 import { IssueStream } from "~/ui/screens/IssueStream";
+import { LogStream } from "~/ui/screens/LogStream";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
 
 const REGIONS = ["nav", "secondary", "content"] as const;
@@ -70,13 +72,24 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
 
   const [triageNotice, setTriageNotice] = useState<Notice | null>(null);
 
+  // Logs state, parallel to issues.
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
+  const [logSelected, setLogSelected] = useState(0);
+  const [logStatus, setLogStatus] = useState<StreamStatus>({ loading: false });
+
   const showIssues = activeGroup === "issues";
+  const showLogs = activeGroup === "explore" && activeItem === "Logs";
 
   const handleIssues = useCallback((next: Group[]) => {
     setIssues(next);
     // Clamp rather than reset: a refresh shouldn't move the cursor off the row
     // the user was looking at.
     setSelected((current) => Math.min(current, Math.max(0, next.length - 1)));
+  }, []);
+
+  const handleLogs = useCallback((next: LogEntry[]) => {
+    setLogEntries(next);
+    setLogSelected((current) => Math.min(current, Math.max(0, next.length - 1)));
   }, []);
 
   /** Replace one issue in place — used for the optimistic write and rollback. */
@@ -234,6 +247,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "content") return "notMine";
+          if (!showIssues) return "notMine";
           const last = Math.max(0, issues.length - 1);
           if (matchesCommand("sentry.nav.open", key)) {
             const target = issues[selected];
@@ -254,6 +268,29 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           }
           if (matchesCommand("sentry.nav.bottom", key)) {
             setSelected(last);
+            return "mine";
+          }
+          return "notMine";
+        },
+        // 9. Log list cursor navigation.
+        () => {
+          if (focus.focusedRef.current !== "content") return "notMine";
+          if (!showLogs) return "notMine";
+          const last = Math.max(0, logEntries.length - 1);
+          if (matchesCommand("sentry.nav.down", key)) {
+            setLogSelected((i) => Math.min(i + 1, last));
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.up", key)) {
+            setLogSelected((i) => Math.max(i - 1, 0));
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.top", key)) {
+            setLogSelected(0);
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.bottom", key)) {
+            setLogSelected(last);
             return "mine";
           }
           return "notMine";
@@ -325,6 +362,17 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
               issuesOverride={issues.length > 0 ? issues : undefined}
               pendingIds={triage.pending}
             />
+          ) : showLogs ? (
+            <LogStream
+              client={client}
+              org={org}
+              width={contentWidth}
+              height={contentHeight}
+              focused={focus.isFocused("content")}
+              selectedIndex={logSelected}
+              onLogsChange={handleLogs}
+              onStatusChange={setLogStatus}
+            />
           ) : (
             <box style={{ flexDirection: "column" }}>
               <text fg={theme.text} attributes={1}>
@@ -341,7 +389,11 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           // A triage result is the most recent thing the user did, so it
           // outranks the ambient load notice.
           triageNotice ??
-          (openIssue ? { kind: "idle", text: openIssue.shortId } : toNotice(status, showIssues))
+          (openIssue
+            ? { kind: "idle", text: openIssue.shortId }
+            : showLogs
+              ? toLogNotice(logStatus)
+              : toNotice(status, showIssues))
         }
         elapsedMs={openIssue ? undefined : status.elapsedMs}
         hints={
@@ -370,5 +422,11 @@ function toNotice(status: StreamStatus, showIssues: boolean): Notice {
   if (!showIssues) return { kind: "idle", text: "" };
   if (status.error) return { kind: "error", text: status.error };
   if (status.loading) return { kind: "loading", text: "Loading issues…" };
+  return { kind: "idle", text: "" };
+}
+
+function toLogNotice(status: StreamStatus): Notice {
+  if (status.error) return { kind: "error", text: status.error };
+  if (status.loading) return { kind: "loading", text: "Loading logs…" };
   return { kind: "idle", text: "" };
 }
