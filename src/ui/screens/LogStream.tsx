@@ -48,8 +48,8 @@ const COL_TIME = 10;
 const COL_SEVERITY = 6;
 const COL_PROJECT = 14;
 
-/** Height of the volume bar chart in terminal rows. */
-const CHART_HEIGHT = 8;
+/** Height of the volume bar chart in terminal rows (includes border). */
+const CHART_HEIGHT = 10;
 
 export interface LogStreamProps {
   client: SentryClient | null;

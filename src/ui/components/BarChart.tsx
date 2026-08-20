@@ -105,8 +105,9 @@ function buildTimeLabels(
 export function BarChart({ buckets, width, height }: BarChartProps) {
   if (width < 20 || height < 4) return null;
 
-  const chartWidth = width - Y_LABEL_WIDTH;
-  const chartHeight = Math.max(1, height - BOTTOM_ROWS - TITLE_ROWS);
+  // Border takes 2 cols (left + right), padding takes 1 col.
+  const chartWidth = width - Y_LABEL_WIDTH - 3;
+  const chartHeight = Math.max(1, height - BOTTOM_ROWS - TITLE_ROWS - 2); // -2 for top/bottom border
 
   // Extract counts from the raw bucket format.
   const rawCounts = buckets.map(([, agg]) => agg[0]?.count ?? 0);
@@ -143,6 +144,9 @@ export function BarChart({ buckets, width, height }: BarChartProps) {
 
   const timeLabelsRow = buildTimeLabels(buckets, values.length, chartWidth);
 
+  // Account for the border (1 cell each side) and padding (1 cell left).
+  const innerWidth = width - 2 - 1;
+
   return (
     <box
       style={{
@@ -150,12 +154,14 @@ export function BarChart({ buckets, width, height }: BarChartProps) {
         width,
         height,
         flexShrink: 0,
-        border: ["bottom"],
+        border: ["top", "bottom", "left", "right"],
         borderColor: theme.border,
+        backgroundColor: theme.panel,
+        paddingLeft: 1,
       }}
     >
       {/* Title row */}
-      <box style={{ flexDirection: "row", width, flexShrink: 0 }}>
+      <box style={{ flexDirection: "row", width: innerWidth, flexShrink: 0 }}>
         <text fg={theme.text}>{`count(logs)`}</text>
         <box style={{ flexGrow: 1 }} />
         <text fg={theme.muted} attributes={DIM}>
