@@ -3,14 +3,14 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
-import { logEntriesFixture } from "./log-fixtures";
+import { rawLogRowsFixture } from "./log-fixtures";
 import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
 const HEIGHT = 30;
 
-function stubClient(logBody: unknown = logEntriesFixture) {
+function stubClient(logRows: unknown = rawLogRowsFixture) {
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
     // Issues endpoints return empty data (we navigate away from issues).
@@ -26,9 +26,9 @@ function stubClient(logBody: unknown = logEntriesFixture) {
         headers: { "Content-Type": "application/json" },
       });
     }
-    // Logs endpoint.
-    if (url.includes("/logs/")) {
-      return new Response(JSON.stringify(logBody), {
+    // Logs via Discover events endpoint with dataset=logs.
+    if (url.includes("/events/") && url.includes("dataset=logs")) {
+      return new Response(JSON.stringify({ data: logRows }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });

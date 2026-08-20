@@ -205,7 +205,7 @@ function LogRow({ entry, selected, width }: { entry: LogEntry; selected: boolean
           {padText(SEVERITY_LABEL[severity] ?? severity.toUpperCase(), COL_SEVERITY)}
         </text>
         <text fg={theme.muted}> </text>
-        <text fg={theme.subText}>{padText(entry.project.slug, COL_PROJECT)}</text>
+        <text fg={theme.subText}>{padText(entry.projectSlug ?? "", COL_PROJECT)}</text>
         <text fg={theme.muted}> </text>
         <text fg={theme.text}>{fitText(entry.body, msgWidth)}</text>
       </box>
@@ -218,7 +218,6 @@ function LogRow({ entry, selected, width }: { entry: LogEntry; selected: boolean
 // ---------------------------------------------------------------------------
 
 function LogDetail({ entry, width }: { entry: LogEntry; width: number }) {
-  const attrEntries = Object.entries(entry.attributes);
   return (
     <box
       style={{
@@ -235,19 +234,9 @@ function LogDetail({ entry, width }: { entry: LogEntry; width: number }) {
       </text>
       <text fg={theme.text}>{fitText(entry.body, width)}</text>
       <text fg={theme.muted}>
-        {`  Severity: ${entry.severityText}  │  Project: ${entry.project.slug}`}
+        {`  Severity: ${entry.severityText}  │  Project: ${entry.projectSlug ?? "—"}`}
       </text>
       {entry.traceId ? <text fg={theme.muted}>{`  Trace: ${entry.traceId}`}</text> : null}
-      {attrEntries.length > 0 ? (
-        <box style={{ flexDirection: "column", paddingTop: 1 }}>
-          <text fg={theme.muted}>{"  Attributes:"}</text>
-          {attrEntries.map(([key, value]) => (
-            <text key={key} fg={theme.muted}>
-              {fitText(`    ${padText(key, 20)} ${String(value)}`, width)}
-            </text>
-          ))}
-        </box>
-      ) : null}
     </box>
   );
 }
