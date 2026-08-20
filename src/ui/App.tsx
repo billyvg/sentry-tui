@@ -415,7 +415,8 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
             flexGrow: 1,
             flexDirection: "column",
             border: ["left"],
-            borderColor: focus.isFocused("content") ? theme.borderFocused : theme.border,
+            borderColor:
+              focus.isFocused("content") && !searchFocused ? theme.borderFocused : theme.border,
           }}
         >
           {openIssue ? (
