@@ -43,6 +43,7 @@ export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
           style={{
             height: hasImages ? AVATAR_SIZE + 1 : 1,
             flexDirection: "column",
+            marginTop: 1,
             marginBottom: 1,
           }}
         >
