@@ -68,14 +68,18 @@ export function IssueStream({
   const since = issues.state === "loading" ? issues.since : undefined;
   const elapsed = useElapsed(loading, since);
 
-  const rows = issuesOverride ?? valueOf(issues);
+  const fetched = valueOf(issues);
+  const rows = issuesOverride ?? fetched;
   const error = errorOf(issues);
   // Stale rows stay on screen during a refresh, dimmed rather than replaced.
   const stale = rows !== undefined && (loading || error !== undefined);
 
+  // Report what was *fetched*, never the override. Echoing the override back
+  // would close a loop — the parent's copy would overwrite each phase-two
+  // merge, so counts and sparklines would never arrive.
   useEffect(() => {
-    if (rows) onIssuesChange?.(rows);
-  }, [rows, onIssuesChange]);
+    if (fetched) onIssuesChange?.(fetched);
+  }, [fetched, onIssuesChange]);
 
   useEffect(() => {
     onStatusChange?.({
