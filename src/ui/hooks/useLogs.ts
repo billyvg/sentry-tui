@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, type SentryClient } from "~/api/client";
-import { listLogs, type LogEntry } from "~/api/logs";
+import { listLogs, listLogTimeseries, type LogEntry, type LogTimeseriesBucket } from "~/api/logs";
 import {
   type AsyncError,
   type AsyncStatus,
@@ -89,4 +89,62 @@ export function useLogs(
   }, [client, org, query, statsPeriod, reloadToken]);
 
   return { logs, nextCursor, reload };
+}
+
+// ---------------------------------------------------------------------------
+// Time-series hook (bar chart)
+// ---------------------------------------------------------------------------
+
+export interface LogTimeseriesQuery {
+  org: string;
+  query: string;
+  statsPeriod: string;
+}
+
+/**
+ * Fetch log volume timeseries for the bar chart.
+ *
+ * Returns the raw bucket array from the events-stats API. The component
+ * is responsible for downsampling to fit the available width.
+ */
+export function useLogTimeseries(
+  client: SentryClient | null,
+  { org, query, statsPeriod }: LogTimeseriesQuery,
+): AsyncStatus<LogTimeseriesBucket[]> {
+  const [status, setStatus] = useState<AsyncStatus<LogTimeseriesBucket[]>>(idle);
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
+  useEffect(() => {
+    if (!client) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    let cancelled = false;
+
+    setStatus(startLoading(statusRef.current, Date.now()));
+
+    void (async () => {
+      try {
+        const buckets = await listLogTimeseries(client, {
+          org,
+          query,
+          statsPeriod,
+          signal,
+        });
+        if (cancelled) return;
+        setStatus(resolved(buckets, Date.now()));
+      } catch (error) {
+        if (cancelled || signal.aborted) return;
+        setStatus(rejected(statusRef.current, toAsyncError(error)));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [client, org, query, statsPeriod]);
+
+  return status;
 }

@@ -3,14 +3,17 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
-import { rawLogRowsFixture } from "./log-fixtures";
+import { logTimeseriesFixture, rawLogRowsFixture } from "./log-fixtures";
 import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
 const HEIGHT = 30;
 
-function stubClient(logRows: unknown = rawLogRowsFixture) {
+function stubClient(
+  logRows: unknown = rawLogRowsFixture,
+  timeseries: unknown = logTimeseriesFixture,
+) {
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
     // Issues endpoints return empty data (we navigate away from issues).
@@ -22,6 +25,13 @@ function stubClient(logRows: unknown = rawLogRowsFixture) {
     }
     if (url.includes("/issues/")) {
       return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    // Log volume timeseries via events-stats endpoint.
+    if (url.includes("/events-stats/") && url.includes("dataset=logs")) {
+      return new Response(JSON.stringify({ data: timeseries }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -175,6 +185,41 @@ test("G and g jump to bottom and top of log list", async () => {
 
     // Still showing logs, no crash.
     const frame = h.frame();
+    expect(frame).toContain("card declined");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("log volume bar chart is rendered above the log list", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+
+    // The chart header "count(logs)" should appear.
+    await h.waitForFrame((f) => f.includes("count(logs)"));
+    const frame = h.frame();
+    expect(frame).toContain("count(logs)");
+    // Y-axis should show the zero label.
+    expect(frame).toContain("0");
+    // Bar characters should be present (Unicode blocks).
+    expect(frame).toMatch(/[▁▂▃▄▅▆▇█]/);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("bar chart is hidden when timeseries data is empty", async () => {
+  const h = await renderApp(stubClient(rawLogRowsFixture, []));
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+
+    // Logs should appear without the chart.
+    await h.waitForFrame((f) => f.includes("card declined"));
+    const frame = h.frame();
+    expect(frame).not.toContain("count(logs)");
     expect(frame).toContain("card declined");
   } finally {
     await h.cleanup();

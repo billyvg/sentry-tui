@@ -6,7 +6,7 @@
  * the UI consumes after `listLogs` reshapes it.
  */
 
-import type { LogEntry, LogSeverity } from "~/api/logs";
+import type { LogEntry, LogSeverity, LogTimeseriesBucket } from "~/api/logs";
 
 // ---------------------------------------------------------------------------
 // Raw Discover rows (wire format)
@@ -128,6 +128,29 @@ function makeLog(
     ...(traceId ? { traceId } : {}),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Timeseries buckets (for the bar chart)
+// ---------------------------------------------------------------------------
+
+/**
+ * 24 five-minute buckets covering two hours, simulating realistic log volume.
+ * Timestamps start at 2023-11-14T14:00:00 UTC (1700000400).
+ */
+export const logTimeseriesFixture: LogTimeseriesBucket[] = Array.from(
+  { length: 24 },
+  (_, i): LogTimeseriesBucket => {
+    const ts = 1700000400 + i * 300; // 5-min intervals
+    // Create a realistic-looking volume pattern: base ~100k with a couple spikes.
+    const base = 95_000 + Math.floor(Math.sin(i * 0.5) * 15_000);
+    const spike = i === 7 || i === 8 ? 250_000 : 0;
+    return [ts, [{ count: base + spike }]];
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Normalised entries (what the UI sees after listLogs)
+// ---------------------------------------------------------------------------
 
 export const logEntriesFixture: LogEntry[] = [
   makeLog("1", "error", "Failed to process payment: card declined", "billing", "abc123def456"),

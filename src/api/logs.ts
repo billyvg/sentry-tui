@@ -143,3 +143,55 @@ function parseSeverity(raw: unknown): LogSeverity {
   const s = String(raw ?? "info").toLowerCase() as LogSeverity;
   return valid.includes(s) ? s : "info";
 }
+
+// ---------------------------------------------------------------------------
+// Time-series (bar chart)
+// ---------------------------------------------------------------------------
+
+/** A single `[unixSeconds, [{count: N}]]` bucket from the events-stats API. */
+export type LogTimeseriesBucket = [number, Array<{ count: number }>];
+
+export interface ListLogTimeseriesParams {
+  org: string;
+  query?: string;
+  statsPeriod?: string;
+  project?: string[];
+  environment?: string[];
+  signal?: AbortSignal;
+}
+
+/**
+ * Fetch aggregated log volume over time.
+ *
+ * Hits `GET /organizations/{org}/events-stats/?dataset=logs&yAxis=count()`
+ * which returns `{ data: [[timestamp, [{count: N}]], …] }`.
+ */
+export async function listLogTimeseries(
+  client: SentryClient,
+  {
+    org,
+    query = "",
+    statsPeriod = DEFAULT_LOG_PERIOD,
+    project,
+    environment,
+    signal,
+  }: ListLogTimeseriesParams,
+): Promise<LogTimeseriesBucket[]> {
+  const page = await client.request<{ data: LogTimeseriesBucket[] }>(
+    `/organizations/${org}/events-stats/`,
+    {
+      query: {
+        dataset: "logs",
+        yAxis: "count()",
+        query: query || undefined,
+        statsPeriod,
+        project,
+        environment,
+        referrer: "sentry-tui.logs-chart",
+      },
+      signal,
+    },
+  );
+
+  return Array.isArray(page.data) ? page.data : (page.data?.data ?? []);
+}
