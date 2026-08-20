@@ -36,11 +36,17 @@ export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
         paddingRight: 1,
       }}
     >
-      {/* Org header: always reserve space, show avatar when it arrives */}
-      {hasImages ? (
-        <box style={{ height: AVATAR_SIZE + 2, flexDirection: "column", paddingTop: 1 }}>
+      {/* Org header: avatar only when hi-res images are available, slug always */}
+      {orgSlug || (hasImages && avatarUrl) ? (
+        <box
+          style={{
+            height: hasImages ? AVATAR_SIZE + 2 : 2,
+            flexDirection: "column",
+            paddingTop: 1,
+          }}
+        >
           <box style={{ flexDirection: "row", gap: 1 }}>
-            {avatarUrl ? (
+            {hasImages && avatarUrl ? (
               <image
                 source={avatarUrl}
                 fit="fit"
@@ -49,7 +55,10 @@ export function NavRail({ active, focused, avatarUrl, orgSlug }: NavRailProps) {
             ) : null}
             {orgSlug ? (
               <text fg={theme.text} attributes={1}>
-                {orgSlug.slice(0, avatarUrl ? contentWidth - AVATAR_SIZE - 1 : contentWidth)}
+                {orgSlug.slice(
+                  0,
+                  hasImages && avatarUrl ? contentWidth - AVATAR_SIZE - 1 : contentWidth,
+                )}
               </text>
             ) : null}
           </box>
