@@ -133,7 +133,7 @@ export function IssueRow({
   pending?: boolean;
 }) {
   const layout = resolveRowLayout(width);
-  const bg = selected ? theme.selected : undefined;
+  const bg = selected ? theme.selected : theme.bg;
   const title = issueTitle(group);
   const message = issueMessage(group);
 
@@ -142,16 +142,12 @@ export function IssueRow({
       style={{
         flexDirection: "column",
         width,
-        paddingLeft: ROW_PADDING,
-        paddingRight: ROW_PADDING,
         backgroundColor: bg,
-        border: ["bottom"],
-        borderColor: theme.border,
         flexShrink: 0,
       }}
     >
       {/* Line 1 — unread dot, exception type, and the metric columns. */}
-      <box style={{ flexDirection: "row" }}>
+      <box style={{ flexDirection: "row", paddingLeft: ROW_PADDING, paddingRight: ROW_PADDING }}>
         <text fg={selected ? theme.accent : theme.muted}>{selected ? "▸" : " "}</text>
         {/* An in-flight mutation takes the dot's slot; unread otherwise. */}
         <text fg={theme.accent}>{pending ? "⟳" : group.hasSeen ? " " : "●"}</text>
@@ -169,7 +165,7 @@ export function IssueRow({
       </box>
 
       {/* Line 2 — level bar and the exception value, as `EventMessage` does. */}
-      <box style={{ flexDirection: "row" }}>
+      <box style={{ flexDirection: "row", paddingLeft: ROW_PADDING, paddingRight: ROW_PADDING }}>
         <text>{"  "}</text>
         <text fg={theme.level[group.level] ?? theme.level.unknown}>│</text>
         <text> </text>
@@ -182,10 +178,13 @@ export function IssueRow({
       </box>
 
       {/* Line 3 — the dense divider-separated meta row from `groupMetaRow.tsx`. */}
-      <box style={{ flexDirection: "row" }}>
+      <box style={{ flexDirection: "row", paddingLeft: ROW_PADDING, paddingRight: ROW_PADDING }}>
         <text>{"    "}</text>
         <text fg={theme.muted}>{metaLine(group, Math.max(0, layout.content - 4), message)}</text>
       </box>
+
+      {/* Separator — rendered as content so it inherits the row's backgroundColor. */}
+      <text fg={theme.border}>{"─".repeat(width)}</text>
     </box>
   );
 }
@@ -264,14 +263,11 @@ export function IssueRowSkeleton({ width, seed }: { width: number; seed: number 
       style={{
         flexDirection: "column",
         width,
-        paddingLeft: ROW_PADDING,
-        paddingRight: ROW_PADDING,
-        border: ["bottom"],
-        borderColor: theme.border,
+        backgroundColor: theme.bg,
         flexShrink: 0,
       }}
     >
-      <box style={{ flexDirection: "row" }}>
+      <box style={{ flexDirection: "row", paddingLeft: ROW_PADDING, paddingRight: ROW_PADDING }}>
         <text>{"   "}</text>
         <text fg={theme.panelAlt}>{padText("─".repeat(titleBar), layout.title)}</text>
         {layout.columns.map((key) => (
@@ -284,15 +280,16 @@ export function IssueRowSkeleton({ width, seed }: { width: number; seed: number 
           </text>
         ))}
       </box>
-      <box style={{ flexDirection: "row" }}>
+      <box style={{ flexDirection: "row", paddingLeft: ROW_PADDING, paddingRight: ROW_PADDING }}>
         <text>{"  "}</text>
         <text fg={theme.border}>│</text>
         <text fg={theme.panelAlt}>{` ${"─".repeat(messageBar)}`}</text>
       </box>
-      <box style={{ flexDirection: "row" }}>
+      <box style={{ flexDirection: "row", paddingLeft: ROW_PADDING, paddingRight: ROW_PADDING }}>
         <text>{"    "}</text>
         <text fg={theme.panelAlt}>{"─".repeat(metaBar)}</text>
       </box>
+      <text fg={theme.border}>{"─".repeat(width)}</text>
     </box>
   );
 }

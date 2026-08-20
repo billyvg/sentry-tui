@@ -99,12 +99,13 @@ gh pr create --draft --fill
 ## smoke-test pane
 
 Before finishing, make sure a Herdr pane is running the app so the user can
-manually test your changes. Use `herdr_panes` to check for an existing pane
-named `smoke-test`; if none exists, create one:
+manually test your changes. Only look for panes **within the current tab/window**
+— other tabs belong to other agents or tasks.
 
 ```
-herdr_panes action=list          # look for an existing smoke-test pane
-herdr_panes action=split         # create a new pane if needed
+herdr_panes action=current       # note your workspace_id + tab_id
+herdr_panes action=list          # filter results to your tab_id
+herdr_panes action=split         # create a new pane if none exists in this tab
 herdr_panes action=run command="bun run dev"   # start the app in watch mode
 ```
 
