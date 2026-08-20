@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
@@ -7,8 +7,10 @@ import { DEFAULT_LOG_PERIOD, type LogEntry } from "~/api/logs";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
 import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
+import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { theme } from "~/core/theme";
-import { TRIAGE_ACTIONS } from "~/core/triage";
+import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
+import { CommandPalette } from "~/ui/components/CommandPalette";
 import { HelpDialog } from "~/ui/components/HelpDialog";
 import { NavRail, NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
 import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
@@ -51,6 +53,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   const [secondaryItem, setSecondaryItem] = useState("Feed");
 
   const [showHelp, setShowHelp] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
 
   // One counter drives every fetch on screen: bumping it re-runs the data
@@ -218,8 +221,11 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
     onNotice: showTriageNotice,
   });
 
-  // The row the keyboard acts on: the open issue, else the list cursor.
-  const activeIssue = openIssue ?? issues[selected];
+  // The row the keyboard acts on: the open issue, else the list cursor. The
+  // list survives navigating away, so the cursor only counts while the issue
+  // stream is the thing on screen — otherwise `r` on the log view would
+  // resolve an issue nobody can see.
+  const activeIssue = openIssue ?? (showIssues ? issues[selected] : undefined);
 
   /**
    * Open a nav group's secondary list — the one path Enter on the rail and a
@@ -239,12 +245,13 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   );
 
   /**
-   * Commit a secondary nav item as the active view — shared by Enter on the
-   * secondary cursor and a click on a secondary item.
+   * Show a group's item in the content pane — the one path every way of
+   * navigating ends at: the secondary nav, a click, and the command palette.
    */
-  const selectNavItem = useCallback(
-    (item: string) => {
-      setActiveGroup(railGroup);
+  const navigateTo = useCallback(
+    (group: NavGroupId, item: string) => {
+      setRailGroup(group);
+      setActiveGroup(group);
       setActiveItem(item);
       setSecondaryItem(item);
       setShowSecondary(false);
@@ -253,12 +260,85 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
       setOpenIssue(null);
       focus.focus("content");
     },
-    [railGroup, focus],
+    [focus],
+  );
+
+  /**
+   * Commit a secondary nav item as the active view — shared by Enter on the
+   * secondary cursor and a click on a secondary item.
+   */
+  const selectNavItem = useCallback(
+    (item: string) => navigateTo(railGroup, item),
+    [railGroup, navigateTo],
+  );
+
+  const paletteActions = useMemo(
+    () =>
+      buildPaletteActions({
+        streamView: (showIssues || showLogs) && !openIssue,
+        hasIssue: Boolean(activeIssue),
+      }),
+    [showIssues, showLogs, openIssue, activeIssue],
+  );
+
+  /**
+   * Run what the palette selected, then close it.
+   *
+   * Every branch reuses the callback the key binding already goes through, so
+   * a command can't behave one way from the keyboard and another from `ctrl+k`.
+   */
+  const runPaletteAction = useCallback(
+    (action: PaletteAction) => {
+      setShowPalette(false);
+      if (action.target.kind === "nav") {
+        navigateTo(action.target.group, action.target.item);
+        return;
+      }
+
+      const { commandId } = action.target;
+      const openFilter = showLogs ? setLogOpenDropdown : setOpenDropdown;
+      switch (commandId) {
+        case "sentry.app.quit":
+          onQuit();
+          return;
+        case "sentry.app.help":
+          setShowHelp(true);
+          return;
+        case "sentry.app.refresh":
+          refresh();
+          return;
+        case "sentry.nav.search":
+          focus.focus("content");
+          focusSearch();
+          return;
+        case "sentry.view.filterProject":
+          focus.focus("content");
+          openFilter("project");
+          return;
+        case "sentry.view.filterEnv":
+          focus.focus("content");
+          openFilter("env");
+          return;
+        case "sentry.view.filterDate":
+          focus.focus("content");
+          openFilter("date");
+          return;
+        default:
+          // The remaining palette-scoped commands are all triage actions; the
+          // catalog only offers them when there is an issue to act on.
+          if (findTriageAction(commandId) && activeIssue) triage.run(commandId, activeIssue);
+      }
+    },
+    [activeIssue, focus, focusSearch, navigateTo, onQuit, refresh, showLogs, triage],
   );
 
   useKeyboard((key) => {
     routeKeyOwnership(
       [
+        // 0. The palette owns every key while open. It runs its own listener
+        // for the cursor and Enter, and everything it doesn't claim is text
+        // for its query input — so this handler only has to end the chain.
+        () => (showPalette ? "focused" : "notMine"),
         // 1. Overlays swallow everything while open.
         () => {
           if (!showHelp) return "notMine";
@@ -275,6 +355,15 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
         () => {
           if (!openDropdown && !logOpenDropdown) return "notMine";
           return "focused";
+        },
+        // 1c. The palette opens from anywhere, including mid-edit in the
+        // search box — so it is claimed ahead of the handler that would
+        // otherwise hand the chord to the focused input.
+        () => {
+          if (!matchesCommand("sentry.app.commandPalette", key)) return "notMine";
+          if (anySearchFocused) cancelSearch();
+          setShowPalette(true);
+          return "mine";
         },
         // 2. Search input intercepts Escape (cancel) and Enter (submit);
         //    all other keys pass through to the focused <input>.
@@ -628,13 +717,13 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
                   { command: "sentry.nav.back", label: "back" },
                   { command: "sentry.issue.resolve", label: "resolve" },
                   { command: "sentry.issue.archive", label: "archive" },
-                  { command: "sentry.app.focusNext", label: "pane" },
+                  { command: "sentry.app.commandPalette", label: "commands" },
                   { command: "sentry.app.help", label: "help" },
                 ]
               : [
                   { command: "sentry.nav.open", label: "open" },
                   { command: "sentry.nav.search", label: "search" },
-                  { command: "sentry.app.focusNext", label: "pane" },
+                  { command: "sentry.app.commandPalette", label: "commands" },
                   { command: "sentry.app.help", label: "help" },
                   { command: "sentry.app.quit", label: "quit" },
                 ]
@@ -642,6 +731,14 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
       />
 
       {showHelp ? <HelpDialog onClose={() => setShowHelp(false)} /> : null}
+
+      {showPalette ? (
+        <CommandPalette
+          actions={paletteActions}
+          onRun={runPaletteAction}
+          onClose={() => setShowPalette(false)}
+        />
+      ) : null}
     </box>
   );
 }
