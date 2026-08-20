@@ -189,7 +189,7 @@ test("triage actions are offered on the issue stream and act on the cursor row",
 
     await h.press((i) => i.pressKey("\r"));
     // The optimistic write lands before the stubbed PUT resolves.
-    await h.waitForFrame((f) => f.includes("Resolved"));
+    await h.waitForFrame((f) => f.includes("resolved"));
   } finally {
     await h.cleanup();
   }

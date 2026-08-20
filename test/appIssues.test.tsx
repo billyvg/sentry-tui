@@ -5,6 +5,8 @@ import type { TestRendererSetup } from "@opentui/core/testing";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
+import { NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
+import { SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { groupFixture, groupsFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
 
@@ -125,8 +127,13 @@ const rowOf = (frame: string, needle: string) =>
 /** The line `needle` sits on, to check whether it wears the cursor. */
 const lineWith = (frame: string, needle: string) => frame.split("\n")[rowOf(frame, needle)];
 
-/** A column inside the title, clear of the rail and the metric columns. */
-const ROW_CLICK_X = 40;
+/**
+ * A column inside the title, clear of the metric columns — and of both nav
+ * panes, so the same aim works whether or not the secondary drawer is open.
+ * Derived from the pane widths: a literal starts landing on the drawer's border
+ * the next time either one grows.
+ */
+const ROW_CLICK_X = NAV_RAIL_WIDTH + SECONDARY_NAV_WIDTH + 4;
 
 test("clicking a row moves the selection cursor to it", async () => {
   const h = await renderApp();

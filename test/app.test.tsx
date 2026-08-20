@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { App } from "~/ui/App";
+import { NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
 import { renderHarness } from "./helpers";
 
 const renderApp = (opts?: { width?: number; height?: number }) =>
@@ -119,10 +120,19 @@ test("escape from secondary nav hides it and returns focus to the rail", async (
 });
 
 // Rail rows start just inside the top border, one per group: Issues on row 1,
-// Explore on row 2. Column 14 is the far right of the row — clicking there
-// proves the hit area is the whole row, not just the label's glyphs.
+// Explore on row 2. Aiming at the last usable column proves the hit area is the
+// whole row, not just the label's glyphs.
 const EXPLORE_ROW = 2;
-const RAIL_ROW_RIGHT_EDGE = 14;
+// Border and padding each take a column on the right, so the last cell a row
+// actually covers is two in from the rail's own right edge.
+const RAIL_ROW_RIGHT_EDGE = NAV_RAIL_WIDTH - 3;
+
+/**
+ * A column inside the secondary nav, just past the rail's right edge. Derived
+ * rather than fixed: the rail's width follows its own content, so a literal
+ * here would start clicking the rail the next time a label or key hint grows.
+ */
+const SECONDARY_ITEM_X = NAV_RAIL_WIDTH + 3;
 
 test("clicking a rail group opens its secondary nav, without tabbing to the rail", async () => {
   const h = await renderApp();
@@ -145,7 +155,7 @@ test("clicking a secondary nav item selects it and hides the secondary nav", asy
     await h.click(RAIL_ROW_RIGHT_EDGE, EXPLORE_ROW);
     // "Logs" is the second item in Explore's first section — see the frame
     // above: header on row 2, rule on row 3, Traces on 4, Logs on 5.
-    await h.click(20, 5);
+    await h.click(SECONDARY_ITEM_X, 5);
 
     const frame = h.frame();
     expect(frame).toContain("Search logs…"); // the log stream is now the content
