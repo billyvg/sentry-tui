@@ -1,0 +1,6 @@
+[test]
+preload = ["./test/setup.ts"]
+
+[install]
+# Only install packages published at least a week ago — supply-chain hygiene.
+minimumReleaseAge = 604800

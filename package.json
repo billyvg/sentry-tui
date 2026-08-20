@@ -1,0 +1,29 @@
+{
+  "name": "sentry-tui",
+  "module": "src/main.tsx",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "sentry-tui": "src/main.tsx"
+  },
+  "scripts": {
+    "start": "bun run src/main.tsx",
+    "dev": "bun --watch src/main.tsx",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.18"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@opentui/core": "0.5.4",
+    "@opentui/react": "0.5.4",
+    "react": "^19.2.0",
+    "string-width": "^8.2.2",
+    "zod": "^4.4.3"
+  }
+}
