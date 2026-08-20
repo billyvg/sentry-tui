@@ -117,6 +117,9 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [logSelected, setLogSelected] = useState(0);
   const [logStatus, setLogStatus] = useState<StreamStatus>({ loading: false });
+  // Whether the log detail panel is open. Held here rather than in the screen
+  // so the status bar can name the key that closes it.
+  const [logDetailOpen, setLogDetailOpen] = useState(false);
 
   // Log-specific filter state.
   const [logOpenDropdown, setLogOpenDropdown] = useState<FilterDropdownType>(null);
@@ -307,6 +310,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
       // Navigating away supersedes whatever detail view is on the stack;
       // otherwise the detail keeps rendering over the group just chosen.
       setOpenIssue(null);
+      setLogDetailOpen(false);
       focus.focus("content");
     },
     [focus],
@@ -624,11 +628,21 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 9. Log list cursor navigation.
+        // 9. Log list cursor navigation, and the detail panel it opens.
         () => {
           if (focus.focusedRef.current !== "content") return "notMine";
           if (!showLogs) return "notMine";
           const last = Math.max(0, logEntries.length - 1);
+          if (matchesCommand("sentry.nav.open", key)) {
+            // Toggle rather than push: the cursor keys keep working while the
+            // panel is open, so there is no view to pop back out of.
+            setLogDetailOpen((open) => !open);
+            return "mine";
+          }
+          if (logDetailOpen && matchesCommand("sentry.nav.back", key)) {
+            setLogDetailOpen(false);
+            return "mine";
+          }
           if (matchesCommand("sentry.nav.down", key)) {
             setLogSelected((i) => Math.min(i + 1, last));
             return "mine";
@@ -763,6 +777,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
               onSearchFocus={focusLogSearch}
               onSearchBlur={handleLogSearchBlur}
               reloadToken={reloadToken}
+              detailOpen={logDetailOpen}
             />
           ) : (
             <box style={{ flexDirection: "column", paddingLeft: 1 }}>
@@ -801,13 +816,22 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
                   { command: "sentry.app.commandPalette", label: "commands" },
                   { command: "sentry.app.help", label: "help" },
                 ]
-              : [
-                  { command: "sentry.nav.open", label: "open" },
-                  { command: "sentry.nav.search", label: "search" },
-                  { command: "sentry.app.commandPalette", label: "commands" },
-                  { command: "sentry.app.help", label: "help" },
-                  { command: "sentry.app.quit", label: "quit" },
-                ]
+              : showLogs
+                ? [
+                    // Enter toggles, so the one hint carries both directions.
+                    { command: "sentry.nav.open", label: logDetailOpen ? "close" : "details" },
+                    { command: "sentry.nav.search", label: "search" },
+                    { command: "sentry.app.commandPalette", label: "commands" },
+                    { command: "sentry.app.help", label: "help" },
+                    { command: "sentry.app.quit", label: "quit" },
+                  ]
+                : [
+                    { command: "sentry.nav.open", label: "open" },
+                    { command: "sentry.nav.search", label: "search" },
+                    { command: "sentry.app.commandPalette", label: "commands" },
+                    { command: "sentry.app.help", label: "help" },
+                    { command: "sentry.app.quit", label: "quit" },
+                  ]
         }
       />
 
