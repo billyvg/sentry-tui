@@ -18,7 +18,7 @@ export const DEFAULT_SITE_URL = "https://sentry.io";
  * §2.1) carry no secret, so shipping this in the binary is by design.
  * Self-hosted installs override it with `SENTRY_CLIENT_ID`.
  */
-export const DEFAULT_CLIENT_ID = "";
+export const DEFAULT_CLIENT_ID = "4eb595e1616a3d2b0499c989227d96964f60fba3866fb642cc90b1ab89d7e186";
 
 /** Scopes the TUI requests — the same set a personal token needs. */
 export const REQUIRED_SCOPES = [
@@ -56,24 +56,6 @@ export class ReauthRequiredError extends Error {
   }
 }
 
-export class MissingClientIdError extends Error {
-  constructor() {
-    super(
-      [
-        "No OAuth client ID configured, so the device flow can't start.",
-        "",
-        `Create a public OAuth application at ${APPLICATION_SETTINGS_URL}`,
-        '(tick "Public Client" — a CLI cannot keep a secret), then:',
-        "",
-        "  export SENTRY_CLIENT_ID=<client id>",
-        "",
-        "Or skip OAuth entirely and use a personal token — see `sentry-tui --help`.",
-      ].join("\n"),
-    );
-    this.name = "MissingClientIdError";
-  }
-}
-
 /** `SENTRY_URL` wins, then whatever the stored credentials were issued by. */
 export function resolveSiteUrl(stored?: string): string {
   const url = process.env["SENTRY_URL"]?.trim() || stored?.trim() || DEFAULT_SITE_URL;
@@ -82,9 +64,25 @@ export function resolveSiteUrl(stored?: string): string {
 
 /** `SENTRY_CLIENT_ID` wins, then the app the stored token came from. */
 export function resolveClientId(stored?: string): string {
-  const clientId = process.env["SENTRY_CLIENT_ID"]?.trim() || stored?.trim() || DEFAULT_CLIENT_ID;
-  if (!clientId) throw new MissingClientIdError();
-  return clientId;
+  return process.env["SENTRY_CLIENT_ID"]?.trim() || stored?.trim() || DEFAULT_CLIENT_ID;
+}
+
+/**
+ * `invalid_client` means this install doesn't know our application — which is
+ * what a self-hosted Sentry says, since the bundled client ID is sentry.io's.
+ */
+export function unknownClientMessage(siteUrl: string): string {
+  return [
+    `${siteUrl} doesn't recognize this application, so the device flow can't start.`,
+    "",
+    `Create a public OAuth application (Settings → Account → API → Applications on`,
+    `${siteUrl}; tick "Public Client" — a CLI cannot keep a secret), then:`,
+    "",
+    "  export SENTRY_CLIENT_ID=<client id>",
+    "",
+    "Self-hosted Sentry needs 26.1.0 or newer for the device flow. Older installs",
+    "can still use a personal token — see `sentry-tui --help`.",
+  ].join("\n");
 }
 
 export interface DeviceCode {

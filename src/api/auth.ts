@@ -4,13 +4,7 @@ import {
   type StoredCredentials,
   writeCredentials,
 } from "~/api/config";
-import {
-  MissingClientIdError,
-  REQUIRED_SCOPES,
-  refreshAccessToken,
-  resolveClientId,
-  resolveSiteUrl,
-} from "~/api/oauth";
+import { REQUIRED_SCOPES, refreshAccessToken, resolveClientId, resolveSiteUrl } from "~/api/oauth";
 
 /**
  * The seam between the app and however a token was obtained: an OAuth device
@@ -189,5 +183,3 @@ export async function resolveAuthProvider(
 
   return createOAuthAuthProvider({ credentials, fetchImpl: options.fetchImpl });
 }
-
-export { MissingClientIdError };

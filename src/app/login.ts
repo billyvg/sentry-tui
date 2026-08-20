@@ -9,12 +9,12 @@ import {
   writeCredentials,
 } from "~/api/config";
 import {
-  MissingClientIdError,
   OAuthError,
   pollForDeviceToken,
   requestDeviceCode,
   resolveClientId,
   resolveSiteUrl,
+  unknownClientMessage,
 } from "~/api/oauth";
 
 /**
@@ -59,7 +59,16 @@ export async function runLogin({
   const stored = await readCredentials();
   const siteUrl = resolveSiteUrl(stored?.siteUrl);
   const clientId = resolveClientId(stored?.clientId);
-  const device = await requestDeviceCode({ siteUrl, clientId, fetchImpl });
+
+  let device: Awaited<ReturnType<typeof requestDeviceCode>>;
+  try {
+    device = await requestDeviceCode({ siteUrl, clientId, fetchImpl });
+  } catch (error) {
+    if (error instanceof OAuthError && error.code === "invalid_client") {
+      throw new Error(unknownClientMessage(siteUrl));
+    }
+    throw error;
+  }
 
   out();
   out(`  Your code:  ${device.userCode}`);
@@ -177,13 +186,6 @@ function describeExpiry(expiresAt: string, now: number = Date.now()): string {
  */
 export async function offerLogin(options: LoginOptions = {}): Promise<StoredCredentials | null> {
   if (!process.stdin.isTTY) return null;
-  try {
-    // Fail before prompting if the device flow can't run here anyway.
-    resolveClientId();
-  } catch (error) {
-    if (error instanceof MissingClientIdError) return null;
-    throw error;
-  }
 
   out("No Sentry credentials found.");
   const rl = readline.createInterface({ input: process.stdin, output: process.stderr });

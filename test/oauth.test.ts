@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  DEFAULT_CLIENT_ID,
   OAuthError,
   pollForDeviceToken,
   ReauthRequiredError,
@@ -78,8 +79,18 @@ describe("resolveSiteUrl / resolveClientId", () => {
     expect(resolveSiteUrl()).toBe("https://sentry.io");
   });
 
-  test("explains how to register an application when no client id exists", () => {
-    expect(() => resolveClientId()).toThrow(/Public Client/);
+  test("falls back to the application bundled with the binary", () => {
+    expect(resolveClientId()).toBe(DEFAULT_CLIENT_ID);
+    expect(DEFAULT_CLIENT_ID).not.toBe("");
+  });
+
+  test("SENTRY_CLIENT_ID overrides the bundled application, for self-hosted", () => {
+    process.env["SENTRY_CLIENT_ID"] = "self_hosted_app";
+    try {
+      expect(resolveClientId("stored_app")).toBe("self_hosted_app");
+    } finally {
+      delete process.env["SENTRY_CLIENT_ID"];
+    }
   });
 });
 

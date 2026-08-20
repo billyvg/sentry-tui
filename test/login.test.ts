@@ -22,6 +22,7 @@ beforeEach(() => {
     "SENTRY_CLIENT_ID",
     "SENTRY_AUTH_TOKEN",
     "SENTRY_ORG",
+    "SENTRY_URL",
   ]) {
     savedEnv[name] = process.env[name];
     delete process.env[name];
@@ -104,10 +105,20 @@ describe("runLogin", () => {
     expect(await readCredentials()).toBeNull();
   });
 
-  test("refuses to start without an OAuth application to log in through", async () => {
-    delete process.env["SENTRY_CLIENT_ID"];
-    const error = await runLogin({ noBrowser: true }).catch((e: unknown) => e);
-    expect((error as Error).message).toContain("Public Client");
+  test("tells a self-hosted install how to register its own application", async () => {
+    // What a Sentry that doesn't know our client ID answers.
+    const fetchImpl = stubFetch([json({ error: "invalid_client" }, 401)]);
+    process.env["SENTRY_URL"] = "https://sentry.example.com";
+
+    try {
+      const error = await runLogin({ noBrowser: true, fetchImpl }).catch((e: unknown) => e);
+
+      expect((error as Error).message).toContain("sentry.example.com");
+      expect((error as Error).message).toContain("SENTRY_CLIENT_ID");
+      expect((error as Error).message).toContain("Public Client");
+    } finally {
+      delete process.env["SENTRY_URL"];
+    }
   });
 });
 
