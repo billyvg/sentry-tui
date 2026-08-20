@@ -17,6 +17,7 @@
         "lint-staged": "^17.3.0",
         "oxfmt": "^0.63.0",
         "oxlint": "^1.78.0",
+        "platformicons": "9.6.0",
         "simple-git-hooks": "^2.13.1",
       },
       "peerDependencies": {
@@ -206,6 +207,8 @@
     "path-parse": ["path-parse@1.0.7", "https://sfw.security.sentry.io/npm/path-parse/-/path-parse-1.0.7.tgz", {}, "sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw=="],
 
     "picomatch": ["picomatch@4.0.5", "https://sfw.security.sentry.io/npm/picomatch/-/picomatch-4.0.5.tgz", {}, "sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A=="],
+
+    "platformicons": ["platformicons@9.6.0", "https://sfw.security.sentry.io/npm/platformicons/-/platformicons-9.6.0.tgz", { "dependencies": { "@types/node": "*", "@types/react": "*" }, "peerDependencies": { "react": "*" } }, "sha512-0yrEQgu424cPhEynOo3KD49KJNSNKNrg88ThJyXU5vD6B4VRkHd74MP8sivbMLwkRfv+F+aJXI02yqk4m62k/w=="],
 
     "prompts": ["prompts@2.4.2", "https://sfw.security.sentry.io/npm/prompts/-/prompts-2.4.2.tgz", { "dependencies": { "kleur": "^3.0.3", "sisteransi": "^1.0.5" } }, "sha512-NxNv/kLguCA7p3jE8oL2aEBsrJWgAakBpgmgK6lpPWV+WuOmY6r2/zbAVnP+T8bQlA0nzHXSJSJW0Hq7ylaD2Q=="],
 

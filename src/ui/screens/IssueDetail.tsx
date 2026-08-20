@@ -17,6 +17,7 @@ import { issueMessage, issueTitle } from "~/lib/issueText";
 import { countLabel, sparklineBlock, timeAgo } from "~/lib/sparkline";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
 import { ChipRow, type ChipSpec } from "~/ui/components/Chip";
+import { PlatformIcon } from "~/ui/components/PlatformIcon";
 import { Placeholder } from "~/ui/components/Placeholder";
 import { ExceptionSection } from "~/ui/components/StackTrace";
 import { BOLD } from "~/ui/lib/attributes";
@@ -276,6 +277,7 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
         <Divider />
         <text fg={level}>{group.level}</text>
         <Divider />
+        <PlatformIcon platform={group.project.platform} />
         <text fg={theme.muted}>{group.project.slug}</text>
         <Divider />
         <text fg={theme.muted}>

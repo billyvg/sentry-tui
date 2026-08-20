@@ -20,6 +20,7 @@
     "deps:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known",
     "deps:baseline": "depcruise src --config .dependency-cruiser.cjs --output-type baseline --output-to .dependency-cruiser-known-violations.json",
     "build:bin": "bun run ./scripts/build-bin.ts",
+    "icons:build": "bun run ./scripts/build-platform-icons.ts",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run deps:check && bun run test:theme-contrast && bun run test",
     "prepare": "simple-git-hooks"
   },
@@ -37,6 +38,7 @@
     "lint-staged": "^17.3.0",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
+    "platformicons": "9.6.0",
     "simple-git-hooks": "^2.13.1"
   },
   "peerDependencies": {

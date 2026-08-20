@@ -98,7 +98,12 @@ export function FilterBar({
   }, [client, org]);
 
   const projectItems: DropdownItem[] = useMemo(
-    () => projects.map((p) => ({ label: p.name || p.slug, value: p.slug })),
+    () =>
+      projects.map((p) => ({
+        label: p.name || p.slug,
+        value: p.slug,
+        platform: p.platform ?? null,
+      })),
     [projects],
   );
 
