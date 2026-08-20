@@ -4,8 +4,14 @@ import type { SentryClient } from "~/api/client";
 import { listEnvironments, listProjects, type Environment } from "~/api/issues";
 import type { Project } from "~/api/types";
 import { theme } from "~/core/theme";
-import { ChipRow, chipOffsets, type ChipSpec } from "~/ui/components/Chip";
+import { ChipRow, CHIP_HEIGHT, chipOffsets, type ChipSpec } from "~/ui/components/Chip";
 import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
+
+/**
+ * Rows the search box occupies: its input line plus the border above and
+ * below. The filter row starts immediately after it.
+ */
+export const SEARCH_ROWS = 3;
 
 /** Pre-defined date range options matching Sentry's web UI. */
 const DATE_OPTIONS: readonly DropdownItem[] = [
@@ -122,6 +128,9 @@ export function FilterBar({
     { command: "sentry.view.filterDate", label: statsPeriod, caret: true },
   ];
   const [projectAnchorLeft = 0, envAnchorLeft = 0, dateAnchorLeft = 0] = chipOffsets(chips);
+  // A dropdown hangs off the bottom edge of its chip, so it clears the gap
+  // above the row *and* the chip's own height, border included.
+  const dropdownTop = anchorTop + ROW_GAP + CHIP_HEIGHT;
 
   const handleProjectSelect = useCallback(
     (values: string[]) => {
@@ -172,7 +181,7 @@ export function FilterBar({
           items={projectItems}
           selected={selectedProjects}
           anchorLeft={projectAnchorLeft}
-          anchorTop={anchorTop + ROW_GAP}
+          anchorTop={dropdownTop}
           onSelect={handleProjectSelect}
           onClose={onDropdownClose}
         />
@@ -184,7 +193,7 @@ export function FilterBar({
           items={envItems}
           selected={selectedEnvs}
           anchorLeft={envAnchorLeft}
-          anchorTop={anchorTop + ROW_GAP}
+          anchorTop={dropdownTop}
           onSelect={handleEnvSelect}
           onClose={onDropdownClose}
         />
@@ -196,7 +205,7 @@ export function FilterBar({
           items={DATE_OPTIONS as DropdownItem[]}
           selected={[statsPeriod]}
           anchorLeft={dateAnchorLeft}
-          anchorTop={anchorTop + ROW_GAP}
+          anchorTop={dropdownTop}
           showAll={false}
           onSelect={handleDateSelect}
           onClose={onDropdownClose}

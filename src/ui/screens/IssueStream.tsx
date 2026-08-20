@@ -15,7 +15,7 @@ import type { Group } from "~/api/types";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
-import { FilterBar, type FilterDropdownType } from "~/ui/components/FilterBar";
+import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
 import { useElapsed } from "~/ui/hooks/useElapsed";
@@ -211,7 +211,7 @@ export function IssueStream({
         selectedEnvs={selectedEnvs}
         statsPeriod={statsPeriod}
         sortLabel={sortLabel}
-        anchorTop={2}
+        anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectChange ?? (() => {})}
         onEnvChange={onEnvChange ?? (() => {})}
         onPeriodChange={onPeriodChange ?? (() => {})}
