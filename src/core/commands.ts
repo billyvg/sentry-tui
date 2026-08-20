@@ -186,20 +186,6 @@ export const COMMANDS: readonly Command[] = [
     defaultKeys: ["m"],
     palette: "issue",
   },
-  {
-    // No palette scope: assign and priority have no handler yet, and listing
-    // them would advertise an action that does nothing.
-    id: "sentry.issue.assign",
-    title: "Assign",
-    category: "issue",
-    defaultKeys: ["A"],
-  },
-  {
-    id: "sentry.issue.priority",
-    title: "Set priority",
-    category: "issue",
-    defaultKeys: ["p"],
-  },
 
   // view / filter
   {
