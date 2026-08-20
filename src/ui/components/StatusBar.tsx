@@ -10,7 +10,9 @@ export type Notice =
   | { kind: "loading"; text: string }
   | { kind: "success"; text: string }
   | { kind: "warning"; text: string }
-  | { kind: "error"; text: string };
+  | { kind: "error"; text: string }
+  /** Something about what you're looking at changed — not a pass or a fail. */
+  | { kind: "highlight"; text: string };
 
 const NOTICE_COLOR: Record<Notice["kind"], string> = {
   idle: theme.muted,
@@ -18,6 +20,7 @@ const NOTICE_COLOR: Record<Notice["kind"], string> = {
   success: theme.success,
   warning: theme.warning,
   error: theme.danger,
+  highlight: theme.highlight,
 };
 
 /** Rendered hint item: parenthesised key + label in muted. */

@@ -255,7 +255,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
       setLogSelected(0);
       setLogSelectedProjects([]);
       setLogSelectedEnvs([]);
-      showNotice({ kind: "success", text: `Switched to ${slug}` });
+      showNotice({ kind: "highlight", text: `Switched to ${slug}` });
 
       void writeConfig({ org: slug }).catch(() => {
         // A read-only config dir shouldn't undo a switch that already happened;

@@ -89,7 +89,7 @@ describe("theme contrast", () => {
   }
 
   // Semantic colors against panelAlt (where action buttons live)
-  for (const name of ["danger", "warning", "success"] as const) {
+  for (const name of ["danger", "warning", "success", "highlight"] as const) {
     test(`${name} on panelAlt meets ${AA_LARGE}:1`, () => {
       const ratio = contrastRatio(theme[name], theme.panelAlt);
       expect(ratio).toBeGreaterThanOrEqual(AA_LARGE);
@@ -97,12 +97,24 @@ describe("theme contrast", () => {
   }
 
   // Semantic colors against panel (status bar background)
-  for (const name of ["danger", "warning", "success"] as const) {
+  for (const name of ["danger", "warning", "success", "highlight"] as const) {
     test(`${name} on panel meets ${AA_LARGE}:1`, () => {
       const ratio = contrastRatio(theme[name], theme.panel);
       expect(ratio).toBeGreaterThanOrEqual(AA_LARGE);
     });
   }
+
+  // `highlight` and `danger` take turns in the same status-bar slot, so they
+  // have to be told apart at a glance: a context notice that reads as an error
+  // is worse than no notice at all. Pink's readable `1200` tint fails this,
+  // which is why `highlight` takes the ramp's brand step instead.
+  test("highlight is not mistakable for danger", () => {
+    const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const [r1, g1, b1] = channels(theme.highlight);
+    const [r2, g2, b2] = channels(theme.danger);
+    const spread = Math.max(Math.abs(r1! - r2!), Math.abs(g1! - g2!), Math.abs(b1! - b2!));
+    expect(spread).toBeGreaterThanOrEqual(64);
+  });
 
   // Focus ring must be visually distinct from resting border
   test("focused and resting borders are visibly different", () => {
