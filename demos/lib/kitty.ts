@@ -12,6 +12,8 @@ import { rm } from "node:fs/promises";
 /** How long to wait for kitty to create its control socket before giving up. */
 const SOCKET_TIMEOUT_MS = 10_000;
 const SOCKET_POLL_MS = 100;
+/** How long a SIGTERM gets before the harness stops asking nicely. */
+const GRACEFUL_EXIT_MS = 3000;
 
 export interface KittyOptions {
   socket: string;
@@ -177,17 +179,32 @@ export class KittySession {
     return payload[0]?.platform_window_id ?? null;
   }
 
+  /**
+   * Close the window and make sure the process is actually gone.
+   *
+   * Both escalations are load-bearing. Waiting on `exited` unconditionally
+   * hangs the harness after an otherwise successful take, and SIGTERM alone
+   * leaves the process alive with its window shut — an invisible kitty per run,
+   * which is how you end up with a dozen of them and no idea where from.
+   */
   async close(): Promise<void> {
     try {
       await this.remote("close-window", "--match", "all");
     } catch {
       // The window may already be gone — that's the outcome we wanted anyway.
     }
+
     this.process.kill();
-    // On macOS the `kitty` on PATH is a launcher for the app bundle, and it does
-    // not always reap: waiting on it unconditionally hangs the harness after an
-    // otherwise successful take. The window is closed either way by here.
-    await Promise.race([this.process.exited, Bun.sleep(3000)]);
+    const exited = await Promise.race([
+      this.process.exited.then(() => true),
+      Bun.sleep(GRACEFUL_EXIT_MS).then(() => false),
+    ]);
+
+    if (!exited) {
+      this.process.kill("SIGKILL");
+      await Promise.race([this.process.exited, Bun.sleep(GRACEFUL_EXIT_MS)]);
+    }
+
     await rm(this.socket, { force: true });
   }
 }
