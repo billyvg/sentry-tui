@@ -16,7 +16,7 @@ import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText, padText } from "~/lib/text";
 import { BarChart } from "~/ui/components/BarChart";
-import { FilterBar, type FilterDropdownType } from "~/ui/components/FilterBar";
+import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useLogs, useLogTimeseries } from "~/ui/hooks/useLogs";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
@@ -243,7 +243,7 @@ export function LogStream({
         selectedEnvs={selectedEnvs}
         statsPeriod={statsPeriod}
         sortLabel={entries ? `${entries.length} logs` : ""}
-        anchorTop={2}
+        anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectChange ?? (() => {})}
         onEnvChange={onEnvChange ?? (() => {})}
         onPeriodChange={onPeriodChange ?? (() => {})}

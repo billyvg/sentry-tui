@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
+import { theme } from "~/core/theme";
 import { App } from "~/ui/App";
 import { eventFixture, groupsFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
@@ -9,13 +10,14 @@ import { renderHarness } from "./helpers";
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
 /**
- * Tall enough that the stack trace's expanded frames clear the header.
+ * Tall enough that the stack trace's expanded frames clear the header, with
+ * several rows to spare.
  *
  * The detail screen is a scrollbox, so anything past this is simply off-view —
- * a height that "nearly" fits produces assertion failures that read like
- * rendering bugs.
+ * and a height that only *just* fits turns every change to the header into
+ * failures down here that read like rendering bugs rather than layout drift.
  */
-const HEIGHT = 52;
+const HEIGHT = 60;
 
 function stubClient({ eventDelayMs = 0 } = {}) {
   const fetchImpl = (async (input: RequestInfo | URL) => {
@@ -244,6 +246,23 @@ test("the detail view surfaces an event load failure without losing the header",
     expect(frame).toContain("Failed to load event");
     // The header still stands — it never needed the event.
     expect(frame).toContain("PUMP-STATION-1");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a chip's end caps are painted in its fill color, not as stray blocks", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("(r) resolve"));
+
+    // The pill's rounded end is a half block whose *unfilled* half falls
+    // through to the page. That only works while the glyph carries the fill
+    // color — recolor it and the chips gain two loose blocks either side.
+    const cap = h.spanContaining("▐");
+    expect(cap).toBeDefined();
+    const channels = [1, 3, 5].map((i) => parseInt(theme.panelAlt.slice(i, i + 2), 16));
+    expect((["r", "g", "b"] as const).map((k) => Math.round(cap!.fg[k] * 255))).toEqual(channels);
   } finally {
     await h.cleanup();
   }

@@ -9,10 +9,14 @@ import { KeyHint } from "~/ui/components/KeyHint";
  * A terminal has no cursor change and no hover state, so "you can act on this"
  * has to be carried by the cell itself. Brackets around a label don't do it —
  * `[all projects]` reads as punctuation, and the same brackets appear in log
- * lines and stack frames. A raised surface does: `panelAlt` is the only
- * background in the app that isn't a row highlight, so anything wearing it is
- * something you can press. The key that presses it is printed inside, which
- * makes the affordance and its shortcut the same object.
+ * lines and stack frames. A filled pill does: `panelAlt` is the only background
+ * in the app that isn't a row highlight, so anything wearing it is something you
+ * can press. The key that presses it is printed inside, which makes the
+ * affordance and its shortcut the same object.
+ *
+ * The shape is closed with half-block caps rather than a drawn border, because
+ * a border costs two extra rows per chip row and this app puts chips on two
+ * different screens.
  */
 export interface ChipSpec {
   /** Command id, so the printed key follows a rebind. */
@@ -26,14 +30,37 @@ export interface ChipSpec {
 export const CHIP_GAP = 1;
 
 /**
+ * Rows a chip occupies.
+ *
+ * A drawn border would cost three, and a screen with two chip rows on it then
+ * spends six rows on chrome. The caps below buy the same closed shape for one.
+ * Callers that place something *under* a chip — the dropdown a filter chip
+ * opens — need this to clear its bottom edge.
+ */
+export const CHIP_HEIGHT = 1;
+
+/**
+ * The pill's end caps.
+ *
+ * A half block painted in the fill color against the page background fills half
+ * its cell, so the pill appears to begin and end mid-cell — a rounded end at no
+ * vertical cost. `▐` fills the right half, opening the shape; `▌` fills the
+ * left, closing it.
+ */
+const CAP_LEFT = "▐";
+const CAP_RIGHT = "▌";
+/** One cap cell at each end. */
+const CHIP_CAPS = 2;
+
+/**
  * Width of a rendered chip, for laying out a row and anchoring the overlay a
  * chip opens. Kept beside the renderer so the two cannot disagree.
  */
 export function chipWidth({ command, label, caret = false }: ChipSpec): number {
   const key = formatKey(primaryKey(command));
-  // " (k) label ▾ "
+  // "▐ (k) label ▾ ▌"
   const keyPart = key ? measureTextWidth(key) + 3 : 0;
-  return 1 + keyPart + measureTextWidth(label) + (caret ? 2 : 0) + 1;
+  return CHIP_CAPS + 1 + keyPart + measureTextWidth(label) + (caret ? 2 : 0) + 1;
 }
 
 /** Left edge of each chip in a row, relative to the row's own left edge. */
@@ -64,20 +91,24 @@ export function Chip({
   const labelFg = active ? theme.accent : theme.text;
 
   return (
-    <box
-      style={{ flexDirection: "row", backgroundColor: theme.panelAlt, flexShrink: 0 }}
-      onMouseDown={onPress}
-    >
-      <text> </text>
-      {key ? (
-        <>
-          <KeyHint command={command} fg={labelFg} emphasised />
-          <text> </text>
-        </>
-      ) : null}
-      <text fg={labelFg}>{label}</text>
-      {caret ? <text fg={active ? theme.accent : theme.muted}>{" ▾"}</text> : null}
-      <text> </text>
+    // The caps sit outside the filled box so their empty half falls through to
+    // the page background — inside it they would be painted over by the fill
+    // and the pill would go back to being a rectangle.
+    <box style={{ flexDirection: "row", flexShrink: 0 }} onMouseDown={onPress}>
+      <text fg={theme.panelAlt}>{CAP_LEFT}</text>
+      <box style={{ flexDirection: "row", backgroundColor: theme.panelAlt }}>
+        <text> </text>
+        {key ? (
+          <>
+            <KeyHint command={command} fg={labelFg} emphasised />
+            <text> </text>
+          </>
+        ) : null}
+        <text fg={labelFg}>{label}</text>
+        {caret ? <text fg={active ? theme.accent : theme.muted}>{" ▾"}</text> : null}
+        <text> </text>
+      </box>
+      <text fg={theme.panelAlt}>{CAP_RIGHT}</text>
     </box>
   );
 }
