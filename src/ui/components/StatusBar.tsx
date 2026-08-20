@@ -4,7 +4,7 @@ import { useSpinnerFrame } from "~/ui/components/Spinner";
 
 export type Notice =
   | { kind: "idle"; text: string }
-  | { kind: "loading"; text: string; since: number }
+  | { kind: "loading"; text: string }
   | { kind: "success"; text: string }
   | { kind: "warning"; text: string }
   | { kind: "error"; text: string };

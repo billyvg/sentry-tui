@@ -204,13 +204,18 @@ function matchesChord(
   if (Boolean(key.ctrl) !== wantCtrl) return false;
   if (Boolean(key.meta) !== wantMeta) return false;
 
-  // A bare uppercase letter chord (e.g. "G") implies shift.
-  const impliesShift = name.length === 1 && name >= "A" && name <= "Z";
-  if (impliesShift) {
-    return key.name.toLowerCase() === name.toLowerCase() && Boolean(key.shift);
+  // Case carries meaning for single letters: "G" means shift+g, and a bare "g"
+  // must *not* match shift+g — otherwise "jump to top" would swallow "jump to
+  // bottom", since it is declared first.
+  const isLetter = name.length === 1 && /[a-zA-Z]/.test(name);
+  if (isLetter) {
+    const needsShift = wantShift || name === name.toUpperCase();
+    return (
+      key.name.toLowerCase() === name.toLowerCase() &&
+      Boolean(key.shift) === needsShift
+    );
   }
-  if (wantShift && !key.shift) return false;
-  if (!wantShift && parts.length > 1 && key.shift) return false;
 
+  if (Boolean(key.shift) !== wantShift) return false;
   return key.name === name;
 }
