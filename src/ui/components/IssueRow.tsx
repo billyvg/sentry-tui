@@ -94,28 +94,63 @@ const PRIORITY_GLYPH: Record<PriorityLevel, string> = {
   low: "▁  ",
 };
 
+/**
+ * The rule between two rows, drawn as a text line rather than a box border so
+ * the selection can meet it exactly.
+ *
+ * A separator owns a whole terminal cell while the rule itself is a hairline
+ * through the middle of it, so neither a plain nor a filled cell lands the
+ * highlight on the rule: leaving the cell unpainted stops the band a full line
+ * short, and painting it pushes the band half a cell past the rule. Against
+ * the selection the rule therefore becomes a half block — filled on the side
+ * the selection is on, empty on the other — which puts the edge of the
+ * highlight exactly where the hairline was.
+ */
+function RowRule({
+  width,
+  selectionAbove = false,
+  selectionBelow = false,
+}: {
+  width: number;
+  /** The row immediately above this rule is selected. */
+  selectionAbove?: boolean;
+  /** The row immediately below this rule is selected. */
+  selectionBelow?: boolean;
+}) {
+  const glyph = selectionAbove ? "▀" : selectionBelow ? "▄" : "─";
+  const fg = selectionAbove || selectionBelow ? theme.selected : theme.border;
+
+  return <text fg={fg}>{glyph.repeat(Math.max(0, width))}</text>;
+}
+
 /** Column headers, aligned with the rows below them. */
-export function IssueListHeader({ width }: { width: number }) {
+export function IssueListHeader({
+  width,
+  selectionBelow = false,
+}: {
+  width: number;
+  /** The first row of the list — the one under this rule — is selected. */
+  selectionBelow?: boolean;
+}) {
   const layout = resolveRowLayout(width);
 
   return (
-    <box
-      style={{
-        flexDirection: "row",
-        width,
-        paddingLeft: ROW_PADDING,
-        paddingRight: ROW_PADDING,
-        border: ["bottom"],
-        borderColor: theme.border,
-        flexShrink: 0,
-      }}
-    >
-      <text fg={theme.muted}>{padText("Issue", MARKER_WIDTH + layout.title)}</text>
-      {layout.columns.map((key) => (
-        <text key={key} fg={theme.muted}>
-          {padText(COLUMN_LABEL[key], COLUMN_WIDTH[key], "right")}
-        </text>
-      ))}
+    <box style={{ flexDirection: "column", width, flexShrink: 0 }}>
+      <box
+        style={{
+          flexDirection: "row",
+          paddingLeft: ROW_PADDING,
+          paddingRight: ROW_PADDING,
+        }}
+      >
+        <text fg={theme.muted}>{padText("Issue", MARKER_WIDTH + layout.title)}</text>
+        {layout.columns.map((key) => (
+          <text key={key} fg={theme.muted}>
+            {padText(COLUMN_LABEL[key], COLUMN_WIDTH[key], "right")}
+          </text>
+        ))}
+      </box>
+      <RowRule width={width} selectionBelow={selectionBelow} />
     </box>
   );
 }
@@ -125,12 +160,19 @@ export function IssueRow({
   selected,
   width,
   pending = false,
+  selectionBelow = false,
 }: {
   group: Group;
   selected: boolean;
   width: number;
   /** A mutation is in flight for this issue. */
   pending?: boolean;
+  /**
+   * The row *below* this one is selected. A rule is shared between the two
+   * rows it separates, so the row above the selection paints its own rule to
+   * close the top edge of the highlight.
+   */
+  selectionBelow?: boolean;
 }) {
   const layout = resolveRowLayout(width);
   const bg = selected ? theme.selected : undefined;
@@ -138,54 +180,58 @@ export function IssueRow({
   const message = issueMessage(group);
 
   return (
-    <box
-      style={{
-        flexDirection: "column",
-        width,
-        paddingLeft: ROW_PADDING,
-        paddingRight: ROW_PADDING,
-        backgroundColor: bg,
-        border: ["bottom"],
-        borderColor: theme.border,
-        flexShrink: 0,
-      }}
-    >
-      {/* Line 1 — unread dot, exception type, and the metric columns. */}
-      <box style={{ flexDirection: "row" }}>
-        <text fg={selected ? theme.accent : theme.muted}>{selected ? "▸" : " "}</text>
-        {/* An in-flight mutation takes the dot's slot; unread otherwise. */}
-        <text fg={theme.accent}>{pending ? "⟳" : group.hasSeen ? " " : "●"}</text>
-        <text> </text>
-        <Placeholder
-          text={title}
-          fallback="(no title)"
-          width={layout.title}
-          fg={theme.text}
-          attributes={BOLD}
-        />
-        {layout.columns.map((key) => (
-          <Column key={key} column={key} group={group} />
-        ))}
+    <box style={{ flexDirection: "column", width, flexShrink: 0 }}>
+      {/*
+       * The highlight is painted here rather than on the outer box so the rule
+       * below can opt in or out of it on its own — see `RowRule`.
+       */}
+      <box
+        style={{
+          flexDirection: "column",
+          paddingLeft: ROW_PADDING,
+          paddingRight: ROW_PADDING,
+          backgroundColor: bg,
+        }}
+      >
+        {/* Line 1 — unread dot, exception type, and the metric columns. */}
+        <box style={{ flexDirection: "row" }}>
+          <text fg={selected ? theme.accent : theme.muted}>{selected ? "▸" : " "}</text>
+          {/* An in-flight mutation takes the dot's slot; unread otherwise. */}
+          <text fg={theme.accent}>{pending ? "⟳" : group.hasSeen ? " " : "●"}</text>
+          <text> </text>
+          <Placeholder
+            text={title}
+            fallback="(no title)"
+            width={layout.title}
+            fg={theme.text}
+            attributes={BOLD}
+          />
+          {layout.columns.map((key) => (
+            <Column key={key} column={key} group={group} />
+          ))}
+        </box>
+
+        {/* Line 2 — level bar and the exception value, as `EventMessage` does. */}
+        <box style={{ flexDirection: "row" }}>
+          <text>{"  "}</text>
+          <text fg={theme.level[group.level] ?? theme.level.unknown}>│</text>
+          <text> </text>
+          <Placeholder
+            text={message}
+            fallback="(no error message)"
+            width={Math.max(0, layout.content - 4)}
+            fg={theme.muted}
+          />
+        </box>
+
+        {/* Line 3 — the dense divider-separated meta row from `groupMetaRow.tsx`. */}
+        <box style={{ flexDirection: "row" }}>
+          <text>{"    "}</text>
+          <text fg={theme.muted}>{metaLine(group, Math.max(0, layout.content - 4), message)}</text>
+        </box>
       </box>
 
-      {/* Line 2 — level bar and the exception value, as `EventMessage` does. */}
-      <box style={{ flexDirection: "row" }}>
-        <text>{"  "}</text>
-        <text fg={theme.level[group.level] ?? theme.level.unknown}>│</text>
-        <text> </text>
-        <Placeholder
-          text={message}
-          fallback="(no error message)"
-          width={Math.max(0, layout.content - 4)}
-          fg={theme.muted}
-        />
-      </box>
-
-      {/* Line 3 — the dense divider-separated meta row from `groupMetaRow.tsx`. */}
-      <box style={{ flexDirection: "row" }}>
-        <text>{"    "}</text>
-        <text fg={theme.muted}>{metaLine(group, Math.max(0, layout.content - 4), message)}</text>
-      </box>
+      <RowRule width={width} selectionAbove={selected} selectionBelow={selectionBelow} />
     </box>
   );
 }

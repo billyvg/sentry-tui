@@ -216,6 +216,60 @@ describe("IssueRow", () => {
     }
   });
 
+  test("the selection meets its rules half a cell in, neither short nor past", async () => {
+    // Three rows, the middle one selected: the row above owns the rule that
+    // closes the top edge of the band, the selected row the one below it.
+    const h = await renderHarness(
+      <box style={{ flexDirection: "column" }}>
+        <IssueRow group={groupFixture} selected={false} selectionBelow={true} width={WIDTH} />
+        <IssueRow group={{ ...groupFixture, id: "2" }} selected={true} width={WIDTH} />
+        <IssueRow group={{ ...groupFixture, id: "3" }} selected={false} width={WIDTH} />
+      </box>,
+      { width: WIDTH, height: ROW_HEIGHT * 3 },
+    );
+    try {
+      const captured = h.captureSpans().lines;
+      // `captureSpans` reports colors as RGBA floats; compare against the theme.
+      const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      const isColor = (
+        span: { fg: { r: number; g: number; b: number }; bg: { r: number; g: number; b: number } },
+        layer: "fg" | "bg",
+        hex: string,
+      ) =>
+        (["r", "g", "b"] as const).every(
+          (key, i) => Math.round(span[layer][key] * 255) === channels(hex)[i],
+        );
+      const line = (index: number) => captured[index]!.spans;
+
+      // The row's three text lines carry the highlight edge to edge — padding
+      // columns included, so the band is the full width of the row.
+      for (const index of [4, 5, 6]) {
+        expect(line(index).every((span) => isColor(span, "bg", theme.selected))).toBe(true);
+      }
+
+      // The rules bounding it are half blocks in the selection colour, filled
+      // on the side the selection is on: a rule is a hairline through the
+      // middle of a whole cell, so a fully painted cell would carry the band
+      // half a line past it and an unpainted one stop half a line short.
+      const rule = (index: number) =>
+        line(index)
+          .map((span) => span.text)
+          .join("");
+      expect(rule(3)).toMatch(/^▄+$/); // above the selection: lower half filled
+      expect(rule(7)).toMatch(/^▀+$/); // below it: upper half filled
+      for (const index of [3, 7]) {
+        expect(line(index).every((span) => isColor(span, "fg", theme.selected))).toBe(true);
+        // Only the half meeting the band is painted; the other half is bare.
+        expect(line(index).every((span) => isColor(span, "bg", theme.selected))).toBe(false);
+      }
+
+      // Rules away from the selection stay ordinary hairlines.
+      expect(rule(11)).toMatch(/^─+$/);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
   test("the header names the columns the rows fill", async () => {
     const h = await renderHarness(<IssueListHeader width={WIDTH} />, { width: WIDTH, height: 3 });
     try {
