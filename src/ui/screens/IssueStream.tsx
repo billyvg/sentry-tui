@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import type { InputRenderable } from "@opentui/core";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -48,6 +50,14 @@ export interface IssueStreamProps {
   onEnvChange?: (envs: string[]) => void;
   onPeriodChange?: (period: string) => void;
   onDropdownClose?: () => void;
+  /** The committed query sent to the API for fetching. */
+  query?: string;
+  /** The live input value displayed in the search bar (may differ while editing). */
+  searchValue?: string;
+  /** Called as the user types into the search bar. */
+  onSearchInput?: (value: string) => void;
+  /** Whether the search input is focused. */
+  searchFocused?: boolean;
 }
 
 export function IssueStream({
@@ -69,9 +79,16 @@ export function IssueStream({
   onEnvChange,
   onPeriodChange,
   onDropdownClose,
+  query: queryProp,
+  searchValue,
+  onSearchInput,
+  searchFocused = false,
 }: IssueStreamProps) {
-  const [query] = useState(DEFAULT_QUERY);
+  const [localQuery] = useState(DEFAULT_QUERY);
+  const query = queryProp ?? localQuery;
+  const displayValue = searchValue ?? query;
   const [sort] = useState<SortOption>(DEFAULT_SORT);
+  const inputRef = useRef<InputRenderable>(null);
 
   const { issues, statsLoading } = useIssues(client, {
     org,
@@ -117,9 +134,23 @@ export function IssueStream({
   return (
     <box style={{ flexDirection: "column", width, height }}>
       {/* Search query, mirroring the web app's search bar. */}
-      <box style={{ flexDirection: "row", width, flexShrink: 0 }}>
-        <text fg={theme.muted}>{"/ "}</text>
-        <text fg={theme.text}>{fitText(query, listWidth - 2)}</text>
+      <box style={{ flexDirection: "row", width, flexShrink: 0, height: 1 }}>
+        <text fg={searchFocused ? theme.accent : theme.muted}>{"/ "}</text>
+        <input
+          ref={inputRef}
+          value={displayValue}
+          placeholder="Search issues…"
+          focused={searchFocused}
+          onInput={onSearchInput}
+          style={{
+            width: listWidth - 2,
+            textColor: theme.text,
+            backgroundColor: theme.bg,
+            focusedTextColor: theme.text,
+            focusedBackgroundColor: theme.bg,
+            placeholderColor: theme.subText,
+          }}
+        />
       </box>
 
       {/* Filter row: project / environment / period, then sort. */}
