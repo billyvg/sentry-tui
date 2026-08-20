@@ -21,6 +21,18 @@ Import boundaries enforced by `bun run deps:check` (dependency-cruiser; rules in
 `.dependency-cruiser.cjs`). Known violations baseline is shrink-only: fix a violation,
 rerun `bun run deps:baseline`, never add new ones.
 
+## runtime
+
+Bun, not Node.js. `CLAUDE.md` is a symlink to this file — edit here, not there.
+
+- `bun <file>` instead of `node <file>` or `ts-node <file>`
+- `bun test` instead of `jest` or `vitest`
+- `bun install` / `bun run <script>` instead of the npm/yarn/pnpm equivalents
+- `bun build <file>` instead of `webpack` or `esbuild`
+- `Bun.file` over `node:fs`'s readFile/writeFile, `Bun.$\`ls\`` over execa
+- Bun loads `.env` automatically — don't add `dotenv`
+- Bun API docs are vendored at `node_modules/bun-types/docs/**.md`
+
 ## commands
 
 ```bash
@@ -50,6 +62,7 @@ For rendering/interaction changes, also do a real terminal smoke run with `bun r
 
 ## testing
 
+- `bun test` runs everything; tests import from `bun:test`.
 - Integration tests in `test/`; structural CI checks in `scripts/*.test.ts`.
 - Test helpers in `test/helpers.tsx` — always use `renderHarness()` and `press()`.
 - Fixtures in `test/fixtures.ts` — deterministic Sentry API data, no network.
@@ -57,7 +70,6 @@ For rendering/interaction changes, also do a real terminal smoke run with `bun r
 
 ## code style
 
-- Use Bun, not Node.js. See `CLAUDE.md` for Bun-specific guidance.
 - Pre-commit hook runs `lint-staged` (oxfmt + oxlint) automatically.
 - Prefer one source of truth per behavior. Extend existing paths, don't duplicate.
 - Add JSDoc comments to functions. Skip comments that only narrate what code says.
