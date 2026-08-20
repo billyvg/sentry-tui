@@ -414,7 +414,6 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
           style={{
             flexGrow: 1,
             flexDirection: "column",
-            paddingTop: 1,
             border: ["left"],
             borderColor: focus.isFocused("content") ? theme.borderFocused : theme.border,
           }}

@@ -143,7 +143,7 @@ export function IssueStream({
           border: true,
           borderStyle: "rounded",
           borderColor: searchFocused ? theme.accent : theme.border,
-          backgroundColor: theme.bg,
+          backgroundColor: theme.panel,
           paddingLeft: 1,
           paddingRight: 1,
         }}
@@ -158,9 +158,9 @@ export function IssueStream({
           style={{
             flexGrow: 1,
             textColor: theme.text,
-            backgroundColor: theme.bg,
+            backgroundColor: theme.panel,
             focusedTextColor: theme.text,
-            focusedBackgroundColor: theme.bg,
+            focusedBackgroundColor: theme.panel,
             placeholderColor: theme.subText,
           }}
         />
