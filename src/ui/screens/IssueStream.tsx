@@ -26,12 +26,7 @@ export interface IssueStreamProps {
   focused: boolean;
   selectedIndex: number;
   onIssuesChange?: (issues: Group[]) => void;
-  onStatusChange?: (status: {
-    loading: boolean;
-    elapsedMs?: number;
-    error?: string;
-    count?: number;
-  }) => void;
+  onStatusChange?: (status: { loading: boolean; elapsedMs?: number; error?: string }) => void;
   /**
    * Rows to render instead of the fetched ones. The App owns the list once
    * loaded so optimistic triage updates can rewrite it; also lets tests render
@@ -86,7 +81,6 @@ export function IssueStream({
       loading: loading || statsLoading,
       elapsedMs: elapsed ?? elapsedMs(issues, Date.now()),
       error: error?.message,
-      count: rows?.length,
     });
   }, [loading, statsLoading, elapsed, error, rows, issues, onStatusChange]);
 

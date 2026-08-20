@@ -31,7 +31,6 @@ interface StreamStatus {
   loading: boolean;
   elapsedMs?: number;
   error?: string;
-  count?: number;
 }
 
 export function App({ onQuit, client = null, org = "" }: AppProps) {
@@ -87,7 +86,7 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   }, []);
 
   // Triage notices are transient: they announce what just happened, then get
-  // out of the way so the ambient load/count notice is visible again.
+  // out of the way so the ambient load notice is visible again.
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const showTriageNotice = useCallback((notice: Notice) => {
     setTriageNotice(notice);
@@ -340,11 +339,9 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
       <StatusBar
         notice={
           // A triage result is the most recent thing the user did, so it
-          // outranks the ambient load/count notice.
+          // outranks the ambient load notice.
           triageNotice ??
-          (openIssue
-            ? { kind: "idle", text: openIssue.shortId }
-            : toNotice(status, showIssues, org))
+          (openIssue ? { kind: "idle", text: openIssue.shortId } : toNotice(status, showIssues))
         }
         elapsedMs={openIssue ? undefined : status.elapsedMs}
         hints={
@@ -369,12 +366,9 @@ export function App({ onQuit, client = null, org = "" }: AppProps) {
   );
 }
 
-function toNotice(status: StreamStatus, showIssues: boolean, org: string): Notice {
-  if (!showIssues) return { kind: "idle", text: org || "Ready" };
+function toNotice(status: StreamStatus, showIssues: boolean): Notice {
+  if (!showIssues) return { kind: "idle", text: "" };
   if (status.error) return { kind: "error", text: status.error };
   if (status.loading) return { kind: "loading", text: "Loading issues…" };
-  if (status.count !== undefined) {
-    return { kind: "success", text: `${status.count} issues` };
-  }
-  return { kind: "idle", text: org || "Ready" };
+  return { kind: "idle", text: "" };
 }

@@ -96,6 +96,14 @@ describe("theme contrast", () => {
     });
   }
 
+  // Semantic colors against panel (status bar background)
+  for (const name of ["danger", "warning", "success"] as const) {
+    test(`${name} on panel meets ${AA_LARGE}:1`, () => {
+      const ratio = contrastRatio(theme[name], theme.panel);
+      expect(ratio).toBeGreaterThanOrEqual(AA_LARGE);
+    });
+  }
+
   // Focus ring must be visually distinct from resting border
   test("focused and resting borders are visibly different", () => {
     const ratio = contrastRatio(theme.borderFocused, theme.border);
