@@ -1,5 +1,7 @@
-import { createTokenAuthProvider, MissingTokenError, readConfig } from "~/api/auth";
+import { createTokenAuthProvider, MissingTokenError, readConfig, writeConfig } from "~/api/auth";
 import { SentryClient } from "~/api/client";
+import { listOrganizations } from "~/api/issues";
+import * as readline from "node:readline";
 
 export interface AppContext {
   client: SentryClient;
@@ -18,6 +20,58 @@ export class MissingOrgError extends Error {
     );
     this.name = "MissingOrgError";
   }
+}
+
+/**
+ * Prompt the user to pick one of their Sentry organizations interactively.
+ * Returns the selected org slug, or throws if the user cancels.
+ */
+async function promptForOrg(client: SentryClient): Promise<string> {
+  process.stderr.write("No default organization configured.\n\n");
+  process.stderr.write("Fetching your organizations…\n");
+
+  let orgs: Awaited<ReturnType<typeof listOrganizations>>;
+  try {
+    orgs = await listOrganizations(client);
+  } catch (err) {
+    throw new Error(
+      `Failed to fetch organizations: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (orgs.length === 0) {
+    throw new Error("No organizations found for this token. Check your auth token scopes.");
+  }
+
+  if (orgs.length === 1) {
+    const org = orgs[0]!;
+    process.stderr.write(`\nFound one organization: ${org.name} (${org.slug})\n`);
+    await writeConfig({ org: org.slug });
+    process.stderr.write(`Saved as default org. You can change it later in the config file.\n\n`);
+    return org.slug;
+  }
+
+  process.stderr.write("\nYour organizations:\n");
+  for (let i = 0; i < orgs.length; i++) {
+    const o = orgs[i]!;
+    process.stderr.write(`  ${i + 1}) ${o.name} (${o.slug})\n`);
+  }
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+  const answer = await new Promise<string>((resolve) => {
+    rl.question("\nSelect an organization [number]: ", resolve);
+  });
+  rl.close();
+
+  const index = Number.parseInt(answer.trim(), 10) - 1;
+  if (Number.isNaN(index) || index < 0 || index >= orgs.length) {
+    throw new Error("Invalid selection. Run again to retry.");
+  }
+
+  const selected = orgs[index]!;
+  await writeConfig({ org: selected.slug });
+  process.stderr.write(`\nSaved "${selected.slug}" as default org.\n\n`);
+  return selected.slug;
 }
 
 export interface CliArgs {
@@ -61,10 +115,15 @@ export async function bootstrap(args: CliArgs): Promise<AppContext> {
   // Surface a missing token now rather than as a failed request later.
   await auth.getToken();
 
-  const org = args.org ?? process.env["SENTRY_ORG"] ?? config.org;
-  if (!org) throw new MissingOrgError();
+  let org = args.org ?? process.env["SENTRY_ORG"] ?? config.org;
 
-  return { client: new SentryClient({ auth }), org, tokenSource: auth.describe() };
+  const client = new SentryClient({ auth });
+
+  if (!org) {
+    org = await promptForOrg(client);
+  }
+
+  return { client, org, tokenSource: auth.describe() };
 }
 
 export { MissingTokenError };
