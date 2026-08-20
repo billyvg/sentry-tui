@@ -1,4 +1,4 @@
-import type { Group, SentryEvent, TimeseriesValue } from "~/api/types";
+import type { Group, OrgMember, SentryEvent, TimeseriesValue } from "~/api/types";
 
 function stats24h(peak: number): TimeseriesValue[] {
   const base = 1_700_000_000;
@@ -76,6 +76,57 @@ export const groupsFixture: Group[] = [
     metadata: undefined,
     stats: { "24h": stats24h(12) },
   },
+];
+
+/**
+ * `/organizations/{org}/users/`, covering the three avatar cases the assignee
+ * cell has to tell apart: an uploaded picture, a Gravatar, and an account that
+ * never set one. Every entry carries an `avatarUrl` — that field is populated
+ * regardless, which is exactly the trap the lookup has to avoid.
+ */
+export const membersFixture: OrgMember[] = [
+  {
+    id: "10",
+    email: "ada@example.com",
+    name: "Ada Lovelace",
+    user: {
+      id: "100",
+      name: "Ada Lovelace",
+      email: "ada@example.com",
+      avatarUrl: "https://gravatar.com/avatar/ada?s=32&d=mm",
+      avatar: {
+        avatarType: "upload",
+        avatarUuid: "aaaa1111",
+        avatarUrl: "https://sentry.io/avatar/aaaa1111/",
+      },
+    },
+  },
+  {
+    id: "11",
+    email: "grace@example.com",
+    name: "Grace Hopper",
+    user: {
+      id: "101",
+      name: "Grace Hopper",
+      email: "grace@example.com",
+      avatarUrl: "https://gravatar.com/avatar/grace?s=32&d=mm",
+      avatar: { avatarType: "gravatar", avatarUuid: null, avatarUrl: null },
+    },
+  },
+  {
+    id: "12",
+    email: "alan@example.com",
+    name: "Alan Turing",
+    user: {
+      id: "102",
+      name: "Alan Turing",
+      email: "alan@example.com",
+      avatarUrl: "https://gravatar.com/avatar/alan?s=32&d=mm",
+      avatar: { avatarType: "letter_avatar", avatarUuid: null, avatarUrl: null },
+    },
+  },
+  // An invitation nobody has accepted yet — no account behind it at all.
+  { id: "13", email: "pending@example.com", name: "pending@example.com", user: null },
 ];
 
 export const eventFixture: SentryEvent = {

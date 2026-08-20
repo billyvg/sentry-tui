@@ -4,6 +4,7 @@ import type {
   GroupStatus,
   GroupSubstatus,
   Organization,
+  OrgMember,
   PriorityLevel,
   Project,
   SentryEvent,
@@ -212,6 +213,22 @@ export async function listOrganizations(
   const page = await client.request<Organization[]>("/organizations/", {
     signal,
   });
+  return page.data;
+}
+
+/**
+ * Every member of an organization, each carrying their account's avatar
+ * settings — the only place the API exposes them, since an issue's
+ * `assignedTo` actor is just an id, a name and a type.
+ *
+ * Unpaginated by design on Sentry's side: one request returns the whole
+ * member list, so callers should fetch it once and cache it.
+ */
+export async function listOrganizationMembers(
+  client: SentryClient,
+  { org, signal }: { org: string; signal?: AbortSignal },
+): Promise<OrgMember[]> {
+  const page = await client.request<OrgMember[]>(`/organizations/${org}/users/`, { signal });
   return page.data;
 }
 
