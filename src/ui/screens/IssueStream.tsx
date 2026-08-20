@@ -20,7 +20,7 @@ import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow"
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useIssues } from "~/ui/hooks/useIssues";
-import { scrollTopForRow } from "~/ui/lib/listScroll";
+import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
 
 export interface IssueStreamProps {
   client: SentryClient | null;
@@ -149,24 +149,12 @@ export function IssueStream({
     });
   }, [loading, statsLoading, elapsed, error, rows, issues, onStatusChange]);
 
-  // The cursor keys are consumed by the App, so the scrollbox never sees them
-  // and would happily leave the selected row off screen. Follow it by hand.
-  const rowCount = rows?.length ?? 0;
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list || rowCount === 0) return;
-    const viewportHeight = list.viewport.height;
-    if (viewportHeight <= 0) return;
-
-    const next = scrollTopForRow({
-      index: selectedIndex,
-      rowCount,
-      rowHeight: ROW_HEIGHT,
-      viewportHeight,
-      scrollTop: list.scrollTop,
-    });
-    if (next !== list.scrollTop) list.scrollTop = next;
-  }, [selectedIndex, rowCount, height]);
+  useRowScrollFollow(listRef, {
+    index: selectedIndex,
+    rowCount: rows?.length ?? 0,
+    rowHeight: ROW_HEIGHT,
+    layout: [height],
+  });
 
   const sortLabel = useMemo(
     () => SORT_OPTIONS.find((o) => o.value === sort)?.label ?? sort,

@@ -129,6 +129,29 @@ test("j and k navigate log entries", async () => {
   }
 });
 
+test("the log list scrolls to follow the cursor past the bottom of the viewport", async () => {
+  const h = await renderApp();
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await navigateToLogs(h);
+    await h.waitForFrame((f) => f.includes("card declined"));
+
+    // 20 fixture rows against a pane shortened by the volume chart, so the
+    // tail of the list starts off screen.
+    expect(h.frame()).not.toContain("GET /api/v2/users");
+
+    await h.press((i) => i.pressKey("G", { shift: true }));
+    await h.waitForFrame((f) => f.includes("GET /api/v2/users"));
+    expect(h.frame()).not.toContain("card declined"); // the top scrolled away
+
+    await h.press((i) => i.pressKey("g"));
+    await h.waitForFrame((f) => f.includes("card declined"));
+    expect(h.frame()).not.toContain("GET /api/v2/users");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("status bar shows log count after loading", async () => {
   const h = await renderApp();
   try {

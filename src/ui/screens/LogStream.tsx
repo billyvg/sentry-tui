@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { RenderableEvents, type InputRenderable } from "@opentui/core";
+import { RenderableEvents, type InputRenderable, type ScrollBoxRenderable } from "@opentui/core";
 
 import type { SentryClient } from "~/api/client";
 import { DEFAULT_LOG_PERIOD, type LogEntry, type LogSeverity } from "~/api/logs";
@@ -19,6 +19,7 @@ import { BarChart } from "~/ui/components/BarChart";
 import { FilterBar, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useLogs, useLogTimeseries } from "~/ui/hooks/useLogs";
+import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
 import { BOLD } from "~/ui/lib/attributes";
 
 // ---------------------------------------------------------------------------
@@ -53,6 +54,9 @@ const COL_PROJECT = 14;
 
 /** Height of the volume bar chart in terminal rows (includes border). */
 const CHART_HEIGHT = 10;
+
+/** A log row is a single line — no rule beneath it, unlike an issue row. */
+const ROW_HEIGHT = 1;
 
 export interface LogStreamProps {
   client: SentryClient | null;
@@ -118,6 +122,7 @@ export function LogStream({
   const displayValue = searchValue ?? query;
   const statsPeriod = statsPeriodProp ?? DEFAULT_LOG_PERIOD;
   const inputRef = useRef<InputRenderable>(null);
+  const listRef = useRef<ScrollBoxRenderable>(null);
 
   // Sync native focus/blur (e.g. mouse clicks) back to the parent.
   const inputRefCallback = useCallback(
@@ -182,6 +187,14 @@ export function LogStream({
     setShowDetail(false);
   }, [selectedIndex]);
 
+  // The detail panel shortens the viewport, so it moves the offset too.
+  useRowScrollFollow(listRef, {
+    index: selectedIndex,
+    rowCount: entries?.length ?? 0,
+    rowHeight: ROW_HEIGHT,
+    layout: [height, showDetail],
+  });
+
   return (
     <box style={{ flexDirection: "column", width, height }}>
       {/* Search bar, matching the issue stream's bordered input. */}
@@ -243,8 +256,17 @@ export function LogStream({
       {/* Column header */}
       <LogListHeader width={inner} />
 
-      {/* Log list */}
-      <scrollbox focused={focused && !showDetail} style={{ flexGrow: 1, width }}>
+      {/*
+       * Log list. `flexBasis: 0` is what makes this box scroll at all: on
+       * `auto` the scrollbox takes its content's height as its base size,
+       * grows past the pane, and ends up with a viewport as tall as the list —
+       * nothing overflows, so there is nothing to scroll.
+       */}
+      <scrollbox
+        ref={listRef}
+        focused={focused && !showDetail}
+        style={{ flexGrow: 1, flexBasis: 0, width }}
+      >
         {entries === undefined && isInitialLoad(logs) ? (
           <LogListSkeleton width={inner} rows={20} />
         ) : null}
