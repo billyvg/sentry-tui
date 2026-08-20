@@ -6,7 +6,7 @@
  * recent IA change moved Alerts under Monitors and Releases under Explore.
  */
 
-export type NavGroupId = "issues" | "explore" | "dashboards" | "insights" | "monitors" | "settings";
+export type NavGroupId = "issues" | "explore" | "dashboards" | "monitors" | "settings";
 
 export interface NavGroup {
   id: NavGroupId;
@@ -63,16 +63,6 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: "Dashboards",
     glyph: "D",
     sections: [{ items: ["All Dashboards", "Sentry Built"] }],
-  },
-  {
-    id: "insights",
-    label: "Insights",
-    glyph: "N",
-    sections: [
-      { items: ["Frontend", "Backend", "Mobile"] },
-      { title: "AI", items: ["Agents", "MCP"] },
-      { items: ["Crons", "Uptime"] },
-    ],
   },
   {
     id: "monitors",

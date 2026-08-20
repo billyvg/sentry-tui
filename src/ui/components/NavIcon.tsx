@@ -10,7 +10,6 @@ const ICON_BASE: Record<NavGroupId, string> = {
   issues: "issues",
   explore: "compass",
   dashboards: "dashboard",
-  insights: "insights",
   monitors: "monitors",
   settings: "settings",
 };
