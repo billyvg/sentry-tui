@@ -186,7 +186,7 @@ describe("IssueRow", () => {
       expect(rows[0]).not.toContain("Cannot read properties");
 
       // Line two: level bar then the exception value.
-      expect(rows[1]).toContain("│");
+      expect(rows[1]).toContain("┃");
       expect(rows[1]).toContain("Cannot read properties of undefined");
 
       // Line three: short id, project, and the rest of the meta row.

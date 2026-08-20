@@ -213,21 +213,21 @@ export function IssueRow({
 
         {/* Line 2 — level bar and the exception value, as `EventMessage` does. */}
         <box style={{ flexDirection: "row" }}>
-          <text>{"  "}</text>
-          <text fg={theme.level[group.level] ?? theme.level.unknown}>│</text>
+          <text>{"   "}</text>
+          <text fg={theme.level[group.level] ?? theme.level.unknown}>┃</text>
           <text> </text>
           <Placeholder
             text={message}
             fallback="(no error message)"
-            width={Math.max(0, layout.content - 4)}
+            width={Math.max(0, layout.content - 5)}
             fg={theme.muted}
           />
         </box>
 
         {/* Line 3 — the dense divider-separated meta row from `groupMetaRow.tsx`. */}
         <box style={{ flexDirection: "row" }}>
-          <text>{"    "}</text>
-          <text fg={theme.muted}>{metaLine(group, Math.max(0, layout.content - 4), message)}</text>
+          <text>{"     "}</text>
+          <text fg={theme.muted}>{metaLine(group, Math.max(0, layout.content - 5), message)}</text>
         </box>
       </box>
 
@@ -331,12 +331,12 @@ export function IssueRowSkeleton({ width, seed }: { width: number; seed: number 
         ))}
       </box>
       <box style={{ flexDirection: "row" }}>
-        <text>{"  "}</text>
-        <text fg={theme.border}>│</text>
+        <text>{"   "}</text>
+        <text fg={theme.border}>┃</text>
         <text fg={theme.panelAlt}>{` ${"─".repeat(messageBar)}`}</text>
       </box>
       <box style={{ flexDirection: "row" }}>
-        <text>{"    "}</text>
+        <text>{"     "}</text>
         <text fg={theme.panelAlt}>{"─".repeat(metaBar)}</text>
       </box>
     </box>
