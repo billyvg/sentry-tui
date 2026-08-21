@@ -86,6 +86,30 @@ async function renderApp(client: SentryClient, width = WIDTH, height = HEIGHT) {
   return renderHarness(<App onQuit={() => {}} client={client} org="acme" />, { width, height });
 }
 
+/** Screen ids for the Explore tables these tests mount onto directly. */
+const EXPLORE_SCREEN = {
+  Traces: "explore.traces",
+  Metrics: "explore.metrics",
+  Errors: "explore.errors",
+  Discover: "explore.discover",
+} as const;
+
+/**
+ * Mount straight onto an Explore table, skipping the rail walk — a render
+ * pass per keystroke, for a route the routing test below already covers.
+ */
+async function renderTable(
+  client: SentryClient,
+  item: keyof typeof EXPLORE_SCREEN,
+  width = WIDTH,
+  height = HEIGHT,
+) {
+  return renderHarness(
+    <App onQuit={() => {}} client={client} org="acme" initialScreen={EXPLORE_SCREEN[item]} />,
+    { width, height },
+  );
+}
+
 /** Walk the nav rail to Explore and select `item` from the sidebar. */
 async function navigateTo(h: Awaited<ReturnType<typeof renderHarness>>, item: string) {
   await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
@@ -354,9 +378,8 @@ describe("Explore › Traces", () => {
   });
 
   test("draws durations as proportional bars scaled to the slowest span", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Traces");
     try {
-      await navigateTo(h, "Traces");
       await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
 
       const frame = h.frame();
@@ -372,9 +395,8 @@ describe("Explore › Traces", () => {
   });
 
   test("the chart above the table plots the spans aggregate", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Traces");
     try {
-      await navigateTo(h, "Traces");
       await h.waitForFrame((f) => f.includes("count(span.duration)"));
       expect(h.frame()).toMatch(/[▁▂▃▄▅▆▇█]/);
     } finally {
@@ -411,9 +433,8 @@ describe("Explore › Traces", () => {
   });
 
   test("the status bar counts the rows", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Traces");
     try {
-      await navigateTo(h, "Traces");
       await h.waitForFrame((f) => f.includes("6 spans"));
       expect(h.frame()).toContain("6 spans");
     } finally {
@@ -422,9 +443,8 @@ describe("Explore › Traces", () => {
   });
 
   test("j and k move the cursor without losing rows", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Traces");
     try {
-      await navigateTo(h, "Traces");
       await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
 
       await h.press((i) => i.pressKey("j"));
@@ -445,9 +465,8 @@ describe("Explore › Traces", () => {
 
 describe("the field panel", () => {
   test("Enter opens every requested field, including the shed ones", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Traces");
     try {
-      await navigateTo(h, "Traces");
       await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
       expect(h.frame()).not.toContain("Row Details");
 
@@ -465,9 +484,8 @@ describe("the field panel", () => {
   });
 
   test("the panel follows the cursor while it is open", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Traces");
     try {
-      await navigateTo(h, "Traces");
       await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
 
       await h.press((i) => i.pressEnter());
@@ -483,9 +501,8 @@ describe("the field panel", () => {
   });
 
   test("Enter again and Escape both close it, without popping the screen", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Traces");
     try {
-      await navigateTo(h, "Traces");
       await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
 
       await h.press((i) => i.pressEnter());
@@ -509,9 +526,8 @@ describe("the field panel", () => {
 
 describe("Explore › Metrics", () => {
   test("renders metric samples with their units", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Metrics");
     try {
-      await navigateTo(h, "Metrics");
       await h.waitForFrame((f) => f.includes("checkout.latency"));
 
       const frame = h.frame();
@@ -553,9 +569,8 @@ describe("Explore › Metrics", () => {
 
 describe("Explore › Errors", () => {
   test("renders individual events, not grouped issues", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Errors");
     try {
-      await navigateTo(h, "Errors");
       await h.waitForFrame((f) => f.includes("TypeError"));
 
       const frame = h.frame();
@@ -573,9 +588,8 @@ describe("Explore › Errors", () => {
   });
 
   test("the status bar counts events, not issues", async () => {
-    const h = await renderApp(stubClient());
+    const h = await renderTable(stubClient(), "Errors");
     try {
-      await navigateTo(h, "Errors");
       await h.waitForFrame((f) => f.includes("3 events"));
       expect(h.frame()).toContain("3 events");
     } finally {
@@ -700,9 +714,8 @@ describe("sibling isolation", () => {
   test.skipIf(Boolean(process.env.CI))(
     "a sibling screen never shows the previous one's rows or chart",
     async () => {
-      const h = await renderApp(slowMetricsClient());
+      const h = await renderTable(slowMetricsClient(), "Traces");
       try {
-        await navigateTo(h, "Traces");
         await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
         expect(h.frame()).toContain("count(span.duration)");
 
@@ -743,9 +756,8 @@ describe("narrow terminals", () => {
   // 90 columns unless it is given a width — the fix came from
   // `feat/releases-profiles` verbatim, and this is the caller-side half.
   test.each([80, 100])("the filter row stays one line at %i columns", async (width) => {
-    const h = await renderApp(stubClient(), width, 32);
+    const h = await renderTable(stubClient(), "Traces", width, 32);
     try {
-      await navigateTo(h, "Traces");
       await h.waitForFrame((f) => f.includes("all projects"));
 
       const lines = h.frame().split("\n");
@@ -778,9 +790,8 @@ describe("narrow terminals", () => {
   });
 
   test("the flex column keeps a readable width at 100 columns", async () => {
-    const h = await renderApp(stubClient(), 100, 32);
+    const h = await renderTable(stubClient(), "Traces", 100, 32);
     try {
-      await navigateTo(h, "Traces");
       await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
       // Enough of the description survives to identify the span, rather than
       // the eight cells the default flex floor would have left.

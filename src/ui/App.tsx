@@ -9,7 +9,7 @@ import { matchesCommand } from "~/core/commands";
 import { buildGotoHotkeys } from "~/core/goto";
 import { getNavGroup, NAV_GROUPS, soleNavItem, type NavGroupId } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
-import { findScreen, stateKeyOf } from "~/core/screens";
+import { findScreen, getScreen, stateKeyOf, type ScreenId } from "~/core/screens";
 import { theme } from "~/core/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
 import { CommandPalette } from "~/ui/components/CommandPalette";
@@ -41,9 +41,24 @@ export interface AppProps {
   onQuit: () => void;
   client?: SentryClient | null;
   org?: string;
+  /**
+   * Screen to open on, instead of Issues › Feed.
+   *
+   * Tests use this to start on the screen under test. Walking the rail costs a
+   * render pass per keystroke, and at ~29ms each that dwarfed the assertions.
+   */
+  initialScreen?: ScreenId;
 }
 
-export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
+/** Issues › Feed — where the app opens when nothing says otherwise. */
+const DEFAULT_SCREEN: ScreenId = "issues.feed";
+
+export function App({
+  onQuit,
+  client = null,
+  org: initialOrg = "",
+  initialScreen = DEFAULT_SCREEN,
+}: AppProps) {
   const { width, height } = useTerminalDimensions();
 
   // The open organization. Sourced from the CLI at startup, then owned here so
@@ -52,15 +67,17 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const [org, setOrg] = useState(initialOrg);
 
   // Rail cursor: which group is highlighted on the nav rail.
-  const [railGroup, setRailGroup] = useState<NavGroupId>("issues");
+  const initial = getScreen(initialScreen);
 
-  // Active selection: what the content pane renders. Default: Issues › Feed.
-  const [activeGroup, setActiveGroup] = useState<NavGroupId>("issues");
-  const [activeItem, setActiveItem] = useState("Feed");
+  const [railGroup, setRailGroup] = useState<NavGroupId>(initial.group);
+
+  // Active selection: what the content pane renders.
+  const [activeGroup, setActiveGroup] = useState<NavGroupId>(initial.group);
+  const [activeItem, setActiveItem] = useState(initial.item);
 
   // Secondary nav: visible only after pressing Enter on the rail.
   const [showSecondary, setShowSecondary] = useState(false);
-  const [secondaryItem, setSecondaryItem] = useState("Feed");
+  const [secondaryItem, setSecondaryItem] = useState(initial.item);
 
   // Goto mode: both nav panes on screen with a key printed on every
   // destination, so a jump anywhere is two keystrokes and no cursor work.

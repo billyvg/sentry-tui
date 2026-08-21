@@ -78,11 +78,23 @@ async function navigateToExplore(h: Awaited<ReturnType<typeof renderHarness>>, s
 }
 
 const ALL_QUERIES_STEPS = 9;
-const DISCOVER_STEPS = 4;
 
 async function openAllQueries(h: Awaited<ReturnType<typeof renderHarness>>) {
   await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
   await navigateToExplore(h, ALL_QUERIES_STEPS);
+}
+
+/**
+ * Mount straight onto an Explore saved-query screen.
+ *
+ * Reaching All Queries by keyboard is twelve presses, each a render pass; the
+ * routing test below still walks it, everything else starts there.
+ */
+async function renderAt(client: SentryClient, screen: "explore.all-queries" | "explore.discover") {
+  return renderHarness(
+    <App onQuit={() => {}} client={client} org="acme" initialScreen={screen} />,
+    { width: WIDTH, height: HEIGHT },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -202,9 +214,8 @@ test("All Queries lists the org's saved queries", async () => {
 });
 
 test("All Queries says the surface may be disabled rather than 'no results'", async () => {
-  const h = await renderApp(stubClient({ explore: [] }).client);
+  const h = await renderAt(stubClient({ explore: [] }).client, "explore.all-queries");
   try {
-    await openAllQueries(h);
     await h.waitForFrame((f) => f.includes("No saved queries found"));
 
     expect(h.frame()).toContain("may not have Explore saved queries enabled");
@@ -214,9 +225,8 @@ test("All Queries says the surface may be disabled rather than 'no results'", as
 });
 
 test("a failed saved-query fetch shows an error rather than an empty table", async () => {
-  const h = await renderApp(stubClient({ failSaved: true }).client);
+  const h = await renderAt(stubClient({ failSaved: true }).client, "explore.all-queries");
   try {
-    await openAllQueries(h);
     await h.waitForFrame((f) => f.includes("Failed to load saved queries"));
 
     expect(h.frame()).toContain("Failed to load saved queries");
@@ -227,9 +237,8 @@ test("a failed saved-query fetch shows an error rather than an empty table", asy
 
 test("Enter runs the saved query and shows its own columns", async () => {
   const { client, urls } = stubClient();
-  const h = await renderApp(client);
+  const h = await renderAt(client, "explore.all-queries");
   try {
-    await openAllQueries(h);
     await h.waitForFrame((f) => f.includes("Slow checkout spans"));
 
     await h.press((i) => i.pressEnter());
@@ -260,9 +269,8 @@ test("Enter runs the saved query and shows its own columns", async () => {
 });
 
 test("Escape returns from a query's results to the list", async () => {
-  const h = await renderApp(stubClient().client);
+  const h = await renderAt(stubClient().client, "explore.all-queries");
   try {
-    await openAllQueries(h);
     await h.waitForFrame((f) => f.includes("Slow checkout spans"));
 
     await h.press((i) => i.pressEnter());
@@ -281,10 +289,8 @@ test("Escape returns from a query's results to the list", async () => {
 // ---------------------------------------------------------------------------
 
 test("Discover lists the legacy saved queries under its own column headings", async () => {
-  const h = await renderApp(stubClient().client);
+  const h = await renderAt(stubClient().client, "explore.discover");
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToExplore(h, DISCOVER_STEPS);
     await h.waitForFrame((f) => f.includes("Unhandled by release"));
 
     const frame = h.frame();
@@ -300,10 +306,8 @@ test("Discover lists the legacy saved queries under its own column headings", as
 });
 
 test("Discover's empty state names Discover, not saved queries in general", async () => {
-  const h = await renderApp(stubClient({ discover: [] }).client);
+  const h = await renderAt(stubClient({ discover: [] }).client, "explore.discover");
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToExplore(h, DISCOVER_STEPS);
     await h.waitForFrame((f) => f.includes("No saved queries found"));
 
     expect(h.frame()).toContain("may not have Discover enabled");

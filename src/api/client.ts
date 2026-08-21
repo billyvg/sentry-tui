@@ -3,6 +3,8 @@ import type { AuthProvider } from "~/api/auth";
 export const DEFAULT_BASE_URL = "https://sentry.io/api/0";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RETRIES = 3;
+/** First backoff step; each further attempt doubles it. */
+const DEFAULT_RETRY_BASE_MS = 1000;
 
 export class ApiError extends Error {
   readonly status: number;
@@ -122,6 +124,14 @@ export interface SentryClientOptions {
   latencyMs?: number;
   /** Retry attempts for transient failures. Set to 0 to fail fast. */
   maxRetries?: number;
+  /**
+   * Base for the exponential backoff between retries, in milliseconds.
+   *
+   * Tests set this low: the real 1s/2s waits are the behaviour under test only
+   * in the sense that we back off at all, and sleeping through them cost more
+   * than the rest of the API suite combined.
+   */
+  retryBaseMs?: number;
   fetchImpl?: typeof fetch;
 }
 
@@ -130,6 +140,7 @@ export class SentryClient {
   private readonly baseUrl: string;
   private readonly latencyMs: number;
   private readonly maxRetries: number;
+  private readonly retryBaseMs: number;
   private readonly fetchImpl: typeof fetch;
 
   /** Most recent rate-limit headers, for the status bar. */
@@ -140,6 +151,7 @@ export class SentryClient {
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
     this.latencyMs = options.latencyMs ?? Number(process.env["SENTRY_TUI_LATENCY"] ?? 0);
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.retryBaseMs = options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -173,7 +185,7 @@ export class SentryClient {
         const backoff =
           error.retryAfterSeconds !== undefined
             ? error.retryAfterSeconds * 1000
-            : 2 ** attempt * 1000;
+            : 2 ** attempt * this.retryBaseMs;
         await sleep(backoff);
       }
     }

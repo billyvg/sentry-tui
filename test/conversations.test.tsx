@@ -58,6 +58,32 @@ async function renderApp(client: SentryClient, width = 140, height = 32) {
   return renderHarness(<App onQuit={() => {}} client={client} org="acme" />, { width, height });
 }
 
+/**
+ * Mount straight onto Conversations. The rail walk is covered by the routing
+ * test; repeating it per test cost a render pass per keystroke.
+ */
+async function renderConversations(client: SentryClient, width = 140, height = 32) {
+  return renderHarness(
+    <App onQuit={() => {}} client={client} org="acme" initialScreen="explore.conversations" />,
+    { width, height },
+  );
+}
+
+test("navigating to Explore > Conversations shows the table", async () => {
+  // The one test that really walks the rail: every other test mounts straight
+  // onto the screen, so this is what keeps the route itself covered.
+  const h = await renderApp(stubClient().client);
+  try {
+    await navigateToConversations(h);
+    // The walk leaves less settle time than a direct mount, so give the
+    // fetch room to land before asserting.
+    await h.waitForFrame((f) => f.includes("3 conversations"), { maxPasses: 100 });
+    expect(h.frame()).toContain("Payment declined due to insufficient funds");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 // ---------------------------------------------------------------------------
 // It is not a Discover table
 // ---------------------------------------------------------------------------
@@ -160,9 +186,8 @@ describe("display helpers", () => {
 
 describe("Explore › Conversations", () => {
   test("renders one row per conversation, with the web's columns", async () => {
-    const h = await renderApp(stubClient().client);
+    const h = await renderConversations(stubClient().client);
     try {
-      await navigateToConversations(h);
       await h.waitForFrame((f) => f.includes("Payment declined"));
 
       const frame = h.frame();
@@ -180,9 +205,8 @@ describe("Explore › Conversations", () => {
   });
 
   test("a missing title falls back to the first message, then to a placeholder", async () => {
-    const h = await renderApp(stubClient().client);
+    const h = await renderConversations(stubClient().client);
     try {
-      await navigateToConversations(h);
       await h.waitForFrame((f) => f.includes("Payment declined"));
 
       const frame = h.frame();
@@ -194,9 +218,8 @@ describe("Explore › Conversations", () => {
   });
 
   test("the second line identifies the conversation, project and user", async () => {
-    const h = await renderApp(stubClient().client);
+    const h = await renderConversations(stubClient().client);
     try {
-      await navigateToConversations(h);
       await h.waitForFrame((f) => f.includes("Payment declined"));
 
       const frame = h.frame();
@@ -209,9 +232,8 @@ describe("Explore › Conversations", () => {
   });
 
   test("errors are called out and a clean conversation is not", async () => {
-    const h = await renderApp(stubClient().client);
+    const h = await renderConversations(stubClient().client);
     try {
-      await navigateToConversations(h);
       await h.waitForFrame((f) => f.includes("Payment declined"));
       // The middle fixture had three errors; the others had none, which reads
       // as a dot rather than a zero.
@@ -224,9 +246,8 @@ describe("Explore › Conversations", () => {
 
   test("the chart counts conversations, over spans", async () => {
     const { client, calls } = stubClient();
-    const h = await renderApp(client);
+    const h = await renderConversations(client);
     try {
-      await navigateToConversations(h);
       await h.waitForFrame((f) => f.includes("count_unique(gen_ai.conversation.id)"));
 
       const chart = calls.find((url) => url.includes("/events-stats/"))!;
@@ -238,9 +259,8 @@ describe("Explore › Conversations", () => {
   });
 
   test("enter opens the prompt and the reply, escape closes them", async () => {
-    const h = await renderApp(stubClient().client);
+    const h = await renderConversations(stubClient().client);
     try {
-      await navigateToConversations(h);
       await h.waitForFrame((f) => f.includes("Payment declined"));
 
       await h.press((i) => i.pressEnter());
@@ -260,9 +280,8 @@ describe("Explore › Conversations", () => {
   });
 
   test("an untitled conversation does not print its first message twice", async () => {
-    const h = await renderApp(stubClient().client);
+    const h = await renderConversations(stubClient().client);
     try {
-      await navigateToConversations(h);
       await h.waitForFrame((f) => f.includes("Payment declined"));
 
       // Second row: no generated title, so the heading is the first message
@@ -283,9 +302,8 @@ describe("Explore › Conversations", () => {
   });
 
   test("an org without the feature gets an honest empty state", async () => {
-    const h = await renderApp(stubClient([]).client);
+    const h = await renderConversations(stubClient([]).client);
     try {
-      await navigateToConversations(h);
       await h.waitForFrame((f) => f.includes("No conversations found"));
 
       const frame = h.frame();
@@ -298,9 +316,8 @@ describe("Explore › Conversations", () => {
   });
 
   test.each([80, 100, 140])("nothing wraps or overflows at %i columns", async (width) => {
-    const h = await renderApp(stubClient().client, width, 32);
+    const h = await renderConversations(stubClient().client, width, 32);
     try {
-      await navigateToConversations(h);
       await h.waitForFrame((f) => f.includes("Payment declined"));
       for (const line of h.frame().split("\n")) {
         expect(line.length).toBeLessThanOrEqual(width);

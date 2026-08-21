@@ -53,20 +53,15 @@ function stubClient({
   return new SentryClient({ auth, fetchImpl });
 }
 
-/** Explore › Replays is the seventh item in the Explore secondary nav. */
-async function navigateToReplays(h: Awaited<ReturnType<typeof renderHarness>>) {
-  await h.press((i) => i.pressTab());
-  await h.press((i) => i.pressKey("j"));
-  await h.press((i) => i.pressEnter());
-  for (let step = 0; step < 6; step++) await h.press((i) => i.pressKey("j"));
-  await h.press((i) => i.pressEnter());
-}
-
+/**
+ * Replays is where these tests start, so they mount there rather than walking
+ * the rail: those ten keystrokes cost more than everything they assert.
+ */
 async function renderApp(client: SentryClient | null = stubClient(), width = WIDTH) {
-  return renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
-    width,
-    height: HEIGHT,
-  });
+  return renderHarness(
+    <App onQuit={() => {}} client={client} org="acme" initialScreen="explore.replays" />,
+    { width, height: HEIGHT },
+  );
 }
 
 /**
@@ -95,8 +90,9 @@ function printedUrl(frame: string): string {
 /** Open the app on Replays with the first page loaded. */
 async function openReplays(client?: SentryClient, width?: number) {
   const h = await renderApp(client, width);
-  await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-  await navigateToReplays(h);
+  // Settle the replay fetch; a gated stub stays on the skeleton, which is the
+  // point of those tests, so the header is the shared signal.
+  await h.waitForFrame((f) => f.includes("Search replays"));
   return h;
 }
 
@@ -105,8 +101,20 @@ async function openReplays(client?: SentryClient, width?: number) {
 // ---------------------------------------------------------------------------
 
 test("navigating to Explore > Replays shows the replay table", async () => {
-  const h = await openReplays();
+  // The one test that really walks the rail: everything else mounts straight
+  // onto the screen, so this is what keeps the route itself covered.
+  const h = await renderHarness(<App onQuit={() => {}} client={stubClient()} org="acme" />, {
+    width: WIDTH,
+    height: HEIGHT,
+  });
   try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await h.press((i) => i.pressTab());
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    for (let step = 0; step < 6; step++) await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+
     await h.waitForFrame((f) => f.includes("Alice Nguyen"));
     const frame = h.frame();
     expect(frame).toContain("Search replays");

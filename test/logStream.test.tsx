@@ -72,6 +72,19 @@ async function renderApp(client: SentryClient | null = stubClient()) {
   });
 }
 
+/**
+ * Mount straight onto the log stream.
+ *
+ * Walking the rail costs a render pass per keystroke; only the routing test
+ * below does it, and the rest start where they mean to test.
+ */
+async function renderLogs(client: SentryClient | null = stubClient()) {
+  return renderHarness(
+    <App onQuit={() => {}} client={client} org="acme" initialScreen="explore.logs" />,
+    { width: WIDTH, height: HEIGHT },
+  );
+}
+
 test("navigating to Explore > Logs shows the log stream", async () => {
   const h = await renderApp();
   try {
@@ -93,11 +106,8 @@ test("navigating to Explore > Logs shows the log stream", async () => {
 });
 
 test("log entries are rendered with severity and message", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
-
     await h.waitForFrame((f) => f.includes("card declined"));
     const frame = h.frame();
     expect(frame).toContain("card declined");
@@ -109,11 +119,8 @@ test("log entries are rendered with severity and message", async () => {
 });
 
 test("j and k navigate log entries", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
-
     await h.waitForFrame((f) => f.includes("card declined"));
 
     // Focus is already on content after selecting from secondary nav.
@@ -130,10 +137,8 @@ test("j and k navigate log entries", async () => {
 });
 
 test("the log list scrolls to follow the cursor past the bottom of the viewport", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
     await h.waitForFrame((f) => f.includes("card declined"));
 
     // 20 fixture rows against a pane shortened by the volume chart, so the
@@ -153,11 +158,8 @@ test("the log list scrolls to follow the cursor past the bottom of the viewport"
 });
 
 test("status bar shows log count after loading", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
-
     await h.waitForFrame((f) => f.includes("20 logs"));
     expect(h.frame()).toContain("20 logs");
   } finally {
@@ -166,11 +168,8 @@ test("status bar shows log count after loading", async () => {
 });
 
 test("log stream shows empty state when no logs match", async () => {
-  const h = await renderApp(stubClient([]));
+  const h = await renderLogs(stubClient([]));
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
-
     await h.waitForFrame((f) => f.includes("No logs found"));
     expect(h.frame()).toContain("No logs found");
   } finally {
@@ -179,11 +178,8 @@ test("log stream shows empty state when no logs match", async () => {
 });
 
 test("log stream shows severity colors", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
-
     await h.waitForFrame((f) => f.includes("card declined"));
     const frame = h.frame();
     // Multiple severity levels should be visible.
@@ -196,11 +192,8 @@ test("log stream shows severity colors", async () => {
 });
 
 test("G and g jump to bottom and top of log list", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
-
     await h.waitForFrame((f) => f.includes("card declined"));
 
     // Jump to bottom.
@@ -217,11 +210,8 @@ test("G and g jump to bottom and top of log list", async () => {
 });
 
 test("log volume bar chart is rendered above the log list", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
-
     // The chart header "count(logs)" should appear.
     await h.waitForFrame((f) => f.includes("count(logs)"));
     const frame = h.frame();
@@ -236,11 +226,8 @@ test("log volume bar chart is rendered above the log list", async () => {
 });
 
 test("bar chart is hidden when timeseries data is empty", async () => {
-  const h = await renderApp(stubClient(rawLogRowsFixture, []));
+  const h = await renderLogs(stubClient(rawLogRowsFixture, []));
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
-
     // Logs should appear without the chart.
     await h.waitForFrame((f) => f.includes("card declined"));
     const frame = h.frame();
@@ -256,11 +243,8 @@ test("bar chart is hidden when timeseries data is empty", async () => {
 // ---------------------------------------------------------------------------
 
 test("log stream shows the search bar with placeholder", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
-
     await h.waitForFrame((f) => f.includes("Search logs"));
     const frame = h.frame();
     expect(frame).toContain("Search logs");
@@ -272,10 +256,8 @@ test("log stream shows the search bar with placeholder", async () => {
 });
 
 test("/ focuses the log search bar and shows submit/cancel hints", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
     await h.waitForFrame((f) => f.includes("card declined"));
 
     // Press / to focus the search bar.
@@ -290,10 +272,8 @@ test("/ focuses the log search bar and shows submit/cancel hints", async () => {
 });
 
 test("Escape reverts log search to the empty query", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
     await h.waitForFrame((f) => f.includes("card declined"));
 
     // Focus search and type something.
@@ -317,10 +297,8 @@ test("Escape reverts log search to the empty query", async () => {
 // ---------------------------------------------------------------------------
 
 test("log stream shows filter chips for project, env, and period", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
     await h.waitForFrame((f) => f.includes("card declined"));
 
     const frame = h.frame();
@@ -333,10 +311,8 @@ test("log stream shows filter chips for project, env, and period", async () => {
 });
 
 test("D opens the date range selector on the logs view", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
     await h.waitForFrame((f) => f.includes("card declined"));
 
     // Press D to open the date dropdown.
@@ -353,10 +329,8 @@ test("D opens the date range selector on the logs view", async () => {
 });
 
 test("enter opens a detail panel for the selected log", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
     await h.waitForFrame((f) => f.includes("card declined"));
 
     expect(h.frame()).not.toContain("Log Details");
@@ -375,10 +349,8 @@ test("enter opens a detail panel for the selected log", async () => {
 });
 
 test("the detail panel follows the cursor while it is open", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
     await h.waitForFrame((f) => f.includes("card declined"));
 
     await h.press((i) => i.pressEnter());
@@ -398,10 +370,8 @@ test("the detail panel follows the cursor while it is open", async () => {
 });
 
 test("enter again and escape both close the detail panel", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
     await h.waitForFrame((f) => f.includes("card declined"));
 
     await h.press((i) => i.pressEnter());
@@ -425,10 +395,8 @@ test("enter again and escape both close the detail panel", async () => {
 });
 
 test("the status bar names what enter will do to the detail panel", async () => {
-  const h = await renderApp();
+  const h = await renderLogs();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await navigateToLogs(h);
     await h.waitForFrame((f) => f.includes("card declined"));
 
     expect(h.frame()).toContain("details");

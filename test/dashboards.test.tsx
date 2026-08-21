@@ -83,6 +83,20 @@ async function navigateToSentryBuilt(h: Awaited<ReturnType<typeof renderHarness>
   await h.press((i) => i.pressEnter());
 }
 
+/**
+ * Mount straight onto a Dashboards screen, skipping the rail walk — a render
+ * pass per keystroke, for a route the two routing tests already cover.
+ */
+async function renderDashboards(
+  client: SentryClient | null = stubClient(),
+  screen: "dashboards.all" | "dashboards.sentry-built" = "dashboards.all",
+) {
+  return renderHarness(
+    <App onQuit={() => {}} client={client} org="acme" initialScreen={screen} />,
+    { width: WIDTH, height: HEIGHT },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // All Dashboards
 // ---------------------------------------------------------------------------
@@ -111,9 +125,8 @@ test("All Dashboards lists the org's dashboards with the web's columns", async (
 });
 
 test("the row shows widget count, owner, and access", async () => {
-  const h = await renderApp();
+  const h = await renderDashboards();
   try {
-    await navigateToDashboards(h);
     await h.waitForFrame((f) => f.includes("Checkout Health"));
 
     const frame = h.frame();
@@ -130,9 +143,8 @@ test("the row shows widget count, owner, and access", async () => {
 });
 
 test("the star column shows starred state and nothing can change it", async () => {
-  const h = await renderApp();
+  const h = await renderDashboards();
   try {
-    await navigateToDashboards(h);
     await h.waitForFrame((f) => f.includes("Checkout Health"));
 
     // One starred fixture, two unstarred.
@@ -150,9 +162,8 @@ test("the star column shows starred state and nothing can change it", async () =
 });
 
 test("j and k move the cursor through the dashboards", async () => {
-  const h = await renderApp();
+  const h = await renderDashboards();
   try {
-    await navigateToDashboards(h);
     await h.waitForFrame((f) => f.includes("Checkout Health"));
 
     await h.press((i) => i.pressKey("j"));
@@ -167,9 +178,8 @@ test("j and k move the cursor through the dashboards", async () => {
 });
 
 test("an empty list says the org may not have the feature rather than 'no results'", async () => {
-  const h = await renderApp(stubClient({ dashboards: [] }));
+  const h = await renderDashboards(stubClient({ dashboards: [] }));
   try {
-    await navigateToDashboards(h);
     await h.waitForFrame((f) => f.includes("No dashboards found"));
     expect(h.frame()).toContain("may not have dashboards enabled");
   } finally {
@@ -178,9 +188,8 @@ test("an empty list says the org may not have the feature rather than 'no result
 });
 
 test("a failed list request shows the error state", async () => {
-  const h = await renderApp(stubClient({ listStatus: 500 }));
+  const h = await renderDashboards(stubClient({ listStatus: 500 }));
   try {
-    await navigateToDashboards(h);
     await h.waitForFrame((f) => f.includes("Failed to load dashboards"));
     expect(h.frame()).toContain("Failed to load dashboards");
   } finally {
@@ -214,9 +223,8 @@ test("Sentry Built asks the endpoint for prebuilt dashboards and shows descripti
 });
 
 test("an empty Sentry Built list blames the missing feature, not the data", async () => {
-  const h = await renderApp(stubClient({ prebuilt: [] }));
+  const h = await renderDashboards(stubClient({ prebuilt: [] }), "dashboards.sentry-built");
   try {
-    await navigateToSentryBuilt(h);
     await h.waitForFrame((f) => f.includes("No Sentry Built dashboards"));
     expect(h.frame()).toContain("may not have prebuilt dashboards enabled");
   } finally {
@@ -235,9 +243,8 @@ test("the skeleton holds the table's geometry while the list is in flight", asyn
     }) as unknown as typeof fetch,
   });
 
-  const h = await renderApp(pending);
+  const h = await renderDashboards(pending);
   try {
-    await navigateToDashboards(h);
     await h.waitForFrame((f) => f.includes("Last Visited"));
 
     const frame = h.frame();
@@ -266,9 +273,8 @@ test("the skeleton holds the table's geometry while the list is in flight", asyn
  */
 for (const key of ["P", "E", "D"]) {
   test(`${key} is a no-op on the dashboards list, not a keyboard lock`, async () => {
-    const h = await renderApp();
+    const h = await renderDashboards();
     try {
-      await navigateToDashboards(h);
       await h.waitForFrame((f) => f.includes("Checkout Health"));
 
       await h.press((i) => i.pressKey(key, { shift: true }));

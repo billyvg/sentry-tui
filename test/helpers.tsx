@@ -35,7 +35,19 @@ export interface Harness extends TestRendererSetup {
   cleanup: () => Promise<void>;
 }
 
-const ESCAPE_DISAMBIGUATION_MS = 100;
+/**
+ * How long to hold a bare ESC so the parser can rule out an escape sequence.
+ *
+ * Measured: the parser needs somewhere between 10ms and 20ms, so this keeps a
+ * 2.5x margin. It was 100ms, which across the suite was ~3s of pure sleeping.
+ * A longer wait is always safe (the risk is waiting too little), so err up
+ * rather than down if this ever gets flaky.
+ *
+ * Zero wait is possible under the kitty keyboard protocol, where ESC is
+ * unambiguous — but that would parse keys differently from how the app is
+ * actually driven, so it is deliberately not used here.
+ */
+const ESCAPE_DISAMBIGUATION_MS = 40;
 
 export async function renderHarness(
   node: ReactNode,
