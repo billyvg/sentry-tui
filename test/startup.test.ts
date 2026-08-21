@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 
 import { HELP_TEXT, parseArgs } from "~/app/startup";
+import { APP_VERSION, VERSION_LABEL } from "~/lib/version";
 
 describe("parseArgs", () => {
   test("defaults to running the TUI", () => {
@@ -91,5 +93,29 @@ describe("help text", () => {
     expect(HELP_TEXT).toContain("sentry-tui login");
     expect(HELP_TEXT).toContain("sentry-tui logout");
     expect(HELP_TEXT).toContain("sentry-tui status");
+  });
+});
+
+describe("--version output", () => {
+  // Built from APP_VERSION rather than VERSION_LABEL, so the `v` prefix is
+  // pinned too. The label is shared with the palette footer, whose hint is fit
+  // to the width the version leaves over — shaving that `v` for a cell would
+  // otherwise quietly rewrite what the CLI prints.
+  test("the label carries a v prefix", () => {
+    expect(VERSION_LABEL).toBe(`v${APP_VERSION}`);
+  });
+
+  // The one spawn in the suite. `main.tsx` is a top-level script with a
+  // `process.exit` in it, so its branch cannot be imported and called — and
+  // nothing else proves the flag reaches stdout at all.
+  test("prints the version and exits 0", () => {
+    const result = Bun.spawnSync(["bun", "run", "src/main.tsx", "--version"], {
+      cwd: join(import.meta.dir, ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(result.stdout.toString()).toBe(`sentry-tui v${APP_VERSION}\n`);
+    expect(result.exitCode).toBe(0);
   });
 });
