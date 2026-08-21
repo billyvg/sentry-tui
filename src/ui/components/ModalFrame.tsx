@@ -58,7 +58,14 @@ export function ModalFrame({
           borderColor: theme.accent,
           backgroundColor: theme.panel,
           flexDirection: "column",
-          padding: 1,
+          // No bottom padding: a footer line reads as part of the frame when it
+          // sits on the border, and as an orphaned row when a blank line floats
+          // it off. Children that want breathing room above themselves ask for
+          // it with `marginTop`.
+          paddingTop: 1,
+          paddingRight: 1,
+          paddingBottom: 0,
+          paddingLeft: 1,
         }}
         onMouseUp={(event) => event.stopPropagation()}
       >

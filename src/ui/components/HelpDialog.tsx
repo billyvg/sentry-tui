@@ -57,7 +57,9 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           );
         })}
       </scrollbox>
-      <text fg={theme.muted}>esc to close</text>
+      <text fg={theme.muted} style={{ marginTop: 1 }}>
+        esc to close
+      </text>
     </ModalFrame>
   );
 }
