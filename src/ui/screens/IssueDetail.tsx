@@ -342,7 +342,8 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
       </box>
 
       {/* Actions: what you can *do*. Always pressable. */}
-      <box style={{ flexDirection: "row", width, paddingTop: 1 }}>
+      {/* No padding above: a chip's top sliver row is the gap. */}
+      <box style={{ flexDirection: "row", width }}>
         <text>{BODY_INDENT}</text>
         <ChipRow chips={headerActions(group)} />
       </box>

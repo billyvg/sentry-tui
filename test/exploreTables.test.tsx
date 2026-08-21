@@ -705,13 +705,15 @@ describe("narrow terminals", () => {
       // fragment per line down the pane. Read from the chip's own column so
       // the nav rail beside it doesn't count as content, and only as far as
       // the blank gap the row leaves under itself — past that is the chart.
+      // The chips' own sliver edge sits in that gap, so it is stripped along
+      // with the borders: it is the row, not something spilling out of it.
       const paneLeft = lines[chipRow]!.indexOf("▐");
       const spill = lines
         .slice(chipRow + 1, chipRow + 3)
         .map((line) =>
           line
             .slice(paneLeft)
-            .replace(/[│┌┐└┘╭╮╰╯─]/g, "")
+            .replace(/[│┌┐└┘╭╮╰╯─▁▔]/g, "")
             .trim(),
         )
         .filter(Boolean);

@@ -13,6 +13,21 @@ export interface Theme {
   panel: string;
   /** Secondary panel surface, for header/status chrome. */
   panelAlt: string;
+  /**
+   * The chip pill: its surface and the two rim tints that give it an edge.
+   *
+   * Its own group rather than a reuse of `panelAlt`, because a chip is the one
+   * thing in the app you can press and the surface now says so on its own —
+   * `panelAlt` stays what header and status chrome wear.
+   */
+  chip: {
+    /** The filled cell behind a chip's label. */
+    surface: string;
+    /** Top edge and both caps — the pill's lit side. */
+    rim: string;
+    /** The edge under the pill, a step down from `rim`. */
+    rimShadow: string;
+  };
   /** Row highlight for the selected item. */
   selected: string;
   border: string;
@@ -67,6 +82,17 @@ export const darkTheme: Theme = {
   bg: "#0D0A10", // neutral.dark.100
   panel: "#1B1821", // neutral.dark.300
   panelAlt: "#24202B", // neutral.dark.400
+  chip: {
+    // A hair short of `neutral.dark.500` (#2E2936), which is where this
+    // surface wants to be. At the true step the pink key hint lands at 4.49:1
+    // and the parens around it at 4.47:1 — both a rounding error below the
+    // 4.5:1 this palette holds every surface to, and a key you have to read
+    // before you press it is the last thing to let slip. This is the lightest
+    // value that clears it: 4.55:1 and 4.53:1, indistinguishable from 500.
+    surface: "#2D2835",
+    rim: "#46404F", // neutral.dark.700
+    rimShadow: "#393442", // neutral.dark.600
+  },
   // The web tints a selected row with a translucent overlay; a terminal cell
   // needs an opaque value, so this is `neutral.dark.transparent300`
   // (#D0B8F821) composited over `bg`. The nearest opaque step, #2E2936, is
