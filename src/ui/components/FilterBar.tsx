@@ -33,9 +33,6 @@ const DATE_OPTIONS: readonly DropdownItem[] = [
 
 export type FilterDropdownType = "project" | "env" | "date" | null;
 
-/** Blank rows rendered above and below the selector row to give it breathing room. */
-const ROW_GAP = 1;
-
 /** Chip order in the filter row, so a click and the open state agree. */
 const CHIP_ORDER = ["project", "env", "date"] as const satisfies ReadonlyArray<
   Exclude<FilterDropdownType, null>
@@ -162,9 +159,11 @@ export function FilterBar({
   const showSort =
     sortLabel.length > 0 &&
     (width === undefined || chipsWidth + CHIP_GAP + measureTextWidth(sortText) <= width);
-  // A dropdown hangs off the bottom edge of its chip, so it clears the gap
-  // above the row *and* the chip's own height, border included.
-  const dropdownTop = anchorTop + ROW_GAP + CHIP_HEIGHT;
+  // A dropdown hangs off the bottom edge of its chip. The chip's own height
+  // now covers the whole row, sliver edges included, so clearing it clears
+  // everything — an overlay pinned any higher would paint over the pill's
+  // bottom edge just as the chip it belongs to lights up.
+  const dropdownTop = anchorTop + CHIP_HEIGHT;
 
   const handleProjectSelect = useCallback(
     (values: string[]) => {
@@ -203,11 +202,13 @@ export function FilterBar({
       <box
         style={{
           flexDirection: "row",
+          // The sort label is one row and the chips are three; centering sits
+          // it on the row their text is on rather than up against the pills'
+          // top edges.
+          alignItems: "center",
           flexShrink: 0,
           height: CHIP_HEIGHT,
           overflow: "hidden",
-          marginTop: ROW_GAP,
-          marginBottom: ROW_GAP,
         }}
       >
         <ChipRow

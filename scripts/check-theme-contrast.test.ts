@@ -42,6 +42,10 @@ describe("theme contrast", () => {
     { name: "bg", color: theme.bg },
     { name: "panel", color: theme.panel },
     { name: "panelAlt", color: theme.panelAlt },
+    // A chip's own surface, one step up from `panelAlt`. Every chip prints a
+    // key hint and a label on it, so it is held to the same bar as the panels
+    // — the step it sits on was chosen by this test, not the other way round.
+    { name: "chip.surface", color: theme.chip.surface },
     // The selected row is a surface too: every row's text is read against it
     // whenever the cursor lands there.
     { name: "selected", color: theme.selected },
@@ -142,5 +146,22 @@ describe("theme contrast", () => {
   // signal — a terminal has no cursor change or hover state to fall back on.
   test("a control surface is distinguishable from the background it sits on", () => {
     expect(contrastRatio(theme.panelAlt, theme.bg)).toBeGreaterThanOrEqual(1.15);
+    expect(contrastRatio(theme.chip.surface, theme.bg)).toBeGreaterThanOrEqual(1.15);
+  });
+
+  // The rim is the whole reason a chip reads as a raised surface rather than a
+  // highlighted word. It is a sliver of a cell at top and bottom, so it has to
+  // separate from both the fill it edges and the page it sits on, or the
+  // frame just looks like the fill bleeding.
+  test("the chip rim separates from the fill it edges", () => {
+    expect(contrastRatio(theme.chip.rim, theme.chip.surface)).toBeGreaterThanOrEqual(1.3);
+    expect(contrastRatio(theme.chip.rim, theme.bg)).toBeGreaterThanOrEqual(1.5);
+  });
+
+  // The underside is dimmer than the top — light comes from above — but a
+  // shadow that matches the fill is no edge at all.
+  test("the chip's underside is dimmer than its top rim, and still an edge", () => {
+    expect(luminance(theme.chip.rimShadow)).toBeLessThan(luminance(theme.chip.rim));
+    expect(contrastRatio(theme.chip.rimShadow, theme.chip.surface)).toBeGreaterThanOrEqual(1.1);
   });
 });

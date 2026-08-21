@@ -300,18 +300,23 @@ test("the scrollbox viewport fills the pane, with the scrollbar beside it", asyn
   }
 });
 
-test("a chip's end caps are painted in its fill color, not as stray blocks", async () => {
+test("a chip's end caps are painted in its rim color, not as stray blocks", async () => {
   const h = await openFirstIssue();
   try {
     await h.waitForFrame((f) => f.includes("(r) resolve"));
 
     // The pill's rounded end is a half block whose *unfilled* half falls
-    // through to the page. That only works while the glyph carries the fill
-    // color — recolor it and the chips gain two loose blocks either side.
+    // through to the page. It carries the rim rather than the fill, which is
+    // what makes it the frame's left and right sides instead of a seam — but
+    // it must carry one of them, or the chips gain two loose blocks either
+    // side.
     const cap = h.spanContaining("▐");
     expect(cap).toBeDefined();
-    const channels = [1, 3, 5].map((i) => parseInt(theme.panelAlt.slice(i, i + 2), 16));
-    expect((["r", "g", "b"] as const).map((k) => Math.round(cap!.fg[k] * 255))).toEqual(channels);
+    const rendered = (["r", "g", "b"] as const).map((k) => Math.round(cap!.fg[k] * 255));
+    const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    expect(rendered).toEqual(channels(theme.chip.rim));
+    // The frame only exists while the two differ.
+    expect(theme.chip.rim).not.toBe(theme.chip.surface);
   } finally {
     await h.cleanup();
   }
