@@ -58,21 +58,22 @@ function stubClient({
   return new SentryClient({ auth, fetchImpl, maxRetries: 0 });
 }
 
+/**
+ * Mount straight onto All Dashboards.
+ *
+ * `dashboards.test.tsx` covers the rail walk to get here; repeating it in
+ * every test cost a render pass per keystroke for a route these tests are
+ * not about.
+ */
 async function renderApp(client: SentryClient = stubClient()) {
-  return renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
-    width: WIDTH,
-    height: HEIGHT,
-  });
+  return renderHarness(
+    <App onQuit={() => {}} client={client} org="acme" initialScreen="dashboards.all" />,
+    { width: WIDTH, height: HEIGHT },
+  );
 }
 
-/** Navigate to All Dashboards and open the first row. */
+/** Open the first dashboard row — the interaction these tests are about. */
 async function openDashboard(h: Awaited<ReturnType<typeof renderHarness>>) {
-  await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-  await h.press((i) => i.pressTab());
-  await h.press((i) => i.pressKey("j"));
-  await h.press((i) => i.pressKey("j"));
-  await h.press((i) => i.pressEnter());
-  await h.press((i) => i.pressEnter());
   await h.waitForFrame((f) => f.includes("Checkout Health"));
   await h.press((i) => i.pressEnter());
   await h.waitForFrame((f) => f.includes("Errors Today"));
@@ -278,12 +279,6 @@ test("a widget already fetched is not fetched again when the cursor returns", as
 test("escape pops back to the list with its cursor where it was left", async () => {
   const h = await renderApp();
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await h.press((i) => i.pressTab());
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressEnter());
-    await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Mobile Crash Rates"));
 
     // Move to the second row, open it, come back.
@@ -306,12 +301,6 @@ test("escape pops back to the list with its cursor where it was left", async () 
 test("a failed dashboard request shows the error rather than an empty grid", async () => {
   const h = await renderApp(stubClient({ detailStatus: 500 }));
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await h.press((i) => i.pressTab());
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressEnter());
-    await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Checkout Health"));
     await h.press((i) => i.pressEnter());
 
@@ -325,12 +314,6 @@ test("a failed dashboard request shows the error rather than an empty grid", asy
 test("a dashboard with no widgets says so", async () => {
   const h = await renderApp(stubClient({ detail: { ...dashboardDetailFixture, widgets: [] } }));
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await h.press((i) => i.pressTab());
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressEnter());
-    await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Checkout Health"));
     await h.press((i) => i.pressEnter());
 
@@ -351,12 +334,6 @@ test("a Sentry Built dashboard says why the API has no widgets for it", async ()
     }),
   );
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await h.press((i) => i.pressTab());
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressEnter());
-    await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Checkout Health"));
     await h.press((i) => i.pressEnter());
 
@@ -416,10 +393,13 @@ test("/ on the grid focuses nothing it cannot give back", async () => {
 
 for (const width of [80, 100, 140]) {
   test(`the widget grid fits ${width} columns without wrapping`, async () => {
-    const h = await renderHarness(<App onQuit={() => {}} client={stubClient()} org="acme" />, {
-      width,
-      height: HEIGHT,
-    });
+    const h = await renderHarness(
+      <App onQuit={() => {}} client={stubClient()} org="acme" initialScreen="dashboards.all" />,
+      {
+        width,
+        height: HEIGHT,
+      },
+    );
     try {
       await openDashboard(h);
       // Walk the whole stack so every widget kind is drawn at this width.
@@ -445,10 +425,13 @@ for (const width of [80, 100, 140]) {
  * purpose: at 44 rows there is enough slack to hide it.
  */
 test("the filter row does not push the widget stack off a short 80-column terminal", async () => {
-  const h = await renderHarness(<App onQuit={() => {}} client={stubClient()} org="acme" />, {
-    width: 80,
-    height: 30,
-  });
+  const h = await renderHarness(
+    <App onQuit={() => {}} client={stubClient()} org="acme" initialScreen="dashboards.all" />,
+    {
+      width: 80,
+      height: 30,
+    },
+  );
   try {
     await openDashboard(h);
     const lines = h.frame().split("\n");
@@ -483,12 +466,6 @@ test("the grid holds its geometry before the dashboard has arrived", async () =>
 
   const h = await renderApp(pending);
   try {
-    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await h.press((i) => i.pressTab());
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressKey("j"));
-    await h.press((i) => i.pressEnter());
-    await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Checkout Health"));
     await h.press((i) => i.pressEnter());
 

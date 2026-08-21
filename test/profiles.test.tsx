@@ -41,7 +41,19 @@ async function navigateToProfiles(h: Awaited<ReturnType<typeof renderHarness>>) 
   await h.press((i) => i.pressEnter());
 }
 
+/**
+ * Mount straight onto Profiles. The rail walk is covered by the routing test
+ * below; repeating it per test cost a render pass per keystroke.
+ */
 async function openProfiles(client: SentryClient = stubClient()) {
+  return renderHarness(
+    <App onQuit={() => {}} client={client} org="acme" initialScreen="explore.profiles" />,
+    { width: WIDTH, height: HEIGHT },
+  );
+}
+
+/** The long way round, so the route itself stays covered. */
+async function openProfilesViaNav(client: SentryClient = stubClient()) {
   const h = await renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
     width: WIDTH,
     height: HEIGHT,
@@ -52,7 +64,7 @@ async function openProfiles(client: SentryClient = stubClient()) {
 }
 
 test("navigating to Explore > Profiles shows the slowest-functions table", async () => {
-  const h = await openProfiles();
+  const h = await openProfilesViaNav();
   try {
     await h.waitForFrame((f) => f.includes("QuerySet._fetch_all"));
     const frame = h.frame();

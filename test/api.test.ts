@@ -178,13 +178,15 @@ describe("SentryClient", () => {
       attempts++;
       return attempts < 3 ? new Response("boom", { status: 503 }) : json(groupsFixture);
     });
-    const client = new SentryClient({ auth, fetchImpl: impl });
+    // A real backoff would sleep 1s then 2s; the schedule is not what this
+    // asserts, only that a 5xx is retried until it succeeds.
+    const client = new SentryClient({ auth, fetchImpl: impl, retryBaseMs: 1 });
 
     const page = await listIssues(client, { org: "acme" });
 
     expect(attempts).toBe(3);
     expect(page.data).toHaveLength(3);
-  }, 15_000);
+  });
 
   test("marks 429 retryable and derives the wait from the reset header", async () => {
     const resetAt = Math.floor(Date.now() / 1000) + 8;

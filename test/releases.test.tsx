@@ -71,15 +71,26 @@ async function renderApp(client: SentryClient | null = stubClient()) {
   });
 }
 
+/**
+ * Mount straight onto Releases. The rail walk is covered by the routing test
+ * below; repeating it per test cost a render pass per keystroke.
+ */
 async function openReleases(client?: SentryClient) {
-  const h = await renderApp(client ?? stubClient());
-  await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-  await navigateToReleases(h);
-  return h;
+  return renderHarness(
+    <App
+      onQuit={() => {}}
+      client={client ?? stubClient()}
+      org="acme"
+      initialScreen="explore.releases"
+    />,
+    { width: WIDTH, height: HEIGHT },
+  );
 }
 
 test("navigating to Explore > Releases shows release cards", async () => {
-  const h = await openReleases();
+  const h = await renderApp(stubClient());
+  await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+  await navigateToReleases(h);
   try {
     await h.waitForFrame((f) => f.includes("1.4.2"));
     const frame = h.frame();

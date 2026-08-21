@@ -51,23 +51,22 @@ function stubClient(session = seerSessionFixture): SeerStub {
   return { client: new SentryClient({ auth, fetchImpl }), sent, updates };
 }
 
-/** Navigate to Seer › Ask Seer. */
-async function navigateToSeer(h: Awaited<ReturnType<typeof renderHarness>>) {
-  // Content has focus by default; tab to the nav rail first.
-  await h.press((i) => i.pressTab());
-  // Seer is the fourth group: Issues, Explore, Dashboards, Seer.
-  await h.press((i) => i.pressKey("j"));
-  await h.press((i) => i.pressKey("j"));
-  await h.press((i) => i.pressKey("j"));
-  // One Enter: Seer's single destination skips the secondary nav.
-  await h.press((i) => i.pressEnter());
-}
-
 async function renderApp(client: SentryClient) {
   return renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
     width: WIDTH,
     height: HEIGHT,
   });
+}
+
+/**
+ * Mount straight onto the conversation. The rail walk has its own tests below;
+ * repeating it per test cost a render pass per keystroke.
+ */
+async function renderSeer(client: SentryClient) {
+  return renderHarness(
+    <App onQuit={() => {}} client={client} org="acme" initialScreen="seer.ask" />,
+    { width: WIDTH, height: HEIGHT },
+  );
 }
 
 test("the nav rail lists Seer and no longer lists Insights", async () => {
@@ -130,9 +129,8 @@ test("a multi-item group still opens its secondary nav", async () => {
 
 test("the Seer screen opens on an empty state with suggested prompts", async () => {
   const { client } = stubClient();
-  const h = await renderApp(client);
+  const h = await renderSeer(client);
   try {
-    await navigateToSeer(h);
     expect(h.frame()).toContain("Ask Seer anything about your application.");
     expect(h.frame()).toContain("What are my slowest DB queries?");
   } finally {
@@ -142,9 +140,8 @@ test("the Seer screen opens on an empty state with suggested prompts", async () 
 
 test("typing a question and pressing enter sends it to the chat endpoint", async () => {
   const stub = stubClient();
-  const h = await renderApp(stub.client);
+  const h = await renderSeer(stub.client);
   try {
-    await navigateToSeer(h);
     // The composer takes focus on arrival, so this types straight into it.
     await h.press((i) => i.pressKey("why is checkout failing"));
     await h.press((i) => i.pressEnter());
@@ -159,9 +156,8 @@ test("typing a question and pressing enter sends it to the chat endpoint", async
 
 test("the transcript renders the answer and the tool commentary", async () => {
   const stub = stubClient();
-  const h = await renderApp(stub.client);
+  const h = await renderSeer(stub.client);
   try {
-    await navigateToSeer(h);
     await h.press((i) => i.pressKey("hello"));
     await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Checkout fails"));
@@ -180,9 +176,8 @@ test("the transcript renders the answer and the tool commentary", async () => {
 
 test("escape releases the composer so a numbered prompt can be sent", async () => {
   const stub = stubClient();
-  const h = await renderApp(stub.client);
+  const h = await renderSeer(stub.client);
   try {
-    await navigateToSeer(h);
     // While the composer holds focus a digit is text, so drop focus first.
     await h.pressEscape();
     await h.press((i) => i.pressKey("2"));
@@ -196,9 +191,8 @@ test("escape releases the composer so a numbered prompt can be sent", async () =
 
 test("a new chat clears the transcript back to the empty state", async () => {
   const stub = stubClient();
-  const h = await renderApp(stub.client);
+  const h = await renderSeer(stub.client);
   try {
-    await navigateToSeer(h);
     await h.press((i) => i.pressKey("hello"));
     await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Checkout fails"));
@@ -216,9 +210,8 @@ test("a new chat clears the transcript back to the empty state", async () => {
 
 test("issue triage keys do not fire while the Seer screen is open", async () => {
   const stub = stubClient();
-  const h = await renderApp(stub.client);
+  const h = await renderSeer(stub.client);
   try {
-    await navigateToSeer(h);
     await h.pressEscape();
     // `r` resolves an issue on the issue stream; here it must do nothing.
     await h.press((i) => i.pressKey("r"));
