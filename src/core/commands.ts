@@ -7,7 +7,7 @@
  * instead of advertising a dead key.
  */
 
-export type CommandCategory = "app" | "nav" | "issue" | "view";
+export type CommandCategory = "app" | "nav" | "issue" | "view" | "seer";
 
 /**
  * When the command palette offers a command.
@@ -143,11 +143,22 @@ export const COMMANDS: readonly Command[] = [
     defaultKeys: ["escape"],
   },
   {
+    // `n` for navigation. Not `g`: that is the list's jump-to-top, and one
+    // chord may only have one claimant — see `commands.test.ts`.
+    id: "sentry.nav.goto",
+    title: "Navigate",
+    category: "nav",
+    defaultKeys: ["n"],
+    description: "Jump to a nav item by its printed key",
+  },
+  {
     id: "sentry.nav.search",
     title: "Search",
     category: "nav",
     defaultKeys: ["/"],
-    description: "Focus the issue search query",
+    // One key for "search what is in front of you": the stream's query box,
+    // or the filter box inside an open picker.
+    description: "Focus the search box for this list",
     palette: "stream",
   },
 
@@ -187,6 +198,32 @@ export const COMMANDS: readonly Command[] = [
     category: "issue",
     defaultKeys: ["m"],
     palette: "issue",
+  },
+
+  // seer
+  {
+    id: "sentry.seer.compose",
+    title: "Ask Seer",
+    category: "seer",
+    defaultKeys: ["i"],
+    description: "Focus the Seer composer",
+  },
+  {
+    // Shifted because a bare `n` opens goto mode everywhere else, and a key
+    // that navigates on five screens must not discard a conversation on this
+    // one.
+    id: "sentry.seer.newChat",
+    title: "New chat",
+    category: "seer",
+    defaultKeys: ["N"],
+    description: "Start a fresh Seer conversation",
+  },
+  {
+    id: "sentry.seer.interrupt",
+    title: "Interrupt Seer",
+    category: "seer",
+    defaultKeys: ["x"],
+    description: "Ask Seer to stop the current turn",
   },
 
   // view / filter

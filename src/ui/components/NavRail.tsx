@@ -1,8 +1,10 @@
 import { formatKey, primaryKey } from "~/core/commands";
 import { NAV_GROUPS, type NavGroupId } from "~/core/nav";
 import { theme } from "~/core/theme";
+import type { Hotkey } from "~/lib/hotkeys";
 import { fitText, measureTextWidth } from "~/lib/text";
 import { KeyHint } from "~/ui/components/KeyHint";
+import { NavHotkeyLabel } from "~/ui/components/NavHotkeyLabel";
 import { NAV_ICON_WIDTH, NavIcon } from "~/ui/components/NavIcon";
 import { useImageSupport } from "~/ui/hooks/useImageSupport";
 
@@ -44,8 +46,18 @@ const ORG_KEY_HINT_WIDTH = (() => {
   return key ? 1 + measureTextWidth(key) + 2 : 0;
 })();
 
+/**
+ * Extra cells a goto key costs a label: the two parens it wears. The key itself
+ * replaces one of the label's own characters, so it is free.
+ *
+ * Budgeted permanently rather than only while goto mode is open — a rail that
+ * grew two columns on `g` would shove the whole layout sideways, which is a
+ * loud way to answer a keystroke that only means "show me the keys".
+ */
+const GOTO_KEY_WIDTH = 2;
+
 /** Widest row a nav item can produce: its icon, a gap, and its label. */
-const NAV_ITEM_ROW_WIDTH = NAV_ICON_WIDTH + NAV_ICON_GAP + WIDEST_NAV_LABEL;
+const NAV_ITEM_ROW_WIDTH = NAV_ICON_WIDTH + NAV_ICON_GAP + WIDEST_NAV_LABEL + GOTO_KEY_WIDTH;
 
 /**
  * Widest row the org header can produce: the avatar, a gap, a slug given the
@@ -82,6 +94,8 @@ export const ORG_HEADER_ANCHOR_TOP = 1 + ORG_HEADER_MARGIN_TOP + AVATAR_HEIGHT;
 interface NavRailProps {
   active: NavGroupId;
   focused: boolean;
+  /** Goto keys to print in the labels. Absent unless goto mode is open. */
+  hotkeys?: ReadonlyMap<NavGroupId, Hotkey>;
   /** Remote URL for the organization's avatar image. */
   avatarUrl?: string;
   /** Organization slug, shown next to the avatar. */
@@ -96,6 +110,7 @@ interface NavRailProps {
 export function NavRail({
   active,
   focused,
+  hotkeys,
   avatarUrl,
   orgSlug,
   onSelect,
@@ -178,9 +193,12 @@ export function NavRail({
               onMouseDown={() => onSelect?.(group.id)}
             >
               {hasImages ? <NavIcon groupId={group.id} active={isActive} /> : null}
-              <text fg={isActive ? theme.accent : theme.muted} attributes={isActive ? 1 : 0}>
-                {group.label}
-              </text>
+              <NavHotkeyLabel
+                label={group.label}
+                hotkey={hotkeys?.get(group.id)}
+                fg={isActive ? theme.accent : theme.muted}
+                bold={isActive}
+              />
             </box>
           );
         })}

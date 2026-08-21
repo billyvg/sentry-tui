@@ -1,6 +1,8 @@
 import { getNavGroup, type NavGroupId } from "~/core/nav";
 import { theme } from "~/core/theme";
+import type { Hotkey } from "~/lib/hotkeys";
 import { fitText, measureTextWidth } from "~/lib/text";
+import { NavHotkeyLabel } from "~/ui/components/NavHotkeyLabel";
 import { DIM } from "~/ui/lib/attributes";
 import {
   navSectionsFor,
@@ -20,6 +22,7 @@ export function SecondaryNav({
   activeItem,
   focused,
   extras = NO_NAV_EXTRAS,
+  hotkeys,
   onSelect,
 }: {
   group: NavGroupId;
@@ -30,6 +33,8 @@ export function SecondaryNav({
    * The starred-query and starred-dashboard sections arrive this way.
    */
   extras?: SecondaryNavExtras;
+  /** Goto keys to print in the labels. Absent unless goto mode is open. */
+  hotkeys?: ReadonlyMap<string, Hotkey>;
   /** Clicking an item commits it, exactly as Enter does on the cursor. */
   onSelect?: (item: NavItemSpec) => void;
 }) {
@@ -68,9 +73,18 @@ export function SecondaryNav({
                 style={{ flexDirection: "row", height: 1 }}
                 onMouseDown={() => onSelect?.(item)}
               >
-                <text fg={isActive ? theme.accent : theme.muted} attributes={isActive ? 1 : 0}>
-                  {labelText(item)}
-                </text>
+                {/*
+                 * Keyed by the full label — goto builds its keys from the nav's
+                 * own labels, while what we print is trimmed to leave room for
+                 * a badge. A dynamic item (a starred query) has no goto key and
+                 * renders as the plain text this component drew before.
+                 */}
+                <NavHotkeyLabel
+                  label={labelText(item)}
+                  hotkey={hotkeys?.get(item.label)}
+                  fg={isActive ? theme.accent : theme.muted}
+                  bold={isActive}
+                />
                 {item.badge ? (
                   <text fg={theme.subText} attributes={DIM}>
                     {` ${item.badge}`}

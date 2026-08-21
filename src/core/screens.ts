@@ -34,6 +34,7 @@ export type ScreenId =
   | "issues.all-views"
   | "explore.traces"
   | "explore.logs"
+  | "seer.ask"
   | "explore.metrics"
   | "explore.errors"
   | "explore.discover"
@@ -60,7 +61,7 @@ export type ScreenId =
  * The shape a screen renders in. Descriptive, not aspirational: a screen that
  * hasn't been built is `"stub"` whatever it will eventually become.
  */
-export type ScreenKind = "table" | "cards" | "grid" | "stub";
+export type ScreenKind = "table" | "cards" | "grid" | "chat" | "stub";
 
 /** Filter values a screen starts with, before the user touches anything. */
 export interface ScreenDefaults {
@@ -180,6 +181,8 @@ export const SCREENS: readonly ScreenDef[] = [
   s("monitors.uptime", "monitors", "Uptime", "stub", MONITOR_DETECTORS),
   s("monitors.mobile-build", "monitors", "Mobile Build", "stub", MONITOR_DETECTORS),
   s("monitors.alerts", "monitors", "Alerts", "stub"),
+
+  s("seer.ask", "seer", "Ask Seer", "chat"),
 
   s("settings.organization", "settings", "Organization", "stub"),
   s("settings.projects", "settings", "Projects", "stub"),

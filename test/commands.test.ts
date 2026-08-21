@@ -32,6 +32,7 @@ describe("matchesCommand", () => {
       key("a", { shift: true }),
       key("j"),
       key("k"),
+      key("n"),
       key("q"),
       key("d", { ctrl: true }),
       key("u", { ctrl: true }),

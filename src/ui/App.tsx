@@ -6,12 +6,14 @@ import { writeConfig } from "~/api/config";
 import { getOrganization } from "~/api/issues";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
-import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
+import { buildGotoHotkeys } from "~/core/goto";
+import { getNavGroup, NAV_GROUPS, soleNavItem, type NavGroupId } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { findScreen, stateKeyOf } from "~/core/screens";
 import { theme } from "~/core/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
 import { CommandPalette } from "~/ui/components/CommandPalette";
+import { isDropdownMounted } from "~/ui/components/Dropdown";
 import { HelpDialog } from "~/ui/components/HelpDialog";
 import {
   NavRail,
@@ -23,6 +25,7 @@ import { OrgPicker } from "~/ui/components/OrgPicker";
 import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
+import { SeerChatContext, useSeerChat } from "~/ui/hooks/useSeerChat";
 import { rowsOf, useScreenState, type ScreenStatus } from "~/ui/hooks/useScreenState";
 import { useSecondaryNavExtras } from "~/ui/hooks/useSecondaryNavExtras";
 import { useTriage } from "~/ui/hooks/useTriage";
@@ -58,6 +61,10 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   // Secondary nav: visible only after pressing Enter on the rail.
   const [showSecondary, setShowSecondary] = useState(false);
   const [secondaryItem, setSecondaryItem] = useState("Feed");
+
+  // Goto mode: both nav panes on screen with a key printed on every
+  // destination, so a jump anywhere is two keystrokes and no cursor work.
+  const [gotoMode, setGotoMode] = useState(false);
 
   const [showHelp, setShowHelp] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
@@ -113,6 +120,11 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
     [...viewStack].reverse().find((view) => view.stateKey)?.stateKey ??
     (screen ? stateKeyOf(screen) : undefined);
   const { active: state, resetOrgScoped, seed } = useScreenState(activeKey);
+
+  // Seer's conversation outlives its screen: navigating to Issues and back is
+  // not a reason to lose the transcript. The hook is inert until the first
+  // message, so it costs nothing while the user is anywhere else.
+  const seerChat = useSeerChat(client, org);
 
   // What Enter means on the screen that is mounted, registered by the screen
   // itself. Held in a ref because the key router reads it during a keystroke,
@@ -218,25 +230,13 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
    * Open a nav group's secondary list — the one path Enter on the rail and a
    * click on a rail item both take.
    */
-  const openNavGroup = useCallback(
-    (group: NavGroupId) => {
-      setRailGroup(group);
-      // Re-entering the active group starts on the current item.
-      const startItem =
-        group === activeGroup ? activeItem : (getNavGroup(group).sections[0]?.items[0] ?? "");
-      setSecondaryItem(startItem);
-      setShowSecondary(true);
-      focus.focus("secondary");
-    },
-    [activeGroup, activeItem, focus],
-  );
-
   /**
    * Show a group's item in the content pane — the one path every way of
    * navigating ends at: the secondary nav, a click, and the command palette.
    */
   const navigateTo = useCallback(
     (group: NavGroupId, item: string) => {
+      setGotoMode(false);
       setRailGroup(group);
       setActiveGroup(group);
       setActiveItem(item);
@@ -253,6 +253,32 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   );
 
   /**
+   * Enter on the rail: open the group's secondary pane.
+   *
+   * A group with exactly one destination has no list worth showing, so its rail
+   * row goes straight there — Seer is the only one today.
+   */
+  const openNavGroup = useCallback(
+    (group: NavGroupId) => {
+      const sole = soleNavItem(getNavGroup(group));
+      if (sole !== undefined) {
+        // `navigateTo` clears goto mode itself.
+        navigateTo(group, sole);
+        return;
+      }
+      setGotoMode(false);
+      setRailGroup(group);
+      // Re-entering the active group starts on the current item.
+      const startItem =
+        group === activeGroup ? activeItem : (getNavGroup(group).sections[0]?.items[0] ?? "");
+      setSecondaryItem(startItem);
+      setShowSecondary(true);
+      focus.focus("secondary");
+    },
+    [activeGroup, activeItem, focus, navigateTo],
+  );
+
+  /**
    * Commit a secondary nav item as the active view — shared by Enter on the
    * secondary cursor and a click on a secondary item. A dynamic item can point
    * somewhere other than its own label; a static one never does.
@@ -263,6 +289,35 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
       navigateTo(target.group, target.item);
     },
     [railGroup, navigateTo],
+  );
+
+  // Keys for goto mode, for the group whose items are on screen. Computed only
+  // while the mode is open so nothing else can accidentally print them.
+  const gotoHotkeys = useMemo(
+    () => (gotoMode ? buildGotoHotkeys(railGroup) : null),
+    [gotoMode, railGroup],
+  );
+
+  /**
+   * Point the secondary pane at another group without leaving goto mode — the
+   * first half of a two-key jump, e.g. `g` `e` `l` for Explore › Logs.
+   *
+   * A group with a single destination has no second half to offer, so its key
+   * completes the jump rather than previewing a one-row list.
+   */
+  const previewNavGroup = useCallback(
+    (group: NavGroupId) => {
+      const sole = soleNavItem(getNavGroup(group));
+      if (sole !== undefined) {
+        navigateTo(group, sole);
+        return;
+      }
+      setRailGroup(group);
+      setSecondaryItem(
+        group === activeGroup ? activeItem : (navItemsFor(group, navExtras)[0]?.label ?? ""),
+      );
+    },
+    [activeGroup, activeItem, navExtras, navigateTo],
   );
 
   const paletteActions = useMemo(
@@ -372,6 +427,21 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
         // Dropdown's global listener fire.
         () => {
           if (!state.openDropdown && !showOrgPicker) return "notMine";
+          // Rescue an *orphaned* dropdown. `P` is in the command table for
+          // every screen, including those with no filter row to mount a
+          // `Dropdown` — and with nothing mounted, "focused" ends the chain
+          // before any handler can clear the state, so the app stops answering
+          // the keyboard entirely. A mounted dropdown is left alone: it owns a
+          // two-stage Escape (clear the filter, then close) that this would
+          // otherwise short-circuit.
+          if (
+            state.openDropdown &&
+            !isDropdownMounted() &&
+            matchesCommand("sentry.nav.back", key)
+          ) {
+            state.setOpenDropdown(null);
+            return "mine";
+          }
           return "focused";
         },
         // 1c. The palette opens from anywhere, including mid-edit in the
@@ -380,8 +450,36 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
         () => {
           if (!matchesCommand("sentry.app.commandPalette", key)) return "notMine";
           if (state.searchFocused) state.cancelSearch();
+          // A screen's own input (Seer's composer) has to let go as well, or it
+          // keeps claiming keys behind the palette.
+          if (screenActions.current?.inputFocused?.()) screenActions.current.blurInput?.();
           setShowPalette(true);
           return "mine";
+        },
+        // 1d. A screen's own text input — Seer's composer — owns Enter (send)
+        // and Escape (release). It sits above the app's search handler because
+        // the two are different inputs, and above the global commands because
+        // otherwise `r` would resolve an issue mid-sentence. Tab still moves
+        // between panes: the composer lets go and the move happens below.
+        () => {
+          const actions = screenActions.current;
+          if (!actions?.inputFocused?.()) return "notMine";
+          if (matchesCommand("sentry.nav.back", key)) {
+            actions.blurInput?.();
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.open", key)) {
+            return actions.submitInput?.() ? "mine" : "focused";
+          }
+          if (
+            matchesCommand("sentry.app.focusNext", key) ||
+            matchesCommand("sentry.app.focusPrev", key)
+          ) {
+            actions.blurInput?.();
+            return "notMine";
+          }
+          // Everything else belongs to the input renderable itself.
+          return "focused";
         },
         // 2. Search input intercepts Escape (cancel) and Enter (submit);
         //    all other keys pass through to the focused <input>.
@@ -397,6 +495,51 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           }
           // Let the focused input renderable handle all other keystrokes.
           return "focused";
+        },
+        // 2b. Goto mode. Sits under the search handler so `n` is still a letter
+        // while a query is being typed, and over everything else so the mode
+        // owns the keyboard for exactly as long as it is open — a printed key
+        // that sometimes resolved an issue instead would be worse than none.
+        () => {
+          if (!gotoMode) {
+            if (!matchesCommand("sentry.nav.goto", key)) return "notMine";
+            setGotoMode(true);
+            return "mine";
+          }
+          if (
+            matchesCommand("sentry.nav.goto", key) ||
+            matchesCommand("sentry.nav.back", key) ||
+            key.ctrl ||
+            key.meta ||
+            key.shift
+          ) {
+            // `n` and Escape close the mode; a modifier means the user has
+            // moved on to some other chord and this one was a false start.
+            setGotoMode(false);
+            return "mine";
+          }
+          if (matchesCommand("sentry.app.switchOrg", key)) {
+            // The rail prints this key beside the org slug for as long as the
+            // mode is open, so in the mode it still opens the picker — the
+            // organization is a destination like any other row up there.
+            setGotoMode(false);
+            setShowOrgPicker(true);
+            return "mine";
+          }
+          const target = gotoHotkeys?.byKey.get(key.name.toLowerCase());
+          if (target?.kind === "group") {
+            previewNavGroup(target.group);
+            return "mine";
+          }
+          if (target?.kind === "item") {
+            // `navigateTo` closes the mode, as every other way of arriving does.
+            navigateTo(railGroup, target.item);
+            return "mine";
+          }
+          // An unassigned key is a miss, not a command: leave, and let the next
+          // keystroke mean what it usually means.
+          setGotoMode(false);
+          return "mine";
         },
         // 3. The detail view owns Escape (back) before anything else claims it.
         () => {
@@ -535,6 +678,15 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           setSecondaryItem(secondaryItems[next]?.label ?? secondaryItem);
           return "mine";
         },
+        // 8b. The screen's own keys, for a body that isn't a list — Seer's
+        // transcript. Below the nav panes and the global commands, so it can
+        // claim `n` and the digits without shadowing `?` or `q`.
+        () => {
+          const actions = screenActions.current;
+          if (!actions?.handleKey) return "notMine";
+          if (!focus.isFocused("content")) return "notMine";
+          return actions.handleKey(key) ? "mine" : "notMine";
+        },
         // 9. `/` focuses the search bar from the content pane.
         () => {
           if (!listActive) return "notMine";
@@ -581,7 +733,11 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
     );
   });
 
-  const secondaryWidth = showSecondary ? SECONDARY_NAV_WIDTH : 0;
+  // Goto mode shows the secondary pane without opening it: leaving
+  // `showSecondary` alone means cancelling the mode puts the panes back exactly
+  // as they were, rather than leaving a drawer open that nobody pulled.
+  const showSecondaryPane = showSecondary || gotoMode;
+  const secondaryWidth = showSecondaryPane ? SECONDARY_NAV_WIDTH : 0;
   const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
   const contentHeight = Math.max(3, height - 3);
 
@@ -618,15 +774,17 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           focused={focus.isFocused("nav")}
           avatarUrl={avatarUrl}
           orgSlug={org}
+          hotkeys={gotoHotkeys?.groups}
           onSelect={openNavGroup}
           onOrgPress={() => setShowOrgPicker(true)}
         />
-        {showSecondary ? (
+        {showSecondaryPane ? (
           <SecondaryNav
             group={railGroup}
             activeItem={secondaryItem}
             focused={focus.isFocused("secondary")}
             extras={navExtras}
+            hotkeys={gotoHotkeys?.items}
             onSelect={selectNavItem}
           />
         ) : null}
@@ -644,61 +802,74 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
                 : theme.border,
           }}
         >
-          {topView ? (
-            topView.render({
-              ...paneProps,
-              // A view with no slice of its own gets none: it is a detail
-              // pane, and `state` would be the list's underneath it.
-              state: topView.stateKey ? state : undefined,
-              issue: topView.issue,
-            })
-          ) : ScreenComponent && screen ? (
-            <ScreenComponent {...paneProps} screen={screen} state={state} />
-          ) : (
-            <box style={{ flexDirection: "column", paddingLeft: 1 }}>
-              <text fg={theme.text} attributes={1}>
-                {`${getNavGroup(activeGroup).label} › ${activeItem}`}
-              </text>
-              <text fg={theme.muted}>Not implemented yet.</text>
-            </box>
-          )}
+          {/* Seer reads its transcript from here; every other screen ignores it. */}
+          <SeerChatContext.Provider value={seerChat}>
+            {topView ? (
+              topView.render({
+                ...paneProps,
+                // A view with no slice of its own gets none: it is a detail
+                // pane, and `state` would be the list's underneath it.
+                state: topView.stateKey ? state : undefined,
+                issue: topView.issue,
+              })
+            ) : ScreenComponent && screen ? (
+              <ScreenComponent {...paneProps} screen={screen} state={state} />
+            ) : (
+              <box style={{ flexDirection: "column", paddingLeft: 1 }}>
+                <text fg={theme.text} attributes={1}>
+                  {`${getNavGroup(activeGroup).label} › ${activeItem}`}
+                </text>
+                <text fg={theme.muted}>Not implemented yet.</text>
+              </box>
+            )}
+          </SeerChatContext.Provider>
         </box>
       </box>
 
       <StatusBar
         notice={
-          // A triage result or an org switch is the most recent thing the user
-          // did, so it outranks the ambient load notice.
-          transientNotice ??
-          (detailView ? { kind: "idle", text: detailView.label ?? "" } : toNotice(state.status))
+          // Goto mode is a held-open key prompt, so it outranks even a fresh
+          // triage result: the bar has to answer "what is it waiting for?".
+          gotoMode
+            ? { kind: "info", text: "go to…" }
+            : // A triage result or an org switch is the most recent thing the
+              // user did, so it outranks the ambient load notice.
+              (transientNotice ??
+              (detailView
+                ? { kind: "idle", text: detailView.label ?? "" }
+                : toNotice(state.status)))
         }
-        elapsedMs={detailView ? undefined : state.status.elapsedMs}
+        elapsedMs={detailView || gotoMode ? undefined : state.status.elapsedMs}
         hints={
-          state.searchFocused
-            ? [
-                { command: "sentry.nav.open", label: "submit" },
-                { command: "sentry.nav.back", label: "cancel" },
-              ]
-            : detailView
+          gotoMode
+            ? [{ command: "sentry.nav.back", label: "cancel" }]
+            : state.searchFocused
               ? [
-                  { command: "sentry.nav.back", label: "back" },
-                  { command: "sentry.issue.resolve", label: "resolve" },
-                  { command: "sentry.issue.archive", label: "archive" },
-                  { command: "sentry.app.commandPalette", label: "commands" },
-                  { command: "sentry.app.help", label: "help" },
+                  { command: "sentry.nav.open", label: "submit" },
+                  { command: "sentry.nav.back", label: "cancel" },
                 ]
-              : [
-                  {
-                    command: "sentry.nav.open",
-                    // Enter toggles a panel on some screens, so the one hint
-                    // carries both directions.
-                    label: state.detailOpen ? "close" : (screen?.openLabel ?? "open"),
-                  },
-                  { command: "sentry.nav.search", label: "search" },
-                  { command: "sentry.app.commandPalette", label: "commands" },
-                  { command: "sentry.app.help", label: "help" },
-                  { command: "sentry.app.quit", label: "quit" },
-                ]
+              : detailView
+                ? [
+                    { command: "sentry.nav.back", label: "back" },
+                    { command: "sentry.issue.resolve", label: "resolve" },
+                    { command: "sentry.issue.archive", label: "archive" },
+                    { command: "sentry.nav.goto", label: "nav" },
+                    { command: "sentry.app.commandPalette", label: "commands" },
+                    { command: "sentry.app.help", label: "help" },
+                  ]
+                : [
+                    {
+                      command: "sentry.nav.open",
+                      // Enter toggles a panel on some screens, so the one hint
+                      // carries both directions.
+                      label: state.detailOpen ? "close" : (screen?.openLabel ?? "open"),
+                    },
+                    { command: "sentry.nav.search", label: "search" },
+                    { command: "sentry.nav.goto", label: "nav" },
+                    { command: "sentry.app.commandPalette", label: "commands" },
+                    { command: "sentry.app.help", label: "help" },
+                    { command: "sentry.app.quit", label: "quit" },
+                  ]
         }
       />
 

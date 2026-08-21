@@ -19,14 +19,6 @@ export interface OrgPickerProps {
 }
 
 /**
- * Name an organization the way the first-run CLI prompt does, so the same org
- * reads the same whichever surface offered it.
- */
-function orgLabel(org: Organization): string {
-  return org.name && org.name !== org.slug ? `${org.name} (${org.slug})` : org.slug;
-}
-
-/**
  * The organization switcher, hanging off the org header in the nav rail.
  *
  * The list is fetched on open rather than at startup: switching orgs is rare,
@@ -65,8 +57,10 @@ export function OrgPicker({
     return () => controller.abort();
   }, [client]);
 
+  // Slugs only, not "Name (slug)": the slug is what the nav rail shows, what
+  // the URL and the API use, and what a filter query is typed against.
   const items: DropdownItem[] = useMemo(
-    () => orgs.map((org) => ({ label: orgLabel(org), value: org.slug })),
+    () => orgs.map((org) => ({ label: org.slug, value: org.slug })),
     [orgs],
   );
 
@@ -88,6 +82,7 @@ export function OrgPicker({
       // Every view is scoped to exactly one org, so "all" is not a thing you
       // can be looking at.
       showAll={false}
+      filterable
       placeholder={loading ? "Loading organizations…" : (error ?? "No organizations")}
       onSelect={handleSelect}
       onClose={onClose}

@@ -19,6 +19,23 @@ export type KeyOwner = "notMine" | "mine" | "focused";
 export type KeyOwnerHandler = (key: KeyEvent) => KeyOwner;
 
 /**
+ * Cursor movement that survives a focused text input.
+ *
+ * `j` and `k` are characters someone is typing while a query box has focus, so
+ * a list sitting behind an input moves on the arrows and the readline chords
+ * only — never on the vim keys the same list answers to when nothing is
+ * focused.
+ */
+export function isTypingSafeDown(key: KeyEvent): boolean {
+  return key.name === "down" || (key.name === "n" && Boolean(key.ctrl));
+}
+
+/** The upward counterpart of {@link isTypingSafeDown}. */
+export function isTypingSafeUp(key: KeyEvent): boolean {
+  return key.name === "up" || (key.name === "p" && Boolean(key.ctrl));
+}
+
+/**
  * Consuming a key means both stopping the default *and* stopping propagation —
  * the latter also stops sibling global listeners.
  */

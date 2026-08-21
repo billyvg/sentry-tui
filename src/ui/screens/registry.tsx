@@ -15,6 +15,7 @@ import type { ScreenId } from "~/core/screens";
 import { IssueFeed } from "~/ui/screens/IssueFeed";
 import { IssueViews } from "~/ui/screens/IssueViews";
 import { LogStream } from "~/ui/screens/LogStream";
+import { SeerScreen } from "~/ui/screens/SeerScreen";
 import type { ScreenComponent } from "~/ui/screens/types";
 
 export type {
@@ -38,4 +39,5 @@ export const SCREEN_COMPONENTS: Partial<Record<ScreenId, ScreenComponent>> = {
   "issues.recently-run": IssueFeed,
   "issues.all-views": IssueViews,
   "explore.logs": LogStream,
+  "seer.ask": SeerScreen,
 };

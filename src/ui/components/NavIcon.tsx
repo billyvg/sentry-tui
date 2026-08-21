@@ -12,6 +12,7 @@ const ICON_BASE = {
   issues: "issues",
   explore: "compass",
   dashboards: "dashboard",
+  seer: "seer",
   monitors: "monitors",
   settings: "settings",
 } as const satisfies Record<NavGroupId, string>;

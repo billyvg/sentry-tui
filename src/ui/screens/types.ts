@@ -33,6 +33,29 @@ export interface ScreenActions {
    * carry on to the app.
    */
   back?: () => boolean;
+  /**
+   * True while a text input *inside* the screen holds the keyboard — Seer's
+   * composer, not the app's search bar, which the app owns itself.
+   *
+   * The three below are one mechanism: the router asks `inputFocused` first
+   * and, if it answers yes, hands Enter to `submitInput` and Escape/Tab to
+   * `blurInput` before any global command sees them. Without it a screen with
+   * its own input has no way to stop `r` resolving an issue mid-sentence.
+   */
+  inputFocused?: () => boolean;
+  /** Enter while that input holds the keyboard. True if it was consumed. */
+  submitInput?: () => boolean;
+  /** Release the input — Escape, Tab, or the palette opening over it. */
+  blurInput?: () => void;
+  /**
+   * Keys the screen wants before the list cursor sees them, for a screen whose
+   * body isn't a list — Seer's transcript takes `n` for a new chat and digits
+   * for its suggested prompts. Return true if the key was used.
+   *
+   * Offered below the nav panes and the global commands, so `?` and `q` still
+   * mean what they always mean.
+   */
+  handleKey?: (key: { name: string; ctrl?: boolean; shift?: boolean; meta?: boolean }) => boolean;
 }
 
 /**

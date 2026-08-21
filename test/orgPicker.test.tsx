@@ -34,6 +34,7 @@ afterAll(() => {
 const ORGS = [
   { id: "1", slug: "acme", name: "Acme Inc" },
   { id: "2", slug: "globex", name: "Globex" },
+  { id: "3", slug: "initech", name: "Initech" },
 ];
 
 /** Records which org slug each issue-list request was scoped to. */
@@ -85,19 +86,22 @@ test("the nav rail advertises the org picker's key beside the slug", async () =>
   }
 });
 
-test("o opens the picker and lists the token's organizations", async () => {
+test("o opens the picker and lists the token's organizations by slug", async () => {
   const { client } = stubClient();
   const h = await renderApp(client);
   try {
     await h.waitForFrame((f) => f.includes("acmeError"));
 
     await h.press((i) => i.pressKey("o"));
-    await h.waitForFrame((f) => f.includes("Globex"));
+    await h.waitForFrame((f) => f.includes("globex"));
 
     const frame = h.frame();
     expect(frame).toContain("Organization");
-    expect(frame).toContain("Acme Inc");
-    expect(frame).toContain("Globex");
+    expect(frame).toContain("globex");
+    expect(frame).toContain("initech");
+    // Slugs only: the display name is what the nav rail never shows either.
+    expect(frame).not.toContain("Globex");
+    expect(frame).not.toContain("Acme Inc");
   } finally {
     await h.cleanup();
   }
@@ -111,9 +115,9 @@ test("selecting an org refetches the stream against it and stores the default", 
     expect(listedOrgs).toContain("acme");
 
     await h.press((i) => i.pressKey("o"));
-    await h.waitForFrame((f) => f.includes("Globex"));
+    await h.waitForFrame((f) => f.includes("globex"));
 
-    // The cursor starts on the current org, so one step down reaches Globex.
+    // The cursor starts on the current org, so one step down reaches globex.
     await h.press((i) => i.pressKey("j"));
     await h.press((i) => i.pressEnter());
 
@@ -138,11 +142,11 @@ test("escape closes the picker without switching", async () => {
     await h.waitForFrame((f) => f.includes("acmeError"));
 
     await h.press((i) => i.pressKey("o"));
-    await h.waitForFrame((f) => f.includes("Globex"));
+    await h.waitForFrame((f) => f.includes("globex"));
 
     await h.pressEscape();
     const frame = h.frame();
-    expect(frame).not.toContain("Globex");
+    expect(frame).not.toContain("globex");
     expect(frame).toContain("acmeError");
     expect(listedOrgs).not.toContain("globex");
   } finally {
@@ -178,8 +182,100 @@ test("the command palette opens the picker too", async () => {
     await h.press((i) => i.pressKey("switch org"));
     await h.press((i) => i.pressKey("\r"));
 
-    await h.waitForFrame((f) => f.includes("Globex"));
+    await h.waitForFrame((f) => f.includes("globex"));
     expect(h.frame()).toContain("Organization");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the filter box only takes text once the search key focuses it", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await h.waitForFrame((f) => f.includes("acmeError"));
+    await h.press((i) => i.pressKey("o"));
+    await h.waitForFrame((f) => f.includes("globex"));
+    expect(h.frame()).toContain("(/)");
+
+    // Unfocused, letters are swallowed by the list rather than typed: "i"
+    // would otherwise narrow to initech.
+    await h.press((i) => i.pressKey("i"));
+    expect(h.frame()).toContain("globex");
+
+    await h.press((i) => i.pressKey("/"));
+    await h.press((i) => i.pressKey("ini"));
+    await h.waitForFrame((f) => !f.includes("globex"));
+
+    const frame = h.frame();
+    // The typed query reaches the box, and only its match survives. The
+    // trailing space matters: the issue row behind the picker reads
+    // "● acmeError", which is not the picker row this is looking for.
+    expect(frame).toContain("(/) ini");
+    expect(frame).toContain("initech");
+    expect(frame).not.toContain("● acme ");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("enter takes the filtered match and switches to it", async () => {
+  const { client, listedOrgs } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await h.waitForFrame((f) => f.includes("acmeError"));
+    await h.press((i) => i.pressKey("o"));
+    await h.waitForFrame((f) => f.includes("globex"));
+
+    await h.press((i) => i.pressKey("/"));
+    await h.press((i) => i.pressKey("glob"));
+    await h.waitForFrame((f) => !f.includes("initech"));
+    await h.press((i) => i.pressEnter());
+
+    await h.waitForFrame((f) => f.includes("globexError"));
+    expect(listedOrgs).toContain("globex");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("escape clears the filter before it closes the picker", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await h.waitForFrame((f) => f.includes("acmeError"));
+    await h.press((i) => i.pressKey("o"));
+    await h.waitForFrame((f) => f.includes("globex"));
+
+    await h.press((i) => i.pressKey("/"));
+    await h.press((i) => i.pressKey("glob"));
+    await h.waitForFrame((f) => !f.includes("initech"));
+
+    // First escape restores the full list...
+    await h.pressEscape();
+    await h.waitForFrame((f) => f.includes("initech"));
+    expect(h.frame()).toContain("Organization");
+
+    // ...and the second closes the picker.
+    await h.pressEscape();
+    expect(h.frame()).not.toContain("Organization");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a query that matches nothing says so instead of emptying the box", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await h.waitForFrame((f) => f.includes("acmeError"));
+    await h.press((i) => i.pressKey("o"));
+    await h.waitForFrame((f) => f.includes("globex"));
+
+    await h.press((i) => i.pressKey("/"));
+    await h.press((i) => i.pressKey("zzz"));
+    await h.waitForFrame((f) => f.includes("No match"));
+    expect(h.frame()).toContain('No match for "zzz"');
   } finally {
     await h.cleanup();
   }
