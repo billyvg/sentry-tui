@@ -8,7 +8,8 @@
  *
  * The rule, and the whole of it: **whoever is running decides**. From the
  * moment the app is up it looks for itself — `UPDATE_FIRST_CHECK_MS` after
- * start, then hourly — so a release landing mid-session is offered in that
+ * start, then every `UPDATE_POLL_MS` — so a release landing mid-session is
+ * offered in that
  * session rather than silently waiting for a relaunch. The launcher checks
  * once its child has exited, and only when that child went before it could
  * have looked: every command that never starts the app (`--help`,
@@ -48,16 +49,24 @@ export interface ReadyUpdate {
 /**
  * How long after start the app makes its first real check.
  *
- * Not zero, and not an hour. The first seconds of a launch are the renderer
+ * Not zero, and not the poll below. The first seconds of a launch are the
+ * renderer
  * coming up and the issue stream loading, and an update has no deadline, so it
  * waits for that to be over — starting the app never waits on the network.
- * Long before the poll below, though: the common case is a release that landed
- * since the last launch, and nobody should have to sit for an hour to be told.
+ * Long before the poll, though: the common case is a release that landed since
+ * the last launch, and nobody should have to wait a quarter of an hour to be
+ * told.
  */
 export const UPDATE_FIRST_CHECK_MS = 10 * 1000;
 
-/** How often the app looks again after that, for as long as it is open. */
-export const UPDATE_POLL_MS = 60 * 60 * 1000;
+/**
+ * How often the app looks again after that, for as long as it is open.
+ *
+ * Short enough that a session running while releases are going out is offered
+ * each of them, long enough that an app left open all day is a handful of
+ * registry requests rather than a poller.
+ */
+export const UPDATE_POLL_MS = 15 * 60 * 1000;
 
 /**
  * Whether an update offered here would survive the next cold start.

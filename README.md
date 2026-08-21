@@ -42,7 +42,8 @@ app touches the network.
 When a new build has finished downloading, a bold pink **Update** appears in
 the bottom-left corner. Click it or press `U` and the app restarts into it on
 the spot; ignore it and you get the new version next launch either way. The
-app looks again once an hour while it is open, and only ever offers a build it
+app looks again every 15 minutes while it is open, and only ever offers a build
+it
 has already downloaded.
 
 Set `SENTRY_TUI_NO_UPDATE=1` to pin whatever you have; `CI` is treated the same

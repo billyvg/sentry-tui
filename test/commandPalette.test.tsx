@@ -110,7 +110,10 @@ test("enter on a filtered destination navigates the content pane", async () => {
 
     const frame = h.frame();
     expect(frame).not.toContain("Command palette");
-    expect(frame).toContain("Monitors › All Monitors");
+    // Monitors › All Monitors is a real screen now, so the pane shows its
+    // heading and its table rather than the placeholder's breadcrumb.
+    expect(frame).toContain("All Monitors");
+    expect(frame).toContain("Last Issue");
   } finally {
     await h.cleanup();
   }

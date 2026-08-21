@@ -19,6 +19,7 @@ import { breadcrumb as leaveCrumb, identify, log } from "~/telemetry/index";
 import { CommandPalette } from "~/ui/components/CommandPalette";
 import { DetailBackRow, detailBackWidth } from "~/ui/components/DetailBackRow";
 import { isDropdownMounted } from "~/ui/components/Dropdown";
+import { isFilterBarMounted, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { HelpDialog } from "~/ui/components/HelpDialog";
 import {
   NavRail,
@@ -70,6 +71,23 @@ export interface AppProps {
    */
   onRestart?: (binaryPath: string) => void;
 }
+
+/**
+ * Which dropdown each filter command opens.
+ *
+ * One table for both routes to them — the command palette and the bare key —
+ * so the two cannot come to disagree about what `P` means or about which of
+ * them checks for a filter row first.
+ */
+const FILTER_COMMAND_DROPDOWN = {
+  "sentry.view.filterProject": "project",
+  "sentry.view.filterEnv": "env",
+  "sentry.view.filterDate": "date",
+} as const satisfies Record<string, Exclude<FilterDropdownType, null>>;
+
+const FILTER_COMMAND_ENTRIES = Object.entries(FILTER_COMMAND_DROPDOWN) as ReadonlyArray<
+  [keyof typeof FILTER_COMMAND_DROPDOWN, Exclude<FilterDropdownType, null>]
+>;
 
 /** Issues › Feed — where the app opens when nothing says otherwise. */
 const DEFAULT_SCREEN: ScreenId = "issues.feed";
@@ -171,8 +189,23 @@ export function App({
   // itself. Held in a ref because the key router reads it during a keystroke,
   // not during a render.
   const screenActions = useRef<ScreenActions | null>(null);
+  /**
+   * Whether the mounted screen has told us what Enter does.
+   *
+   * The ref above is what the *router* reads, during a keystroke rather than
+   * during a render. The status bar is drawn from state, so it needs this
+   * mirror: without it the bar printed `(enter) open` for every screen, having
+   * never checked that anything was listening — which was a lie on the stub
+   * screens and on any list that had not registered an action yet.
+   *
+   * `useScreenActions` re-registers on every render and clears on unmount, so
+   * this flips within a commit rather than across renders, and React collapses
+   * the pair into no re-render when the answer has not changed.
+   */
+  const [canOpen, setCanOpen] = useState(false);
   const registerActions = useCallback((actions: ScreenActions | null) => {
     screenActions.current = actions;
+    setCanOpen(Boolean(actions?.open));
   }, []);
 
   const pushView = useCallback(
@@ -439,18 +472,16 @@ export function App({
           focus.focus("content");
           state.focusSearch();
           return;
+        // Only a screen with a filter row can close what these open, so on one
+        // without, they do nothing at all. See `isFilterBarMounted`.
         case "sentry.view.filterProject":
-          focus.focus("content");
-          state.setOpenDropdown("project");
-          return;
         case "sentry.view.filterEnv":
+        case "sentry.view.filterDate": {
+          if (!isFilterBarMounted()) return;
           focus.focus("content");
-          state.setOpenDropdown("env");
+          state.setOpenDropdown(FILTER_COMMAND_DROPDOWN[commandId]);
           return;
-        case "sentry.view.filterDate":
-          focus.focus("content");
-          state.setOpenDropdown("date");
-          return;
+        }
         default:
           // The remaining palette-scoped commands are all triage actions; the
           // catalog only offers them when there is an issue to act on.
@@ -510,13 +541,15 @@ export function App({
         // keyboard for as long as it is on screen.
         () => {
           if (!state.openDropdown && !showOrgPicker && !isDropdownMounted()) return "notMine";
-          // Rescue an *orphaned* dropdown. `P` is in the command table for
-          // every screen, including those with no filter row to mount a
-          // `Dropdown` — and with nothing mounted, "focused" ends the chain
-          // before any handler can clear the state, so the app stops answering
-          // the keyboard entirely. A mounted dropdown is left alone: it owns a
-          // two-stage Escape (clear the filter, then close) that this would
-          // otherwise short-circuit.
+          // Rescue an *orphaned* dropdown — the second line of defence, not
+          // the first. The filter keys no longer open one on a screen with no
+          // filter row (see `isFilterBarMounted`), so the way left to strand
+          // the state is for a filter row to unmount while its dropdown is
+          // open, on a screen sharing that slice. With nothing mounted,
+          // "focused" ends the chain before any handler can clear the state,
+          // and the app stops answering the keyboard. A mounted dropdown is
+          // left alone: it owns a two-stage Escape (clear the filter, then
+          // close) that this would otherwise short-circuit.
           if (
             state.openDropdown &&
             !isDropdownMounted() &&
@@ -658,17 +691,14 @@ export function App({
         // 5. Global app commands. Tab cycles only through visible regions.
         () => {
           // Filter shortcuts belong to whatever list is on screen.
+          // ...and only to one that has a filter row to show. Without that
+          // guard these open a dropdown nothing can close: see
+          // `isFilterBarMounted`. Claimed either way, so the key does not fall
+          // through to some unrelated handler on screens without one.
           if (listActive && focus.focusedRef.current === "content") {
-            if (matchesCommand("sentry.view.filterProject", key)) {
-              state.setOpenDropdown("project");
-              return "mine";
-            }
-            if (matchesCommand("sentry.view.filterEnv", key)) {
-              state.setOpenDropdown("env");
-              return "mine";
-            }
-            if (matchesCommand("sentry.view.filterDate", key)) {
-              state.setOpenDropdown("date");
+            for (const [commandId, which] of FILTER_COMMAND_ENTRIES) {
+              if (!matchesCommand(commandId, key)) continue;
+              if (isFilterBarMounted()) state.setOpenDropdown(which);
               return "mine";
             }
           }
@@ -885,12 +915,19 @@ export function App({
     const list = detailView
       ? []
       : [
-          {
-            command: "sentry.nav.open",
-            // Enter toggles a panel on some screens, so the one hint carries
-            // both directions.
-            label: state.detailOpen ? "close" : (screen?.openLabel ?? "open"),
-          },
+          // Only when the screen has said what Enter does. A hint for a key
+          // that does nothing is worse than no hint: it reads as the app
+          // ignoring you.
+          ...(canOpen
+            ? [
+                {
+                  command: "sentry.nav.open",
+                  // Enter toggles a panel on some screens, so the one hint
+                  // carries both directions.
+                  label: state.detailOpen ? "close" : (screen?.openLabel ?? "open"),
+                },
+              ]
+            : []),
           { command: "sentry.nav.search", label: "search" },
         ];
 
@@ -905,7 +942,15 @@ export function App({
       // hint worth spending the cells on once there is somewhere to go back to.
       ...(topView ? [] : [{ command: "sentry.app.quit", label: "quit" }]),
     ];
-  }, [gotoMode, state.searchFocused, state.detailOpen, topView, detailView, screen?.openLabel]);
+  }, [
+    gotoMode,
+    state.searchFocused,
+    state.detailOpen,
+    topView,
+    detailView,
+    screen?.openLabel,
+    canOpen,
+  ]);
 
   /**
    * What the content pane hands whatever it draws. A screen and a pushed view
