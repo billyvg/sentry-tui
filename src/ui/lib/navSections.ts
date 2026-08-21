@@ -11,6 +11,7 @@
  */
 
 import { getNavGroup, type NavGroupId } from "~/core/nav";
+import type { ViewStackEntry } from "~/ui/screens/types";
 
 export interface NavItemSpec {
   /** The label shown in the sidebar, and the id the app navigates by. */
@@ -24,6 +25,26 @@ export interface NavItemSpec {
    * opens the query table rather than a screen of its own.
    */
   target?: { group: NavGroupId; item: string };
+  /**
+   * What selecting the item *shows*, beyond arriving at its `target`.
+   *
+   * A dynamic item stands for one of the user's own things — a starred query,
+   * a starred dashboard — and `target` has nowhere to put that identity: it is
+   * a nav destination, and every item in a starred section shares one. This is
+   * the other half. The app navigates to `target`, then pushes whatever this
+   * returns, so the item lands on *its* thing rather than on the list that
+   * thing lives in.
+   *
+   * A `ViewStackEntry` rather than a payload the app would have to interpret:
+   * that is already the app's currency for "here is a thing to show", so
+   * nothing between here and the renderer has to learn what a saved query or a
+   * dashboard is. Called at selection time, so the entry is built fresh and an
+   * unselected item costs nothing.
+   *
+   * Omit it and selecting the item only navigates — what every static item
+   * wants, and what a dynamic item that really is just a shortcut wants too.
+   */
+  open?: () => ViewStackEntry;
 }
 
 export interface NavSectionSpec {
