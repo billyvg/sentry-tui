@@ -135,7 +135,7 @@ describe("animation clocks", () => {
    * another of those.
    */
   const NOT_A_RENDER_CLOCK = new Set([
-    // Hourly, and inert unless the npm launcher started us.
+    // Every `UPDATE_POLL_MS`, and inert unless the npm launcher started us.
     join("ui", "hooks", "useUpdateCheck.ts"),
   ]);
 

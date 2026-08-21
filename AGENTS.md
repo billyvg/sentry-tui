@@ -88,7 +88,8 @@ owns the screen — so failures go to `update.log` in that cache.
 
 Whoever is running decides when to check, and a launch costs exactly one check.
 `src/app/selfUpdate.ts` states that rule in full and is where to change it: the
-app looks `UPDATE_FIRST_CHECK_MS` after start and hourly after that, so the
+app looks `UPDATE_FIRST_CHECK_MS` after start and every `UPDATE_POLL_MS` after
+that, so the
 launcher stands down for any child that was up that long, covering only what
 never starts the app (`--help`, `--version`, `login`, `logout`, `status`) and
 sessions too short to have looked. It decides that from how long the child ran,

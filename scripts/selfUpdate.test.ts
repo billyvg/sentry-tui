@@ -379,7 +379,7 @@ describe("when the app looks", () => {
       await settle(60);
       stop();
       // One at the first tick and several on the poll; the exact number is
-      // timer scheduling, the point is that neither waited an hour.
+      // timer scheduling, the point is that neither waited for the real poll.
       expect(checks).toBeGreaterThan(2);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -389,7 +389,7 @@ describe("when the app looks", () => {
   test("the schedule it actually ships with checks long before the poll", () => {
     // The tests above compress the numbers, so this is what ties them to the
     // real thing: a session has to be offered a new release without sitting
-    // through an hour of it.
+    // through a whole poll interval of it.
     expect(UPDATE_FIRST_CHECK_MS).toBeGreaterThan(0);
     expect(UPDATE_FIRST_CHECK_MS).toBeLessThan(UPDATE_POLL_MS / 10);
   });

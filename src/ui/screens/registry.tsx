@@ -18,6 +18,7 @@ import { DashboardList } from "~/ui/screens/DashboardList";
 import { IssueFeed } from "~/ui/screens/IssueFeed";
 import { IssueViews } from "~/ui/screens/IssueViews";
 import { LogStream } from "~/ui/screens/LogStream";
+import { MonitorList } from "~/ui/screens/MonitorList";
 import { SeerScreen } from "~/ui/screens/SeerScreen";
 import { ProfileFunctions } from "~/ui/screens/ProfileFunctions";
 import { ReleaseCards } from "~/ui/screens/ReleaseCards";
@@ -65,4 +66,13 @@ export const SCREEN_COMPONENTS: Partial<Record<ScreenId, ScreenComponent>> = {
   "monitors.alerts": WorkflowList,
   "explore.all-queries": SavedQueries,
   "explore.discover": SavedQueries,
+  // Monitors — all seven are the detector table under the filter
+  // `core/monitors.ts` gives them.
+  "monitors.all": MonitorList,
+  "monitors.mine": MonitorList,
+  "monitors.error": MonitorList,
+  "monitors.metric": MonitorList,
+  "monitors.cron": MonitorList,
+  "monitors.uptime": MonitorList,
+  "monitors.mobile-build": MonitorList,
 };
