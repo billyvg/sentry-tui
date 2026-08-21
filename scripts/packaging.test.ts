@@ -133,6 +133,16 @@ describe("release workflow", () => {
     }
   });
 
+  test("nothing is built or published until the suite passes", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+
+    // A hand-pushed tag never goes past `main`'s CI, so the release workflow
+    // has to run the suite itself rather than assume someone else did.
+    expect(workflow).toContain("run: bun run check");
+    expect(workflow).toMatch(/build:\n\s+name: Build[^\n]*\n\s+needs: \[verify, test\]/);
+    expect(workflow).toMatch(/needs: \[verify, test, build\]/);
+  });
+
   test("publishing is skipped on a dry run", async () => {
     const workflow = await read(".github/workflows/release.yml");
     const publishSteps = workflow

@@ -316,11 +316,14 @@ async function checkRunsFor(sha: string): Promise<CheckRun[]> {
 /**
  * Refuse to tag a commit CI has not blessed.
  *
- * The release workflow builds and publishes but never runs the test suite, so
- * something has to vouch for the code — and the run on `main` already did,
- * against exactly the commit being tagged. Reading that verdict beats
- * re-running the suite locally: it is seconds rather than minutes, and it
- * describes the pushed commit rather than one machine's working tree.
+ * The release workflow runs the suite itself before it builds anything, so this
+ * is not what stops broken code shipping — it is what stops a release starting
+ * on a commit already known to be broken. Failing here costs seconds; failing
+ * in the workflow costs a tag that has to be deleted and re-cut.
+ *
+ * Reading the verdict beats re-running the suite locally either way: it is
+ * seconds rather than minutes, and it describes the pushed commit rather than
+ * one machine's working tree.
  */
 async function requireGreenCi(sha: string): Promise<void> {
   step(`Checking CI for ${sha.slice(0, 7)}`);

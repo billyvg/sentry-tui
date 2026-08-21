@@ -90,22 +90,47 @@ bun run release:cut 0.2.0
 ```
 
 It bumps `version` in package.json (the single source of truth every generated
-manifest is stamped from), runs `bun run check`, commits, tags `v0.2.0`, and
-pushes — after showing you exactly what will be published and asking. Called
-with no version it releases whatever package.json already names.
+manifest is stamped from), commits, tags `v0.2.0`, and pushes — after showing
+you exactly what will be published and asking. Called with no version it
+releases whatever package.json already names. Answering no restores the
+manifest, leaving the tree as it was found.
 
-CI takes over from the tag: four binaries — macOS and Linux, arm64 and x64 —
-each smoke-tested with `--help` on its own runner, then npm, the GitHub Release,
-and the tap. The tag must match the version or the run fails on its first job.
+Before any of that it reads CI's verdict for the commit being released, rather
+than re-running the suite locally: the commit must be pushed, and its checks
+must be green. That is seconds instead of a minute and a half, and it describes
+the code CI actually tested rather than one machine's working tree.
+
+This is a fast failure, not the safety net. The release workflow runs the suite
+itself before it builds anything, so nothing ships that the tests reject. What
+the local gate buys is finding out before a tag exists — a failed release leaves
+a tag to delete and re-cut.
+
+If CI is still running, `release:cut` waits for it (polling every 15s, giving up
+after 20 minutes), which is usually what you want right after merging.
+
+| Flag        |                                                    |
+| ----------- | -------------------------------------------------- |
+| `--no-wait` | stop rather than wait on a run in progress         |
+| `--force`   | release whatever CI says, or without pushing first |
+| `--check`   | also run the full local suite, for belt and braces |
+| `--yes`     | skip the confirmation                              |
+
+CI takes over from the tag: the tag must match the version, then the suite runs,
+then four binaries — macOS and Linux, arm64 and x64 — each smoke-tested with
+`--help` on its own runner, then npm, the GitHub Release, and the tap. Nothing
+is built until the tests pass, and nothing is published until the builds do.
 
 Doing it by hand is the same four steps:
 
 ```bash
 $EDITOR package.json                        # "version": "0.2.0"
-bun run check
+gh run list --commit "$(git rev-parse HEAD)"   # green?
 git commit -am "chore: release v0.2.0"
 git tag v0.2.0 && git push origin main --follow-tags
 ```
+
+A tag pushed by hand skips the local gate, but not the suite: the workflow's
+own `test` job runs before anything is built or published.
 
 ## Rehearsing without publishing
 
