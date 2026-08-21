@@ -14,7 +14,7 @@ The beat is the unit the whole pipeline runs on:
 So the video is cut to the voice, not the other way round. Re-record one line and
 only that beat's timing moves.
 
-**Runtime: ~79 seconds**, of which the last 10 are a still frame of the install
+**Runtime: ~83 seconds**, of which the last 10 are a still frame of the install
 command so viewers can copy it. The hard cap is three minutes; this is built to
 land well inside it, which is why it sells the thing rather than explaining it.
 
@@ -38,6 +38,7 @@ which only answers for orgs where the Explorer agent is enabled.
 ### B01 · lynx renders sentry.io
 
 **Screen:** full-screen `lynx https://sentry.io`, mid-page.
+**Speed:** 0.7
 
 > Back in the day, we browsed the web through a terminal.
 
@@ -111,6 +112,7 @@ the composer and the question comes out as `aWhich project…`.
 ### B10 · Seer answered
 
 **Screen:** back to Seer via the palette; the finished conversation, scrolled.
+**Speed:** 0.8
 
 > Talk to Seer, just like in the web app, but in your terminal.
 
@@ -158,6 +160,12 @@ command in step with the README. It is one `Type` line at the end of `demo.tape`
   sparklines and counts by 2.0s.
 - **"The whole Explore section"** — every item now has a real screen; the
   montage visits four of them.
+- **lynx needs 5–8 seconds** to render sentry.io, and it varies. B01 waits with
+  a `Settle` rather than a fixed `Sleep`, because every key after it goes into
+  the page: if the load isn't finished, the quit never happens and `sentry-tui`
+  gets typed into lynx instead of the shell. Quitting uses capital `Q`, which
+  exits outright — lowercase `q` raises an "are you sure" prompt that is one more
+  thing to mistime.
 - **Seer takes about 25 seconds** to answer this question — measured: first tool
   step at 21s, answer complete at 25s. That is why it is asked back in B06,
   four beats before the answer is shown: triage, dashboards and the Explore

@@ -25,16 +25,20 @@ Env PS1 ❯
 Meanwhile @B01
   Type `lynx -accept_all_cookies https://sentry.io`
   Key enter
-  Sleep 3s
+  # sentry.io takes about five seconds to render in lynx. Waiting for it rather
+  # than guessing a Sleep matters more than it looks: every key below lands in
+  # the page, so if it is still loading the quit never happens and `sentry-tui`
+  # gets typed into lynx instead of the shell.
+  Settle 20s
   Key space
 End
 
 Meanwhile @B02
-  Sleep 1s
-  Key q
-  Sleep 300ms
-  Key y
-  Sleep 700ms
+  Sleep 1200ms
+  # Capital Q quits outright. Lowercase q raises an "are you sure" prompt, and
+  # answering it is one more thing to mistime.
+  Key shift+q
+  Sleep 800ms
   Type `clear`
   Key enter
 End
