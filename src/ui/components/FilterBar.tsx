@@ -217,6 +217,16 @@ export function FilterBar({
         />
         <box style={{ flexGrow: 1 }} />
         {showSort ? <text fg={theme.muted}>{sortText}</text> : null}
+        {/*
+          `flexShrink: 0` on both halves: below roughly 80 columns the chips
+          and the label together outgrow the pane, and a text node yoga is
+          allowed to shrink wraps onto a second line — one character per row,
+          down the right edge, shoving the table off the bottom. Refusing to
+          shrink lets the pane's own `overflow: hidden` clip the label
+          instead, which is what a terminal should do with a row that no
+          longer fits.
+        */}
+        <text fg={theme.muted} style={{ flexShrink: 0 }}>{`Sort: ${sortLabel}`}</text>
       </box>
 
       {openDropdown === "project" ? (

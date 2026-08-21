@@ -14,6 +14,7 @@
 import { DEFAULT_STATS_PERIOD, type SortOption } from "~/api/issues";
 import { DEFAULT_LOG_PERIOD } from "~/api/logs";
 import { DEFAULT_RELEASE_PERIOD } from "~/api/releases";
+import { DEFAULT_REPLAY_PERIOD } from "~/api/replays";
 import { ALL_VIEWS_LABEL, ISSUE_VIEWS } from "~/core/issueViews";
 import { NAV_GROUPS, type NavGroupId } from "~/core/nav";
 
@@ -105,11 +106,20 @@ const EXPLORE_DISCOVER = "explore.discover";
 const MONITOR_DETECTORS = "monitors.detectors";
 /** The slice a saved view's results are shown in, pushed from All Views. */
 export const SAVED_VIEW_STATE_KEY = "issues.saved-view";
+/** The slice a replay's detail is shown in, pushed from the replay index. */
+export const REPLAY_DETAIL_STATE_KEY = "explore.replay-detail";
 /** Both Dashboards destinations are the same list with a different filter. */
 const DASHBOARD_LIST = "dashboards.list";
 
 /** Filters the Discover-backed Explore tables start on. */
 const DISCOVER_DEFAULTS: ScreenDefaults = { query: "", statsPeriod: DEFAULT_LOG_PERIOD };
+
+/**
+ * Replays opens on Sentry's standard page-filter window rather than the hour
+ * the Discover tables use: a session is a rarer event than a log line, and an
+ * hour of them is usually an empty table.
+ */
+const REPLAY_DEFAULTS: ScreenDefaults = { query: "", statsPeriod: DEFAULT_REPLAY_PERIOD };
 
 /** The screen each Issues view renders in. */
 const ISSUE_VIEW_IDS: Record<string, ScreenId> = {
@@ -167,6 +177,10 @@ export const SCREENS: readonly ScreenDef[] = [
   ),
   s("explore.replays", "explore", "Replays", "stub"),
   releasesScreen(),
+  // Replays has its own endpoint and its own columns, so it keeps its own
+  // slice rather than joining the Discover screens' shared one.
+  s("explore.replays", "explore", "Replays", "table", undefined, REPLAY_DEFAULTS),
+  s("explore.releases", "explore", "Releases", "stub"),
   s("explore.all-queries", "explore", "All Queries", "stub"),
 
   s("dashboards.all", "dashboards", "All Dashboards", "stub", DASHBOARD_LIST),

@@ -95,6 +95,14 @@ export interface DataTableProps<T> {
   /** Cells reserved on the right for the scrollbar. */
   gutter?: number;
   /**
+   * Width a flex column will not shrink below before optional columns are
+   * shed. Raise it when the flex column carries the row's identity and a
+   * lower-priority column would otherwise crowd it out — see
+   * `layoutColumns`, which has always taken this and had nowhere to take it
+   * from.
+   */
+  minFlex?: number;
+  /**
    * Values that change the viewport's height (a chart appearing, a detail
    * panel opening) and so need the scroll offset recomputed.
    */
@@ -124,6 +132,7 @@ export function DataTable<T>({
   gap = 1,
   minFlex,
   gutter = DEFAULT_GUTTER,
+  minFlex,
   layout = [],
 }: DataTableProps<T>) {
   const listRef = useRef<ScrollBoxRenderable>(null);
