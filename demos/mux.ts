@@ -32,7 +32,7 @@ const output = `${BUILD_DIR}/demo.mp4`;
 /** Beats to place, with the millisecond offset each one starts at. */
 const placements: Array<{ beat: string; path: string; atMs: number }> = [];
 for (const { step, atMs } of timeline(tape, durations)) {
-  if (step.kind !== "wait") continue;
+  if (step.kind !== "wait" && step.kind !== "meanwhile") continue;
   const path = `${AUDIO_DIR}/${step.beat}.mp3`;
   if (!(await file(path).exists())) {
     throw new Error(`Tape waits on @${step.beat} but ${path} does not exist. Re-run demo:tts.`);

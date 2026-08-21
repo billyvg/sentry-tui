@@ -22,7 +22,7 @@ import {
   TAPE_PATH,
   writeShim,
 } from "./lib/paths.ts";
-import { parseTape, timeline } from "./lib/tape.ts";
+import { parseTape, timeline, type TapeStep } from "./lib/tape.ts";
 
 /** Give the window time to open and the shell to draw its prompt. */
 const WARMUP_MS = 1500;
@@ -84,18 +84,29 @@ try {
   recording = WindowRecording.start(windowId, captureSeconds, output);
   await Bun.sleep(LEAD_IN_MS);
 
+  /** Perform one step. Sleeps are the caller's business. */
+  const perform = async (step: TapeStep) => {
+    if (step.kind === "type") await kitty.type(step.text);
+    else if (step.kind === "key") await kitty.key(step.chord, step.count);
+  };
+
   for (const { step, holdMs } of plan) {
-    switch (step.kind) {
-      case "type":
-        await kitty.type(step.text);
-        break;
-      case "key":
-        await kitty.key(step.chord, step.count);
-        break;
-      case "sleep":
-      case "wait":
-        break;
+    if (step.kind === "meanwhile") {
+      // The beat's audio starts now and the block's steps run underneath it, so
+      // the screen keeps moving while the line plays.
+      console.log(`  @${step.beat} — ${(holdMs / 1000).toFixed(1)}s (with action)`);
+      const started = Date.now();
+      for (const inner of step.steps) {
+        await perform(inner);
+        if (inner.kind === "sleep") await Bun.sleep(inner.ms);
+      }
+      // Hold whatever is left of the line after the actions have finished.
+      const remaining = holdMs - (Date.now() - started);
+      if (remaining > 0) await Bun.sleep(remaining);
+      continue;
     }
+
+    await perform(step);
     if (step.kind === "wait") {
       console.log(`  @${step.beat} — ${(holdMs / 1000).toFixed(1)}s`);
     }

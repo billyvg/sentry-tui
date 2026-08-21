@@ -191,6 +191,29 @@ The video is cut to the voice rather than the other way round:
 Re-record one line of narration and only that beat's timing moves. Synthesis is
 cached on a hash of the text, so iterating on pacing is cheap.
 
+## Keeping the screen moving
+
+`Wait @BNN` holds a still frame for the length of a beat. Used for every beat
+that produces a slideshow: one static screen per sentence.
+
+`Meanwhile` plays the beat _while_ running the steps inside it:
+
+```
+Meanwhile @B05
+  Sleep 800ms
+  Key n
+  Sleep 2500ms
+  Key i
+  Sleep 1500ms
+  Key f
+End
+```
+
+The block lasts whichever is longer — the beat's audio or its own sleeps — so a
+line that outruns its actions still holds to the end, and actions that outrun the
+line still finish. Almost every beat in `demo.tape` is a `Meanwhile`; `Wait` is
+left for the outro, where a still frame is the point.
+
 ## Editing the script
 
 Beats are `### BNN · title` headings in `narration.md`; the `>` blockquote under

@@ -6,9 +6,11 @@
  * text and the demo loses the icons. The syntax is worth keeping though: it
  * reads well, and anyone who has written a `.tape` already knows it.
  *
- * The one addition is `Wait @BNN`, which holds for exactly as long as beat
- * `BNN`'s narration audio runs. That is what keeps the picture cut to the
- * voice instead of the other way round.
+ * Two additions. `Wait @BNN` holds for exactly as long as beat `BNN`'s narration
+ * audio runs, which is what keeps the picture cut to the voice instead of the
+ * other way round. And `Meanwhile @BNN … End` does the same while *running* the
+ * steps inside it, so the screen keeps moving while the line is spoken — a hold
+ * on a still frame for every sentence is a slideshow, not a demo.
  */
 
 export interface TapeSettings {
@@ -29,7 +31,12 @@ export type TapeStep =
   /** A fixed pause. */
   | { kind: "sleep"; ms: number; line: number }
   /** Hold for the length of a narration beat. */
-  | { kind: "wait"; beat: string; line: number };
+  | { kind: "wait"; beat: string; line: number }
+  /**
+   * Play a beat while running `steps`. Lasts the longer of the beat's audio and
+   * the steps' own sleeps, so a block that outruns its line still finishes.
+   */
+  | { kind: "meanwhile"; beat: string; steps: TapeStep[]; line: number };
 
 export interface Tape {
   settings: TapeSettings;
@@ -107,6 +114,10 @@ export function parseTape(source: string): Tape {
   const env: Record<string, string> = {};
   const steps: TapeStep[] = [];
 
+  /** The `Meanwhile` block currently being filled, if any. */
+  let open: Extract<TapeStep, { kind: "meanwhile" }> | null = null;
+  const push = (step: TapeStep) => (open ? open.steps : steps).push(step);
+
   const lines = source.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = i + 1;
@@ -130,21 +141,30 @@ export function parseTape(source: string): Tape {
         break;
       }
       case "Type":
-        steps.push({ kind: "type", text: unquote(rest, line), line });
+        push({ kind: "type", text: unquote(rest, line), line });
         break;
       case "Key": {
         const [chord = "", count] = rest.split(/\s+/);
         if (!chord) throw new TapeError(line, "Key needs a chord");
-        steps.push({ kind: "key", chord, count: count ? Number(count) : 1, line });
+        push({ kind: "key", chord, count: count ? Number(count) : 1, line });
         break;
       }
       case "Sleep":
-        steps.push({ kind: "sleep", ms: parseDuration(rest, line), line });
+        push({ kind: "sleep", ms: parseDuration(rest, line), line });
         break;
       case "Wait": {
-        const beat = rest.startsWith("@") ? rest.slice(1) : rest;
-        if (!/^B\d+$/.test(beat)) throw new TapeError(line, `Wait needs a beat id, got: ${rest}`);
-        steps.push({ kind: "wait", beat, line });
+        push({ kind: "wait", beat: beatId(rest, line), line });
+        break;
+      }
+      case "Meanwhile": {
+        if (open) throw new TapeError(line, "Meanwhile cannot nest — close the first with End");
+        open = { kind: "meanwhile", beat: beatId(rest, line), steps: [], line };
+        break;
+      }
+      case "End": {
+        if (!open) throw new TapeError(line, "End without a Meanwhile");
+        steps.push(open);
+        open = null;
         break;
       }
       default:
@@ -152,7 +172,16 @@ export function parseTape(source: string): Tape {
     }
   }
 
+  if (open) throw new TapeError(open.line, "Meanwhile was never closed with End");
+
   return { settings, env, steps };
+}
+
+/** `@B04` or `B04`. */
+function beatId(raw: string, line: number): string {
+  const beat = raw.startsWith("@") ? raw.slice(1) : raw;
+  if (!/^B\d+$/.test(beat)) throw new TapeError(line, `Needs a beat id, got: ${raw}`);
+  return beat;
 }
 
 /**
@@ -170,6 +199,11 @@ export function timeline(
   durations: Record<string, number>,
   fallbackMs = 3000,
 ): Array<{ step: TapeStep; atMs: number; holdMs: number }> {
+  const beatMs = (beat: string) => {
+    const seconds = durations[beat];
+    return seconds === undefined ? fallbackMs : Math.round(seconds * 1000);
+  };
+
   let cursor = 0;
   return tape.steps.map((step) => {
     const atMs = cursor;
@@ -177,8 +211,12 @@ export function timeline(
     if (step.kind === "sleep") {
       holdMs = step.ms;
     } else if (step.kind === "wait") {
-      const seconds = durations[step.beat];
-      holdMs = seconds === undefined ? fallbackMs : Math.round(seconds * 1000);
+      holdMs = beatMs(step.beat);
+    } else if (step.kind === "meanwhile") {
+      // The block runs its own steps and the beat plays over them, so it lasts
+      // whichever finishes last.
+      const inner = step.steps.reduce((sum, s) => sum + (s.kind === "sleep" ? s.ms : 0), 0);
+      holdMs = Math.max(beatMs(step.beat), inner);
     }
     cursor += holdMs;
     return { step, atMs, holdMs };
@@ -187,5 +225,7 @@ export function timeline(
 
 /** Beat ids referenced by the tape, in the order they play. */
 export function beatsInTape(tape: Tape): string[] {
-  return tape.steps.flatMap((step) => (step.kind === "wait" ? [step.beat] : []));
+  return tape.steps.flatMap((step) =>
+    step.kind === "wait" || step.kind === "meanwhile" ? [step.beat] : [],
+  );
 }

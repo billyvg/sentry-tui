@@ -1,28 +1,22 @@
-# sentry-tui demo
+# sentry-tui demo — about 70 seconds, of which the last 10 are the install command.
 #
-# Wait @BNN holds for exactly as long as beat BNN's narration audio, so the
-# picture is cut to the voice. Sleep is for beats of pure timing — a keystroke
-# landing, a request returning — that no line covers.
+# `Meanwhile @BNN … End` plays a beat's narration while running the steps inside
+# it, so the screen keeps moving as the line is spoken. `Wait @BNN` is the plain
+# hold, for the few beats that want a still frame.
 #
-# Beat text lives in narration.md. Keep the two in step: `demo:mux` fails loudly
-# if the tape waits on a beat that has no audio.
+# Beat text lives in narration.md. `demo:mux` fails if the tape names a beat that
+# has no audio, and tape.test.ts pins the goto keys used below.
 #
-# Navigation uses goto mode (`n`) rather than tab-and-cursor: two keystrokes,
-# and the keys are printed on screen as they're pressed. Those keys are derived
-# from the nav labels at runtime — tape.test.ts pins the ones used here so a
-# rename breaks the suite rather than the take.
-#
-# Run `bun run demo:seer-prep` first: Act 12 needs an org with Seer enabled.
+# Run `bun run demo:seer-prep` first — Act 3 ends on Seer.
 
 Set Columns 160
 Set Rows 44
 Set FontSize 18
 Set Output build/video.mp4
 
-# The harness puts a `sentry-tui` shim first on PATH — see writeShim.
+# No SENTRY_TUI_LATENCY here on purpose: the script claims two seconds to open,
+# so the recording must not be padding the load.
 Env PS1 ❯
-# Slow the first paint enough that the skeleton is actually on screen.
-Env SENTRY_TUI_LATENCY 900
 
 # ---------------------------------------------------------------------------
 # Act 0 — cold open
@@ -30,259 +24,140 @@ Env SENTRY_TUI_LATENCY 900
 
 Type `lynx -accept_all_cookies https://sentry.io`
 Key enter
-Sleep 4s
-Wait @B01
+Sleep 3s
 
-Key space
-Sleep 1s
-Key space
-Wait @B02
+Meanwhile @B01
+  Sleep 2s
+  Key space
+End
 
+Meanwhile @B02
+  Sleep 1s
+  Key q
+  Sleep 300ms
+  Key y
+  Sleep 700ms
+  Type `clear`
+  Key enter
+End
+
+# ---------------------------------------------------------------------------
+# Act 1 — the reveal
+# ---------------------------------------------------------------------------
+
+# The app paints about two seconds in, so the reveal lands mid-sentence.
+Meanwhile @B03
+  Type `sentry-tui`
+  Key enter
+End
+
+Meanwhile @B04
+  Sleep 2s
+  Key j 4
+  Sleep 1500ms
+  Key k 2
+End
+
+# ---------------------------------------------------------------------------
+# Act 2 — all keyboard
+# ---------------------------------------------------------------------------
+
+# n opens goto mode and prints a key inside every label; i repoints the
+# secondary pane, f commits Feed.
+Meanwhile @B05
+  Sleep 800ms
+  Key n
+  Sleep 2500ms
+  Key i
+  Sleep 1500ms
+  Key f
+End
+
+Meanwhile @B06
+  Key /
+  Sleep 400ms
+  Type `is:unresolved`
+  Sleep 1200ms
+  Key enter
+  Sleep 1200ms
+  Key ctrl+k
+  Sleep 700ms
+  Type `rep`
+End
+
+Meanwhile @B07
+  Key escape
+  Sleep 500ms
+  Key enter
+  Sleep 2500ms
+  Key r
+  Sleep 1800ms
+  Key escape
+End
+
+# ---------------------------------------------------------------------------
+# Act 3 — how much is here
+# ---------------------------------------------------------------------------
+
+# A montage: Logs, Replays, Releases, Profiles, then Seer. Explore's goto keys
+# are l, y, b and p; Seer is s then a.
+Meanwhile @B08
+  Key n
+  Sleep 400ms
+  Key e
+  Sleep 300ms
+  Key l
+  Sleep 1600ms
+  Key n
+  Sleep 300ms
+  Key e
+  Sleep 300ms
+  Key y
+  Sleep 1600ms
+  Key n
+  Sleep 300ms
+  Key e
+  Sleep 300ms
+  Key b
+  Sleep 1400ms
+  Key n
+  Sleep 300ms
+  Key e
+  Sleep 300ms
+  Key p
+  Sleep 1400ms
+  Key n
+  Sleep 300ms
+  Key s
+  Sleep 300ms
+  Key a
+End
+
+# The Seer composer takes focus on arrival, so the question types straight in.
+Meanwhile @B09
+  Sleep 900ms
+  Type `Which project is failing the most this week?`
+  Sleep 900ms
+  Key enter
+End
+
+# ---------------------------------------------------------------------------
+# Act 4 — outro
+# ---------------------------------------------------------------------------
+
+# Escape releases the Seer composer before q can reach the app.
+Key escape
+Sleep 400ms
 Key q
-Sleep 300ms
-Key y
 Sleep 800ms
 Type `clear`
 Key enter
-Sleep 500ms
-Wait @B03
-
-# ---------------------------------------------------------------------------
-# Act 1 — first run
-# ---------------------------------------------------------------------------
-
-Type `sentry-tui --help`
-Key enter
-Sleep 1s
-Wait @B04
-
-Type `clear && SENTRY_TUI_CONFIG_DIR=$(mktemp -d) sentry-tui`
-Key enter
-Sleep 2s
-Type `n`
-Key enter
-Sleep 1s
-Wait @B05
-
-# ---------------------------------------------------------------------------
-# Act 2 — first paint
-# ---------------------------------------------------------------------------
-
-Type `clear && sentry-tui`
-Key enter
 Sleep 400ms
-Wait @B06
 
-Key tab
-Sleep 1s
-Key tab
-Wait @B07
-
-# ---------------------------------------------------------------------------
-# Act 3 — the issue stream
-# ---------------------------------------------------------------------------
-
-Wait @B08
-
-Key ctrl+r
-Sleep 400ms
-Wait @B09
-
+# THE INSTALL COMMAND. Typed, never run — it is there to be copied, and running
+# it inside the demo would just reinstall over the top. Change it here if the
+# published name ever changes.
+Type `npm install -g sentry-tui`
 Wait @B10
-
-# ---------------------------------------------------------------------------
-# Act 4 — moving around
-# ---------------------------------------------------------------------------
-
-Key j 5
-Sleep 600ms
-Key shift+g
-Sleep 800ms
-Key g
-Wait @B11
-
-# ---------------------------------------------------------------------------
-# Act 5 — search
-# ---------------------------------------------------------------------------
-
-Key /
-Sleep 400ms
-Type `is:unresolved`
-Wait @B12
-
-Key enter
-Sleep 1s
-Wait @B13
-
-# ---------------------------------------------------------------------------
-# Act 6 — filters
-# ---------------------------------------------------------------------------
-
-Key shift+p
-Sleep 800ms
-Key j
-Key enter
-Sleep 800ms
-Wait @B15
-
-Key shift+e
-Sleep 1s
-Key escape
-Sleep 400ms
-Key shift+d
-Sleep 800ms
-Key j
-Key enter
-Sleep 800ms
-Wait @B16
-
-# ---------------------------------------------------------------------------
-# Act 7 — issue views, via goto mode
-# ---------------------------------------------------------------------------
-
-# n opens goto mode and prints a key in every label; i points the secondary
-# pane at Issues and stays in the mode; b commits Inbox and leaves it.
-Key n
-Sleep 1200ms
-Key i
-Sleep 900ms
-Key b
-Sleep 1500ms
-Wait @B17
-
-Key n
-Sleep 700ms
-Key i
-Sleep 500ms
-Key v
-Sleep 1500ms
-Wait @B18
-
-# ---------------------------------------------------------------------------
-# Act 8 — issue detail
-# ---------------------------------------------------------------------------
-
-# Back to Feed before opening an issue — Inbox and All Views are different lists.
-Key n
-Sleep 600ms
-Key i
-Sleep 400ms
-Key f
-Sleep 1800ms
-Key enter
-Sleep 1200ms
-Wait @B19
-
-Wait @B20
-
-Key 2
-Sleep 700ms
-Key 2
-Sleep 700ms
-Key z
-Sleep 700ms
-Key z
-Wait @B21
-
-Key j 8
-Wait @B22
-
-Wait @B23
-
-# ---------------------------------------------------------------------------
-# Act 9 — triage
-# ---------------------------------------------------------------------------
-
-Key r
-Sleep 800ms
-Wait @B24
-
-Key u
-Sleep 700ms
-Key b
-Sleep 700ms
-Key m
-Sleep 700ms
-Key escape
-Sleep 600ms
-Key a
-Wait @B25
-
-Wait @B26
-
-# ---------------------------------------------------------------------------
-# Act 10 — the command palette
-# ---------------------------------------------------------------------------
-
-Key ctrl+k
-Sleep 700ms
-Type `log`
-Wait @B28
-
-# ---------------------------------------------------------------------------
-# Act 11 — Explore › Logs
-# ---------------------------------------------------------------------------
-
-Key enter
-Sleep 2s
-Key j 3
-Wait @B29
-
-Key enter
-Sleep 900ms
-Key j
-Sleep 900ms
-Key j
-Wait @B30
-
-Key escape
-Sleep 400ms
-
-# ---------------------------------------------------------------------------
-# Act 12 — Seer
-# ---------------------------------------------------------------------------
-
-# n → s (Seer) → a (Ask Seer). The composer takes focus on arrival, so the
-# question can be typed straight away.
-Key n
-Sleep 900ms
-Key s
-Sleep 700ms
-Key a
-Sleep 1800ms
-Type `Which of my projects is failing the most this week, and why?`
-Wait @B31
-
-Key enter
+# Hold the still frame so viewers can copy it: B10's line plus this is ~10s.
 Sleep 6s
-Wait @B32
-
-Key escape
-Sleep 800ms
-Key i
-Sleep 800ms
-Wait @B33
-
-Key escape
-Sleep 500ms
-
-# ---------------------------------------------------------------------------
-# Act 13 — help
-# ---------------------------------------------------------------------------
-
-Key ?
-Sleep 700ms
-Wait @B34
-
-Key escape
-Sleep 500ms
-
-# ---------------------------------------------------------------------------
-# Act 14 — close
-# ---------------------------------------------------------------------------
-
-Key q
-Sleep 600ms
-Type `clear`
-Key enter
-Wait @B35

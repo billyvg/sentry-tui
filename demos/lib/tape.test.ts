@@ -94,6 +94,54 @@ describe("timeline", () => {
   });
 });
 
+describe("Meanwhile", () => {
+  const tape = parseTape(`
+    Meanwhile @B01
+      Key n
+      Sleep 500ms
+      Key i
+    End
+    Wait @B02
+  `);
+
+  test("collects its steps instead of emitting them inline", () => {
+    expect(tape.steps).toHaveLength(2);
+    expect(tape.steps[0]).toMatchObject({
+      kind: "meanwhile",
+      beat: "B01",
+      steps: [
+        { kind: "key", chord: "n" },
+        { kind: "sleep", ms: 500 },
+        { kind: "key", chord: "i" },
+      ],
+    });
+  });
+
+  test("lasts the longer of the beat and its own steps", () => {
+    // Beat longer than the block: the block holds the rest of the line.
+    expect(timeline(tape, { B01: 4, B02: 1 })[0]).toMatchObject({ holdMs: 4000 });
+    // Block longer than the beat: the actions still get to finish.
+    expect(timeline(tape, { B01: 0.2, B02: 1 })[0]).toMatchObject({ holdMs: 500 });
+  });
+
+  test("counts as waiting on its beat", () => {
+    expect(beatsInTape(tape)).toEqual(["B01", "B02"]);
+  });
+
+  test("an unclosed block names its line", () => {
+    expect(() => parseTape("Meanwhile @B01\n  Key n")).toThrow("never closed");
+    expect(() => parseTape("Meanwhile @B01\n  Key n")).toThrow("line 1");
+  });
+
+  test("blocks cannot nest", () => {
+    expect(() => parseTape("Meanwhile @B01\nMeanwhile @B02\nEnd\nEnd")).toThrow("cannot nest");
+  });
+
+  test("End without a block is an error", () => {
+    expect(() => parseTape("End")).toThrow("End without a Meanwhile");
+  });
+});
+
 describe("parseNarration", () => {
   const source = `
 # Title
@@ -190,19 +238,24 @@ describe("goto keys the tape depends on", () => {
     const source = await Bun.file(new URL("../demo.tape", import.meta.url)).text();
     const steps = parseTape(source).steps;
 
-    // Only Issues, Explore › Logs and Seer have real screens; the rest of the
-    // nav renders "Not implemented yet." and must not appear on camera.
-    const implemented = new Set(["i", "f", "b", "v", "e", "l", "s", "a"]);
+    // Groups: i Issues, e Explore, s Seer. Items: f Feed, b Inbox/Releases,
+    // v All Views, l Logs, y Replays, p Profiles, a Ask Seer. Everything else in
+    // the nav renders "Not implemented yet." and must not appear on camera.
+    const implemented = new Set(["i", "f", "b", "v", "e", "l", "y", "p", "s", "a"]);
+
+    // Most navigation lives inside `Meanwhile` blocks, so the scan has to
+    // descend into them — a flat pass finds nothing and passes vacuously.
+    const flat = steps.flatMap((step) => (step.kind === "meanwhile" ? step.steps : [step]));
 
     // Every `Key n` opens goto mode; the next one or two keystrokes choose the
     // destination. Sleeps are skipped rather than treated as terminators —
     // there is always one between the keys, to let the printed hotkeys land on
     // screen before the next press.
     const pressed: Array<{ line: number; chord: string }> = [];
-    steps.forEach((step, i) => {
+    flat.forEach((step, i) => {
       if (step.kind !== "key" || step.chord !== "n") return;
       let taken = 0;
-      for (const next of steps.slice(i + 1)) {
+      for (const next of flat.slice(i + 1)) {
         if (next.kind === "sleep") continue;
         if (next.kind !== "key" || taken === 2) break;
         pressed.push({ line: next.line, chord: next.chord });

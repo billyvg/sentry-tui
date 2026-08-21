@@ -14,15 +14,22 @@ The beat is the unit the whole pipeline runs on:
 So the video is cut to the voice, not the other way round. Re-record one line and
 only that beat's timing moves.
 
-**Runtime:** ~5:10 at 165 wpm. Beats marked `[CUT]` are the ones to drop first —
-without them it lands around 3:50.
+**Runtime: ~75 seconds**, of which the last 10 are a still frame of the install
+command so viewers can copy it. The hard cap is three minutes; this is built to
+land well inside it, which is why it sells the thing rather than explaining it.
 
-Everything narrated here is implemented and working. See
-[Fidelity notes](#fidelity-notes) for what's deliberately absent and why.
+## What this is and isn't
 
-**Before recording**, run `bun run demo:seer-prep` — the Seer act only works
-against an org where the Explorer agent is enabled, and that script picks the org
-and proves Seer answers for it before you spend a take finding out.
+It's a pitch, not a tour. Every beat is a reason to want the app — it's fast,
+it's light, it's all keyboard, it's real — and none of them enumerate features or
+explain how anything is built. The screen does the showing; the voice does the
+selling.
+
+Deliberately absent: the CLI, `--help`, the login flow, and anything about
+implementation. Nothing but the TUI after the cold open.
+
+**Before recording**, run `bun run demo:seer-prep` — the last screens hit Seer,
+which only answers for orgs where the Explorer agent is enabled.
 
 ---
 
@@ -32,321 +39,82 @@ and proves Seer answers for it before you spend a take finding out.
 
 **Screen:** full-screen `lynx https://sentry.io`, mid-page.
 
-> Back in the day, we browsed the web through the terminal.
+> Back in the day, we browsed the web through a terminal.
 
 ### B02 · out of lynx
 
-**Screen:** a page-down or two, then `q` out to a bare prompt.
+**Screen:** a page-down, then out to a bare prompt.
 
-> Thirty-five years later — terminal UIs are so fucking back.
-
-### B03 · the app launches
-
-**Screen:** `sentry-tui` starting; hold on the first painted frame.
-
-> Introducing Sentry. In your terminal.
+> Thirty-five years later — terminal UIs are so back.
 
 ---
 
-## Act 1 — First run
+## Act 1 — The reveal
 
-### B04 · the CLI surface
+### B03 · it opens
 
-**Screen:** `sentry-tui --help`
+**Screen:** `sentry-tui`, and the issue stream paints.
 
-> Everything starts at the command line. One binary, four commands.
+> This is Sentry. Not a status widget — the actual product, in your terminal.
 
-### B05 · no credentials yet
+### B04 · speed
 
-**Screen:** `sentry-tui` with `SENTRY_TUI_CONFIG_DIR` pointed at an empty temp
-directory, so startup finds nothing and offers the device flow. Answer `n` and
-let the fallback message print.
+**Screen:** hold on the loaded stream; `j` down a few rows.
 
-> Start it with no credentials and it offers to sign you in — a real OAuth device
-> flow, so you never have to paste a long-lived token into a shell. Say no and it
-> tells you about personal tokens instead.
+> Two seconds to open. No tab to find, no dashboard to wait on — your issues are
+> just there.
 
 ---
 
-## Act 2 — First paint
+## Act 2 — All keyboard
 
-### B06 · skeleton to data
+### B05 · goto mode
 
-**Screen:** `sentry-tui` launching for real. Skeleton rows, then the stream.
-**Tip:** `SENTRY_TUI_LATENCY=900` makes the skeleton actually visible.
+**Screen:** `n` — every nav label grows a key. Then `i`, `f` back to Feed.
 
-> Start it up and you land on the issue stream. While the request is in flight the
-> list draws itself as a skeleton — the shape arrives before the data does.
+> It's built for the keyboard. Press n, and every destination tells you its key.
+> Anywhere is two presses away.
 
-### B07 · the layout
+### B06 · search and the palette
 
-**Screen:** slow beat on the whole frame; Tab once to move the focus box to the
-nav rail and back.
+**Screen:** `/` and a query, then `ctrl+k` and a few letters.
 
-> Six nav groups down the left, mirroring the web app's real information
-> architecture — issues, explore, dashboards, Seer, monitors, settings. Your org
-> sits at the top with the key that switches it. And a status bar that owns every
-> piece of activity in the app: if something is loading it says so, and past two
-> seconds it starts counting, so slow never looks like hung.
+> Slash to search. Control-K for a palette over every command there is.
 
----
+### B07 · triage
 
-## Act 3 — The issue stream
+**Screen:** Enter into an issue, `r` to resolve, Escape back.
 
-### B08 · row anatomy
-
-**Screen:** static on the stream. Let the viewer read a few rows.
-
-> The default query is Sentry's own — unresolved, high and medium priority, over
-> fourteen days. Every row carries a colored level bar, the exception type, the
-> culprit beneath it, and then the columns you actually scan by: last seen, age, a
-> twenty-four hour trend sparkline, event and user counts, priority, and who owns
-> it.
-
-### B09 · two-phase load
-
-**Screen:** `ctrl+r`, and hold while the counts and sparklines land.
-
-> The counts and the sparklines arrive on a second request, exactly like the web
-> app does it — the list paints first and fills in after.
-
-### B10 · responsive columns `[CUT]`
-
-**Screen:** narrow the window, then widen it back.
-
-> Narrow the terminal and the columns shed from the right, in the order you're
-> least likely to miss them. The title never loses.
+> Triage without breaking stride — resolve, archive, bookmark. It lands instantly,
+> and rolls back if the server disagrees.
 
 ---
 
-## Act 4 — Moving around
+## Act 3 — How much is here
 
-### B11 · cursor
+### B08 · the whole surface
 
-**Screen:** several `j` presses, a `G`, then a `g`.
+**Screen:** a fast montage — Logs, Replays, Releases, Profiles, then Seer.
 
-> j and k move. g and capital G jump to the ends. The viewport follows the cursor
-> rather than the other way round.
+> Logs, replays, releases, profiles — the whole Explore section, ported. And Seer,
+> Sentry's agent, right in the same window.
 
----
+### B09 · it's real
 
-## Act 5 — Search
+**Screen:** Seer working on a real question.
 
-### B12 · focus and type
-
-**Screen:** `/` focuses the search bar; type a query.
-
-> Slash focuses the search bar, and it takes any Sentry query you'd type on the
-> web.
-
-### B13 · commit
-
-**Screen:** Enter; the stream refetches.
-
-> Enter commits it and refetches.
-
-### B14 · revert `[CUT]`
-
-**Screen:** `/`, type something, Escape; the old query snaps back.
-
-> And escape puts back whatever was there before you started typing.
+> All of this is the real app, making real requests against a real org.
 
 ---
 
-## Act 6 — Filters
+## Act 4 — Outro
 
-### B15 · projects
+### B10 · install
 
-**Screen:** `P` opens the project dropdown; select one.
+**Screen:** back to a bare prompt with `npm install -g sentry-tui` typed and not
+run. Holds for ten seconds so viewers can copy it.
 
-> Capital P opens the project selector, and it's multi-select.
-
-### B16 · environment and date
-
-**Screen:** `E`, Escape, then `D` and pick a period.
-
-> E filters by environment, D by date range. Each chip prints the key that opens
-> it, so the shortcut and the button are the same object — and you can click them
-> if you'd rather.
-
----
-
-## Act 7 — Issue views
-
-### B17 · goto mode, and Inbox
-
-**Screen:** `n` — both nav panes open with a key printed inside every label.
-Then `i` to point at Issues, `b` for Inbox.
-
-> Press n and every destination in the app prints a key inside its own label, so
-> anywhere is two keystrokes away. Issues, Inbox — the views aren't cosmetic,
-> each one is the query its web page runs, and the pane names the view you're on.
-
-### B18 · All Views `[CUT]`
-
-**Screen:** `n`, `i`, `v`.
-
-> All Views lists the searches you and your team have saved, split by who made
-> them.
-
----
-
-## Act 8 — Issue detail
-
-### B19 · open
-
-**Screen:** back to Feed (`n`, `i`, `f`), then Enter on an issue with a real
-stack trace.
-
-> Enter opens the issue.
-
-### B20 · the header
-
-**Screen:** hold on the header block.
-
-> The header is the whole triage question on one screen: status, project,
-> priority, assignee, a twenty-four hour chart three rows tall, event and user
-> counts, first seen, last seen — and the actions you can take, each one wearing
-> the key that fires it.
-
-### B21 · sections
-
-**Screen:** `2` folds breadcrumbs, `2` unfolds, `z` folds all, `z` again.
-
-> Below that, six sections — stack trace, breadcrumbs, request, tags, contexts,
-> SDK. Each one prints the digit that folds it, so you read the binding off the
-> screen instead of memorizing it. z folds everything at once.
-
-### B22 · the stack trace
-
-**Screen:** scroll through the exception section slowly.
-
-> The stack trace opens on the frame that crashed, with source context, syntax
-> highlighting, and local variables. Repeated frames collapse to a count, and
-> frames outside your own code stay out of the way until you want them.
-
-### B23 · the rest `[CUT]`
-
-**Screen:** scroll down through breadcrumbs, tags, contexts.
-
-> Breadcrumbs run in the order that led to the error. Tags and contexts sit in a
-> key column and a value column, so a block of sixteen is still scannable.
-
----
-
-## Act 9 — Triage
-
-### B24 · resolve
-
-**Screen:** `r`. The badge and the row change immediately; the status bar confirms
-with the short ID.
-
-> Triage is where a terminal client earns its keep. r resolves.
-
-### B25 · the rest of the verbs
-
-**Screen:** `u`, `b`, `m`, then Escape back to the stream and `a` from the list.
-
-> a archives until it escalates. u unresolves, b bookmarks, m marks reviewed — and
-> they all work the same whether you're in the list or in the issue.
-
-### B26 · optimism
-
-**Screen:** hold on a row that just changed.
-
-> Every one of them lands on the row instantly and confirms in the status bar. If
-> the request fails, the row rolls back to exactly what it was before — no
-> refetch, no guessing.
-
-### B27 · refresh `[CUT]`
-
-**Screen:** `ctrl+r`; spinner in the status bar.
-
-> Control-R reloads whatever you're looking at.
-
----
-
-## Act 10 — The command palette
-
-### B28 · ctrl+k
-
-**Screen:** `ctrl+k`, type `log`, watch the results narrow.
-
-> Control-K is the command palette — every destination and every command, fuzzy
-> matched. It's built from the same navigation and command definitions the rest of
-> the app uses, so it can't drift out of date, and a command with no handler never
-> appears in it.
-
----
-
-## Act 11 — Explore › Logs
-
-### B29 · the log stream
-
-**Screen:** Enter on the palette's `Logs` result; hold, then `j` a few times.
-
-> Explore, Logs. A volume chart across the window, then the stream itself — time,
-> severity, project, message, colored by level. Same search bar, same filters,
-> same keys.
-
-### B30 · log detail
-
-**Screen:** Enter opens the panel; `j` twice so it follows the cursor.
-
-> Enter opens the detail panel — body, severity, project, and the trace ID that
-> ties it back to everything else. The cursor keeps moving underneath it, so you
-> can read down a stream of logs without opening and closing anything.
-
----
-
-## Act 12 — Seer
-
-### B31 · ask
-
-**Screen:** `n`, `s`, `a` — Seer, Ask Seer. The composer already has focus; type
-the question and press Enter.
-
-> And this is Seer — Sentry's agent, in the same window. The composer takes focus
-> the moment you arrive, so you just start typing.
-
-### B32 · the answer
-
-**Screen:** hold while the run polls: tool calls appear as readable steps, then
-the answer.
-
-> It streams back what it's doing as it does it — reading a file, searching your
-> telemetry — as plain sentences rather than raw tool names. Then the answer.
-
-### B33 · the conversation keys `[CUT]`
-
-**Screen:** Escape to the transcript, `i` back to the composer, `N` for a fresh
-chat.
-
-> Escape drops you into the transcript to scroll it, i puts you back in the
-> composer, shift-N starts over, and x stops Seer mid-thought if it's heading the
-> wrong way.
-
----
-
-## Act 13 — Help
-
-### B34 · the overlay
-
-**Screen:** `?`, hold, Escape.
-
-> Question mark lists every shortcut in the app. That overlay isn't hand-written —
-> it's generated from the command catalog, so rebinding a key updates the help,
-> and a command with no key simply has no row.
-
----
-
-## Act 14 — Close
-
-### B35 · quit
-
-**Screen:** `q`, back to a bare prompt. Hold two beats on the empty terminal.
-
-> Nine thousand lines of TypeScript, on OpenTUI and Bun. Sentry, in your terminal.
+> It's faster than the browser. Go find out for yourself.
 
 ---
 
@@ -360,25 +128,27 @@ graphics or sixel **and** `HERDR_ENV` / `TMUX` / `STY` are unset. VHS renders
 through a headless browser terminal that doesn't advertise kitty graphics, and a
 Herdr pane is excluded by name. Both would produce a text-only nav rail.
 
-So `demos/record.ts` drives a real Kitty window over its remote-control socket.
-Run it from a normal shell — `record.ts` refuses to start inside a multiplexer.
-
 ### Goto keys are derived, not fixed
 
-The keys the tape presses in goto mode (`i` for Issues, `b` for Inbox, `l` for
-Logs, `s`/`a` for Seer) are assigned at runtime from the **labels**, so renaming a
-nav item silently changes them. `demos/lib/tape.test.ts` asserts the ones the tape
-depends on, so a rename fails the suite instead of the recording.
+The keys the tape presses in goto mode are assigned at runtime from the nav
+**labels**, so renaming an item silently changes them.
+`demos/lib/tape.test.ts` pins the ones the tape depends on and fails if a press
+would land on a section that isn't implemented.
 
-### Deliberately not narrated
+### The install command has to be true before this ships
 
-- **Changing the sort.** `SORT_OPTIONS` exists and the filter row displays the
-  current sort, but `IssueStream` holds it in a `useState` with no setter — it is
-  always "Last Seen". That chip is a label, not a control.
-- **Clicking the issue-detail action chips.** The filter chips are wired to
-  `onPress`; resolve/archive/bookmark in the detail header are keyboard-only. B16
-  says "you can click them" about the _filter_ chips — keep the mouse off the
-  detail header.
-- **Dashboards, Monitors, Settings**, and most of Explore. They render an honest
-  "Not implemented yet." Goto mode prints keys for them, so don't press one on
-  camera.
+The outro holds `npm install -g sentry-tui` on screen for ten seconds
+specifically so people run it. That package has to exist on npm by then — see
+`bun run release:cut`. It is one `Type` line at the end of `demo.tape`.
+
+### Claims the script makes, and what backs them
+
+- **"Two seconds to open"** — measured: chrome paints at 0.8s, real rows with
+  sparklines and counts by 2.0s.
+- **"The whole Explore section"** — Logs, Replays, Releases and Profiles have
+  real screens. Traces, Metrics, Discover and Conversations do not, and the
+  montage doesn't visit them.
+- **"Rolls back if the server disagrees"** — `useTriage` keeps the original and
+  restores it on failure.
+- **Keyboard only.** The app does take a mouse, and the script no longer says so
+  — nothing in the tape clicks.
