@@ -207,10 +207,13 @@ export const COMMANDS: readonly Command[] = [
     description: "Focus the Seer composer",
   },
   {
+    // Shifted because a bare `n` opens goto mode everywhere else, and a key
+    // that navigates on five screens must not discard a conversation on this
+    // one.
     id: "sentry.seer.newChat",
     title: "New chat",
     category: "seer",
-    defaultKeys: ["n"],
+    defaultKeys: ["N"],
     description: "Start a fresh Seer conversation",
   },
   {

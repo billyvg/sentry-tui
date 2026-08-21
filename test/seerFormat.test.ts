@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { isSessionSettled, isSessionStale, type SeerBlock } from "~/api/seer";
+import { getNavGroup, navItems, soleNavItem } from "~/core/nav";
 import { describeToolCalls, getBlockStatus } from "~/core/seer";
 import { wrapText } from "~/lib/text";
 import {
@@ -10,6 +11,17 @@ import {
   seerSessionFixture,
   toolBlockFixture,
 } from "./seer-fixtures";
+
+test("Seer has one destination, so the rail opens it directly", () => {
+  expect(navItems(getNavGroup("seer"))).toEqual(["Ask Seer"]);
+  expect(soleNavItem(getNavGroup("seer"))).toBe("Ask Seer");
+});
+
+test("groups with several destinations keep their secondary list", () => {
+  for (const id of ["issues", "explore", "dashboards", "monitors", "settings"] as const) {
+    expect(soleNavItem(getNavGroup(id))).toBeUndefined();
+  }
+});
 
 test("wrapText breaks on spaces and keeps lines within the width", () => {
   const lines = wrapText("the quick brown fox jumps over the lazy dog", 12);

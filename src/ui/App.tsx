@@ -9,7 +9,7 @@ import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
 import { buildGotoHotkeys } from "~/core/goto";
 import { ALL_VIEWS_LABEL, DEFAULT_ISSUE_VIEW, getIssueView } from "~/core/issueViews";
-import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
+import { getNavGroup, NAV_GROUPS, navItems, soleNavItem, type NavGroupId } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { SEER_SUGGESTED_QUESTIONS } from "~/core/seer";
 import { theme } from "~/core/theme";
@@ -332,24 +332,6 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const activeIssue = openIssue ?? (showIssues ? issues[selected] : undefined);
 
   /**
-   * Open a nav group's secondary list — the one path Enter on the rail and a
-   * click on a rail item both take.
-   */
-  const openNavGroup = useCallback(
-    (group: NavGroupId) => {
-      setGotoMode(false);
-      setRailGroup(group);
-      // Re-entering the active group starts on the current item.
-      const startItem =
-        group === activeGroup ? activeItem : (getNavGroup(group).sections[0]?.items[0] ?? "");
-      setSecondaryItem(startItem);
-      setShowSecondary(true);
-      focus.focus("secondary");
-    },
-    [activeGroup, activeItem, focus],
-  );
-
-  /**
    * Show a group's item in the content pane — the one path every way of
    * navigating ends at: the secondary nav, a click, and the command palette.
    */
@@ -383,6 +365,33 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   );
 
   /**
+   * Open a nav group from the rail — the one path Enter on the rail and a
+   * click on a rail item both take.
+   *
+   * A group with a single destination (Seer) skips the secondary list and
+   * lands in the content pane directly; there is nothing there to choose.
+   */
+  const openNavGroup = useCallback(
+    (group: NavGroupId) => {
+      const navGroup = getNavGroup(group);
+      const sole = soleNavItem(navGroup);
+      if (sole !== undefined) {
+        // navigateTo clears goto mode itself.
+        navigateTo(group, sole);
+        return;
+      }
+      setGotoMode(false);
+      setRailGroup(group);
+      // Re-entering the active group starts on the current item.
+      const startItem = group === activeGroup ? activeItem : (navItems(navGroup)[0] ?? "");
+      setSecondaryItem(startItem);
+      setShowSecondary(true);
+      focus.focus("secondary");
+    },
+    [activeGroup, activeItem, focus, navigateTo],
+  );
+
+  /**
    * Commit a secondary nav item as the active view — shared by Enter on the
    * secondary cursor and a click on a secondary item.
    */
@@ -401,15 +410,22 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   /**
    * Point the secondary pane at another group without leaving goto mode — the
    * first half of a two-key jump, e.g. `g` `e` `l` for Explore › Logs.
+   *
+   * A group with a single destination has no second half to offer, so its key
+   * completes the jump rather than previewing a one-row list.
    */
   const previewNavGroup = useCallback(
     (group: NavGroupId) => {
+      const navGroup = getNavGroup(group);
+      const sole = soleNavItem(navGroup);
+      if (sole !== undefined) {
+        navigateTo(group, sole);
+        return;
+      }
       setRailGroup(group);
-      setSecondaryItem(
-        group === activeGroup ? activeItem : (getNavGroup(group).sections[0]?.items[0] ?? ""),
-      );
+      setSecondaryItem(group === activeGroup ? activeItem : (navItems(navGroup)[0] ?? ""));
     },
-    [activeGroup, activeItem],
+    [activeGroup, activeItem, navigateTo],
   );
 
   const paletteActions = useMemo(
@@ -736,7 +752,8 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 7. Nav rail: j/k moves the cursor, Enter opens secondary nav.
+        // 7. Nav rail: j/k moves the cursor, Enter opens the group — its
+        //    secondary list, or the content pane when it has one destination.
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "nav") return "notMine";
@@ -760,7 +777,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           if (openIssue) return "notMine";
           if (!showSecondary) return "notMine";
           if (focus.focusedRef.current !== "secondary") return "notMine";
-          const items = getNavGroup(railGroup).sections.flatMap((s) => s.items);
+          const items = navItems(getNavGroup(railGroup));
           const index = items.indexOf(secondaryItem);
           if (matchesCommand("sentry.nav.open", key)) {
             selectNavItem(secondaryItem);
@@ -1128,7 +1145,10 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
                     : showLogs
                       ? [
                           // Enter toggles, so the one hint carries both directions.
-                          { command: "sentry.nav.open", label: logDetailOpen ? "close" : "details" },
+                          {
+                            command: "sentry.nav.open",
+                            label: logDetailOpen ? "close" : "details",
+                          },
                           { command: "sentry.nav.search", label: "search" },
                           { command: "sentry.nav.goto", label: "nav" },
                           { command: "sentry.app.commandPalette", label: "commands" },

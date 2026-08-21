@@ -87,8 +87,10 @@ test("a group key repoints the secondary pane without leaving the mode", async (
     await h.press((i) => i.pressKey("e"));
 
     const afterGroup = h.frame();
-    // Explore's items, each with a key, and the mode still waiting.
-    expect(afterGroup).toContain("(t)races");
+    // Explore's items, each with a key, and the mode still waiting. Traces
+    // keys off its `r`: the groups are assigned first, and Seer takes `s`,
+    // which pushes Settings onto `t`.
+    expect(afterGroup).toContain("T(r)aces");
     expect(afterGroup).toContain("(l)ogs");
     expect(afterGroup).toContain("go to…");
     // Still on the Issues feed: choosing a group is not yet a destination.

@@ -96,3 +96,21 @@ export function getNavGroup(id: NavGroupId): NavGroup {
   if (!group) throw new Error(`Unknown nav group: ${id}`);
   return group;
 }
+
+/** Every destination in a group, flattened across its sections. */
+export function navItems(group: NavGroup): string[] {
+  return group.sections.flatMap((s) => s.items);
+}
+
+/**
+ * The one destination a group has, when it only has one.
+ *
+ * Such a group has nothing to choose between, so opening it on the rail goes
+ * straight to the content pane — a secondary list holding a single row is a
+ * keystroke that can only be answered one way. Derived from `sections` rather
+ * than flagged per group, so it stays true as sections change.
+ */
+export function soleNavItem(group: NavGroup): string | undefined {
+  const items = navItems(group);
+  return items.length === 1 ? items[0] : undefined;
+}

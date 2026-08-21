@@ -59,8 +59,7 @@ async function navigateToSeer(h: Awaited<ReturnType<typeof renderHarness>>) {
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressKey("j"));
-  // Open secondary nav, then select its only item.
-  await h.press((i) => i.pressEnter());
+  // One Enter: Seer's single destination skips the secondary nav.
   await h.press((i) => i.pressEnter());
 }
 
@@ -77,6 +76,53 @@ test("the nav rail lists Seer and no longer lists Insights", async () => {
   try {
     expect(h.frame()).toContain("Seer");
     expect(h.frame()).not.toContain("Insights");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("enter on the Seer rail item opens the screen without a secondary nav", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await h.press((i) => i.pressTab());
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+
+    // Straight to the conversation — the secondary list never appears, so its
+    // sole "Ask Seer" row is not on screen.
+    expect(h.frame()).toContain("Ask Seer anything about your application.");
+    expect(h.frame()).not.toContain("Ask Seer\n");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("goto mode jumps straight to Seer on its group key", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    // `n` opens goto mode, then Seer's own key completes the jump — there is
+    // no second half to press, since the group has one destination.
+    await h.press((i) => i.pressKey("n"));
+    await h.press((i) => i.pressKey("s"));
+    expect(h.frame()).toContain("Ask Seer anything about your application.");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a multi-item group still opens its secondary nav", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    // Explore has many destinations, so Enter must still offer the list.
+    await h.press((i) => i.pressTab());
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("Traces");
   } finally {
     await h.cleanup();
   }
@@ -157,9 +203,9 @@ test("a new chat clears the transcript back to the empty state", async () => {
     await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Checkout fails"));
 
-    // Leave the composer, then start over.
+    // Leave the composer, then start over. Shifted `N`: a bare `n` is goto.
     await h.pressEscape();
-    await h.press((i) => i.pressKey("n"));
+    await h.press((i) => i.pressKey("N", { shift: true }));
     await h.waitForFrame((f) => f.includes("Ask Seer anything about your application."));
 
     expect(h.frame()).not.toContain("Checkout fails");
