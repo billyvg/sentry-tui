@@ -96,3 +96,70 @@ test("the other two filter keys rescue the same way", async () => {
     await h.cleanup();
   }
 });
+
+test("a filter key on a screen with no filter row is a no-op, not a mode", async () => {
+  // The wedge the Escape rescue above does not cover. Escape is the only key
+  // that rescues, so a user who presses anything *else* first — j to move the
+  // cursor, ? for help, Enter to open a row — has it swallowed, and so is
+  // every key after it. The app looks hung, and nothing on screen says why or
+  // hints that Escape is the way out. Found by driving a real terminal.
+  const h = await renderHarness(<App onQuit={() => {}} client={stubClient()} org="acme" />, {
+    width: WIDTH,
+    height: HEIGHT,
+  });
+  try {
+    await openAllViews(h);
+    expect(h.frame()).toContain("All Views");
+
+    await h.press((i) => i.pressKey("P"));
+
+    // No Escape. The very next key must still be answered.
+    await h.press((i) => i.pressKey("?"));
+    expect(h.frame()).toContain("Keyboard");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the dashboards list does not wedge either", async () => {
+  // It used to carry its own copy of the fix — a `useEffect` that cleared
+  // `openDropdown` as soon as the router set it. That went when the router
+  // stopped setting it, so this is what now holds that screen up.
+  const h = await renderHarness(<App onQuit={() => {}} client={stubClient()} org="acme" />, {
+    width: WIDTH,
+    height: HEIGHT,
+  });
+  try {
+    await h.press((i) => i.pressTab());
+    for (const key of ["j", "j"]) await h.press((i) => i.pressKey(key));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("Dashboards"));
+
+    await h.press((i) => i.pressKey("P"));
+    await h.press((i) => i.pressKey("?"));
+    expect(h.frame()).toContain("Keyboard");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a screen that does have a filter row still opens its dropdown", async () => {
+  // The other half of the guard: gating on a mounted filter row must not stop
+  // the filter keys working where they are meant to.
+  const h = await renderHarness(<App onQuit={() => {}} client={stubClient()} org="acme" />, {
+    width: WIDTH,
+    height: HEIGHT,
+  });
+  try {
+    await h.waitForFrame((f) => f.includes("all projects"));
+    await h.press((i) => i.pressKey("P"));
+
+    // The dropdown's own chrome, not its contents: project slugs also appear
+    // in the issue rows behind it, so asserting on one passes either way.
+    const frame = h.frame();
+    expect(frame).toContain("─ Project ");
+    expect(frame).toContain("(/) filter…");
+  } finally {
+    await h.cleanup();
+  }
+});

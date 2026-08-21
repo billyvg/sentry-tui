@@ -148,7 +148,7 @@ const PREBUILT_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
 
 export function DashboardList(props: ScreenProps) {
   const { client, org, screen, state, focused, width, height, reloadToken } = props;
-  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
+  const { setEntries, setStatus, focusSearch, handleSearchBlur } = state;
 
   const view = getDashboardListView(screen.id);
   // Every id in `SCREEN_COMPONENTS` pointing here has an entry, and
@@ -182,23 +182,6 @@ export function DashboardList(props: ScreenProps) {
   useEffect(() => {
     setStatus({ loading, error: error?.message, noun: "dashboards" });
   }, [loading, error, setStatus]);
-
-  /**
-   * Make `P` / `E` / `D` no-ops instead of a soft keyboard lock.
-   *
-   * The app's key router opens a filter dropdown for any list screen, and the
-   * only thing that closes one is the `Dropdown` component's own listener —
-   * while `openDropdown` is set, every key is routed to it. A screen that
-   * renders no `FilterBar` therefore has nothing to close what the router just
-   * opened, and the app stops responding to everything, Escape included.
-   *
-   * The dashboards list filters by title, not by project or period, so there
-   * is no honest filter row to render here; closing the dropdown as soon as it
-   * opens is what makes those keys do nothing rather than do damage.
-   */
-  useEffect(() => {
-    if (state.openDropdown) setOpenDropdown(null);
-  }, [state.openDropdown, setOpenDropdown]);
 
   const { pushView } = props;
   const open = useCallback(
