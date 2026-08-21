@@ -255,8 +255,12 @@ working install.
 bun run release:verify
 ```
 
-Checks each package's published version against package.json and runs
-`npx sentry-tui@<version> --help` for real (that downloads ~24MB).
+Checks each package's published version against package.json, then runs
+`npx sentry-tui@<version> --version` for real (that downloads ~24MB) and
+asserts it prints `sentry-tui v<version>`. That last part is the point: the
+launcher resolving _a_ binary is not the same as npm having served _this_
+version, and `--version` is inlined at compile time, so it can tell them
+apart.
 
 ## Adding a platform
 
