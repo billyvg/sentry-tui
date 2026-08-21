@@ -9,8 +9,9 @@ import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
 import { buildGotoHotkeys } from "~/core/goto";
 import { ALL_VIEWS_LABEL, DEFAULT_ISSUE_VIEW, getIssueView } from "~/core/issueViews";
-import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
+import { getNavGroup, NAV_GROUPS, navItems, soleNavItem, type NavGroupId } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
+import { SEER_SUGGESTED_QUESTIONS } from "~/core/seer";
 import { theme } from "~/core/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
 import { CommandPalette } from "~/ui/components/CommandPalette";
@@ -26,11 +27,13 @@ import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav"
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
 import type { FilterDropdownType } from "~/ui/components/FilterBar";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
+import { useSeerChat, type SeerChatState } from "~/ui/hooks/useSeerChat";
 import { useTriage } from "~/ui/hooks/useTriage";
 import { IssueDetail } from "~/ui/screens/IssueDetail";
 import { IssueStream } from "~/ui/screens/IssueStream";
 import { IssueViewsList, type SavedViewRow } from "~/ui/screens/IssueViewsList";
 import { LogStream } from "~/ui/screens/LogStream";
+import { SeerExplorer } from "~/ui/screens/SeerExplorer";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
 
 const REGIONS = ["nav", "secondary", "content"] as const;
@@ -150,6 +153,12 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const [logCommittedQuery, setLogCommittedQuery] = useState<string>("");
   const logQueryBeforeEdit = useRef<string>("");
 
+  // Seer conversation state. The hook is inert until the first message, so
+  // it costs nothing while the user is on another screen.
+  const chat = useSeerChat(client, org);
+  const [seerInput, setSeerInput] = useState("");
+  const [seerInputFocused, setSeerInputFocused] = useState(false);
+
   // Which Issues view is on screen. A saved view outranks the nav item, since
   // opening one is a step *inside* All Views rather than a nav change.
   const navView = activeGroup === "issues" ? getIssueView(activeItem) : undefined;
@@ -159,7 +168,26 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const showIssues = navView !== undefined || savedView !== null;
   const showAllViews = activeGroup === "issues" && activeItem === ALL_VIEWS_LABEL && !savedView;
   const showLogs = activeGroup === "explore" && activeItem === "Logs";
+  const showSeer = activeGroup === "seer";
   const anySearchFocused = searchFocused || logSearchFocused;
+
+  // The composer only counts as focused while the content pane holds focus,
+  // so tabbing to the nav rail can't leave two widgets both claiming keys.
+  const seerComposerFocused = showSeer && seerInputFocused && focus.isFocused("content");
+  /** Any text input is capturing keystrokes — used for chrome and hints. */
+  const anyInputFocused = anySearchFocused || seerComposerFocused;
+
+  // A chat screen is useless without a cursor in the box, so entering Seer
+  // focuses the composer and leaving it releases focus.
+  useEffect(() => {
+    setSeerInputFocused(showSeer);
+  }, [showSeer]);
+
+  /** Send the composer's contents and clear it. */
+  const submitSeer = useCallback(() => {
+    chat.send(seerInput);
+    setSeerInput("");
+  }, [chat, seerInput]);
 
   /** Focus the search input, stashing the current query for Escape revert. */
   const focusSearch = useCallback(() => {
@@ -304,24 +332,6 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const activeIssue = openIssue ?? (showIssues ? issues[selected] : undefined);
 
   /**
-   * Open a nav group's secondary list — the one path Enter on the rail and a
-   * click on a rail item both take.
-   */
-  const openNavGroup = useCallback(
-    (group: NavGroupId) => {
-      setGotoMode(false);
-      setRailGroup(group);
-      // Re-entering the active group starts on the current item.
-      const startItem =
-        group === activeGroup ? activeItem : (getNavGroup(group).sections[0]?.items[0] ?? "");
-      setSecondaryItem(startItem);
-      setShowSecondary(true);
-      focus.focus("secondary");
-    },
-    [activeGroup, activeItem, focus],
-  );
-
-  /**
    * Show a group's item in the content pane — the one path every way of
    * navigating ends at: the secondary nav, a click, and the command palette.
    */
@@ -355,6 +365,33 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   );
 
   /**
+   * Open a nav group from the rail — the one path Enter on the rail and a
+   * click on a rail item both take.
+   *
+   * A group with a single destination (Seer) skips the secondary list and
+   * lands in the content pane directly; there is nothing there to choose.
+   */
+  const openNavGroup = useCallback(
+    (group: NavGroupId) => {
+      const navGroup = getNavGroup(group);
+      const sole = soleNavItem(navGroup);
+      if (sole !== undefined) {
+        // navigateTo clears goto mode itself.
+        navigateTo(group, sole);
+        return;
+      }
+      setGotoMode(false);
+      setRailGroup(group);
+      // Re-entering the active group starts on the current item.
+      const startItem = group === activeGroup ? activeItem : (navItems(navGroup)[0] ?? "");
+      setSecondaryItem(startItem);
+      setShowSecondary(true);
+      focus.focus("secondary");
+    },
+    [activeGroup, activeItem, focus, navigateTo],
+  );
+
+  /**
    * Commit a secondary nav item as the active view — shared by Enter on the
    * secondary cursor and a click on a secondary item.
    */
@@ -373,15 +410,22 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   /**
    * Point the secondary pane at another group without leaving goto mode — the
    * first half of a two-key jump, e.g. `g` `e` `l` for Explore › Logs.
+   *
+   * A group with a single destination has no second half to offer, so its key
+   * completes the jump rather than previewing a one-row list.
    */
   const previewNavGroup = useCallback(
     (group: NavGroupId) => {
+      const navGroup = getNavGroup(group);
+      const sole = soleNavItem(navGroup);
+      if (sole !== undefined) {
+        navigateTo(group, sole);
+        return;
+      }
       setRailGroup(group);
-      setSecondaryItem(
-        group === activeGroup ? activeItem : (getNavGroup(group).sections[0]?.items[0] ?? ""),
-      );
+      setSecondaryItem(group === activeGroup ? activeItem : (navItems(navGroup)[0] ?? ""));
     },
-    [activeGroup, activeItem],
+    [activeGroup, activeItem, navigateTo],
   );
 
   const paletteActions = useMemo(
@@ -512,13 +556,37 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           return "focused";
         },
         // 1c. The palette opens from anywhere, including mid-edit in the
-        // search box — so it is claimed ahead of the handler that would
-        // otherwise hand the chord to the focused input.
+        // search box or the Seer composer — so it is claimed ahead of the
+        // handlers that would otherwise hand the chord to the focused input.
         () => {
           if (!matchesCommand("sentry.app.commandPalette", key)) return "notMine";
           if (anySearchFocused) cancelSearch();
+          if (seerComposerFocused) setSeerInputFocused(false);
           setShowPalette(true);
           return "mine";
+        },
+        // 1d. The Seer composer owns Enter (send) and Escape (release focus
+        //     to the transcript). Tab still switches panes, so it blurs the
+        //     composer and lets the global handler below do the move.
+        () => {
+          if (!seerComposerFocused) return "notMine";
+          if (matchesCommand("sentry.nav.back", key)) {
+            setSeerInputFocused(false);
+            return "mine";
+          }
+          if (matchesCommand("sentry.nav.open", key)) {
+            submitSeer();
+            return "mine";
+          }
+          if (
+            matchesCommand("sentry.app.focusNext", key) ||
+            matchesCommand("sentry.app.focusPrev", key)
+          ) {
+            setSeerInputFocused(false);
+            return "notMine";
+          }
+          // Everything else is text the user is typing.
+          return "focused";
         },
         // 2. Search input intercepts Escape (cancel) and Enter (submit);
         //    all other keys pass through to the focused <input>.
@@ -666,6 +734,10 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
         // 6. Triage actions, valid in both the list and the detail view.
         () => {
           if (!activeIssue) return "notMine";
+          // The issue list outlives navigation, so without this the Seer and
+          // Logs screens would still answer `r` by resolving whatever row the
+          // issue cursor happens to be on.
+          if (!openIssue && !showIssues) return "notMine";
           // In the list these belong to the content pane; the nav panes keep
           // their own j/k. In the detail view there is only one issue, so no
           // focus check is needed.
@@ -680,7 +752,8 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 7. Nav rail: j/k moves the cursor, Enter opens secondary nav.
+        // 7. Nav rail: j/k moves the cursor, Enter opens the group — its
+        //    secondary list, or the content pane when it has one destination.
         () => {
           if (openIssue) return "notMine";
           if (focus.focusedRef.current !== "nav") return "notMine";
@@ -704,7 +777,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           if (openIssue) return "notMine";
           if (!showSecondary) return "notMine";
           if (focus.focusedRef.current !== "secondary") return "notMine";
-          const items = getNavGroup(railGroup).sections.flatMap((s) => s.items);
+          const items = navItems(getNavGroup(railGroup));
           const index = items.indexOf(secondaryItem);
           if (matchesCommand("sentry.nav.open", key)) {
             selectNavItem(secondaryItem);
@@ -720,9 +793,43 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           }
           return "notMine";
         },
+        // 8b. Seer transcript: compose, start over, interrupt, and the
+        //     numbered suggested prompts on the empty state.
+        () => {
+          if (!showSeer) return "notMine";
+          if (focus.focusedRef.current !== "content") return "notMine";
+          if (
+            matchesCommand("sentry.seer.compose", key) ||
+            matchesCommand("sentry.nav.open", key)
+          ) {
+            setSeerInputFocused(true);
+            return "mine";
+          }
+          if (matchesCommand("sentry.seer.newChat", key)) {
+            chat.reset();
+            setSeerInput("");
+            setSeerInputFocused(true);
+            return "mine";
+          }
+          if (matchesCommand("sentry.seer.interrupt", key)) {
+            if (chat.thinking) chat.interrupt();
+            return "mine";
+          }
+          // Suggested prompts are only offered while the chat is empty.
+          if (chat.blocks.length === 0 && !key.ctrl && !key.meta) {
+            const index = Number(key.name) - 1;
+            const question = SEER_SUGGESTED_QUESTIONS[index];
+            if (question !== undefined) {
+              chat.send(question);
+              return "mine";
+            }
+          }
+          return "notMine";
+        },
         // 9. `/` focuses the search bar from the content pane.
         () => {
           if (openIssue) return "notMine";
+          if (showSeer) return "notMine";
           if (focus.focusedRef.current !== "content") return "notMine";
           if (matchesCommand("sentry.nav.search", key)) {
             focusSearch();
@@ -871,7 +978,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
             overflow: "hidden",
             border: true,
             borderColor:
-              focus.isFocused("content") && !anySearchFocused ? theme.borderFocused : theme.border,
+              focus.isFocused("content") && !anyInputFocused ? theme.borderFocused : theme.border,
           }}
         >
           {openIssue ? (
@@ -959,6 +1066,18 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
               reloadToken={reloadToken}
               detailOpen={logDetailOpen}
             />
+          ) : showSeer ? (
+            <SeerExplorer
+              chat={chat}
+              width={contentWidth}
+              height={contentHeight}
+              focused={focus.isFocused("content")}
+              value={seerInput}
+              onInput={setSeerInput}
+              inputFocused={seerComposerFocused}
+              onInputFocus={() => setSeerInputFocused(true)}
+              onInputBlur={() => setSeerInputFocused(false)}
+            />
           ) : (
             <box style={{ flexDirection: "column", paddingLeft: 1 }}>
               <text fg={theme.text} attributes={1}>
@@ -981,48 +1100,69 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
               (transientNotice ??
               (openIssue
                 ? { kind: "idle", text: openIssue.shortId }
-                : showLogs
-                  ? toLogNotice(logStatus)
-                  : showAllViews
-                    ? toViewsNotice(savedViewStatus)
-                    : toNotice(status, showIssues)))
+                : showSeer
+                  ? toSeerNotice(chat)
+                  : showLogs
+                    ? toLogNotice(logStatus)
+                    : showAllViews
+                      ? toViewsNotice(savedViewStatus)
+                      : toNotice(status, showIssues)))
         }
-        elapsedMs={openIssue ? undefined : status.elapsedMs}
+        elapsedMs={openIssue || showSeer ? undefined : status.elapsedMs}
         hints={
           gotoMode
             ? [{ command: "sentry.nav.back", label: "cancel" }]
-            : anySearchFocused
+            : seerComposerFocused
               ? [
-                  { command: "sentry.nav.open", label: "submit" },
-                  { command: "sentry.nav.back", label: "cancel" },
+                  // No interrupt hint here: while the composer has focus every
+                  // letter key is text, so `x` would type rather than stop.
+                  { command: "sentry.nav.open", label: "send" },
+                  { command: "sentry.nav.back", label: "transcript" },
                 ]
-              : openIssue
+              : showSeer
                 ? [
-                    { command: "sentry.nav.back", label: "back" },
-                    { command: "sentry.issue.resolve", label: "resolve" },
-                    { command: "sentry.issue.archive", label: "archive" },
+                    { command: "sentry.seer.compose", label: "ask" },
+                    { command: "sentry.seer.newChat", label: "new chat" },
+                    ...(chat.thinking ? [{ command: "sentry.seer.interrupt", label: "stop" }] : []),
                     { command: "sentry.nav.goto", label: "nav" },
                     { command: "sentry.app.commandPalette", label: "commands" },
                     { command: "sentry.app.help", label: "help" },
                   ]
-                : showLogs
+                : anySearchFocused
                   ? [
-                      // Enter toggles, so the one hint carries both directions.
-                      { command: "sentry.nav.open", label: logDetailOpen ? "close" : "details" },
-                      { command: "sentry.nav.search", label: "search" },
-                      { command: "sentry.nav.goto", label: "nav" },
-                      { command: "sentry.app.commandPalette", label: "commands" },
-                      { command: "sentry.app.help", label: "help" },
-                      { command: "sentry.app.quit", label: "quit" },
+                      { command: "sentry.nav.open", label: "submit" },
+                      { command: "sentry.nav.back", label: "cancel" },
                     ]
-                  : [
-                      { command: "sentry.nav.open", label: "open" },
-                      { command: "sentry.nav.search", label: "search" },
-                      { command: "sentry.nav.goto", label: "nav" },
-                      { command: "sentry.app.commandPalette", label: "commands" },
-                      { command: "sentry.app.help", label: "help" },
-                      { command: "sentry.app.quit", label: "quit" },
-                    ]
+                  : openIssue
+                    ? [
+                        { command: "sentry.nav.back", label: "back" },
+                        { command: "sentry.issue.resolve", label: "resolve" },
+                        { command: "sentry.issue.archive", label: "archive" },
+                        { command: "sentry.nav.goto", label: "nav" },
+                        { command: "sentry.app.commandPalette", label: "commands" },
+                        { command: "sentry.app.help", label: "help" },
+                      ]
+                    : showLogs
+                      ? [
+                          // Enter toggles, so the one hint carries both directions.
+                          {
+                            command: "sentry.nav.open",
+                            label: logDetailOpen ? "close" : "details",
+                          },
+                          { command: "sentry.nav.search", label: "search" },
+                          { command: "sentry.nav.goto", label: "nav" },
+                          { command: "sentry.app.commandPalette", label: "commands" },
+                          { command: "sentry.app.help", label: "help" },
+                          { command: "sentry.app.quit", label: "quit" },
+                        ]
+                      : [
+                          { command: "sentry.nav.open", label: "open" },
+                          { command: "sentry.nav.search", label: "search" },
+                          { command: "sentry.nav.goto", label: "nav" },
+                          { command: "sentry.app.commandPalette", label: "commands" },
+                          { command: "sentry.app.help", label: "help" },
+                          { command: "sentry.app.quit", label: "quit" },
+                        ]
         }
       />
 
@@ -1054,6 +1194,14 @@ function toNotice(status: StreamStatus, showIssues: boolean): Notice {
   if (!showIssues) return { kind: "idle", text: "" };
   if (status.error) return { kind: "error", text: status.error };
   if (status.loading) return { kind: "loading", text: "loading issues…" };
+  return { kind: "idle", text: "" };
+}
+
+function toSeerNotice(chat: SeerChatState): Notice {
+  if (chat.error) return { kind: "error", text: chat.error.message };
+  if (chat.timedOut) return { kind: "warning", text: "Seer stopped responding" };
+  if (chat.interrupting) return { kind: "loading", text: "Winding down…" };
+  if (chat.thinking) return { kind: "loading", text: "Seer is thinking…" };
   return { kind: "idle", text: "" };
 }
 

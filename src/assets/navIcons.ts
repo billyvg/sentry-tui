@@ -6,6 +6,8 @@ import issuesActive from "./icons/issues_active.png" with { type: "file" };
 import issuesInactive from "./icons/issues_inactive.png" with { type: "file" };
 import monitorsActive from "./icons/monitors_active.png" with { type: "file" };
 import monitorsInactive from "./icons/monitors_inactive.png" with { type: "file" };
+import seerActive from "./icons/seer_active.png" with { type: "file" };
+import seerInactive from "./icons/seer_inactive.png" with { type: "file" };
 import sentry from "./icons/sentry.png" with { type: "file" };
 import settingsActive from "./icons/settings_active.png" with { type: "file" };
 import settingsInactive from "./icons/settings_inactive.png" with { type: "file" };
@@ -28,6 +30,8 @@ const NAV_ICON_PATHS = {
   issues_inactive: issuesInactive,
   monitors_active: monitorsActive,
   monitors_inactive: monitorsInactive,
+  seer_active: seerActive,
+  seer_inactive: seerInactive,
   sentry: sentry,
   settings_active: settingsActive,
   settings_inactive: settingsInactive,
