@@ -14,11 +14,13 @@ The beat is the unit the whole pipeline runs on:
 So the video is cut to the voice, not the other way round. Re-record one line and
 only that beat's timing moves.
 
-**Runtime: about two minutes and ten seconds** — 64 of narration, the rest spent letting screens
-finish loading and holding them long enough to be read, and the last 10 a still
-frame of the install command so viewers can copy it. The hard cap is three
-minutes; this is built to land well inside it, which is why it sells the thing
-rather than explaining it.
+**Runtime: a little over two minutes.** About 70 seconds of that is narration;
+the rest is screens finishing their fetches and being held long enough to read,
+and a closing still of the install command. The hard cap is three minutes.
+
+Act 3 is where the time goes — five Explore screens, each waited for — so it is
+also the first place to cut if a take runs long. Dropping a screen costs one
+beat and about five seconds.
 
 The audio is whatever the synthesizer returns — nothing resamples it, because a
 processed voice is the most audible thing in a demo. `demo:tts` reports how each
