@@ -148,7 +148,7 @@ here.
 | **Metrics**       | `events/?dataset=tracemetrics`          | Discover table             | 0.25d |
 | **Errors**        | `events/?dataset=errors`                | Discover table             | 0.25d |
 | **Discover**      | `events/` + `/discover/saved/`          | saved-query list → table   | 0.5d  |
-| **Profiles**      | `events/?dataset=profiles`              | table of slowest functions | 0.5d  |
+| **Profiles**      | `events/?dataset=profileFunctions`      | table of slowest functions | 0.5d  |
 | **Replays**       | `/organizations/{org}/replays/`         | own table                  | 0.5d  |
 | **Releases**      | `/organizations/{org}/releases/`        | card list                  | 0.75d |
 | **Conversations** | `events/?dataset=spans` + gen_ai filter | Discover table             | 0.25d |
@@ -235,6 +235,15 @@ Budget 0.75d because of the second fetch and the card layout, not the data.
 artifact** — the honest scope is the slowest-functions table that sits beneath it on the
 landing page, and a stub explaining that flamegraphs open in the browser. Say so in the
 pane rather than shipping an unreadable approximation.
+
+The dataset is **`profileFunctions`**, not `profiles`: `useProfileFunctions.tsx:39-52` is
+the request the slowest-functions widget actually issues, and `profiles` is the dataset of
+individual profiles, which returns nothing shaped like a function list. Fields are
+`fingerprint · package · function · count() · sum()` at a `-sum()` default sort
+(`slowestFunctionsWidget.tsx:563-570`, `:72`). Ask for `project` rather than the widget's
+`project.id` — the dataset resolves that alias to the slug
+(`search/events/datasets/profile_functions.py:182`), which is what a row renders; the id is
+only there to build links a terminal has no browser for.
 
 ### 7.6 Discover and All Queries
 
