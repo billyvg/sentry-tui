@@ -19,7 +19,6 @@ import { theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { useGroupSearchViews } from "~/ui/hooks/useGroupSearchViews";
-import { useProjects } from "~/ui/hooks/useProjects";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
 import { BOLD } from "~/ui/lib/attributes";
 
@@ -36,14 +35,18 @@ const SCROLLBAR_GUTTER = 1;
 /**
  * A saved view plus the parts of it the app can't read straight off the wire.
  *
- * `projects` comes back as numeric IDs while the rest of the app filters by
- * slug (see `FilterBar`), so the mapping is resolved once, here, where the
- * project list is already loaded for the row's own project column.
+ * `projects` comes back as numeric IDs, and they are carried through as IDs.
+ * The issues endpoint accepts either an ID or a slug for `project`, so
+ * translating them here would buy nothing and cost correctness: the project
+ * list arrives asynchronously, and a view opened before it lands — or naming a
+ * project the user cannot see — would have had its filter silently dropped and
+ * opened scoped to the whole org. Widening a filter without saying so is the
+ * wrong direction for a triage tool.
  */
 export interface SavedViewRow {
   view: GroupSearchView;
-  /** Project slugs; empty means all projects. */
-  projectSlugs: string[];
+  /** Project IDs, as the API returns them; empty means all projects. */
+  projectIds: string[];
   /** Stats period the view was saved with. */
   statsPeriod: string;
 }
@@ -74,36 +77,23 @@ export function IssueViewsList({
 }: IssueViewsListProps) {
   const listRef = useRef<ScrollBoxRenderable>(null);
   const status = useGroupSearchViews(client, { org, reloadToken });
-  const projects = useProjects(client, org);
 
   const sections = valueOf(status);
   const error = errorOf(status);
   const loading = status.state === "loading";
-
-  /** Slug per project ID, for turning a view's `projects` into filter values. */
-  const slugById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const project of projects) map.set(project.id, project.slug);
-    return map;
-  }, [projects]);
 
   const rows = useMemo(
     () =>
       (sections ?? []).flatMap((section) =>
         section.views.map((view): SavedViewRow => ({
           view,
-          // `[-1]` is Sentry's "all projects" sentinel; an unmapped id means
-          // the project list hasn't landed yet or the project is gone —
-          // either way, dropping it is better than filtering on a number the
-          // rest of the app would treat as a slug.
-          projectSlugs: view.projects
-            .filter((id) => id !== -1)
-            .map((id) => slugById.get(String(id)))
-            .filter((slug): slug is string => slug !== undefined),
+          // `[-1]` is Sentry's "all projects" sentinel, and the only id worth
+          // dropping — everything else goes to the API as-is.
+          projectIds: view.projects.filter((id) => id !== -1).map(String),
           statsPeriod: view.timeFilters?.period ?? DEFAULT_STATS_PERIOD,
         })),
       ),
-    [sections, slugById],
+    [sections],
   );
 
   useEffect(() => {
