@@ -143,6 +143,15 @@ export const COMMANDS: readonly Command[] = [
     defaultKeys: ["escape"],
   },
   {
+    // `n` for navigation. Not `g`: that is the list's jump-to-top, and one
+    // chord may only have one claimant — see `commands.test.ts`.
+    id: "sentry.nav.goto",
+    title: "Navigate",
+    category: "nav",
+    defaultKeys: ["n"],
+    description: "Jump to a nav item by its printed key",
+  },
+  {
     id: "sentry.nav.search",
     title: "Search",
     category: "nav",

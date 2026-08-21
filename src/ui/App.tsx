@@ -7,6 +7,7 @@ import { DEFAULT_SORT, DEFAULT_STATS_PERIOD, getOrganization, type SortOption } 
 import { DEFAULT_LOG_PERIOD, type LogEntry } from "~/api/logs";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
+import { buildGotoHotkeys } from "~/core/goto";
 import { ALL_VIEWS_LABEL, DEFAULT_ISSUE_VIEW, getIssueView } from "~/core/issueViews";
 import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
@@ -65,6 +66,10 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   // Secondary nav: visible only after pressing Enter on the rail.
   const [showSecondary, setShowSecondary] = useState(false);
   const [secondaryItem, setSecondaryItem] = useState("Feed");
+
+  // Goto mode: both nav panes on screen with a key printed on every
+  // destination, so a jump anywhere is two keystrokes and no cursor work.
+  const [gotoMode, setGotoMode] = useState(false);
 
   const [showHelp, setShowHelp] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
@@ -304,6 +309,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
    */
   const openNavGroup = useCallback(
     (group: NavGroupId) => {
+      setGotoMode(false);
       setRailGroup(group);
       // Re-entering the active group starts on the current item.
       const startItem =
@@ -321,6 +327,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
    */
   const navigateTo = useCallback(
     (group: NavGroupId, item: string) => {
+      setGotoMode(false);
       setRailGroup(group);
       setActiveGroup(group);
       setActiveItem(item);
@@ -354,6 +361,27 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const selectNavItem = useCallback(
     (item: string) => navigateTo(railGroup, item),
     [railGroup, navigateTo],
+  );
+
+  // Keys for goto mode, for the group whose items are on screen. Computed only
+  // while the mode is open so nothing else can accidentally print them.
+  const gotoHotkeys = useMemo(
+    () => (gotoMode ? buildGotoHotkeys(railGroup) : null),
+    [gotoMode, railGroup],
+  );
+
+  /**
+   * Point the secondary pane at another group without leaving goto mode — the
+   * first half of a two-key jump, e.g. `g` `e` `l` for Explore › Logs.
+   */
+  const previewNavGroup = useCallback(
+    (group: NavGroupId) => {
+      setRailGroup(group);
+      setSecondaryItem(
+        group === activeGroup ? activeItem : (getNavGroup(group).sections[0]?.items[0] ?? ""),
+      );
+    },
+    [activeGroup, activeItem],
   );
 
   const paletteActions = useMemo(
@@ -506,6 +534,51 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           }
           // Let the focused input renderable handle all other keystrokes.
           return "focused";
+        },
+        // 2b. Goto mode. Sits under the search handler so `n` is still a letter
+        // while a query is being typed, and over everything else so the mode
+        // owns the keyboard for exactly as long as it is open — a printed key
+        // that sometimes resolved an issue instead would be worse than none.
+        () => {
+          if (!gotoMode) {
+            if (!matchesCommand("sentry.nav.goto", key)) return "notMine";
+            setGotoMode(true);
+            return "mine";
+          }
+          if (
+            matchesCommand("sentry.nav.goto", key) ||
+            matchesCommand("sentry.nav.back", key) ||
+            key.ctrl ||
+            key.meta ||
+            key.shift
+          ) {
+            // `n` and Escape close the mode; a modifier means the user has
+            // moved on to some other chord and this one was a false start.
+            setGotoMode(false);
+            return "mine";
+          }
+          if (matchesCommand("sentry.app.switchOrg", key)) {
+            // The rail prints this key beside the org slug for as long as the
+            // mode is open, so in the mode it still opens the picker — the
+            // organization is a destination like any other row up there.
+            setGotoMode(false);
+            setShowOrgPicker(true);
+            return "mine";
+          }
+          const target = gotoHotkeys?.byKey.get(key.name.toLowerCase());
+          if (target?.kind === "group") {
+            previewNavGroup(target.group);
+            return "mine";
+          }
+          if (target?.kind === "item") {
+            // `navigateTo` closes the mode, as every other way of arriving does.
+            navigateTo(railGroup, target.item);
+            return "mine";
+          }
+          // An unassigned key is a miss, not a command: leave, and let the next
+          // keystroke mean what it usually means.
+          setGotoMode(false);
+          return "mine";
         },
         // 3. The detail view owns Escape (back) before anything else claims it.
         () => {
@@ -753,7 +826,11 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
     );
   });
 
-  const secondaryWidth = showSecondary ? SECONDARY_NAV_WIDTH : 0;
+  // Goto mode shows the secondary pane without opening it: leaving
+  // `showSecondary` alone means cancelling the mode puts the panes back exactly
+  // as they were, rather than leaving a drawer open that nobody pulled.
+  const showSecondaryPane = showSecondary || gotoMode;
+  const secondaryWidth = showSecondaryPane ? SECONDARY_NAV_WIDTH : 0;
   const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
   const contentHeight = Math.max(3, height - 3);
 
@@ -770,16 +847,18 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
         <NavRail
           active={railGroup}
           focused={focus.isFocused("nav")}
+          hotkeys={gotoHotkeys?.groups}
           avatarUrl={avatarUrl}
           orgSlug={org}
           onSelect={openNavGroup}
           onOrgPress={() => setShowOrgPicker(true)}
         />
-        {showSecondary ? (
+        {showSecondaryPane ? (
           <SecondaryNav
             group={railGroup}
             activeItem={secondaryItem}
             focused={focus.isFocused("secondary")}
+            hotkeys={gotoHotkeys?.items}
             onSelect={selectNavItem}
           />
         ) : null}
@@ -893,48 +972,57 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
 
       <StatusBar
         notice={
-          // A triage result or an org switch is the most recent thing the user
-          // did, so it outranks the ambient load notice.
-          transientNotice ??
-          (openIssue
-            ? { kind: "idle", text: openIssue.shortId }
-            : showLogs
-              ? toLogNotice(logStatus)
-              : showAllViews
-                ? toViewsNotice(savedViewStatus)
-                : toNotice(status, showIssues))
+          // Goto mode is a held-open key prompt, so it outranks even a fresh
+          // triage result: the bar has to answer "what is it waiting for?".
+          gotoMode
+            ? { kind: "info", text: "go to…" }
+            : // A triage result or an org switch is the most recent thing the
+              // user did, so it outranks the ambient load notice.
+              (transientNotice ??
+              (openIssue
+                ? { kind: "idle", text: openIssue.shortId }
+                : showLogs
+                  ? toLogNotice(logStatus)
+                  : showAllViews
+                    ? toViewsNotice(savedViewStatus)
+                    : toNotice(status, showIssues)))
         }
         elapsedMs={openIssue ? undefined : status.elapsedMs}
         hints={
-          anySearchFocused
-            ? [
-                { command: "sentry.nav.open", label: "submit" },
-                { command: "sentry.nav.back", label: "cancel" },
-              ]
-            : openIssue
+          gotoMode
+            ? [{ command: "sentry.nav.back", label: "cancel" }]
+            : anySearchFocused
               ? [
-                  { command: "sentry.nav.back", label: "back" },
-                  { command: "sentry.issue.resolve", label: "resolve" },
-                  { command: "sentry.issue.archive", label: "archive" },
-                  { command: "sentry.app.commandPalette", label: "commands" },
-                  { command: "sentry.app.help", label: "help" },
+                  { command: "sentry.nav.open", label: "submit" },
+                  { command: "sentry.nav.back", label: "cancel" },
                 ]
-              : showLogs
+              : openIssue
                 ? [
-                    // Enter toggles, so the one hint carries both directions.
-                    { command: "sentry.nav.open", label: logDetailOpen ? "close" : "details" },
-                    { command: "sentry.nav.search", label: "search" },
+                    { command: "sentry.nav.back", label: "back" },
+                    { command: "sentry.issue.resolve", label: "resolve" },
+                    { command: "sentry.issue.archive", label: "archive" },
+                    { command: "sentry.nav.goto", label: "nav" },
                     { command: "sentry.app.commandPalette", label: "commands" },
                     { command: "sentry.app.help", label: "help" },
-                    { command: "sentry.app.quit", label: "quit" },
                   ]
-                : [
-                    { command: "sentry.nav.open", label: "open" },
-                    { command: "sentry.nav.search", label: "search" },
-                    { command: "sentry.app.commandPalette", label: "commands" },
-                    { command: "sentry.app.help", label: "help" },
-                    { command: "sentry.app.quit", label: "quit" },
-                  ]
+                : showLogs
+                  ? [
+                      // Enter toggles, so the one hint carries both directions.
+                      { command: "sentry.nav.open", label: logDetailOpen ? "close" : "details" },
+                      { command: "sentry.nav.search", label: "search" },
+                      { command: "sentry.nav.goto", label: "nav" },
+                      { command: "sentry.app.commandPalette", label: "commands" },
+                      { command: "sentry.app.help", label: "help" },
+                      { command: "sentry.app.quit", label: "quit" },
+                    ]
+                  : [
+                      { command: "sentry.nav.open", label: "open" },
+                      { command: "sentry.nav.search", label: "search" },
+                      { command: "sentry.nav.goto", label: "nav" },
+                      { command: "sentry.app.commandPalette", label: "commands" },
+                      { command: "sentry.app.help", label: "help" },
+                      { command: "sentry.app.quit", label: "quit" },
+                    ]
         }
       />
 

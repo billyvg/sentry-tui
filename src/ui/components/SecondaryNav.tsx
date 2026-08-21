@@ -1,5 +1,7 @@
 import { getNavGroup, type NavGroupId } from "~/core/nav";
 import { theme } from "~/core/theme";
+import type { Hotkey } from "~/lib/hotkeys";
+import { NavHotkeyLabel } from "~/ui/components/NavHotkeyLabel";
 
 export const SECONDARY_NAV_WIDTH = 22;
 
@@ -11,11 +13,14 @@ export function SecondaryNav({
   group,
   activeItem,
   focused,
+  hotkeys,
   onSelect,
 }: {
   group: NavGroupId;
   activeItem: string;
   focused: boolean;
+  /** Goto keys to print in the labels. Absent unless goto mode is open. */
+  hotkeys?: ReadonlyMap<string, Hotkey>;
   /** Clicking an item commits it, exactly as Enter does on the cursor. */
   onSelect?: (item: string) => void;
 }) {
@@ -52,9 +57,12 @@ export function SecondaryNav({
                 style={{ flexDirection: "row", height: 1 }}
                 onMouseDown={() => onSelect?.(item)}
               >
-                <text fg={isActive ? theme.accent : theme.muted} attributes={isActive ? 1 : 0}>
-                  {item}
-                </text>
+                <NavHotkeyLabel
+                  label={item}
+                  hotkey={hotkeys?.get(item)}
+                  fg={isActive ? theme.accent : theme.muted}
+                  bold={isActive}
+                />
               </box>
             );
           })}
