@@ -149,34 +149,10 @@ Meanwhile @B08
   Key j 3
   Sleep 1800ms
   Key k 4
-  Sleep 1500ms
-End
-
-# Four screens, each of which fetches. A fixed sleep per screen recorded them
-# mid-load — the earlier cut spent this whole montage on loading skeletons and
-# "loading replays…" in the status bar, which reads as an app that is slow
-# rather than one that is complete. `Settle` holds until the rows are actually
-# there and then keeps them up for its stability window, so each screen lands,
-# fills, and gets a beat to be looked at before the next one.
-Meanwhile @B09
-  Key n
-  Sleep 250ms
-  Key e
-  Sleep 250ms
-  Key l
-  Settle 5s
-  Key n
-  Sleep 250ms
-  Key e
-  Sleep 250ms
-  Key y
-  Settle 5s
-  Key n
-  Sleep 250ms
-  Key e
-  Sleep 250ms
-  Key b
-  Settle 5s
+  Sleep 1200ms
+  # Hand over to Act 3's first screen here rather than at the top of B09: the
+  # word "Profiles" has to land on Profiles, and a goto plus a fetch is a second
+  # and a half it would otherwise land in front of.
   Key n
   Sleep 250ms
   Key e
@@ -185,10 +161,94 @@ Meanwhile @B09
   Settle 5s
 End
 
+# Explore, one screen per beat: Profiles, Releases, Replays, Logs, Traces.
+#
+# Each beat opens with its screen already up and holds it while the narration
+# names it, then navigates to the next one and waits. That ordering is the whole
+# trick — the alternative is a beat that says "Replays" over the tail of the
+# screen before it, because a goto plus a fetch takes longer than the word does.
+#
+# `Settle` rather than a sleep for the fetch: a fixed guess recorded four
+# loading skeletons and a status bar reading "loading replays…" in an earlier
+# cut, which reads as a slow app rather than a complete one.
+
+Meanwhile @B09
+  Sleep 1200ms
+  Key n
+  Sleep 250ms
+  Key e
+  Sleep 250ms
+  Key b
+  Settle 5s
+End
+
+Meanwhile @B10
+  Sleep 1200ms
+  Key n
+  Sleep 250ms
+  Key e
+  Sleep 250ms
+  Key y
+  Settle 5s
+End
+
+Meanwhile @B11
+  Sleep 1200ms
+  Key n
+  Sleep 250ms
+  Key e
+  Sleep 250ms
+  Key l
+  Settle 5s
+End
+
+Meanwhile @B12
+  Sleep 1200ms
+  Key n
+  Sleep 250ms
+  Key e
+  Sleep 250ms
+  Key r
+  Settle 6s
+End
+
+# Traces carries the web's Visualize / Group by / Sort toolbar as a chip row
+# under the filters. Shift+V opens the aggregate menu, shift+B the group-by one.
+#
+# Grouping is the point of the beat. With no group by the table is a page of
+# spans; add one and the same endpoint answers aggregates — one row per op with
+# a proportional bar — so the toolbar visibly stops being chrome and starts
+# being a query. Both halves of this were driven against the real app and read
+# back off the screen before they went in the tape.
+Meanwhile @B13
+  Sleep 1000ms
+  # Visualize has no filter box — its list is eighteen fixed aggregates — so
+  # this arrows: count, avg, p50, p75, p90, p95. The cursor opens on the
+  # current aggregate, which is `count` on a freshly launched app.
+  Key shift+v
+  Sleep 800ms
+  Key j 5
+  Sleep 600ms
+  Key enter
+  # Wait for the chart to come back as p95 before touching Group by. The two
+  # chips are one query being built, but seeing the first one land is what makes
+  # the toolbar look like a control rather than a decoration.
+  Settle 8s
+  # Group By does have a filter, because its list is every attribute the org sends.
+  Key shift+b
+  Sleep 800ms
+  Key /
+  Sleep 300ms
+  Type `span.op`
+  Sleep 800ms
+  Key enter
+  Settle 10s
+End
+
 # Back to Seer through the palette, inside the beat so the line plays over the
 # navigation rather than after it. Escape releases the composer so j scrolls the
 # transcript instead of typing into it.
-Meanwhile @B10
+Meanwhile @B14
   Key ctrl+k
   Sleep 500ms
   Type `ask seer`
@@ -197,9 +257,9 @@ Meanwhile @B10
   Sleep 1200ms
   Key escape
   Sleep 300ms
-  # Whatever is left of Seer's ~25 seconds — usually little, since the last
-  # three beats have been covering it. This is what makes "fully rendered" a
-  # guarantee, and inside the block the narration plays over it.
+  # Whatever is left of Seer's ~25 seconds — by now nothing, since Act 3 has
+  # spent the better part of a minute covering it. This is what makes "fully
+  # rendered" a guarantee, and inside the block the narration plays over it.
   Settle 15s
   Key j 4
   Sleep 2000ms
@@ -216,7 +276,7 @@ End
 # it would just launch the app over the top of the demo. Change it here if the
 # published name changes. `npx` needs no global install, which is why the outro
 # uses it over `npm install -g`.
-Meanwhile @B11
+Meanwhile @B15
   Key q
   # Same as leaving lynx: the app hands the terminal back and the shell redraws.
   Settle 4s
@@ -239,8 +299,8 @@ Meanwhile @B11
   Sleep 900ms
   Type `npx sentry-tui`
 End
-# Hold the still frame so viewers can copy it. The line starts during the quit,
-# so the command is up for most of B11 and this adds eight more — about fifteen
-# seconds of readable command. This is the one deliberate silence in the cut:
-# it is there to give people time to copy, not to fill.
+# Hold the still frame so viewers can copy it. The command goes up a couple of
+# seconds into B15 and this adds eight more — about fifteen seconds of readable
+# command. This is the one deliberate silence in the cut: it is there to give
+# people time to copy, not to fill.
 Sleep 8s

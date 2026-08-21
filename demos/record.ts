@@ -29,7 +29,13 @@ import { parseTape, timeline, type TapeStep } from "./lib/tape.ts";
 const WARMUP_MS = 1500;
 /** Let the recorder get going before the first keystroke lands. */
 const LEAD_IN_MS = 800;
-/** How long the screen must hold still before `Settle` calls it done. */
+/**
+ * How long the screen must hold still before `Settle` calls it done.
+ *
+ * Also the dwell every settled screen gets for free, which is why it isn't
+ * lower: a screen that arrives and is navigated away from in the same second
+ * reads as a flicker.
+ */
 const SETTLE_STABLE_MS = 1500;
 const SETTLE_POLL_MS = 400;
 /** Trailing pad so the final frame isn't the recorder shutting down. */

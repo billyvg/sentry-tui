@@ -58,8 +58,10 @@ const beats = parseNarration(
 );
 
 describe("the real narration", () => {
-  test("every beat has syllables to pace against", () => {
-    for (const beat of beats) expect(countSyllables(beat.text)).toBeGreaterThan(3);
+  // A beat can be a single word — Act 3 names each Explore screen as it lands —
+  // so the invariant is only that every beat says something countable.
+  test("every beat has syllables to measure", () => {
+    for (const beat of beats) expect(countSyllables(beat.text)).toBeGreaterThan(0);
   });
 
   // Emphasis is passed to the provider as its `speed`, and the models here

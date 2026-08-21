@@ -14,7 +14,7 @@ The beat is the unit the whole pipeline runs on:
 So the video is cut to the voice, not the other way round. Re-record one line and
 only that beat's timing moves.
 
-**Runtime: about 95 seconds** — 64 of narration, the rest spent letting screens
+**Runtime: about two minutes and ten seconds** — 64 of narration, the rest spent letting screens
 finish loading and holding them long enough to be read, and the last 10 a still
 frame of the install command so viewers can copy it. The hard cap is three
 minutes; this is built to land well inside it, which is why it sells the thing
@@ -47,7 +47,7 @@ which only answers for orgs where the Explorer agent is enabled.
 
 **Screen:** full-screen `lynx https://sentry.io`, mid-page.
 
-> Back in the day, we browsed the web through a terminal.
+> A long long time ago, we browsed the web through a terminal.
 
 ### B02 · out of lynx
 
@@ -106,16 +106,42 @@ the composer and the question comes out as `aWhich project…`.
 
 > Dashboards are here too. Real widgets, real series, no eCharts, just love.
 
-### B09 · the rest of Explore
+### B09 · Profiles
 
-**Screen:** Logs, Replays, Releases, Profiles — each one waited for and held.
-**Note:** the line is shorter than the montage on purpose. Four screens that have
-actually loaded take longer to show than one sentence takes to say, and skeletons
-on screen would undercut the claim the sentence is making.
+**Screen:** Explore › Profiles, the aggregate flamegraph note and the slowest
+functions, already loaded when the word is said.
 
-> Logs, replays, releases, profiles. Explore at your fingertips. Simple to browse, simple to use, simple.
+> Profiles.
 
-### B10 · Seer answered
+### B10 · Releases
+
+**Screen:** Explore › Releases.
+
+> Releases.
+
+### B11 · Replays
+
+**Screen:** Explore › Replays.
+
+> Replays.
+
+### B12 · Logs
+
+**Screen:** Explore › Logs.
+
+> Logs.
+
+### B13 · Traces, and the query builder
+
+**Screen:** Explore › Traces. `V` opens Visualize and the aggregate becomes p95;
+`B` groups by `span.op`, which turns a page of spans into one row per group with
+a proportional bar.
+**Note:** the longest beat in Act 3, and the only one doing more than arriving —
+grouping is the moment the toolbar stops being chrome and starts being a query.
+
+> Explore at your fingertips. Simple to browse, simple to use, simple.
+
+### B14 · Seer answered
 
 **Screen:** back to Seer via the palette; the finished conversation, scrolled.
 
@@ -125,7 +151,7 @@ on screen would undercut the claim the sentence is making.
 
 ## Act 4 — Outro
 
-### B11 · install
+### B15 · install
 
 **Screen:** back to a bare prompt with `npx sentry-tui` typed and not
 run. Holds for ten seconds so viewers can copy it.
