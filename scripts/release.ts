@@ -614,16 +614,25 @@ async function verify(): Promise<void> {
 
   step(`Running npx ${ALIAS_PACKAGE}@${version}`);
   console.log(dim("  downloads the launcher and this platform's binary, ~24 MB"));
+  // `--version` rather than `--help`: it proves everything `--help` would —
+  // the launcher resolved a binary, and that binary runs — and additionally
+  // that the bytes npm just served are the ones cut, since the string is
+  // inlined from package.json at compile time. Help text is identical in
+  // every build ever published, so it cannot tell a stale cache or a
+  // mismatched optional dependency from the real thing.
+  const expected = `sentry-tui v${version}`;
   const npx = await capture([
     "npx",
     "--yes",
     "--registry",
     REGISTRY,
     `${ALIAS_PACKAGE}@${version}`,
-    "--help",
+    "--version",
   ]);
-  if (npx.code === 0 && npx.out.includes("sentry.io in your terminal")) ok("npx runs the CLI");
-  else bad(`npx failed (exit ${npx.code})`);
+  const printed = npx.out.trim();
+  if (npx.code !== 0) bad(`npx failed (exit ${npx.code})`);
+  else if (printed === expected) ok(`npx runs ${printed}`);
+  else bad(`npx printed ${JSON.stringify(printed)}, expected ${JSON.stringify(expected)}`);
 }
 
 // ---------------------------------------------------------------------------

@@ -277,6 +277,12 @@ export async function refreshAccessToken({
  *
  * `expires_in` is preferred over the absolute `expires_at` the server also
  * sends: relative seconds can't be thrown off by clock skew between us and it.
+ *
+ * `user` is omitted rather than emptied when the response has none, and the
+ * difference is load-bearing. Callers merge this over what they already hold
+ * (`createOAuthAuthProvider`), and a `user` key present but blank overwrites a
+ * real account with nothing — which is what a refresh response, carrying only
+ * tokens, would do on every renewal.
  */
 export function credentialsFromTokenResponse(
   body: Record<string, unknown>,
@@ -287,7 +293,9 @@ export function credentialsFromTokenResponse(
 
   const expiresIn = num(body["expires_in"]);
   const scope = str(body["scope"]);
-  const user = (body["user"] ?? {}) as Record<string, unknown>;
+  const raw = (body["user"] ?? {}) as Record<string, unknown>;
+  const user = { id: str(raw["id"]), name: str(raw["name"]), email: str(raw["email"]) };
+  const identified = Boolean(user.id || user.name || user.email);
 
   return {
     accessToken,
@@ -299,7 +307,7 @@ export function credentialsFromTokenResponse(
     scopes: scope ? scope.split(" ").filter(Boolean) : undefined,
     clientId,
     siteUrl,
-    user: { id: str(user["id"]), name: str(user["name"]), email: str(user["email"]) },
+    ...(identified ? { user } : {}),
   };
 }
 

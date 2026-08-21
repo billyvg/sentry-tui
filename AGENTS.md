@@ -52,6 +52,7 @@ bun run format:check            # oxfmt check (CI)
 bun run lint                    # oxlint with --deny-warnings
 bun run lint:fix                # oxlint with --fix
 bun test                        # all tests
+bun run test:shard 1 4          # one shard of the suite (what CI runs)
 bun run test:theme-contrast     # WCAG contrast checks
 bun run test:boundaries         # source import boundary audit
 bun run test:packaging          # distribution chain stays in step
@@ -87,7 +88,8 @@ owns the screen — so failures go to `update.log` in that cache.
 
 Whoever is running decides when to check, and a launch costs exactly one check.
 `src/app/selfUpdate.ts` states that rule in full and is where to change it: the
-app looks `UPDATE_FIRST_CHECK_MS` after start and hourly after that, so the
+app looks `UPDATE_FIRST_CHECK_MS` after start and every `UPDATE_POLL_MS` after
+that, so the
 launcher stands down for any child that was up that long, covering only what
 never starts the app (`--help`, `--version`, `login`, `logout`, `status`) and
 sessions too short to have looked. It decides that from how long the child ran,
