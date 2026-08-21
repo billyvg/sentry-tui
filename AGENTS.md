@@ -163,6 +163,25 @@ git push -u origin <branch-name>
 gh pr create --draft --fill
 ```
 
+## issues
+
+File a GitHub issue for anything you decide not to do. A bug you noticed while
+fixing another one, a follow-up the plan defers, a shortcut you took knowingly —
+if it isn't in the diff, it belongs in an issue, not only in the PR description
+or a code comment. Both get read once and then never again; the issue list is
+what someone picks work from.
+
+```bash
+gh issue create --title "<what is wrong>" --body "<...>"
+```
+
+Write it for whoever picks it up cold: what the current behavior is, the file
+and line it lives at, why it was left out, and what "done" looks like. Link the
+PR that found it, and say in that PR which issues came out of it.
+
+Judgement, not a reflex — a genuinely trivial nit is noise. The bar is whether
+someone would want to know about it later.
+
 ## skills
 
 Agent skills live in `.agents/skills/<name>/SKILL.md` — add and edit them there.
