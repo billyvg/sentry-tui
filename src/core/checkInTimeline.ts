@@ -12,6 +12,7 @@
  * asserts alongside their readability.
  */
 
+import { DEFAULT_TIMELINE_WINDOW_SECONDS } from "~/api/monitorStats";
 import { theme } from "~/core/theme";
 import {
   CRON_TIMELINE,
@@ -68,3 +69,23 @@ export const UPTIME_TIMELINE_STYLE: TimelineStyle<UptimeCheckStatus> = {
   config: UPTIME_TIMELINE,
   colors: UPTIME_STATUS_COLORS,
 };
+
+/**
+ * What to call the span a timeline covers.
+ *
+ * There is no axis under a track — not in a table cell, and not on the detail
+ * pane either — so this string is the only place a reader learns what the
+ * cells add up to. Derived from the window rather than written twice: change
+ * `DEFAULT_TIMELINE_WINDOW_SECONDS` and every caption follows, which is what
+ * stops the list's column header and the detail pane's caption from drifting
+ * apart. `src/core/checkInTimeline.test.ts` holds them to it.
+ */
+export function timelineWindowLabel(seconds: number = DEFAULT_TIMELINE_WINDOW_SECONDS): string {
+  const hours = Math.round(seconds / 3600);
+  if (hours <= 0) return "Last hour";
+  if (hours === 1) return "Last hour";
+  if (hours % 24 !== 0) return `Last ${hours} hours`;
+  const days = hours / 24;
+  // A day reads as "24 hours" the way Sentry's own range picker says it.
+  return days === 1 ? "Last 24 hours" : `Last ${days} days`;
+}

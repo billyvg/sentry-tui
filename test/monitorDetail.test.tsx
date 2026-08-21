@@ -4,6 +4,14 @@ import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import type { ScreenId } from "~/core/screens";
 import { App } from "~/ui/App";
+import {
+  CRON_GLYPHS,
+  TIMELINE_EMPTY_GLYPH,
+  TIMELINE_PENDING_GLYPH,
+  UPTIME_GLYPHS,
+} from "~/lib/checkInTimeline";
+import { timelineWindowLabel } from "~/core/checkInTimeline";
+import { TIMELINE_MAX_WIDTH } from "~/ui/screens/monitorTimeline";
 import { renderHarness, type Harness } from "./helpers";
 import {
   detectorListFixture,
@@ -11,6 +19,7 @@ import {
   monitorProjectsFixture,
   openPeriodsFixture,
 } from "./monitor-fixtures";
+import { cronDay, uptimeDay } from "./timeline-fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
@@ -21,13 +30,21 @@ interface StubOptions {
   workflows?: unknown;
   /** Fail the open-periods request, for its error state. */
   openPeriodsStatus?: number;
+  /** Fail both check-in stats endpoints, for the degraded timeline. */
+  failStats?: boolean;
   calls?: string[];
 }
+
+/** The cron monitor guid behind `nightly-billing-rollup` in the fixture. */
+const CRON_MONITOR_ID = "cron-1";
+/** The uptime detector's own id — what `uptime-stats/` is keyed by. */
+const UPTIME_DETECTOR_ID = "3";
 
 function stubClient({
   openPeriods = openPeriodsFixture,
   workflows = detectorWorkflowsFixture,
   openPeriodsStatus = 200,
+  failStats = false,
   calls,
 }: StubOptions = {}) {
   const json = (body: unknown, status = 200) =>
@@ -39,6 +56,17 @@ function stubClient({
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
     calls?.push(url);
+
+    if (url.includes("/monitors-stats/") || url.includes("/uptime-stats/")) {
+      if (failStats) return json({ detail: "nope" }, 500);
+      const since = Number(new URL(url).searchParams.get("since"));
+      return json(
+        url.includes("/monitors-stats/")
+          ? { [CRON_MONITOR_ID]: cronDay(since, { failures: { 6: { ok: 0, error: 2 } } }) }
+          : { [UPTIME_DETECTOR_ID]: uptimeDay(since, { incidents: [10] }) },
+      );
+    }
+
     if (url.includes("/detectors/")) return json(detectorListFixture);
     if (url.includes("/open-periods/")) {
       return openPeriodsStatus === 200
@@ -435,24 +463,128 @@ test("the Details section carries the ids and dates the header has no room for",
   }
 });
 
+// ---------------------------------------------------------------------------
+// The check-in timeline
+// ---------------------------------------------------------------------------
+
 /**
- * The check-in timeline is #82's, and there must be exactly one implementation
- * of it in the app. Until that branch is merged the section is absent rather
- * than an empty heading — see `src/ui/screens/monitorTimelineSlot.tsx`.
+ * How many cells the drawn track occupies, found by the line carrying it.
+ *
+ * Counted rather than measured off the pane, because a sparse monitor draws a
+ * comb — hourly check-ins across ninety cells are three empty cells between
+ * each — and that is deliberate, so the track is glyphs *and* the empty cells
+ * between them.
  */
-test("no check-in section is drawn while the timeline slot is unfilled", async () => {
+function trackWidth(frame: string, glyphs: readonly string[]): number {
+  const track = new Set([...glyphs, TIMELINE_EMPTY_GLYPH]);
+  let best = 0;
+  for (const line of frame.split("\n")) {
+    let run = 0;
+    for (const character of line) {
+      run = track.has(character) ? run + 1 : 0;
+      best = Math.max(best, run);
+    }
+  }
+  return best;
+}
+
+test("a cron monitor's detail draws its check-in history across the pane", async () => {
   const h = await renderMonitors();
   try {
     await openRow(h, 1);
+    await h.waitForFrame((f) => f.includes(CRON_GLYPHS.ok));
+
+    const frame = h.frame();
+    expect(frame).toContain("▾ 2 Check-ins");
+    // The window is stated: there is no axis under a track, here either.
+    expect(frame).toContain(timelineWindowLabel());
+    // The failing hour is drawn, and the tally under it counts both.
+    expect(frame).toContain(CRON_GLYPHS.error);
+    expect(frame).toContain("23 Okay");
+    expect(frame).toContain("2 Failed");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the pane's track is wider than the column the row squeezes it into", async () => {
+  const h = await renderMonitors();
+  try {
+    await openRow(h, 1);
+    await h.waitForFrame((f) => f.includes(CRON_GLYPHS.ok));
+
+    // The whole point of the detail-pane timeline: the list caps the column at
+    // `TIMELINE_MAX_WIDTH`, and the pane is not a column.
+    expect(trackWidth(h.frame(), Object.values(CRON_GLYPHS))).toBeGreaterThan(TIMELINE_MAX_WIDTH);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("an uptime monitor's detail draws its own history", async () => {
+  const h = await renderMonitors();
+  try {
+    await openRow(h, 2);
+    await h.waitForFrame((f) => f.includes(UPTIME_GLYPHS.success));
+
+    const frame = h.frame();
+    expect(frame).toContain("▾ 2 Check-ins");
+    expect(frame).toContain(UPTIME_GLYPHS.failure_incident);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+/**
+ * A failed stats request must draw the unlit track, never the pending rail —
+ * a pane that starts drawing the rail on an error never stops — and it has to
+ * say so, because a degraded track is indistinguishable from a monitor that
+ * has never checked in.
+ */
+test("a failed stats request degrades loudly, not into a permanent rail", async () => {
+  const h = await renderMonitors(stubClient({ failStats: true }));
+  try {
+    await openRow(h, 1);
+    await h.waitForFrame((f) => f.includes("check-in history unavailable"));
+
+    const frame = h.frame();
+    expect(frame).toContain("▾ 2 Check-ins");
+    expect(frame).not.toContain(TIMELINE_PENDING_GLYPH.repeat(8));
+    // And the sections around it are untouched.
+    expect(frame).toContain("Configuration");
+    expect(frame).toContain("Open Periods");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a monitor with no check-in history has no Check-ins section at all", async () => {
+  const h = await renderMonitors();
+  try {
+    // The metric monitor: nothing checks in, so the section would be a heading
+    // over an empty track claiming it never had.
+    await openRow(h);
     await h.waitForFrame((f) => f.includes("Configuration"));
 
     const frame = h.frame();
     expect(frame).not.toContain("Check-ins");
-    // And the sections that do exist are numbered from one, contiguously.
+    // And the sections that do exist stay numbered from one, contiguously.
     expect(frame).toContain("▾ 1 Configuration");
     expect(frame).toContain("▾ 2 Open Periods");
     expect(frame).toContain("▾ 3 Connected Alerts");
     expect(frame).toContain("▾ 4 Details");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a cron detector with no monitor behind it says so rather than drawing nothing", async () => {
+  const h = await renderMonitors();
+  try {
+    // The sixth fixture is a cron detector whose data source has no `queryObj`.
+    await openRow(h, 5);
+    await h.waitForFrame((f) => f.includes("Check-ins"));
+    expect(h.frame()).toContain("no check-in source");
   } finally {
     await h.cleanup();
   }

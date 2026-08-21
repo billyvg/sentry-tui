@@ -38,6 +38,7 @@ import {
   Section,
   useSectionFolds,
 } from "~/ui/components/DetailSections";
+import type { Notice } from "~/ui/components/StatusBar";
 import { useDetectorOpenPeriods, useDetectorWorkflows } from "~/ui/hooks/useDetectorDetail";
 import { BOLD } from "~/ui/lib/attributes";
 import { DetectorTimelineSection, hasDetectorTimeline } from "~/ui/screens/monitorTimelineSlot";
@@ -89,6 +90,7 @@ export function MonitorDetail({
   height,
   focused,
   reloadToken,
+  notify,
 }: MonitorDetailProps) {
   const periods = useDetectorOpenPeriods(client, {
     org,
@@ -158,6 +160,7 @@ export function MonitorDetail({
             client={client}
             org={org}
             reloadToken={reloadToken}
+            notify={notify}
             periods={periods}
             workflows={workflows}
           />
@@ -256,6 +259,7 @@ function SectionBody({
   client,
   org,
   reloadToken,
+  notify,
   periods,
   workflows,
 }: {
@@ -265,6 +269,7 @@ function SectionBody({
   client: SentryClient | null;
   org: string;
   reloadToken: number;
+  notify: (notice: Notice) => void;
   periods: AsyncStatus<DetectorOpenPeriod[]>;
   workflows: AsyncStatus<Workflow[]>;
 }) {
@@ -297,6 +302,7 @@ function SectionBody({
           client={client}
           org={org}
           reloadToken={reloadToken}
+          notify={notify}
         />
       );
 
