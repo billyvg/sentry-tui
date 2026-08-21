@@ -25,6 +25,14 @@ import {
 } from "./explore-fixtures";
 import { renderHarness } from "./helpers";
 
+/**
+ * These drive several navigations through `waitForFrame`, which is real work
+ * rather than a wait on a request: comfortably under a second locally, and
+ * just over Bun's 5s default on CI, where the suite runs about four times
+ * slower. Raised rather than trimmed — what they assert is worth the seconds.
+ */
+const SLOW_TEST_TIMEOUT_MS = 20_000;
+
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 140;
 const HEIGHT = 32;
@@ -633,37 +641,41 @@ function slowMetricsClient() {
 }
 
 describe("sibling isolation", () => {
-  test("a sibling screen never shows the previous one's rows or chart", async () => {
-    const h = await renderApp(slowMetricsClient());
-    try {
-      await navigateTo(h, "Traces");
-      await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
-      expect(h.frame()).toContain("count(span.duration)");
+  test(
+    "a sibling screen never shows the previous one's rows or chart",
+    async () => {
+      const h = await renderApp(slowMetricsClient());
+      try {
+        await navigateTo(h, "Traces");
+        await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
+        expect(h.frame()).toContain("count(span.duration)");
 
-      // Straight from Traces to Metrics: same component, same slot. Without a
-      // remount React would keep the hook state and paint spans under a
-      // Metrics header until the new fetch landed — which here it never does.
-      await h.press((i) => i.pressTab());
-      await h.press((i) => i.pressEnter());
-      await h.press((i) => i.pressKey("j"));
-      await h.press((i) => i.pressKey("j"));
-      await h.press((i) => i.pressEnter());
+        // Straight from Traces to Metrics: same component, same slot. Without a
+        // remount React would keep the hook state and paint spans under a
+        // Metrics header until the new fetch landed — which here it never does.
+        await h.press((i) => i.pressTab());
+        await h.press((i) => i.pressEnter());
+        await h.press((i) => i.pressKey("j"));
+        await h.press((i) => i.pressKey("j"));
+        await h.press((i) => i.pressEnter());
 
-      await h.waitForFrame((f) => f.includes("Search metrics…"));
-      const frame = h.frame();
-      expect(frame).not.toContain("SELECT * FROM orders");
-      expect(frame).not.toContain("count(span.duration)");
-      expect(frame).toContain("Metric");
+        await h.waitForFrame((f) => f.includes("Search metrics…"));
+        const frame = h.frame();
+        expect(frame).not.toContain("SELECT * FROM orders");
+        expect(frame).not.toContain("count(span.duration)");
+        expect(frame).toContain("Metric");
 
-      // The rows it draws while waiting are its own skeleton — several runs of
-      // dashes with gaps between them — and not six blank rows left behind by
-      // Traces, which is what a leaked hook state looks like.
-      const skeletonRows = frame.split("\n").filter((line) => /─ +─/.test(line));
-      expect(skeletonRows.length).toBeGreaterThan(5);
-    } finally {
-      await h.cleanup();
-    }
-  });
+        // The rows it draws while waiting are its own skeleton — several runs of
+        // dashes with gaps between them — and not six blank rows left behind by
+        // Traces, which is what a leaked hook state looks like.
+        const skeletonRows = frame.split("\n").filter((line) => /─ +─/.test(line));
+        expect(skeletonRows.length).toBeGreaterThan(5);
+      } finally {
+        await h.cleanup();
+      }
+    },
+    SLOW_TEST_TIMEOUT_MS,
+  );
 });
 
 // ---------------------------------------------------------------------------

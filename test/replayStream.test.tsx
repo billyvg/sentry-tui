@@ -352,7 +352,7 @@ test("the skeleton holds the loaded row's geometry", async () => {
   } finally {
     await h.cleanup();
   }
-});
+}, 20_000);
 
 test("no row overflows the pane at any width", async () => {
   for (const width of [80, 100, 140]) {
