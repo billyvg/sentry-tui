@@ -63,9 +63,13 @@ jobs:
       - name: Test suite
         run: bun test
 
+  # After validate, not alongside it: this job uploads an artifact people can
+  # download and run, and one built off a red commit is indistinguishable from
+  # one built off a green one. Costs a couple of minutes of wall-clock on the
+  # happy path, and saves a runner on every red push.
   build:
     name: Build compiled binary
-    needs: changes
+    needs: [changes, validate]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
