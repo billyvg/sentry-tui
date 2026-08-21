@@ -12,8 +12,9 @@ import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { findScreen, stateKeyOf } from "~/core/screens";
 import { theme } from "~/core/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
+import { breadcrumbTrail } from "~/lib/breadcrumb";
 import { CommandPalette } from "~/ui/components/CommandPalette";
-import { BreadcrumbBar, BREADCRUMB_BAR_HEIGHT } from "~/ui/components/BreadcrumbBar";
+import { DetailBackRow, DETAIL_BACK_ROW_HEIGHT } from "~/ui/components/DetailBackRow";
 import { isDropdownMounted } from "~/ui/components/Dropdown";
 import { HelpDialog } from "~/ui/components/HelpDialog";
 import {
@@ -34,6 +35,12 @@ import { navItemsFor, navTargetOf, type NavItemSpec } from "~/ui/lib/navSections
 import { SCREEN_COMPONENTS } from "~/ui/screens/registry";
 import type { ScreenActions, ViewStackEntry } from "~/ui/screens/types";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
+
+/**
+ * Cells the pane's frame costs a border title: one border cell each side, plus
+ * the space the title is padded with so it doesn't butt against the corners.
+ */
+const BREADCRUMB_CHROME_WIDTH = 4;
 
 const REGIONS = ["nav", "secondary", "content"] as const;
 type Region = (typeof REGIONS)[number];
@@ -752,8 +759,8 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const secondaryWidth = showSecondaryPane ? SECONDARY_NAV_WIDTH : 0;
   const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
   const contentHeight = Math.max(3, height - 3);
-  // A pushed view gives up a row to its breadcrumb bar. Screens keep the lot.
-  const paneHeight = Math.max(3, contentHeight - (topView ? BREADCRUMB_BAR_HEIGHT : 0));
+  // A pushed view gives up a row to its back control. Screens keep the lot.
+  const paneHeight = Math.max(3, contentHeight - (topView ? DETAIL_BACK_ROW_HEIGHT : 0));
 
   /**
    * Where Escape lands from the view on top: the view beneath it, else the
@@ -763,14 +770,22 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const backTarget = viewStack.at(-2)?.label ?? activeItem;
 
   /**
-   * The trail the bar prints while a view is open, root to leaf. Nothing at the
+   * The trail printed in the pane's border while a view is open — the app's
+   * answer to "how deep am I?", kept out of the content's way. Absent at the
    * top level, where the screen's own heading already says where you are and a
    * second copy would only be noise.
+   *
+   * The renderer draws a border title as one flat string, so it is clamped here
+   * rather than left to overrun the frame in a narrow terminal.
    */
-  const trail = useMemo(
-    () => [getNavGroup(activeGroup).label, activeItem, ...viewStack.map((view) => view.label)],
-    [activeGroup, activeItem, viewStack],
-  );
+  const breadcrumb = useMemo(() => {
+    if (viewStack.length === 0) return undefined;
+    const trail = breadcrumbTrail(
+      [getNavGroup(activeGroup).label, activeItem, ...viewStack.map((view) => view.label)],
+      Math.max(0, contentWidth - BREADCRUMB_CHROME_WIDTH),
+    );
+    return trail ? ` ${trail} ` : undefined;
+  }, [viewStack, activeGroup, activeItem, contentWidth]);
 
   /**
    * The status bar's key row, for whatever the app is in the middle of.
@@ -865,6 +880,8 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           />
         ) : null}
         <box
+          title={breadcrumb}
+          titleColor={theme.accent}
           style={{
             flexGrow: 1,
             flexDirection: "column",
@@ -882,7 +899,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           <SeerChatContext.Provider value={seerChat}>
             {topView ? (
               <>
-                <BreadcrumbBar segments={trail} parent={backTarget} width={contentWidth} />
+                <DetailBackRow parent={backTarget} width={contentWidth} />
                 {topView.render({
                   ...paneProps,
                   // A view with no slice of its own gets none: it is a detail

@@ -13,7 +13,7 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
-import { BreadcrumbBar } from "~/ui/components/BreadcrumbBar";
+import { DetailBackRow } from "~/ui/components/DetailBackRow";
 import { eventFixture, groupsFixture } from "./fixtures";
 import { renderHarness, type Harness } from "./helpers";
 import { rawExploreSavedQueriesFixture, savedQueryResultRowsFixture } from "./saved-query-fixtures";
@@ -190,16 +190,17 @@ test("a stateful view prints the trail, the back control and the back hint", asy
   const h = await openSavedQueryResults();
   try {
     const frame = h.frame();
-    const bar = frame.split("\n").find((line) => line.includes("All Queries ›")) ?? "";
+    const lines = frame.split("\n");
 
-    // One bar: the whole path on the left, not just the leaf…
-    expect(bar).toContain("Explore › All Queries › Slow checkout spans");
-    // …and what Escape costs, pushed to the right end of the same line.
-    expect(bar).toContain("back to All Queries (esc)");
-    expect(bar.indexOf("Explore ›")).toBeLessThan(bar.indexOf("back to"));
-    // The control is flush against the pane's right border, with the gap
-    // between it and the trail.
-    expect(bar.replace(/[│ ]+$/, "")).toEndWith("(esc)");
+    // The trail rides the pane's top border, out of the content's way…
+    const border = lines.find((line) => line.includes("Explore › All Queries ›")) ?? "";
+    expect(border).toContain("┌─ Explore › All Queries › Slow checkout spans ");
+
+    // …and the row under it carries what Escape costs, flush right.
+    const row = lines.find((line) => line.includes("(esc)")) ?? "";
+    expect(row).toContain("back to All Queries (esc)");
+    expect(row.replace(/[│ ]+$/, "")).toEndWith("(esc)");
+    expect(lines.indexOf(border)).toBeLessThan(lines.indexOf(row));
 
     // …and the status bar agrees, which it used not to for a view like this.
     expect(frame).toContain("back");
@@ -208,20 +209,19 @@ test("a stateful view prints the trail, the back control and the back hint", asy
   }
 });
 
-test("the back control drops its destination before the trail loses its leaf", async () => {
+test("the back control is trimmed rather than overrunning a narrow pane", async () => {
   // Rendered directly: a pane this narrow only happens in a terminal too small
-  // for the app to be worth driving through, but the bar still has to degrade
-  // in the right order — the leaf says *which* view this is, "to Feed" doesn't.
-  const h = await renderHarness(
-    <BreadcrumbBar segments={["Issues", "Feed", "PUMP-STATION-1"]} parent="Feed" width={28} />,
-    { width: 28, height: 1 },
-  );
+  // to drive the app through, but the control still must not paint over the
+  // border beside it.
+  const h = await renderHarness(<DetailBackRow parent="All Dashboards" width={20} />, {
+    width: 20,
+    height: 1,
+  });
   try {
-    const bar = h.frame().split("\n")[0] ?? "";
-    expect(bar).toContain("PUMP-STATION-1");
-    expect(bar).toContain("back (esc)");
-    expect(bar).not.toContain("back to");
-    expect(bar.length).toBeLessThanOrEqual(28);
+    const row = h.frame().split("\n")[0] ?? "";
+    expect(row).toContain("…");
+    expect(row).toContain("(esc)");
+    expect(row.length).toBeLessThanOrEqual(20);
   } finally {
     await h.cleanup();
   }
