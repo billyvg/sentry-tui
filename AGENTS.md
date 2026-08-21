@@ -102,6 +102,12 @@ layout or the lock. A build only ever surfaces once its bytes are on disk, as a
 bold pink `Update` in the status bar's left corner; clicking it or pressing `U`
 tears the renderer down and execs the cached binary.
 
+That exec is a real `execve(2)`, reached through `bun:ffi` in `src/lib/exec.ts`
+because Bun has no `process.execve`. Spawning instead would leave the old
+process suspended underneath the new one, once per update accepted in a
+session; `restartInto` keeps a spawn only as the fallback for a machine whose
+libc will not load.
+
 That offer is gated on `SENTRY_TUI_MANAGED=1`, which only the launcher sets.
 A binary run straight off the releases page would revert on its next cold
 start, so it stays quiet. Tests stand the whole path up through that marker
