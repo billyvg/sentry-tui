@@ -156,7 +156,7 @@ export const SCREENS: readonly ScreenDef[] = [
   s("explore.metrics", "explore", "Metrics", "stub", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
   s("explore.errors", "explore", "Errors", "stub", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
   s("explore.discover", "explore", "Discover", "stub", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
-  s("explore.profiles", "explore", "Profiles", "stub", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
+  profilesScreen(),
   s(
     "explore.conversations",
     "explore",
@@ -194,6 +194,14 @@ export const SCREENS: readonly ScreenDef[] = [
 function logsScreen(): ScreenDef {
   return {
     ...s("explore.logs", "explore", "Logs", "table", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
+    openLabel: "details",
+  };
+}
+
+/** Profiles opens an inline panel too — a mangled symbol needs the room. */
+function profilesScreen(): ScreenDef {
+  return {
+    ...s("explore.profiles", "explore", "Profiles", "table", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
     openLabel: "details",
   };
 }

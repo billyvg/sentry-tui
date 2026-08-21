@@ -16,6 +16,7 @@ import { IssueFeed } from "~/ui/screens/IssueFeed";
 import { IssueViews } from "~/ui/screens/IssueViews";
 import { LogStream } from "~/ui/screens/LogStream";
 import { SeerScreen } from "~/ui/screens/SeerScreen";
+import { ProfileFunctions } from "~/ui/screens/ProfileFunctions";
 import { ReleaseCards } from "~/ui/screens/ReleaseCards";
 import type { ScreenComponent } from "~/ui/screens/types";
 
@@ -41,5 +42,6 @@ export const SCREEN_COMPONENTS: Partial<Record<ScreenId, ScreenComponent>> = {
   "issues.all-views": IssueViews,
   "explore.logs": LogStream,
   "seer.ask": SeerScreen,
+  "explore.profiles": ProfileFunctions,
   "explore.releases": ReleaseCards,
 };
