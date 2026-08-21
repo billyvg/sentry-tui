@@ -221,6 +221,16 @@ async function importExternal(beatId: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * Comfortable narration sits around 140–160 words per minute. Outside this a
+ * read is either rushed or draggy, and a synthesizer will happily produce
+ * either — MAI-Voice-2 races short lines especially, so the average hides it.
+ */
+const WPM_MIN = 130;
+const WPM_MAX = 175;
+
+const wpm = (text: string, seconds: number) => (text.split(/\s+/).length / seconds) * 60;
+
 const durations: Record<string, number> = {};
 let rendered = 0;
 const missing: string[] = [];
@@ -252,7 +262,9 @@ for (const beat of beats) {
 
   if (cached?.hash === hash && (await file(path).exists())) {
     durations[beat.id] = cached.seconds;
-    console.log(`  ${beat.id} ${cached.seconds.toFixed(1)}s (cached) — ${beat.title}`);
+    console.log(
+      `  ${beat.id} ${cached.seconds.toFixed(1)}s ${pace(beat.text, cached.seconds)} (cached) — ${beat.title}`,
+    );
     continue;
   }
 
@@ -261,7 +273,7 @@ for (const beat of beats) {
   durations[beat.id] = seconds;
   cache[beat.id] = { hash, seconds, source: "synth" };
   rendered++;
-  console.log(`  ${beat.id} ${seconds.toFixed(1)}s — ${beat.title}`);
+  console.log(`  ${beat.id} ${seconds.toFixed(1)}s ${pace(beat.text, seconds)} — ${beat.title}`);
 }
 
 await write(DURATIONS_PATH, `${JSON.stringify(durations, null, 2)}\n`);
@@ -282,6 +294,21 @@ console.log(
 );
 console.log(`Wrote ${DURATIONS_PATH}`);
 
+// Per-beat flags above are informative on their own; this only fires when the
+// script *as a whole* is out of band, because that is the one problem a single
+// setting fixes. A couple of quick short lines among slow long ones is normal.
+const overall = Math.round(wpm(beats.map((beat) => beat.text).join(" "), total));
+if (overall > WPM_MAX || overall < WPM_MIN) {
+  const suggestion = Math.max(0.5, Math.min(2, (backend?.speed ?? 1) * (150 / overall)));
+  console.warn(
+    `\nThe whole script reads at ${overall} wpm, outside the comfortable ${WPM_MIN}–${WPM_MAX} band.\n` +
+      `It will feel ${overall > WPM_MAX ? "rushed and run short" : "draggy and run long"}. Re-render with:\n` +
+      `  DEMO_TTS_SPEED=${suggestion.toFixed(2)} bun run demo:tts`,
+  );
+} else {
+  console.log(`Reads at ${overall} wpm overall.`);
+}
+
 if (missing.length > 0) {
   // A beat with no audio is not a warning: `demo:mux` refuses to run, and
   // `demo:record` would hold it for the fallback instead of the real line.
@@ -293,6 +320,13 @@ if (missing.length > 0) {
       `Or render the rest with a provider: bun run demo:tts`,
   );
   process.exit(1);
+}
+
+/** `152wpm`, flagged when the read is outside a comfortable band. */
+function pace(text: string, seconds: number): string {
+  const rate = Math.round(wpm(text, seconds));
+  const flag = rate > WPM_MAX ? " ⚡fast" : rate < WPM_MIN ? " 🐢slow" : "";
+  return `${rate}wpm${flag}`;
 }
 
 function formatMinutes(seconds: number): string {

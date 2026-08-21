@@ -17,6 +17,8 @@
  * no permission beyond Screen Recording, and nothing can obscure the picture.
  */
 
+import { rm } from "node:fs/promises";
+
 /** Video frames per second. */
 const FPS = 30;
 
@@ -56,6 +58,36 @@ export async function probeSize(path: string): Promise<{ width: number; height: 
 }
 
 /**
+ * Confirm the window can actually be captured, before a whole take depends on it.
+ *
+ * `screencapture` fails when the display is asleep or the screen is locked, and
+ * says nothing at all about why — it just exits 1. Discovering that after
+ * driving seventy seconds of tape wastes the take *and* looks like a bug in the
+ * harness, so this spends one second finding out first.
+ */
+export async function assertCapturable(windowId: number): Promise<void> {
+  const probe = "/tmp/sentry-tui-capture-probe.mov";
+  await rm(probe, { force: true });
+
+  const proc = Bun.spawn(["screencapture", "-x", "-o", "-v", "-V1", `-l${windowId}`, probe], {
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+  const code = await proc.exited;
+  const detail = (await new Response(proc.stderr).text()).trim();
+  await rm(probe, { force: true });
+
+  if (code !== 0) {
+    throw new Error(
+      `Cannot capture the demo window${detail ? `: ${detail}` : "."}\n\n` +
+        `screencapture fails silently when the display is asleep or the screen is\n` +
+        `locked — wake the display and try again. If it persists, check that this\n` +
+        `terminal has Screen Recording permission in System Settings › Privacy & Security.`,
+    );
+  }
+}
+
+/**
  * A fixed-length recording of a single window.
  *
  * The length has to be declared up front — `screencapture` takes `-V<seconds>`
@@ -69,7 +101,14 @@ export class WindowRecording {
    * @param windowId CGWindowID, from `KittySession.platformWindowId`.
    * @param seconds Hard limit; the recorder exits on its own at this point.
    */
-  static start(windowId: number, seconds: number, output: string): WindowRecording {
+  static async start(windowId: number, seconds: number, output: string): Promise<WindowRecording> {
+    // Clear the destination first. screencapture records the whole take and
+    // only *then* tries to save, so anything wrong with the path — a previous
+    // capture sitting there, or a player still holding it open — costs you the
+    // entire take and reports it as "Failed to save to final location".
+    // Unlinking satisfies both: a player keeps its own handle on the old inode.
+    await rm(output, { force: true });
+
     const process = Bun.spawn(
       [
         "screencapture",
@@ -90,10 +129,17 @@ export class WindowRecording {
     const stderr = this.process.stderr;
     const code = await this.process.exited;
     if (code !== 0) {
-      const detail = stderr instanceof ReadableStream ? await new Response(stderr).text() : "";
+      // Lead with what screencapture said. It reports the actual cause — a
+      // destination it can't write, a window that vanished — and burying that
+      // under a guess about permissions sends you to System Settings for a
+      // problem that was never there.
+      const detail = (
+        stderr instanceof ReadableStream ? await new Response(stderr).text() : ""
+      ).trim();
       throw new Error(
-        `screencapture failed (${code}). Is Screen Recording permission granted to this ` +
-          `terminal in System Settings › Privacy & Security?\n${detail}`,
+        `${detail || `screencapture exited ${code}`}\n\n` +
+          `If it mentions permission, grant Screen Recording to this terminal in ` +
+          `System Settings › Privacy & Security.`,
       );
     }
   }

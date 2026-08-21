@@ -10,7 +10,7 @@
 import { file } from "bun";
 import { mkdir } from "node:fs/promises";
 
-import { probeSize, WindowRecording } from "./lib/capture.ts";
+import { assertCapturable, probeSize, WindowRecording } from "./lib/capture.ts";
 import { KittySession } from "./lib/kitty.ts";
 import {
   assertNotMultiplexed,
@@ -79,9 +79,13 @@ try {
   const windowId = await kitty.platformWindowId();
   if (windowId === null) throw new Error("kitty did not report a window id to record.");
 
+  // Fail in a second rather than after the whole tape has played to a
+  // recorder that was never going to write anything.
+  await assertCapturable(windowId);
+
   // One window, by id — nothing on top of it can get into the picture, and
   // there is no rectangle to get wrong.
-  recording = WindowRecording.start(windowId, captureSeconds, output);
+  recording = await WindowRecording.start(windowId, captureSeconds, output);
   await Bun.sleep(LEAD_IN_MS);
 
   /** Perform one step. Sleeps are the caller's business. */
