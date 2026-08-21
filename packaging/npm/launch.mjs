@@ -88,6 +88,36 @@ function childEnv() {
 }
 
 /**
+ * How long a child has to run before the app inside it has checked for itself.
+ *
+ * A restatement of `UPDATE_FIRST_CHECK_MS` in `src/app/selfUpdate.ts`, which
+ * this file cannot import: it is plain JS shipped to npm, and that is
+ * TypeScript compiled into the binary. `scripts/packaging.test.ts` imports
+ * both and fails if they drift.
+ */
+export const APP_FIRST_CHECK_MS = 10 * 1000;
+
+/**
+ * Whether the launcher should check, given how long its child ran.
+ *
+ * The app checks for itself once it has been up `APP_FIRST_CHECK_MS`, so the
+ * only window left is a child that exited before then: every command that
+ * never starts the app — `--help`, `--version`, `login`, `logout`, `status` —
+ * plus a session too short to have looked, and a binary that would not start
+ * at all, which is when a new build is worth the most.
+ *
+ * Asking how long the child ran, rather than reading the arguments it was
+ * given, is what keeps this from needing to know the command list. A command
+ * added to the app is covered here the day it is added.
+ *
+ * @param {number} elapsedMs how long the child was up
+ * @returns {boolean}
+ */
+export function shouldCheckAfterRun(elapsedMs) {
+  return elapsedMs < APP_FIRST_CHECK_MS;
+}
+
+/**
  * Kick off an update in a process of our own, and return immediately.
  *
  * Detached with stdio ignored, so it outlives this process and cannot write
@@ -139,6 +169,7 @@ export function main(argv = process.argv.slice(2)) {
   const local = bestLocal(bundled);
 
   const binary = local.path;
+  const startedAt = Date.now();
   let result = spawnSync(binary, argv, { stdio: "inherit", env: childEnv() });
 
   // npm preserves the executable bit, but tarballs unpacked by other tooling
@@ -167,22 +198,23 @@ export function main(argv = process.argv.slice(2)) {
     result = spawnSync(bundled.path, argv, { stdio: "inherit", env: childEnv() });
   }
 
-  // Now that nothing of ours is running, look for something newer. Whoever is
-  // running decides when to check, and while the app was up it was checking
-  // for itself — `src/app/selfUpdate.ts` states that schedule in full. This
-  // covers the window nothing else can: `--help`, `login`, `logout` and
-  // `status` never start the app, and a session can end before its first
-  // check. Detached, so the shell prompt is already back by the time the
-  // download starts, and the next launch runs whatever it left behind.
-  // `SENTRY_TUI_NO_UPDATE=1` switches it off.
+  // Nothing of ours is running now, so this is the launcher's turn — if the
+  // app did not already take it. Whoever is running decides when to check, and
+  // a child that was up long enough checked for itself; `src/app/selfUpdate.ts`
+  // states that schedule in full. So exactly one check happens per launch,
+  // here or in there, never both. Detached, so the shell prompt is already
+  // back by the time a download starts, and the next launch runs whatever it
+  // leaves behind. `SENTRY_TUI_NO_UPDATE=1` and `CI` switch off both halves.
   //
   // `bestLocal` again rather than `local`: a session that took the update
   // offer downloaded a newer build than the one we started, and asking for it
   // twice would cost 24MB for nothing.
-  startBackgroundUpdate({
-    packageName: platformPackage(),
-    localVersion: bestLocal(bundled).version,
-  });
+  if (shouldCheckAfterRun(Date.now() - startedAt)) {
+    startBackgroundUpdate({
+      packageName: platformPackage(),
+      localVersion: bestLocal(bundled).version,
+    });
+  }
 
   if (result.error) {
     process.stderr.write(`sentry-tui failed to start: ${result.error.message}\n`);

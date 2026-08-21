@@ -7,14 +7,19 @@
  * can: the npm launcher, and the app the launcher starts.
  *
  * The rule, and the whole of it: **whoever is running decides**. From the
- * moment the app is up it looks for itself — shortly after start, then hourly
- * — so a release landing mid-session is offered in that session rather than
- * silently waiting for a relaunch. The launcher checks once, after its child
- * has exited, which is the only window it owns exclusively: `--help`, `login`,
- * `logout` and `status` never start the app at all, and a session that ended
- * before the first check below never got one. The two can't overlap, so the
- * `mkdir` lock in `update.mjs` is left guarding what it was written for —
- * several terminals launching at once — rather than our own two schedules.
+ * moment the app is up it looks for itself — `UPDATE_FIRST_CHECK_MS` after
+ * start, then hourly — so a release landing mid-session is offered in that
+ * session rather than silently waiting for a relaunch. The launcher checks
+ * once its child has exited, and only when that child went before it could
+ * have looked: every command that never starts the app (`--help`,
+ * `--version`, `login`, `logout`, `status`), a session too short to have
+ * checked, and a binary that would not start at all.
+ *
+ * So a launch costs exactly one check, in one place or the other, never both
+ * — and the `mkdir` lock in `update.mjs` is left guarding what it was written
+ * for, several terminals launching at once, rather than our own two schedules.
+ * The launcher decides that with a clock, not by reading the arguments it was
+ * handed, so a command added to the app needs nothing added there.
  *
  * The imports reach outside `src/` on purpose. Those two modules are shipped
  * runtime code, not build scripts, and they are the only definition of the

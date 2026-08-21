@@ -10,6 +10,8 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
+import { APP_FIRST_CHECK_MS } from "../packaging/npm/launch.mjs";
+import { UPDATE_FIRST_CHECK_MS } from "../src/app/selfUpdate.ts";
 import { aliasManifest, launcherManifest, packageDirName, platformManifest } from "./build-npm.ts";
 import { COMMANDS } from "./release.ts";
 import { ALIAS_PACKAGE, LAUNCHER_PACKAGE, RELEASE_TARGETS } from "./release-targets.ts";
@@ -83,7 +85,7 @@ describe("npm launcher", () => {
   test("it looks for an update only once nothing of ours is running", async () => {
     // The cadence lives in `src/app/selfUpdate.ts`; the launcher's share of it
     // is this single call, after the child has exited. Move it back above the
-    // spawn and every TUI launch checks twice — once here and once from inside
+    // spawn and every launch checks twice — once here and once from inside
     // the app — which is the arrangement #103 was filed about.
     const source = await read("packaging/npm/launch.mjs");
 
@@ -93,6 +95,15 @@ describe("npm launcher", () => {
     const handover = source.indexOf("spawnSync(binary, argv");
     expect(handover).toBeGreaterThan(-1);
     expect(calls[0]!.index).toBeGreaterThan(handover);
+  });
+
+  test("it hands the check to the app whenever the app was up long enough", () => {
+    // The launcher cannot import the TypeScript the binary is compiled from,
+    // so it restates this one number, and gates its own check on it. Drift is
+    // silent either way: too low here and a session that quit before its first
+    // check gets no check at all, too high and both halves run. This is the
+    // only thing holding the two sides of the cadence together.
+    expect(APP_FIRST_CHECK_MS).toBe(UPDATE_FIRST_CHECK_MS);
   });
 
   test("the bin entries point at the launcher module", async () => {

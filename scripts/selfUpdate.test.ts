@@ -22,7 +22,11 @@ import {
   updatesDisabled,
   verifyIntegrity,
 } from "../packaging/npm/update.mjs";
-import { startBackgroundUpdate } from "../packaging/npm/launch.mjs";
+import {
+  APP_FIRST_CHECK_MS,
+  shouldCheckAfterRun,
+  startBackgroundUpdate,
+} from "../packaging/npm/launch.mjs";
 import {
   canSelfUpdate,
   type ReadyUpdate,
@@ -461,6 +465,21 @@ describe("when the app looks", () => {
 });
 
 describe("when the launcher looks", () => {
+  test("only for a child that went before the app could have checked", () => {
+    // Every command that never starts the app is over in well under a second,
+    // so this covers `--help`, `--version`, `login`, `logout` and `status`
+    // without the launcher being told what any of them are.
+    expect(shouldCheckAfterRun(0)).toBe(true);
+    expect(shouldCheckAfterRun(300)).toBe(true);
+    expect(shouldCheckAfterRun(APP_FIRST_CHECK_MS - 1)).toBe(true);
+
+    // And a session that was up long enough owned the check itself. Drop this
+    // and every interactive session checks twice, which is the half of #103
+    // that moving the call alone did not fix.
+    expect(shouldCheckAfterRun(APP_FIRST_CHECK_MS)).toBe(false);
+    expect(shouldCheckAfterRun(60 * 60 * 1000)).toBe(false);
+  });
+
   test("it stands down rather than spawning a worker that would do nothing", () => {
     // The launcher's own check is the other half of the cadence, and these are
     // the cases where starting a process at all is wasted work.
