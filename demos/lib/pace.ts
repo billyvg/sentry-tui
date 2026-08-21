@@ -26,8 +26,55 @@
  * line that was 20% too slow was also 20% too long.
  */
 
-/** Comfortable narration sits here. Measured over voice, not over pauses. */
-export const TARGET_SYLLABLES_PER_SECOND = 4.35;
+/**
+ * How fast the mouth moves: syllables per second of speech, pauses excluded.
+ */
+export const TARGET_ARTICULATION = 4.35;
+
+/**
+ * How fast the line arrives: syllables per second including its pauses.
+ *
+ * Two targets rather than one, because they are what a listener actually hears
+ * as pace and one knob cannot hold both. Correct only the articulation and a
+ * line the synthesizer ran together with no breath comes out at the same mouth
+ * speed as a comma-heavy one and still sounds twice as fast — measured on the
+ * cut this replaced, 210 words a minute against 118, with both beats sitting
+ * within 2% of the same syllables per second. So the pauses get a budget too:
+ * `TARGET_ARTICULATION` sets the speech, this sets the space around it.
+ *
+ * The gap between the two is the share of a beat spent not talking — about 17%
+ * here, which is ordinary for narration.
+ */
+export const TARGET_OVERALL = 3.6;
+
+/** No pause is allowed to fall below this, or to run past it. */
+const MIN_PAUSE_SECONDS = 0.12;
+const MAX_PAUSE_SECONDS = 0.6;
+/** Silence left after the last word, so a beat doesn't end on a hard cut. */
+const TAIL_SECONDS = 0.25;
+
+/**
+ * How far the pauses as a group may be rescaled.
+ *
+ * Reaching the budget matters less than keeping the phrasing recognisable: the
+ * gaps are scaled together, in proportion to how the read placed them, so a
+ * dramatic pause stays the longest one. Growing them hard is the riskier
+ * direction — a 0.08s breath stretched fourfold is not a pause, it's a stutter
+ * — so the ceiling is low, and what the pauses can't absorb goes to the speech
+ * instead.
+ */
+const MIN_PAUSE_SCALE = 0.4;
+const MAX_PAUSE_SCALE = 2.2;
+
+/**
+ * How far a beat's speech may sit from the articulation target.
+ *
+ * The last resort for a line the pauses can't fix: a sentence the synthesizer
+ * ran together in one breath has nowhere to put its budget, so it is read a
+ * little slower instead of being given pauses it never had. Which is what a
+ * person does with the same sentence.
+ */
+const ARTICULATION_TOLERANCE = 0.12;
 
 /**
  * How far one beat may be pushed. Beyond this the correction is audible as
@@ -98,6 +145,21 @@ export interface VoiceProfile {
   voicedSeconds: number;
   /** Where the last word ends. */
   speechEndSeconds: number;
+  /** Pauses between words, in order. The trailing silence is not one of them. */
+  gaps: Array<{ start: number; end: number }>;
+}
+
+/**
+ * A short hash of what a beat says, stored beside its audio.
+ *
+ * Pace is measured by counting the syllables in the script and comparing them
+ * against the seconds in the file, which is nonsense the moment the two are of
+ * different vintages — an edited line against yesterday's take reads as a beat
+ * that needs a 40% correction, and the correction gets applied. This is how the
+ * pipeline notices.
+ */
+export function textFingerprint(text: string): string {
+  return new Bun.CryptoHasher("sha256").update(text).digest("hex").slice(0, 16);
 }
 
 /** Silence quiet enough to be a pause rather than a breath. */
@@ -159,8 +221,13 @@ export async function profileVoice(path: string): Promise<VoiceProfile> {
     totalSeconds,
     voicedSeconds: Math.max(0.1, speechEndSeconds - paused),
     speechEndSeconds,
+    gaps: spans.filter((span) => span !== trailing),
   };
 }
+
+/** Keep a rebuilt pause inside what reads as punctuation. */
+const clampPause = (seconds: number) =>
+  Math.min(MAX_PAUSE_SECONDS, Math.max(MIN_PAUSE_SECONDS, seconds));
 
 /** Duration in seconds, straight from the container. */
 async function probe(path: string): Promise<number> {
@@ -175,24 +242,106 @@ async function probe(path: string): Promise<number> {
 
 export interface Pacing {
   syllables: number;
-  /** Rate of the source audio, syllables of voice per second. */
+  /** Speech rate of the source audio, syllables per second of voice. */
   sourceRate: number;
-  /** Rate after correction — the target, unless the tempo had to be clamped. */
+  /** Speech rate after correction — the target, unless the tempo was clamped. */
   pacedRate: number;
+  /** Rate including pauses: what the line sounds like it is going at. */
+  overallRate: number;
   tempo: number;
+  /** What the pauses were multiplied by to reach their budget. */
+  pauseScale: number;
   clamped: boolean;
   /** Length of the corrected file. */
   seconds: number;
 }
 
+/** Audio layout of a file, for generating silence that matches it. */
+async function audioFormat(path: string): Promise<{ rate: number; layout: string }> {
+  const proc = Bun.spawn(
+    [
+      "ffprobe",
+      "-v",
+      "error",
+      "-select_streams",
+      "a:0",
+      "-show_entries",
+      "stream=sample_rate,channels",
+      "-of",
+      "csv=p=0",
+      path,
+    ],
+    { stdout: "pipe", stderr: "ignore" },
+  );
+  const [rate, channels] = (await new Response(proc.stdout).text()).trim().split(",").map(Number);
+  await proc.exited;
+  return { rate: rate || 24000, layout: channels === 2 ? "stereo" : "mono" };
+}
+
 /**
- * Resample one beat to the target rate, writing the corrected file.
+ * Work out how to re-time one beat, from its measurements alone.
  *
- * `atempo` moves tempo without touching pitch, so a beat that was read too
- * slowly comes back at the same voice rather than a higher one. Factors stay
- * inside a single filter's 0.5–2.0 range by the clamp above.
+ * Split out from the ffmpeg work because it is the whole idea and worth being
+ * able to test: how much of the correction the pauses take, how much is left
+ * for the speech, and what happens when neither can reach the target.
+ */
+export function planPacing(input: {
+  syllables: number;
+  /** Seconds of speech in the take, pauses excluded. */
+  voicedSeconds: number;
+  /** Length of each pause between words, in order. */
+  gaps: number[];
+  emphasis?: number;
+  target?: number;
+  overallTarget?: number;
+}): { tempo: number; pauseScale: number; articulation: number; clamped: boolean } {
+  const emphasis = input.emphasis ?? 1;
+  const target = (input.target ?? TARGET_ARTICULATION) * emphasis;
+  const overallTarget = (input.overallTarget ?? TARGET_OVERALL) * emphasis;
+  const { syllables, voicedSeconds, gaps } = input;
+
+  // How long the beat should run, and how that time divides. The pauses go
+  // first, because they are the cheaper thing to move: speech that has been
+  // resampled sounds resampled, and silence never does.
+  const wantedSeconds = syllables / overallTarget;
+  const pauseBudget = Math.max(0, wantedSeconds - syllables / target);
+
+  const pausesNow = gaps.reduce((sum, gap) => sum + gap, 0);
+  const pauseScale =
+    gaps.length === 0 || pausesNow <= 0
+      ? 1
+      : Math.min(MAX_PAUSE_SCALE, Math.max(MIN_PAUSE_SCALE, pauseBudget / pausesNow));
+  const paused = gaps.reduce((sum, gap) => sum + clampPause(gap * pauseScale), 0);
+
+  // Whatever the pauses could not absorb, the speech takes — within a bound, so
+  // this stays a nudge in delivery rather than an audible slow-down.
+  const articulation = Math.min(
+    target * (1 + ARTICULATION_TOLERANCE),
+    Math.max(
+      target * (1 - ARTICULATION_TOLERANCE),
+      syllables / Math.max(0.1, wantedSeconds - paused),
+    ),
+  );
+
+  const wanted = articulation / (syllables / voicedSeconds);
+  const tempo = Math.min(MAX_TEMPO, Math.max(MIN_TEMPO, wanted));
+  return { tempo, pauseScale, articulation, clamped: Math.abs(tempo - wanted) > 0.001 };
+}
+
+/**
+ * Re-time one beat: speech to the articulation target, pauses to their budget.
  *
- * @param emphasis Deliberate departure from the target, per beat: 0.95 reads
+ * The clip is cut at its silences, every speech run is resampled by the same
+ * factor — one factor, so the delivery inside the line is untouched — and the
+ * gaps between them are rebuilt at new lengths. `atempo` moves tempo without
+ * moving pitch, so a beat that was read too fast comes back as the same voice
+ * rather than a deeper one.
+ *
+ * Pauses are scaled together rather than set individually: the read decided
+ * where the emphasis went, and a beat whose gaps are all 200ms of the same
+ * nothing is a beat that has had its phrasing ironed out.
+ *
+ * @param emphasis Deliberate departure from both targets, per beat: 0.95 reads
  *   this line 5% slower than the rest of the script. Defaults to 1.
  */
 export async function paceClip(
@@ -200,15 +349,50 @@ export async function paceClip(
   destination: string,
   text: string,
   emphasis = 1,
-  target = TARGET_SYLLABLES_PER_SECOND,
+  target = TARGET_ARTICULATION,
+  overallTarget = TARGET_OVERALL,
 ): Promise<Pacing> {
   const syllables = countSyllables(text);
-  const { voicedSeconds } = await profileVoice(source);
+  const { voicedSeconds, speechEndSeconds, gaps } = await profileVoice(source);
   const sourceRate = syllables / voicedSeconds;
+  const { tempo, pauseScale, clamped } = planPacing({
+    syllables,
+    voicedSeconds,
+    gaps: gaps.map((gap) => gap.end - gap.start),
+    emphasis,
+    target,
+    overallTarget,
+  });
 
-  const wanted = (target * emphasis) / sourceRate;
-  const tempo = Math.min(MAX_TEMPO, Math.max(MIN_TEMPO, wanted));
-  const clamped = Math.abs(tempo - wanted) > 0.001;
+  const { rate, layout } = await audioFormat(source);
+
+  // Speech runs are what is left of the clip once the gaps are taken out of it.
+  const speech: Array<{ start: number; end: number }> = [];
+  let cursor = 0;
+  for (const gap of gaps) {
+    if (gap.start > cursor) speech.push({ start: cursor, end: gap.start });
+    cursor = gap.end;
+  }
+  if (speechEndSeconds > cursor) speech.push({ start: cursor, end: speechEndSeconds });
+
+  const parts: string[] = [];
+  const labels: string[] = [];
+  speech.forEach((run, i) => {
+    parts.push(
+      `[0:a]atrim=start=${run.start.toFixed(3)}:end=${run.end.toFixed(3)},` +
+        `asetpts=PTS-STARTPTS,atempo=${tempo.toFixed(4)}[s${i}]`,
+    );
+    labels.push(`[s${i}]`);
+    const gap = gaps[i];
+    if (!gap) return;
+    const seconds = clampPause((gap.end - gap.start) * pauseScale);
+    parts.push(`anullsrc=r=${rate}:cl=${layout},atrim=duration=${seconds.toFixed(3)}[g${i}]`);
+    labels.push(`[g${i}]`);
+  });
+  parts.push(`anullsrc=r=${rate}:cl=${layout},atrim=duration=${TAIL_SECONDS}[tail]`);
+  labels.push("[tail]");
+
+  const filter = `${parts.join(";")};${labels.join("")}concat=n=${labels.length}:v=0:a=1[out]`;
 
   const proc = Bun.spawn(
     [
@@ -217,8 +401,10 @@ export async function paceClip(
       "error",
       "-i",
       source,
-      "-filter:a",
-      `atempo=${tempo.toFixed(4)}`,
+      "-filter_complex",
+      filter,
+      "-map",
+      "[out]",
       "-c:a",
       "libmp3lame",
       "-q:a",
@@ -232,13 +418,16 @@ export async function paceClip(
     throw new Error(`Could not pace ${source}:\n${await new Response(proc.stderr).text()}`);
   }
 
+  const paced = await profileVoice(destination);
   return {
     syllables,
     sourceRate,
-    pacedRate: sourceRate * tempo,
+    pacedRate: syllables / paced.voicedSeconds,
+    overallRate: syllables / paced.speechEndSeconds,
     tempo,
+    pauseScale,
     clamped,
-    seconds: await probe(destination),
+    seconds: paced.totalSeconds,
   };
 }
 
@@ -263,7 +452,7 @@ export interface PacedBeat extends Pacing {
  */
 export async function paceAll(
   beats: Array<{ id: string; title: string; text: string; emphasis?: number }>,
-  options: { audioDir: string; pacedDir: string; target?: number } = {
+  options: { audioDir: string; pacedDir: string; target?: number; overallTarget?: number } = {
     audioDir: "",
     pacedDir: "",
   },
@@ -280,7 +469,8 @@ export async function paceAll(
       `${options.pacedDir}/${beat.id}.mp3`,
       beat.text,
       beat.emphasis ?? 1,
-      options.target ?? TARGET_SYLLABLES_PER_SECOND,
+      options.target ?? TARGET_ARTICULATION,
+      options.overallTarget ?? TARGET_OVERALL,
     );
     const words = beat.text.split(/\s+/).filter((word) => /[a-z0-9]/i.test(word)).length;
     paced.push({
@@ -301,8 +491,9 @@ export function formatPacingReport(paced: PacedBeat[]): string {
       const flag = beat.clamped ? " ⚠ clamped — check the take" : "";
       return (
         `  ${beat.id} ${beat.seconds.toFixed(1)}s  ` +
-        `${beat.sourceRate.toFixed(2)} → ${beat.pacedRate.toFixed(2)} syl/s ` +
-        `@${beat.tempo.toFixed(2)}×  ${Math.round(beat.wordsPerMinute)}wpm — ${beat.title}${flag}`
+        `${beat.sourceRate.toFixed(2)} → ${beat.pacedRate.toFixed(2)} syl/s @${beat.tempo.toFixed(2)}×  ` +
+        `overall ${beat.overallRate.toFixed(2)} (pauses ${beat.pauseScale.toFixed(2)}×)  ` +
+        `${Math.round(beat.wordsPerMinute)}wpm — ${beat.title}${flag}`
       );
     })
     .join("\n");

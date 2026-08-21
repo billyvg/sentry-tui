@@ -24,7 +24,13 @@ import { mkdir } from "node:fs/promises";
 
 import { probeDuration } from "./lib/capture.ts";
 import { parseNarration, type Beat } from "./lib/narration.ts";
-import { formatPacingReport, paceAll, TARGET_SYLLABLES_PER_SECOND } from "./lib/pace.ts";
+import {
+  formatPacingReport,
+  paceAll,
+  TARGET_ARTICULATION,
+  TARGET_OVERALL,
+  textFingerprint,
+} from "./lib/pace.ts";
 import { AUDIO_DIR, BUILD_DIR, DURATIONS_PATH, NARRATION_PATH, PACED_DIR } from "./lib/paths.ts";
 
 interface Backend {
@@ -178,6 +184,11 @@ interface CacheEntry {
    * gets to decide is stale.
    */
   source?: "synth" | "external";
+  /**
+   * What the beat said when this audio was made. `demo:pace` compares it
+   * against the script to catch audio that predates an edit.
+   */
+  text?: string;
 }
 
 /** Formats a Mac records into, all of which ffmpeg can turn into mp3. */
@@ -259,7 +270,12 @@ for (const beat of beats) {
   if (isYours && external !== null) {
     const seconds = await probeDuration(path);
     durations[beat.id] = seconds;
-    cache[beat.id] = { hash: "external", seconds, source: "external" };
+    cache[beat.id] = {
+      hash: "external",
+      seconds,
+      source: "external",
+      text: textFingerprint(beat.text),
+    };
     const note = external === ".mp3" ? "" : ` (converted from ${external})`;
     console.log(`  ${beat.id} ${seconds.toFixed(1)}s — yours${note} — ${beat.title}`);
     continue;
@@ -282,7 +298,7 @@ for (const beat of beats) {
   await write(path, await synthesize(beat.text));
   const seconds = await probeDuration(path);
   durations[beat.id] = seconds;
-  cache[beat.id] = { hash, seconds, source: "synth" };
+  cache[beat.id] = { hash, seconds, source: "synth", text: textFingerprint(beat.text) };
   rendered++;
   console.log(
     `  ${beat.id} ${seconds.toFixed(1)}s ${wordRate(beat.text, seconds)} — ${beat.title}`,
@@ -314,7 +330,8 @@ const withoutOptional = total - optional.reduce((sum, beat) => sum + (durations[
 if (paced.length > 0) {
   const rates = paced.map((beat) => beat.pacedRate);
   console.log(
-    `\nPaced onto ${TARGET_SYLLABLES_PER_SECOND.toFixed(2)} syllables per second ` +
+    `\nPaced onto ${TARGET_ARTICULATION.toFixed(2)} syllables of speech per second and ` +
+      `${TARGET_OVERALL.toFixed(2)} including pauses ` +
       `(${Math.min(...rates).toFixed(2)}–${Math.max(...rates).toFixed(2)} after correction):\n`,
   );
   console.log(formatPacingReport(paced));
@@ -347,7 +364,7 @@ const overall = Math.round(wpm(beats.map((beat) => beat.text).join(" "), total))
 console.log(
   overall > WPM_MAX || overall < WPM_MIN
     ? `Reads at ${overall} wpm overall, outside the usual ${WPM_MIN}–${WPM_MAX} band.\n` +
-        `Re-pace the script with:  bun run demo:pace --target ${(TARGET_SYLLABLES_PER_SECOND * (150 / overall)).toFixed(2)}`
+        `Re-pace the script with:  bun run demo:pace --target ${(TARGET_ARTICULATION * (150 / overall)).toFixed(2)}`
     : `Reads at ${overall} wpm overall.`,
 );
 

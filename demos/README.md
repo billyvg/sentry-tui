@@ -167,33 +167,62 @@ like a slow, laggy first sentence followed by a different, faster narrator. Per
 beat `Speed:` overrides made it worse: fixing one line moved the discontinuity to
 its neighbour.
 
-So pace is measured and corrected instead, as the last stage of `demo:tts`:
+So pace is measured and corrected instead, as the last stage of `demo:tts`, and
+it holds **two** rates rather than one:
+
+| Target                |      | What it controls                                                  |
+| --------------------- | ---- | ----------------------------------------------------------------- |
+| `TARGET_ARTICULATION` | 4.35 | syllables per second of speech — how fast the mouth moves         |
+| `TARGET_OVERALL`      | 3.60 | syllables per second including pauses — how fast the line arrives |
+
+Two, because one knob cannot hold both and a listener hears both. Correcting only
+the articulation left a beat the synthesizer ran together in a single breath —
+0.16s of pause in 3.5 seconds — sitting next to one that paused for a fifth of
+its length. Same mouth speed to within 2%; 210 words a minute against 118. The
+gap between the two targets is the share of a beat spent not talking, about 17%,
+which is ordinary for narration.
+
+Each beat is then cut at its silences and rebuilt:
 
 1. Count the syllables the line should take to say.
-2. Measure the seconds of _voice_ in the take — total length minus its pauses,
-   because a pause is punctuation and not pace.
-3. `atempo` the clip until every beat sits at the same syllables per second, and
-   write the corrected copy to `build/audio/paced/BNN.mp3`.
+2. Measure the take: seconds of voice, and the length of every pause in it.
+3. Scale the pauses toward the budget the overall rate implies — together, in
+   proportion to how the read placed them, so the longest pause stays the
+   longest.
+4. `atempo` the speech to whatever articulation makes the total land on the
+   overall rate.
 
-`durations.json` is measured on the corrected files, so the tape holds for what
-you will actually hear. Words per minute is deliberately _not_ the target: some
-lines are built of long words and some of short ones, so equalising wpm would
-make the polysyllabic lines articulate half again as fast as the rest.
+Pauses move first because silence never sounds resampled and speech does, but
+they only move so far: growing a 0.08s breath fourfold is a stutter, not a pause,
+so the ceiling is 2.2× and anything left over goes to the speech — within ±12% of
+the articulation target. A line read in one breath comes out slightly slower
+rather than punctuated with pauses it never had, which is what a person does with
+the same sentence.
 
 ```
-B01 3.7s  3.48 → 4.35 syl/s @1.25×  177wpm — lynx renders sentry.io
-B05 6.2s  5.27 → 4.35 syl/s @0.83×  136wpm — goto mode
-B09 4.7s  3.14 → 4.35 syl/s @1.38×  116wpm — the rest of Explore
+B01 3.8s  4.81 → 3.99 syl/s @0.82×  overall 3.62 (pauses 2.20×)  172wpm — lynx renders sentry.io
+B04 4.7s  3.46 → 4.35 syl/s @1.26×  overall 3.60 (pauses 0.55×)  166wpm — speed
+B09 4.7s  4.01 → 4.34 syl/s @1.09×  overall 3.59 (pauses 0.80×)  115wpm — the rest of Explore
 ```
+
+**Words per minute is not the target, and shouldn't be.** It still varies in that
+table — 115 to 178 — because "Logs, replays, releases, profiles" packs 1.8
+syllables into every word and "just like in the web app" packs 1.1. Equalising
+wpm would make the first line articulate half again as fast as the second, which
+is the inconsistency you can actually hear. Syllables are what the mouth does; if
+a beat still reads long, the lever is the writing.
 
 `bun run demo:pace` runs the stage on its own — no key, no synthesis, reading
 whatever is in `build/audio`, so it works on your own recordings too.
-`--dry-run` reports the rates and writes nothing; `--target 4.6` moves the whole
-script. Correction is capped at 0.7–1.55×: past that the resampling is audible,
-and the real fix is a re-render or a shorter line. A clamped beat says so.
+`--dry-run` reports the rates and writes nothing; `--target` and `--overall` move
+the two rates. Correction is capped at 0.7–1.55×: past that the resampling is
+audible, and the real fix is a re-render or a shorter line. A clamped beat says
+so, and so does a beat whose audio predates an edit to its line — that pair
+disagreeing is how you get a confident correction computed from words nobody
+spoke.
 
 **One beat that should sit apart** — a punchline that needs air — takes an
-`**Emphasis:**` stage direction, relative to the corrected rate:
+`**Emphasis:**` stage direction, which moves both rates together:
 
 ```markdown
 ### B11 · install
@@ -239,8 +268,9 @@ switching providers re-renders the script rather than reusing stale timings.
 The video is cut to the voice rather than the other way round:
 
 1. `demo:tts` renders each beat's blockquote to `build/audio/BNN.mp3`.
-2. The pace stage corrects each one onto a single speaking rate, writes
-   `build/audio/paced/BNN.mp3`, and `ffprobe`s those into `build/durations.json`.
+2. The pace stage rebuilds each one at the script's speaking rate — speech and
+   pauses both — writes `build/audio/paced/BNN.mp3`, and measures those into
+   `build/durations.json`.
 3. `Wait @BNN` in the tape holds for exactly that long.
 4. `demo:mux` walks the same timeline and places each beat's audio at the offset
    its action actually happens at — so a `Sleep` between two `Wait`s becomes
