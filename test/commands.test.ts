@@ -15,10 +15,11 @@ describe("matchesCommand", () => {
   });
 
   test("case distinguishes g from G", () => {
-    // Regression: a bare "g" chord used to match shift+g, so "jump to top"
-    // swallowed "jump to bottom" purely because it was declared first.
-    expect(matchesCommand("sentry.nav.top", key("g"))).toBe(true);
-    expect(matchesCommand("sentry.nav.top", key("g", { shift: true }))).toBe(false);
+    // Regression: a bare "g" chord used to match shift+g, so whichever command
+    // was declared first swallowed the other. `g` opens goto mode and `G` jumps
+    // to the bottom of a list — one shift apart, and they must stay apart.
+    expect(matchesCommand("sentry.nav.goto", key("g"))).toBe(true);
+    expect(matchesCommand("sentry.nav.goto", key("g", { shift: true }))).toBe(false);
     expect(matchesCommand("sentry.nav.bottom", key("g", { shift: true }))).toBe(true);
     expect(matchesCommand("sentry.nav.bottom", key("g"))).toBe(false);
   });
