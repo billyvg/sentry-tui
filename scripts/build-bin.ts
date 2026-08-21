@@ -19,7 +19,7 @@ import { $ } from "bun";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { findTarget, hostTarget, RELEASE_TARGETS } from "./release-targets.ts";
+import { BINARY_NAME, findTarget, hostTarget, RELEASE_TARGETS } from "./release-targets.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const ENTRY = join(ROOT, "src/main.tsx");
@@ -58,8 +58,8 @@ if (target && target.key !== `${process.platform}-${process.arch}`) {
 const output =
   parseFlag("outfile") ??
   (requested && target
-    ? join(ROOT, "dist", "bin", target.key, target.exe)
-    : join(ROOT, "dist", target?.exe ?? "sentry-tui"));
+    ? join(ROOT, "dist", "bin", target.key, BINARY_NAME)
+    : join(ROOT, "dist", BINARY_NAME));
 
 await mkdir(dirname(output), { recursive: true });
 

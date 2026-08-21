@@ -37,11 +37,11 @@ npm install -g sentry-tui
 
 `sentry-tui` and `@billyvg/sentry-tui` are the same package; the platform
 binary arrives as an optional dependency, so you download one binary rather
-than five. Binaries are also attached to every
+than four. Binaries are also attached to every
 [release](https://github.com/billyvg/sentry-tui/releases).
 
-Supported: macOS and Linux on arm64 and x64, Windows on x64. Alpine and other
-musl-based systems aren't built yet.
+Supported: macOS and Linux, on arm64 and x64. Windows and musl-based Linux
+(Alpine) aren't built — run from source there.
 
 ### From source
 

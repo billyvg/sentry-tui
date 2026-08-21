@@ -68,19 +68,12 @@ jobs:
         include:
           - target: darwin-arm64
             runner: macos-latest
-            exe: sentry-tui
           - target: darwin-x64
             runner: macos-15-intel
-            exe: sentry-tui
           - target: linux-x64
             runner: ubuntu-latest
-            exe: sentry-tui
           - target: linux-arm64
             runner: ubuntu-24.04-arm
-            exe: sentry-tui
-          - target: win32-x64
-            runner: windows-latest
-            exe: sentry-tui.exe
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -100,16 +93,16 @@ jobs:
       # binary that travelled through a tarball has no signature of its own.
       - name: Sign (macOS)
         if: runner.os == 'macOS'
-        run: codesign --sign - --force dist/bin/${{ matrix.target }}/${{ matrix.exe }}
+        run: codesign --sign - --force dist/bin/${{ matrix.target }}/sentry-tui
 
       - name: Smoke test
-        run: dist/bin/${{ matrix.target }}/${{ matrix.exe }} --help
+        run: dist/bin/${{ matrix.target }}/sentry-tui --help
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}
-          path: dist/bin/${{ matrix.target }}/${{ matrix.exe }}
+          path: dist/bin/${{ matrix.target }}/sentry-tui
           if-no-files-found: error
           retention-days: 7
 

@@ -15,10 +15,9 @@ import { aliasManifest, launcherManifest, packageDirName, platformManifest } fro
 import { parseChecksums, renderFormula } from "./build-formula.ts";
 import {
   ALIAS_PACKAGE,
-  HOMEBREW_TARGETS,
+  ARCHIVE_EXT,
   LAUNCHER_PACKAGE,
   RELEASE_TARGETS,
-  SHELL_INSTALLER_TARGETS,
 } from "./release-targets.ts";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -34,7 +33,6 @@ describe("release targets", () => {
       expect(target.key).toBe(`${target.os}-${target.cpu}`);
       expect(target.asset).toBe(`sentry-tui-${target.key}`);
       expect(target.npmPackage).toBe(`@billyvg/sentry-tui-${target.key}`);
-      expect(target.exe).toBe(target.os === "win32" ? "sentry-tui.exe" : "sentry-tui");
     }
   });
 
@@ -118,9 +116,7 @@ describe("release workflow", () => {
     const workflow = await read(".github/workflows/release.yml");
 
     for (const target of RELEASE_TARGETS) {
-      const entry = new RegExp(
-        `- target: ${target.key}\\n\\s+runner: ${target.runner}\\n\\s+exe: ${target.exe.replace(".", "\\.")}`,
-      );
+      const entry = new RegExp(`- target: ${target.key}\\n\\s+runner: ${target.runner}`);
       expect(workflow).toMatch(entry);
     }
   });
@@ -140,7 +136,7 @@ describe("install.sh", () => {
   test("it can name every POSIX target it claims to serve", async () => {
     const script = await read("install.sh");
 
-    for (const target of SHELL_INSTALLER_TARGETS) {
+    for (const target of RELEASE_TARGETS) {
       // The script builds the asset name from `${os}-${arch}`, so check the
       // halves it maps `uname` output onto.
       expect(script).toContain(`os="${target.os}"`);
@@ -174,18 +170,18 @@ describe("install.sh", () => {
 
 describe("homebrew formula", () => {
   const checksums = new Map(
-    HOMEBREW_TARGETS.map((target, index) => [
-      `${target.asset}.${target.archive}`,
+    RELEASE_TARGETS.map((target, index) => [
+      `${target.asset}.${ARCHIVE_EXT}`,
       String(index + 1).repeat(64),
     ]),
   );
 
-  test("it covers every non-Windows target with its own url and sha", () => {
+  test("it covers every target with its own url and sha", () => {
     const formula = renderFormula("1.2.3", checksums);
 
-    for (const target of HOMEBREW_TARGETS) {
-      expect(formula).toContain(`${target.asset}.${target.archive}`);
-      expect(formula).toContain(checksums.get(`${target.asset}.${target.archive}`)!);
+    for (const target of RELEASE_TARGETS) {
+      expect(formula).toContain(`${target.asset}.${ARCHIVE_EXT}`);
+      expect(formula).toContain(checksums.get(`${target.asset}.${ARCHIVE_EXT}`)!);
     }
 
     expect(formula).toContain('version "1.2.3"');
@@ -203,12 +199,12 @@ describe("homebrew formula", () => {
   test("checksum parsing accepts sha256sum output", () => {
     const parsed = parseChecksums(
       `${"a".repeat(64)}  sentry-tui-darwin-arm64.tar.gz\n` +
-        `${"B".repeat(64)} *sentry-tui-win32-x64.zip\n` +
+        `${"B".repeat(64)} *sentry-tui-linux-arm64.tar.gz\n` +
         `not a checksum line\n`,
     );
 
     expect(parsed.get("sentry-tui-darwin-arm64.tar.gz")).toBe("a".repeat(64));
-    expect(parsed.get("sentry-tui-win32-x64.zip")).toBe("b".repeat(64));
+    expect(parsed.get("sentry-tui-linux-arm64.tar.gz")).toBe("b".repeat(64));
     expect(parsed.size).toBe(2);
   });
 });

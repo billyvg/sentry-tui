@@ -19,6 +19,12 @@ export const ALIAS_PACKAGE = "sentry-tui";
 /** Owner/repo the release assets and Homebrew formula point at. */
 export const REPOSITORY = "billyvg/sentry-tui";
 
+/** Binary name inside every package, archive, and install directory. */
+export const BINARY_NAME = "sentry-tui";
+
+/** Archive format for the GitHub Release assets. */
+export const ARCHIVE_EXT = "tar.gz";
+
 export interface ReleaseTarget {
   /** `${process.platform}-${process.arch}` — what the launcher looks itself up by. */
   key: string;
@@ -29,21 +35,21 @@ export interface ReleaseTarget {
   /** npm package the binary ships in, e.g. `@billyvg/sentry-tui-darwin-arm64`. */
   npmPackage: string;
   /** `os` field of that package, matching `process.platform`. */
-  os: "darwin" | "linux" | "win32";
+  os: "darwin" | "linux";
   /** `cpu` field of that package, matching `process.arch`. */
   cpu: "x64" | "arm64";
-  /** Binary name inside the package and the archive. */
-  exe: string;
   /** Release asset stem, e.g. `sentry-tui-darwin-arm64`. */
   asset: string;
-  /** Archive format for the GitHub Release asset. */
-  archive: "tar.gz" | "zip";
 }
 
 /**
  * x64 targets use Bun's baseline builds on purpose: the default x64 runtime
  * requires AVX2 and dies with SIGILL on pre-Haswell CPUs and on VMs that mask
  * the feature off. A TUI is not throughput-bound, so the tradeoff is free.
+ *
+ * Windows is deliberately absent: nothing here has been run against a Windows
+ * terminal, and shipping a binary nobody has tried is worse than not shipping
+ * one. `docs/releasing.md` covers what adding it would take.
  */
 export const RELEASE_TARGETS: ReleaseTarget[] = [
   {
@@ -53,9 +59,7 @@ export const RELEASE_TARGETS: ReleaseTarget[] = [
     npmPackage: `${NPM_SCOPE}/sentry-tui-darwin-arm64`,
     os: "darwin",
     cpu: "arm64",
-    exe: "sentry-tui",
     asset: "sentry-tui-darwin-arm64",
-    archive: "tar.gz",
   },
   {
     key: "darwin-x64",
@@ -64,9 +68,7 @@ export const RELEASE_TARGETS: ReleaseTarget[] = [
     npmPackage: `${NPM_SCOPE}/sentry-tui-darwin-x64`,
     os: "darwin",
     cpu: "x64",
-    exe: "sentry-tui",
     asset: "sentry-tui-darwin-x64",
-    archive: "tar.gz",
   },
   {
     key: "linux-x64",
@@ -75,9 +77,7 @@ export const RELEASE_TARGETS: ReleaseTarget[] = [
     npmPackage: `${NPM_SCOPE}/sentry-tui-linux-x64`,
     os: "linux",
     cpu: "x64",
-    exe: "sentry-tui",
     asset: "sentry-tui-linux-x64",
-    archive: "tar.gz",
   },
   {
     key: "linux-arm64",
@@ -86,28 +86,9 @@ export const RELEASE_TARGETS: ReleaseTarget[] = [
     npmPackage: `${NPM_SCOPE}/sentry-tui-linux-arm64`,
     os: "linux",
     cpu: "arm64",
-    exe: "sentry-tui",
     asset: "sentry-tui-linux-arm64",
-    archive: "tar.gz",
-  },
-  {
-    key: "win32-x64",
-    bunTarget: "bun-windows-x64-baseline",
-    runner: "windows-latest",
-    npmPackage: `${NPM_SCOPE}/sentry-tui-win32-x64`,
-    os: "win32",
-    cpu: "x64",
-    exe: "sentry-tui.exe",
-    asset: "sentry-tui-win32-x64",
-    archive: "zip",
   },
 ];
-
-/** Targets the `install.sh` script can serve — it is POSIX-only by design. */
-export const SHELL_INSTALLER_TARGETS = RELEASE_TARGETS.filter((t) => t.os !== "win32");
-
-/** Targets the Homebrew formula covers. */
-export const HOMEBREW_TARGETS = SHELL_INSTALLER_TARGETS;
 
 /** Look up a target by its `${platform}-${arch}` key, or by its Bun target name. */
 export function findTarget(name: string): ReleaseTarget | undefined {

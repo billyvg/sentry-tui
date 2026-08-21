@@ -13,7 +13,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { HOMEBREW_TARGETS, REPOSITORY, type ReleaseTarget } from "./release-targets.ts";
+import {
+  ARCHIVE_EXT,
+  BINARY_NAME,
+  RELEASE_TARGETS,
+  REPOSITORY,
+  type ReleaseTarget,
+} from "./release-targets.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -38,7 +44,7 @@ export function parseChecksums(contents: string): Map<string, string> {
 }
 
 function assetUrl(target: ReleaseTarget, tag: string): string {
-  return `https://github.com/${REPOSITORY}/releases/download/${tag}/${target.asset}.${target.archive}`;
+  return `https://github.com/${REPOSITORY}/releases/download/${tag}/${target.asset}.${ARCHIVE_EXT}`;
 }
 
 function block(target: ReleaseTarget, tag: string, sha: string, indent: string): string {
@@ -50,13 +56,13 @@ export function renderFormula(version: string, checksums: Map<string, string>): 
   const tag = `v${version}`;
 
   const shaFor = (target: ReleaseTarget): string => {
-    const sha = checksums.get(`${target.asset}.${target.archive}`);
-    if (!sha) throw new Error(`No checksum for ${target.asset}.${target.archive}`);
+    const sha = checksums.get(`${target.asset}.${ARCHIVE_EXT}`);
+    if (!sha) throw new Error(`No checksum for ${target.asset}.${ARCHIVE_EXT}`);
     return sha;
   };
 
   const byKey = (key: string): ReleaseTarget => {
-    const target = HOMEBREW_TARGETS.find((t) => t.key === key);
+    const target = RELEASE_TARGETS.find((t) => t.key === key);
     if (!target) throw new Error(`Homebrew formula expects a ${key} target`);
     return target;
   };
@@ -89,7 +95,7 @@ ${block(byKey("linux-x64"), tag, shaFor(byKey("linux-x64")), "      ")}
   end
 
   def install
-    bin.install "sentry-tui"
+    bin.install "${BINARY_NAME}"
   end
 
   test do

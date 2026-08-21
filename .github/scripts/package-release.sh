@@ -18,18 +18,16 @@ rm -f "${OUT_DIR:?}"/*
 for dir in "$BIN_DIR"/*/; do
   target="$(basename "$dir")"
 
-  if [ -f "${dir}sentry-tui.exe" ]; then
-    # zip, because that is what a Windows user can open without extra tooling.
-    (cd "$dir" && zip -q -X "../../../${OUT_DIR}/sentry-tui-${target}.zip" sentry-tui.exe)
-    echo "packaged sentry-tui-${target}.zip"
-  elif [ -f "${dir}sentry-tui" ]; then
-    chmod 755 "${dir}sentry-tui"
-    tar -czf "${OUT_DIR}/sentry-tui-${target}.tar.gz" -C "$dir" sentry-tui
-    echo "packaged sentry-tui-${target}.tar.gz"
-  else
+  if [ ! -f "${dir}sentry-tui" ]; then
     echo "::error::no sentry-tui binary in ${dir}"
     exit 1
   fi
+
+  # Artifact download does not preserve the executable bit, so set it here —
+  # this is the mode that ends up in the tarball users extract.
+  chmod 755 "${dir}sentry-tui"
+  tar -czf "${OUT_DIR}/sentry-tui-${target}.tar.gz" -C "$dir" sentry-tui
+  echo "packaged sentry-tui-${target}.tar.gz"
 done
 
 # Bare filenames, so the entries match what install.sh and the formula ask for.
@@ -38,9 +36,9 @@ done
   cd "$OUT_DIR"
   shopt -s nullglob
   if command -v sha256sum > /dev/null 2>&1; then
-    sha256sum sentry-tui-*.tar.gz sentry-tui-*.zip > checksums.txt
+    sha256sum sentry-tui-*.tar.gz > checksums.txt
   else
-    shasum -a 256 sentry-tui-*.tar.gz sentry-tui-*.zip > checksums.txt
+    shasum -a 256 sentry-tui-*.tar.gz > checksums.txt
   fi
 )
 

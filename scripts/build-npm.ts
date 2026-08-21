@@ -9,7 +9,7 @@
  *   sentry-tui                      unscoped alias, so `npx sentry-tui` works
  *
  * npm installs only the platform package matching the machine, so a consumer
- * downloads one binary rather than five. The repo's own `package.json` stays
+ * downloads one binary rather than four. The repo's own `package.json` stays
  * `private` and is never published — everything published is generated here,
  * which keeps devDependencies, hooks, and source layout out of the tarballs.
  *
@@ -23,6 +23,7 @@ import { join } from "node:path";
 
 import {
   ALIAS_PACKAGE,
+  BINARY_NAME,
   LAUNCHER_PACKAGE,
   RELEASE_TARGETS,
   REPOSITORY,
@@ -59,7 +60,7 @@ export function platformManifest(target: ReleaseTarget, version: string) {
     os: [target.os],
     cpu: [target.cpu],
     files: ["bin"],
-    // Yarn PnP cannot execute a binary from inside a zip.
+    // Yarn PnP cannot execute a binary from inside a zip archive.
     preferUnplugged: true,
   };
 }
@@ -128,7 +129,7 @@ async function main(): Promise<void> {
   const missing: ReleaseTarget[] = [];
 
   for (const target of RELEASE_TARGETS) {
-    const binary = join(BIN_DIR, target.key, target.exe);
+    const binary = join(BIN_DIR, target.key, BINARY_NAME);
     if (!existsSync(binary)) {
       missing.push(target);
       continue;
@@ -136,8 +137,8 @@ async function main(): Promise<void> {
 
     const dir = join(OUT_DIR, packageDirName(target.npmPackage));
     await mkdir(join(dir, "bin"), { recursive: true });
-    await cp(binary, join(dir, "bin", target.exe));
-    chmodSync(join(dir, "bin", target.exe), 0o755);
+    await cp(binary, join(dir, "bin", BINARY_NAME));
+    chmodSync(join(dir, "bin", BINARY_NAME), 0o755);
     await writeManifest(dir, platformManifest(target, version));
     await writeFile(
       join(dir, "README.md"),
@@ -152,7 +153,7 @@ async function main(): Promise<void> {
     const names = missing.map((t) => t.key).join(", ");
     if (strict) {
       console.error(`Missing binaries for: ${names}`);
-      console.error(`Expected each at dist/bin/<target>/<exe>.`);
+      console.error(`Expected each at dist/bin/<target>/${BINARY_NAME}.`);
       process.exit(1);
     }
     console.warn(`⚠ Skipping platforms with no binary: ${names}`);

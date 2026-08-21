@@ -14,7 +14,6 @@ export const PLATFORM_PACKAGES = {
   "darwin-x64": "@billyvg/sentry-tui-darwin-x64",
   "linux-x64": "@billyvg/sentry-tui-linux-x64",
   "linux-arm64": "@billyvg/sentry-tui-linux-arm64",
-  "win32-x64": "@billyvg/sentry-tui-win32-x64",
 };
 
 const INSTALL_HELP = `Or install it another way:
@@ -42,9 +41,8 @@ export function resolveBinary() {
     );
   }
 
-  const exe = process.platform === "win32" ? "sentry-tui.exe" : "sentry-tui";
   try {
-    return createRequire(import.meta.url).resolve(`${packageName}/bin/${exe}`);
+    return createRequire(import.meta.url).resolve(`${packageName}/bin/sentry-tui`);
   } catch (cause) {
     throw new Error(
       `sentry-tui could not find its binary package ${packageName}.\n` +

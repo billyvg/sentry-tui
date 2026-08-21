@@ -68,7 +68,7 @@ detect_target() {
   case "$(uname -s)" in
     Darwin) os="darwin" ;;
     Linux) os="linux" ;;
-    *) err "unsupported OS $(uname -s). On Windows, use: npx sentry-tui" ;;
+    *) err "unsupported OS $(uname -s) — only macOS and Linux have builds" ;;
   esac
 
   case "$(uname -m)" in
