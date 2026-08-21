@@ -63,6 +63,23 @@ describe("npm launcher", () => {
     expect(launcherManifest("1.2.3").files).toContain("lib");
   });
 
+  test("it marks the process it launches, which is what unlocks the in-app update", async () => {
+    // The app offers a restart into a cached build only when it sees this, and
+    // nothing else sets it. Drop the marker and the pill silently never
+    // appears — no test in src/ would notice, because none of them run the
+    // launcher.
+    const source = await read("packaging/npm/launch.mjs");
+
+    expect(source).toContain('SENTRY_TUI_MANAGED: "1"');
+    // Every spawn of the binary, not just the happy path: the chmod retry and
+    // the fall-back-to-bundled path hand over the same terminal.
+    const spawns = [
+      ...source.matchAll(/spawnSync\((?:binary|bundled\.path), argv, (\{[^}]*\})\)/g),
+    ];
+    expect(spawns.length).toBe(3);
+    for (const [, options] of spawns) expect(options).toContain("env: childEnv()");
+  });
+
   test("the bin entries point at the launcher module", async () => {
     expect(await read("packaging/npm/bin-launcher.mjs")).toContain("../lib/launch.mjs");
     expect(await read("packaging/npm/bin-alias.mjs")).toContain(`${LAUNCHER_PACKAGE}/launch`);

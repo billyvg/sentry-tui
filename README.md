@@ -35,11 +35,19 @@ than four. Binaries are also attached to every
 
 The npm install **keeps itself current**. Launching starts the app
 immediately on the build you already have, and a background process fetches
-anything newer for next time — so a release reaches you without `npm i -g`
-again, and without ever making you wait on a 24MB download. Nothing about
-starting the app touches the network. Set `SENTRY_TUI_NO_UPDATE=1` to pin
-whatever you have; `CI` is treated the same way. A binary downloaded by hand
-from the releases page is on its own — replace it the same way you got it.
+anything newer — so a release reaches you without `npm i -g` again, and
+without ever making you wait on a 24MB download. Nothing about starting the
+app touches the network.
+
+When a new build has finished downloading, a bold pink **Update** appears in
+the bottom-left corner. Click it or press `U` and the app restarts into it on
+the spot; ignore it and you get the new version next launch either way. The
+app looks again once an hour while it is open, and only ever offers a build it
+has already downloaded.
+
+Set `SENTRY_TUI_NO_UPDATE=1` to pin whatever you have; `CI` is treated the same
+way. A binary downloaded by hand from the releases page never updates itself,
+and says so by not offering — replace it the same way you got it.
 
 Supported: macOS and Linux, on arm64 and x64. Windows and musl-based Linux
 (Alpine) aren't built — run from source there.

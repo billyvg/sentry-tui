@@ -37,6 +37,8 @@ export interface PaletteContext {
   streamView: boolean;
   /** An issue is selected or open — the triage actions apply. */
   hasIssue: boolean;
+  /** A newer build is on disk, so restarting into it would do something. */
+  updateReady: boolean;
 }
 
 export interface PaletteResult {
@@ -80,6 +82,8 @@ function isInScope(scope: PaletteScope, context: PaletteContext): boolean {
       return context.streamView;
     case "issue":
       return context.hasIssue;
+    case "update":
+      return context.updateReady;
   }
 }
 

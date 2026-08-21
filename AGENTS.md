@@ -78,12 +78,24 @@ needs `bun:ffi`, so there is no runtime-agnostic package to publish. That one
 artifact feeds both channels: npm (a launcher package plus `os`/`cpu`-gated
 optional dependencies) and the GitHub Release, for downloading by hand.
 
-The npm launcher self-updates, one release behind by design: it runs the
-newest build in `~/.cache/sentry-tui/versions` (or the bundled one) straight
-away, then spawns `packaging/npm/background-update.mjs` detached to fetch
-anything newer for next launch. The worker must never write to stdout or
-stderr — a TUI owns the screen — so failures go to `update.log` in that cache.
-`SENTRY_TUI_NO_UPDATE=1` disables it, as does `CI`.
+The npm launcher self-updates: it runs the newest build in
+`~/.cache/sentry-tui/versions` (or the bundled one) straight away, then spawns
+`packaging/npm/background-update.mjs` detached to fetch anything newer. The
+worker must never write to stdout or stderr — a TUI owns the screen — so
+failures go to `update.log` in that cache. `SENTRY_TUI_NO_UPDATE=1` disables
+it, as does `CI`.
+
+The running app closes the loop rather than making you relaunch. `src/app/
+selfUpdate.ts` reuses the launcher's own modules — never restate the cache
+layout or the lock — and `useUpdateCheck` reads the cache on mount, then polls
+hourly. A build only ever surfaces once its bytes are on disk, as a bold pink
+`Update` in the status bar's left corner; clicking it or pressing `U` tears the
+renderer down and execs the cached binary.
+
+That offer is gated on `SENTRY_TUI_MANAGED=1`, which only the launcher sets.
+A binary run straight off the releases page would revert on its next cold
+start, so it stays quiet. Tests stand the whole path up through that marker
+plus `SENTRY_TUI_CACHE_DIR` — see `test/selfUpdate.test.tsx`.
 
 `scripts/release-targets.ts` is the single source of truth for the platform
 list; the workflow matrix and `packaging/npm/launch.mjs` each restate it in
