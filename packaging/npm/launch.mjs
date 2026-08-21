@@ -1,10 +1,11 @@
 // Plain JS on purpose: this file is what an npm consumer runs under Node, so
 // it must have no build step, no dependencies, and no TypeScript.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { accessSync, chmodSync, constants } from "node:fs";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
-import { resolveNewestBinary } from "./update.mjs";
+import { bestLocal, updatesDisabled } from "./update.mjs";
 
 /**
  * `${process.platform}-${process.arch}` → the npm package carrying that binary.
@@ -83,7 +84,33 @@ export function resolveBinary() {
  * needs for raw mode and for the alternate screen; it also puts the child in
  * this process group, so Ctrl-C reaches it directly.
  */
-export async function main(argv = process.argv.slice(2)) {
+/**
+ * Kick off an update in a process of our own, and return immediately.
+ *
+ * Detached with stdio ignored, so it outlives this launch and cannot write over
+ * a TUI that owns the screen. The new build lands in the cache and the next
+ * launch runs it — nobody waits on a 24MB download to read `--help`.
+ *
+ * @returns {boolean} whether a worker was started
+ */
+export function startBackgroundUpdate({ packageName, localVersion, env = process.env } = {}) {
+  if (!packageName || updatesDisabled(env)) return false;
+
+  try {
+    const worker = fileURLToPath(new URL("./background-update.mjs", import.meta.url));
+    const child = spawn(process.execPath, [worker, packageName, localVersion ?? ""], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    return true;
+  } catch {
+    // Whatever went wrong there, the app still starts.
+    return false;
+  }
+}
+
+export function main(argv = process.argv.slice(2)) {
   let bundled;
   try {
     bundled = { version: bundledVersion(), path: resolveBinary() };
@@ -92,19 +119,16 @@ export async function main(argv = process.argv.slice(2)) {
     process.exit(1);
   }
 
-  // Releases land often, so running the newest one is the default rather than
-  // whatever npm installed whenever it was installed. The check is a few
-  // hundred bytes from a CDN and gives up after two seconds; only a genuinely
-  // newer version costs a download. `SENTRY_TUI_NO_UPDATE=1` turns it off.
-  const chosen = await resolveNewestBinary({
-    bundled,
-    packageName: platformPackage(),
-    // stderr, so an update notice cannot contaminate the output of `--help` or
-    // `status` when either is piped into something.
-    log: (message) => process.stderr.write(`${message}\n`),
-  });
+  // Run what is already here: the binary npm installed, or a newer one that an
+  // earlier launch fetched. Starting the app never waits on the network.
+  const local = bestLocal(bundled);
 
-  const binary = chosen.path;
+  // Then look for something newer, in a process of our own. Releases land
+  // often, and this is what keeps people current without ever asking them to
+  // reinstall. `SENTRY_TUI_NO_UPDATE=1` switches it off.
+  startBackgroundUpdate({ packageName: platformPackage(), localVersion: local.version });
+
+  const binary = local.path;
   let result = spawnSync(binary, argv, { stdio: "inherit" });
 
   // npm preserves the executable bit, but tarballs unpacked by other tooling
@@ -124,11 +148,11 @@ export async function main(argv = process.argv.slice(2)) {
     }
   }
 
-  // A freshly downloaded build that will not start is worse than a stale one
-  // that will, so fall back once to whatever npm installed.
+  // A cached build that will not start is worse than the stale one that will,
+  // so fall back once to whatever npm installed.
   if (result.error && binary !== bundled.path) {
     process.stderr.write(
-      `sentry-tui ${chosen.version} did not start, falling back to ${bundled.version}\n`,
+      `sentry-tui ${local.version} did not start, falling back to ${bundled.version}\n`,
     );
     result = spawnSync(bundled.path, argv, { stdio: "inherit" });
   }

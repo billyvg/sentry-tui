@@ -165,6 +165,10 @@ async function main(): Promise<void> {
   await mkdir(join(launcherDir, "lib"), { recursive: true });
   await cp(join(ROOT, "packaging/npm/launch.mjs"), join(launcherDir, "lib/launch.mjs"));
   await cp(join(ROOT, "packaging/npm/update.mjs"), join(launcherDir, "lib/update.mjs"));
+  await cp(
+    join(ROOT, "packaging/npm/background-update.mjs"),
+    join(launcherDir, "lib/background-update.mjs"),
+  );
   await cp(join(ROOT, "packaging/npm/bin-launcher.mjs"), join(launcherDir, "bin/sentry-tui.mjs"));
   chmodSync(join(launcherDir, "bin/sentry-tui.mjs"), 0o755);
   await cp(join(ROOT, "README.md"), join(launcherDir, "README.md"));

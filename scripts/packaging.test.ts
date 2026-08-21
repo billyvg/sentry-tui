@@ -63,8 +63,10 @@ describe("npm launcher", () => {
     // The launcher imports it at runtime, so leaving it out of the package
     // would break every npm install while every test here still passed.
     const buildScript = await read("scripts/build-npm.ts");
-    expect(buildScript).toContain("packaging/npm/update.mjs");
     expect(buildScript).toContain('join(launcherDir, "lib/update.mjs")');
+    // The worker is spawned by path at runtime, so a missing copy would only
+    // show up as updates silently never happening.
+    expect(buildScript).toContain('join(launcherDir, "lib/background-update.mjs")');
     expect(launcherManifest("1.2.3").files).toContain("lib");
   });
 

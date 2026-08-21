@@ -13,11 +13,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  acquireUpdateLock,
   bestLocal,
   cachedVersions,
   compareVersions,
+  downloadIfNewer,
   fetchLatestRelease,
-  resolveNewestBinary,
   updatesDisabled,
   verifyIntegrity,
 } from "../packaging/npm/update.mjs";
@@ -159,80 +160,99 @@ describe("fetchLatestRelease", () => {
   });
 });
 
-describe("resolveNewestBinary", () => {
-  const bundled = { version: "0.1.0", path: "/bundled/sentry-tui" };
+describe("downloadIfNewer", () => {
+  const release = {
+    version: "9.9.9",
+    dist: {
+      tarball: "https://registry.npmjs.org/@billyvg/sentry-tui-darwin-arm64/-/x-9.9.9.tgz",
+      integrity: "sha512-whatever",
+    },
+  };
 
-  test("runs the bundled binary when the network is down", async () => {
-    const chosen = await resolveNewestBinary({
-      bundled,
+  test("does nothing when the local build is already current", async () => {
+    let downloads = 0;
+    const result = await downloadIfNewer({
       packageName: "@billyvg/sentry-tui-darwin-arm64",
+      localVersion: "9.9.9",
       env: { SENTRY_TUI_CACHE_DIR: "/nonexistent/sentry-tui-test" },
-      fetchImpl: async () => {
-        throw new Error("getaddrinfo ENOTFOUND");
-      },
+      fetchImpl: (async (url: string) => {
+        if (url.endsWith(".tgz")) downloads++;
+        return { ok: true, status: 200, json: async () => release } as unknown as Response;
+      }) as unknown as typeof fetch,
     });
 
-    expect(chosen.path).toBe(bundled.path);
-    expect(chosen.updated).toBe(false);
-  });
-
-  test("reports why it gave up, without failing", async () => {
-    const messages: string[] = [];
-    await resolveNewestBinary({
-      bundled,
-      packageName: "@billyvg/sentry-tui-darwin-arm64",
-      env: { SENTRY_TUI_CACHE_DIR: "/nonexistent/sentry-tui-test" },
-      fetchImpl: async () => {
-        throw new Error("The operation timed out");
-      },
-      log: (message: string) => messages.push(message),
-    });
-
-    expect(messages.join("\n")).toContain("timed out");
+    expect(result.status).toBe("current");
+    expect(downloads).toBe(0);
   });
 
   test("does not move backwards when the registry reports an older release", async () => {
-    const chosen = await resolveNewestBinary({
-      bundled,
+    const result = await downloadIfNewer({
       packageName: "@billyvg/sentry-tui-darwin-arm64",
+      localVersion: "10.0.0",
       env: { SENTRY_TUI_CACHE_DIR: "/nonexistent/sentry-tui-test" },
-      fetchImpl: stubFetch({
-        version: "0.0.9",
-        dist: { tarball: "https://registry.npmjs.org/x/-/x-0.0.9.tgz" },
-      }),
+      fetchImpl: stubFetch(release),
     });
 
-    expect(chosen.version).toBe("0.1.0");
-    expect(chosen.updated).toBe(false);
+    expect(result.status).toBe("current");
   });
 
-  test("skips the check entirely when updates are switched off", async () => {
-    let called = false;
-    const chosen = await resolveNewestBinary({
-      bundled,
-      packageName: "@billyvg/sentry-tui-darwin-arm64",
-      env: { SENTRY_TUI_NO_UPDATE: "1", SENTRY_TUI_CACHE_DIR: "/nonexistent/sentry-tui-test" },
-      fetchImpl: async () => {
-        called = true;
-        throw new Error("should not be reached");
-      },
-    });
-
-    expect(called).toBe(false);
-    expect(chosen.path).toBe(bundled.path);
-  });
-
-  test("uses a newer cached build without asking the registry twice", async () => {
-    const { env, dir } = cacheWith(["0.2.0"]);
-    try {
-      const chosen = await resolveNewestBinary({
-        bundled,
+  test("propagates a network failure to the worker, which logs it", async () => {
+    // The worker is the only caller and it swallows this; the point is that
+    // nothing here retries or falls over.
+    await expect(
+      downloadIfNewer({
         packageName: "@billyvg/sentry-tui-darwin-arm64",
-        env: { ...env, SENTRY_TUI_NO_UPDATE: "1" },
+        localVersion: "0.1.0",
+        env: { SENTRY_TUI_CACHE_DIR: "/nonexistent/sentry-tui-test" },
+        fetchImpl: (async () => {
+          throw new Error("getaddrinfo ENOTFOUND");
+        }) as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/ENOTFOUND/);
+  });
+
+  test("stands down when another process holds the lock", async () => {
+    const { env, dir } = cacheWith([]);
+    try {
+      const held = acquireUpdateLock(env);
+      expect(held).toBeDefined();
+
+      const result = await downloadIfNewer({
+        packageName: "@billyvg/sentry-tui-darwin-arm64",
+        localVersion: "0.1.0",
+        env,
+        fetchImpl: stubFetch(release),
       });
 
-      expect(chosen.version).toBe("0.2.0");
-      expect(chosen.path).toBe(join(dir, "0.2.0", "sentry-tui"));
+      expect(result.status).toBe("locked");
+      held?.();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the update lock", () => {
+  test("only one holder at a time", () => {
+    const { env, dir } = cacheWith([]);
+    try {
+      const first = acquireUpdateLock(env);
+      expect(first).toBeDefined();
+      expect(acquireUpdateLock(env)).toBeUndefined();
+
+      first?.();
+      expect(acquireUpdateLock(env)).toBeDefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a lock left by a killed process is reclaimed once it is stale", () => {
+    const { env, dir } = cacheWith([]);
+    try {
+      acquireUpdateLock(env);
+      // Nothing would ever update again if an abandoned lock were permanent.
+      expect(acquireUpdateLock(env, -1)).toBeDefined();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

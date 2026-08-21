@@ -40,12 +40,12 @@ binary arrives as an optional dependency, so you download one binary rather
 than four. Binaries are also attached to every
 [release](https://github.com/billyvg/sentry-tui/releases).
 
-The npm install **keeps itself current**: each launch asks the registry
-whether a newer build exists and fetches it before starting, so a release
-reaches you without `npm i -g` again. The check is a few hundred bytes and
-gives up after two seconds, so being offline costs you nothing but the delay
-of a failed DNS lookup; only a genuinely newer version downloads. Set
-`SENTRY_TUI_NO_UPDATE=1` to pin whatever you have. Homebrew and the shell
+The npm install **keeps itself current**. Launching starts the app
+immediately on the build you already have, and a background process fetches
+anything newer for next time — so a release reaches you without `npm i -g`
+again, and without ever making you wait on a 24MB download. Nothing about
+starting the app touches the network. Set `SENTRY_TUI_NO_UPDATE=1` to pin
+whatever you have; `CI` is treated the same way. Homebrew and the shell
 installer do not self-update — `brew upgrade` and re-running `install.sh` are
 their update paths.
 

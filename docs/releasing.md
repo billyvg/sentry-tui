@@ -14,9 +14,10 @@ formula from the same assets.
 | `@billyvg/sentry-tui`            | npm            | the launcher — the package everything else points at          |
 | `sentry-tui`                     | npm            | unscoped alias, so `npx sentry-tui` works                     |
 
-npm users pick a release up on their next launch: the launcher checks the
-registry and fetches the newer binary before starting (`packaging/npm/update.mjs`,
-opt out with `SENTRY_TUI_NO_UPDATE=1`). That only covers the binary — a change
+npm users pick a release up on the launch after the one that finds it: the
+launcher starts the app on what it has and fetches anything newer in the
+background (`packaging/npm/update.mjs`, opt out with `SENTRY_TUI_NO_UPDATE=1`).
+Two launches, not one — worth remembering when asking someone to confirm a fix. That only covers the binary — a change
 to the launcher itself still needs `npm i -g`, and Homebrew and `install.sh`
 users update through `brew upgrade` and re-running the installer.
 

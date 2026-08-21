@@ -1,13 +1,14 @@
 // Plain JS, no dependencies: this ships to npm and runs under Node.
 //
-// Keeping the binary current without the user thinking about it. The launcher
-// asks the registry what the newest release is, and fetches it into a cache
-// beside the one npm installed. Releases land often enough that "run
-// `npm i -g` again" is not a reasonable thing to ask of anyone.
+// Keeping the binary current without the user thinking about it, and without
+// making them wait. The app starts immediately on whatever is already here;
+// a detached worker fetches anything newer into a cache alongside it, and the
+// next launch picks that up. Releases land often enough that "run `npm i -g`
+// again" is not a reasonable thing to ask of anyone.
 //
 // Everything here fails open. An update is a nice-to-have; starting the app is
 // not. Offline, slow, rate-limited, corrupt download, unwritable cache — each
-// one falls back to the binary already on disk.
+// one leaves the binary already on disk in place.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -18,6 +19,7 @@ import {
   readdirSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
@@ -37,6 +39,9 @@ export const CHECK_TIMEOUT_MS = 2000;
 
 /** Cached builds to keep, newest first. One spare allows a manual rollback. */
 const KEEP_VERSIONS = 2;
+
+/** How long before a lock left by a killed process is treated as abandoned. */
+const LOCK_STALE_MS = 10 * 60 * 1000;
 
 /** Set any of these to skip the update check entirely. */
 export function updatesDisabled(env = process.env) {
@@ -221,45 +226,84 @@ export function pruneCache(env = process.env, keep = KEEP_VERSIONS) {
 }
 
 /**
- * The binary to run: the newest release if one can be fetched in time, and
- * whatever is already here if not.
+ * Take the update lock, or return undefined when another process holds it.
+ *
+ * `mkdir` is the mutex: it either creates the directory or fails, atomically,
+ * on every filesystem worth caring about. Several terminals launching the app
+ * at once should cost one download, not one each.
+ *
+ * @param {Record<string, string | undefined>} [env]
+ * @param {number} [staleMs] age after which a lock is assumed abandoned
+ * @returns {(() => void) | undefined} release function, or undefined
+ */
+export function acquireUpdateLock(env = process.env, staleMs = LOCK_STALE_MS) {
+  const lock = join(cacheRoot(env), ".update-lock");
+  const release = () => rmSync(lock, { recursive: true, force: true });
+
+  mkdirSync(cacheRoot(env), { recursive: true });
+  try {
+    mkdirSync(lock);
+    return release;
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error;
+  }
+
+  // A process killed mid-download would otherwise wedge updates forever.
+  try {
+    if (Date.now() - statSync(lock).mtimeMs > staleMs) {
+      release();
+      mkdirSync(lock);
+      return release;
+    }
+  } catch (error) {
+    // Losing a race to another process is expected; anything without an errno
+    // is a bug in this file, and swallowing it would turn "updates are broken"
+    // into "updates silently never happen" — which is how the missing
+    // `statSync` import that this comment replaces went unnoticed.
+    if (!error?.code) throw error;
+  }
+
+  return undefined;
+}
+
+/**
+ * Fetch the newest release when it beats `localVersion`, into the cache.
+ *
+ * This is what the background worker runs. Nothing here is on the path of a
+ * launch, so it is free to take as long as a 24MB download takes.
  *
  * @param {object} options
- * @param {Binary} options.bundled the binary npm installed
- * @param {string} [options.packageName] platform package to check, if any
+ * @param {string} options.packageName
+ * @param {string} [options.localVersion] newest version already on disk
  * @param {Record<string, string | undefined>} [options.env]
  * @param {FetchLike} [options.fetchImpl]
  * @param {number} [options.timeoutMs]
- * @param {(message: string) => void} [options.log]
- * @returns {Promise<{path: string, version?: string, updated: boolean}>} never throws
+ * @returns {Promise<{status: "updated" | "current" | "locked", version?: string}>}
  */
-export async function resolveNewestBinary({
-  bundled,
+export async function downloadIfNewer({
   packageName,
+  localVersion,
   env = process.env,
   fetchImpl = fetch,
   timeoutMs = CHECK_TIMEOUT_MS,
-  log = () => {},
 }) {
-  const local = bestLocal(bundled, env);
-  if (updatesDisabled(env)) return { ...local, updated: false };
-
-  try {
-    const release = await fetchLatestRelease({ packageName, timeoutMs, fetchImpl });
-    if (!local.version || compareVersions(release.version, local.version) > 0) {
-      log(`Updating sentry-tui to ${release.version}…`);
-      const path = await installRelease({ release, env, fetchImpl });
-      try {
-        pruneCache(env);
-      } catch {
-        // A cache we cannot tidy is not a reason to refuse to start.
-      }
-      return { path, version: release.version, updated: true };
-    }
-  } catch (error) {
-    // Offline, slow, rate-limited, corrupt, unwritable — all the same answer.
-    log(`Update check skipped: ${error instanceof Error ? error.message : String(error)}`);
+  const release = await fetchLatestRelease({ packageName, timeoutMs, fetchImpl });
+  if (localVersion && compareVersions(release.version, localVersion) <= 0) {
+    return { status: "current", version: localVersion };
   }
 
-  return { ...local, updated: false };
+  const unlock = acquireUpdateLock(env);
+  if (!unlock) return { status: "locked" };
+
+  try {
+    await installRelease({ release, env, fetchImpl });
+    try {
+      pruneCache(env);
+    } catch {
+      // A cache we cannot tidy is not worth failing an update over.
+    }
+    return { status: "updated", version: release.version };
+  } finally {
+    unlock();
+  }
 }
