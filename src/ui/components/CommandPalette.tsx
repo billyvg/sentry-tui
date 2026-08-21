@@ -13,6 +13,7 @@ import {
 } from "~/core/palette";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
+import { APP_VERSION } from "~/lib/version";
 import { HighlightedLabel } from "~/ui/components/HighlightedLabel";
 import { ModalFrame } from "~/ui/components/ModalFrame";
 import {
@@ -31,16 +32,20 @@ export const PALETTE_WIDTH = 68;
  */
 export const PALETTE_HEIGHT = 24;
 /**
- * Rows the frame spends on itself: border, padding, the query line, the blank
- * line under it, and the hint footer. `ModalFrame` clamps the frame to the
- * terminal, so the window size is derived from the same geometry it uses
- * rather than from the requested height.
+ * Rows the frame spends on itself: border, top padding, the query line, the
+ * blank line under it, the blank line above the footer, and the footer itself.
+ * `ModalFrame` clamps the frame to the terminal, so the window size is derived
+ * from the same geometry it uses rather than from the requested height.
  */
 const PALETTE_CHROME = 7;
 /** The `▸ ` / `  ` cursor gutter every row carries. */
 const CURSOR_WIDTH = 2;
 /** Blank columns between a label and its right-aligned detail. */
 const DETAIL_GAP = 2;
+/** Footer hint, kept beside the build version rather than centred under it. */
+const PALETTE_HINT = "↑↓ move · enter select · esc close";
+/** The build version, parked in the footer's right corner. */
+const VERSION_LABEL = `v${APP_VERSION}`;
 
 export interface CommandPaletteProps {
   actions: readonly PaletteAction[];
@@ -180,7 +185,13 @@ export function CommandPalette({ actions, onRun, onClose }: CommandPaletteProps)
         )}
       </box>
 
-      <text fg={theme.muted}>↑↓ move · enter select · esc close</text>
+      <box style={{ flexDirection: "row", flexShrink: 0, marginTop: 1 }}>
+        <text fg={theme.muted}>
+          {fitText(PALETTE_HINT, Math.max(0, contentWidth - VERSION_LABEL.length - DETAIL_GAP))}
+        </text>
+        <box style={{ flexGrow: 1 }} />
+        <text fg={theme.subText}>{VERSION_LABEL}</text>
+      </box>
     </ModalFrame>
   );
 }
