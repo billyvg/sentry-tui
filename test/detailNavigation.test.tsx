@@ -190,17 +190,16 @@ test("a stateful view prints the trail, the back control and the back hint", asy
   const h = await openSavedQueryResults();
   try {
     const frame = h.frame();
-    const lines = frame.split("\n");
+    const border = frame.split("\n").find((line) => line.includes("All Queries ›")) ?? "";
 
-    // The trail rides the pane's top border, out of the content's way…
-    const border = lines.find((line) => line.includes("Explore › All Queries ›")) ?? "";
+    // Both ride the pane's top border, out of the content's way: the trail
+    // left, hard against the corner…
     expect(border).toContain("┌─ Explore › All Queries › Slow checkout spans ");
-
-    // …and the row under it carries what Escape costs, flush right.
-    const row = lines.find((line) => line.includes("(esc)")) ?? "";
-    expect(row).toContain("back to All Queries (esc)");
-    expect(row.replace(/[│ ]+$/, "")).toEndWith("(esc)");
-    expect(lines.indexOf(border)).toBeLessThan(lines.indexOf(row));
+    // …and what Escape costs at the other end, painted over the frame.
+    expect(border).toContain("back to All Queries (esc)");
+    expect(border.replace(/[┐│ ]+$/, "")).toEndWith("(esc)");
+    // Nothing below them: the view keeps the pane's full height.
+    expect(frame.split("\n")[1]).not.toContain("back to");
 
     // …and the status bar agrees, which it used not to for a view like this.
     expect(frame).toContain("back");
@@ -209,19 +208,23 @@ test("a stateful view prints the trail, the back control and the back hint", asy
   }
 });
 
-test("the back control is trimmed rather than overrunning a narrow pane", async () => {
-  // Rendered directly: a pane this narrow only happens in a terminal too small
-  // to drive the app through, but the control still must not paint over the
-  // border beside it.
-  const h = await renderHarness(<DetailBackRow parent="All Dashboards" width={20} />, {
-    width: 20,
-    height: 1,
-  });
+test("the back control is trimmed rather than crowding out the trail", async () => {
+  // Rendered directly: the control shares the border with the trail, so it
+  // takes at most half the pane and cuts its own destination to fit.
+  const h = await renderHarness(
+    <DetailBackRow parent="All Dashboards" top={0} right={40} paneWidth={40} />,
+    { width: 40, height: 2 },
+  );
   try {
     const row = h.frame().split("\n")[0] ?? "";
     expect(row).toContain("…");
+    // The key is never what gets cut.
     expect(row).toContain("(esc)");
-    expect(row.length).toBeLessThanOrEqual(20);
+    expect(row.trimEnd().length).toBeLessThanOrEqual(40);
+    // Right-aligned: it ends where the pane's border begins.
+    expect(row.trimEnd()).toEndWith("(esc)");
+    // …and it leaves the left half of the border to the trail.
+    expect(row.indexOf("back")).toBeGreaterThanOrEqual(20);
   } finally {
     await h.cleanup();
   }
@@ -261,7 +264,7 @@ test("the trail sheds its ancestors rather than overrunning a narrow pane", asyn
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
     await h.press((i) => i.pressEnter());
-    await h.waitForFrame((f) => f.includes("back to Feed"));
+    await h.waitForFrame((f) => f.includes("(esc)") && f.includes("PUMP-STATION-1"));
 
     for (const line of h.frame().split("\n").filter(Boolean)) {
       expect(line.length).toBeLessThanOrEqual(60);

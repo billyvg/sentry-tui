@@ -14,7 +14,7 @@ import { theme } from "~/core/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
 import { breadcrumbTrail } from "~/lib/breadcrumb";
 import { CommandPalette } from "~/ui/components/CommandPalette";
-import { DetailBackRow, DETAIL_BACK_ROW_HEIGHT } from "~/ui/components/DetailBackRow";
+import { DetailBackRow, detailBackWidth } from "~/ui/components/DetailBackRow";
 import { isDropdownMounted } from "~/ui/components/Dropdown";
 import { HelpDialog } from "~/ui/components/HelpDialog";
 import {
@@ -759,8 +759,6 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const secondaryWidth = showSecondaryPane ? SECONDARY_NAV_WIDTH : 0;
   const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
   const contentHeight = Math.max(3, height - 3);
-  // A pushed view gives up a row to its back control. Screens keep the lot.
-  const paneHeight = Math.max(3, contentHeight - (topView ? DETAIL_BACK_ROW_HEIGHT : 0));
 
   /**
    * Where Escape lands from the view on top: the view beneath it, else the
@@ -782,10 +780,14 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
     if (viewStack.length === 0) return undefined;
     const trail = breadcrumbTrail(
       [getNavGroup(activeGroup).label, activeItem, ...viewStack.map((view) => view.label)],
-      Math.max(0, contentWidth - BREADCRUMB_CHROME_WIDTH),
+      // The back control shares this border, hard against the other end.
+      Math.max(
+        0,
+        contentWidth - BREADCRUMB_CHROME_WIDTH - detailBackWidth(backTarget, contentWidth),
+      ),
     );
     return trail ? ` ${trail} ` : undefined;
-  }, [viewStack, activeGroup, activeItem, contentWidth]);
+  }, [viewStack, activeGroup, activeItem, contentWidth, backTarget]);
 
   /**
    * The status bar's key row, for whatever the app is in the middle of.
@@ -841,7 +843,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
     org,
     focused: focus.isFocused("content"),
     width: contentWidth,
-    height: paneHeight,
+    height: contentHeight,
     reloadToken,
     pendingIds: triage.pending,
     pushView,
@@ -898,16 +900,13 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           {/* Seer reads its transcript from here; every other screen ignores it. */}
           <SeerChatContext.Provider value={seerChat}>
             {topView ? (
-              <>
-                <DetailBackRow parent={backTarget} width={contentWidth} />
-                {topView.render({
-                  ...paneProps,
-                  // A view with no slice of its own gets none: it is a detail
-                  // pane, and `state` would be the list's underneath it.
-                  state: topView.stateKey ? state : undefined,
-                  issue: topView.issue,
-                })}
-              </>
+              topView.render({
+                ...paneProps,
+                // A view with no slice of its own gets none: it is a detail
+                // pane, and `state` would be the list's underneath it.
+                state: topView.stateKey ? state : undefined,
+                issue: topView.issue,
+              })
             ) : ScreenComponent && screen ? (
               <ScreenComponent {...paneProps} screen={screen} state={state} />
             ) : (
@@ -920,6 +919,14 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
             )}
           </SeerChatContext.Provider>
         </box>
+        {/*
+          Drawn over the pane's top border, opposite the trail in its title.
+          A sibling of the pane rather than a child: the pane clips its
+          overflow, and this deliberately lands on the frame itself.
+        */}
+        {topView ? (
+          <DetailBackRow parent={backTarget} top={0} right={width - 1} paneWidth={contentWidth} />
+        ) : null}
       </box>
 
       <StatusBar
