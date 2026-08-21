@@ -12,6 +12,8 @@
  */
 
 import type { ScreenId } from "~/core/screens";
+import { ConversationList } from "~/ui/screens/ConversationList";
+import { ExploreTable } from "~/ui/screens/ExploreTable";
 import { IssueFeed } from "~/ui/screens/IssueFeed";
 import { IssueViews } from "~/ui/screens/IssueViews";
 import { LogStream } from "~/ui/screens/LogStream";
@@ -46,4 +48,11 @@ export const SCREEN_COMPONENTS: Partial<Record<ScreenId, ScreenComponent>> = {
   "explore.profiles": ProfileFunctions,
   "explore.releases": ReleaseCards,
   "explore.replays": ReplayStream,
+  // Explore — one Discover table per `core/exploreTables.ts` config row.
+  // Conversations is not one of them: its rows are pre-aggregated by
+  // `/ai-conversations/`, so it is its own screen.
+  "explore.traces": ExploreTable,
+  "explore.metrics": ExploreTable,
+  "explore.errors": ExploreTable,
+  "explore.conversations": ConversationList,
 };

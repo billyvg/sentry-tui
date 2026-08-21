@@ -16,7 +16,8 @@ import type { LogEntry, LogSeverity } from "~/api/logs";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText, padText } from "~/lib/text";
-import { BarChart } from "~/ui/components/BarChart";
+import { clockTime } from "~/lib/time";
+import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { useElapsed } from "~/ui/hooks/useElapsed";
@@ -47,9 +48,6 @@ const SEVERITY_LABEL: Record<LogSeverity, string> = {
   fatal: "FATAL",
 };
 
-/** Height of the volume bar chart in terminal rows (includes border). */
-const CHART_HEIGHT = 10;
-
 /**
  * The columns, and the order they are given up in.
  *
@@ -63,7 +61,7 @@ const COLUMNS: ReadonlyArray<Column<LogEntry>> = [
     label: "Time",
     width: 10,
     render: (entry, _selected, width) => (
-      <text fg={theme.muted}>{padText(formatTimestamp(entry.timestamp), width)}</text>
+      <text fg={theme.muted}>{padText(clockTime(entry.timestamp), width)}</text>
     ),
   },
   {
@@ -190,7 +188,7 @@ export function LogStream({
     },
   });
 
-  const hasChart = Boolean(timeseries && timeseries.length > 0);
+  const hasChart = fitsChart(height) && Boolean(timeseries && timeseries.length > 0);
   const inner = Math.max(20, width - 2);
 
   /**
@@ -259,7 +257,13 @@ export function LogStream({
 
       {/* Volume chart */}
       {hasChart && timeseries ? (
-        <BarChart buckets={timeseries} width={inner} height={CHART_HEIGHT} />
+        <BarChart
+          buckets={timeseries}
+          width={inner}
+          height={CHART_ROWS}
+          title="count(logs)"
+          noun="logs"
+        />
       ) : null}
 
       <DataTable
@@ -316,11 +320,4 @@ function LogDetail({ entry, width }: { entry: LogEntry; width: number }) {
       {entry.traceId ? <text fg={theme.muted}>{`  Trace: ${entry.traceId}`}</text> : null}
     </box>
   );
-}
-
-/** Extract HH:MM:SS from an ISO timestamp for the compact time column. */
-function formatTimestamp(iso: string): string {
-  if (!iso) return "--:--:--";
-  const match = iso.match(/T(\d{2}:\d{2}:\d{2})/);
-  return match?.[1] ?? (iso.slice(11, 19) || "--:--:--");
 }

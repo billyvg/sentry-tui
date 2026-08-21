@@ -6,15 +6,37 @@
  * buckets to fit the available width and scales bar heights to the max value.
  */
 
-import type { LogTimeseriesBucket } from "~/api/logs";
+import type { TimeseriesBucket } from "~/api/discover";
 import { theme } from "~/core/theme";
 import { formatCount } from "~/lib/sparkline";
-import { padText } from "~/lib/text";
+import { fitText, padText } from "~/lib/text";
 import { DIM } from "~/ui/lib/attributes";
 
 // The block characters from 1/8 to full block — used for sub-cell precision
 // on the top of each bar.
 const BLOCKS = [" ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"] as const;
+
+/** Rows a chart occupies in a screen's column, border included. */
+export const CHART_ROWS = 10;
+
+/**
+ * Rows the chrome around a chart needs before any of the list shows: the
+ * search box, the filter row, and the table's header and rule.
+ */
+const CHROME_ROWS = 8;
+
+/** Table rows worth keeping — below this the list stops being a list. */
+const MIN_LIST_ROWS = 5;
+
+/**
+ * Whether a pane of `height` rows can afford a chart above its table.
+ *
+ * A short terminal has to choose, and the rows are what the screen is for: a
+ * chart with no list under it is a chart nobody asked for.
+ */
+export function fitsChart(height: number): boolean {
+  return height >= CHART_ROWS + CHROME_ROWS + MIN_LIST_ROWS;
+}
 
 /** Y-axis label gutter width (e.g. "100K "). */
 const Y_LABEL_WIDTH = 7;
@@ -25,11 +47,15 @@ const TITLE_ROWS = 1;
 
 export interface BarChartProps {
   /** Raw timeseries buckets from the events-stats API. */
-  buckets: LogTimeseriesBucket[];
+  buckets: readonly TimeseriesBucket[];
   /** Available width in terminal columns. */
   width: number;
   /** Available height in terminal rows (including title + axis labels). */
   height: number;
+  /** The aggregate being plotted, drawn top left, e.g. `count(logs)`. */
+  title: string;
+  /** What a bucket counts, for the total drawn top right: `1.2m logs`. */
+  noun: string;
 }
 
 /**
@@ -74,7 +100,7 @@ function timeLabel(unixSeconds: number): string {
  * Build time labels for the X-axis, evenly distributed.
  */
 function buildTimeLabels(
-  buckets: LogTimeseriesBucket[],
+  buckets: readonly TimeseriesBucket[],
   barCount: number,
   chartWidth: number,
 ): string {
@@ -102,7 +128,7 @@ function buildTimeLabels(
   return buf.join("");
 }
 
-export function BarChart({ buckets, width, height }: BarChartProps) {
+export function BarChart({ buckets, width, height, title, noun }: BarChartProps) {
   if (width < 20 || height < 4) return null;
 
   // Border takes 2 cols (left + right), padding takes 1 col.
@@ -146,6 +172,7 @@ export function BarChart({ buckets, width, height }: BarChartProps) {
 
   // Account for the border (1 cell each side) and padding (1 cell left).
   const innerWidth = width - 2 - 1;
+  const totalLabel = `${formatCount(total)} ${noun}`;
 
   return (
     <box
@@ -160,12 +187,15 @@ export function BarChart({ buckets, width, height }: BarChartProps) {
         paddingLeft: 1,
       }}
     >
-      {/* Title row */}
+      {/* Title row. The aggregate is trimmed rather than allowed to wrap: a
+          two-line header would push the bars out of the box it is drawn in. */}
       <box style={{ flexDirection: "row", width: innerWidth, flexShrink: 0 }}>
-        <text fg={theme.text}>{`count(logs)`}</text>
+        <text fg={theme.text}>
+          {fitText(title, Math.max(0, innerWidth - totalLabel.length - 1))}
+        </text>
         <box style={{ flexGrow: 1 }} />
         <text fg={theme.muted} attributes={DIM}>
-          {`${formatCount(total)} logs`}
+          {totalLabel}
         </text>
       </box>
 

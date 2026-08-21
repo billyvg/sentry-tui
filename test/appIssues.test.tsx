@@ -352,7 +352,8 @@ test("selecting a different nav group via secondary nav shows its content", asyn
 
     const frame = h.frame();
     expect(frame).toContain("Explore");
-    expect(frame).toContain("Not implemented yet.");
+    // Traces is a screen of its own, so the issue stream is gone entirely.
+    expect(frame).toContain("Search spans…");
     expect(frame).not.toContain("TypeError");
   } finally {
     await h.cleanup();
