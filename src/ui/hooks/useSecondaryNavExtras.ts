@@ -2,23 +2,27 @@
  * Dynamic sections and item badges for a nav group's sidebar.
  *
  * `App` renders whatever this returns and routes the `j`/`k` cursor through
- * it, so lighting up a group's sidebar is a change to this file alone. The
- * switch is the shape: one arm per group, so several can land independently.
+ * it, so lighting up a group's sidebar is a change to this file alone.
  *
- * Filled in so far: **Explore's feature badges**, which are static — the web
- * hard-codes three of them (`exploreSecondaryNavigation.tsx:62`, `:74`,
- * `:149`), so that arm is a constant and needs no client.
+ * **One group, two lines.** A group's section is fetched by a hook of its own,
+ * called unconditionally with an `enabled` flag — hooks cannot be conditional,
+ * and the flag is what stops a sidebar nobody has opened from fetching — and
+ * then returned by one `case` in the switch. Groups share nothing here, so two
+ * people lighting up two sections touch two adjacent lines each.
  *
- * Still to come, both of them fetches:
+ * Filled in so far:
+ *
+ * - **Explore's feature badges**, which are static — the web hard-codes three
+ *   of them (`exploreSecondaryNavigation.tsx:62`, `:74`, `:149`).
+ * - **Dashboards › Starred Dashboards** — `GET /organizations/{org}/dashboards/starred/`
+ *   (`dashboardsApiOptions.tsx:8-17`, `dashboardsSecondaryNavigation.tsx:79-83`).
+ *
+ * Still to come:
  *
  * - **Explore › Starred Queries** — `GET /organizations/{org}/explore/saved/`
  *   with `starred: true`, capped at `MAX_STARRED_SAVED_QUERIES_IN_NAV`
- *   (`exploreSecondaryNavigation.tsx:169`). Each item targets
- *   `{group: "explore", item: "All Queries"}` or the table that runs it. It
- *   shares this arm with the badges: a section and a badge map come back
- *   together, so whichever lands second keeps both rather than replacing one.
- * - **Dashboards › Starred Dashboards** — `GET /organizations/{org}/dashboards/starred/`
- *   (`dashboardsApiOptions.tsx:10`, `dashboardsSecondaryNavigation.tsx:79`).
+ *   (`exploreSecondaryNavigation.tsx:169`). It supplies `sections` to
+ *   `exploreNavExtras`; see the warning on that function.
  *
  * Whatever fetches land here must respect the app's manual-refresh rule: take
  * `reloadToken` as an effect dependency, and never poll.
@@ -27,6 +31,7 @@
 import type { SentryClient } from "~/api/client";
 import { EXPLORE_NAV_BADGES } from "~/core/exploreNav";
 import type { NavGroupId } from "~/core/nav";
+import { useDashboardsNavExtras } from "~/ui/hooks/useDashboards";
 import { NO_NAV_EXTRAS, type NavSectionSpec, type SecondaryNavExtras } from "~/ui/lib/navSections";
 
 /**
@@ -38,9 +43,8 @@ import { NO_NAV_EXTRAS, type NavSectionSpec, type SecondaryNavExtras } from "~/u
  * has not run yet must still leave the badges on. Building the return value
  * through this function is what makes that structural rather than a thing to
  * remember. A section builder that returns `NO_NAV_EXTRAS` on its empty path —
- * which is the natural way to write one, and how the starred-queries work on
- * `feat/saved-queries` does write it — would otherwise silently take all three
- * badges with it for any org that has starred nothing.
+ * which is the natural way to write one — would otherwise silently take all
+ * three badges with it for any org that has starred nothing.
  *
  * So when the Starred Queries fetch lands here, it supplies `sections`; it
  * must not construct the `SecondaryNavExtras` itself.
@@ -48,7 +52,7 @@ import { NO_NAV_EXTRAS, type NavSectionSpec, type SecondaryNavExtras } from "~/u
  * @param sections Dynamic sections, appended below the static ones. Empty
  *   today: no Explore section is fetched yet.
  */
-function exploreNavExtras(sections: readonly NavSectionSpec[] = []): SecondaryNavExtras {
+export function exploreNavExtras(sections: readonly NavSectionSpec[] = []): SecondaryNavExtras {
   return { sections, badges: EXPLORE_NAV_BADGES };
 }
 
@@ -59,14 +63,18 @@ function exploreNavExtras(sections: readonly NavSectionSpec[] = []): SecondaryNa
  * @param reloadToken Bump to refetch; the app's global refresh.
  */
 export function useSecondaryNavExtras(
-  _client: SentryClient | null,
-  _org: string,
+  client: SentryClient | null,
+  org: string,
   group: NavGroupId,
-  _reloadToken: number,
+  reloadToken: number,
 ): SecondaryNavExtras {
+  const dashboards = useDashboardsNavExtras(client, org, group === "dashboards", reloadToken);
+
   switch (group) {
     case "explore":
       return exploreNavExtras();
+    case "dashboards":
+      return dashboards;
     default:
       return NO_NAV_EXTRAS;
   }

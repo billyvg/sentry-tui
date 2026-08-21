@@ -14,6 +14,7 @@
 import type { ScreenId } from "~/core/screens";
 import { ConversationList } from "~/ui/screens/ConversationList";
 import { ExploreTable } from "~/ui/screens/ExploreTable";
+import { DashboardList } from "~/ui/screens/DashboardList";
 import { IssueFeed } from "~/ui/screens/IssueFeed";
 import { IssueViews } from "~/ui/screens/IssueViews";
 import { LogStream } from "~/ui/screens/LogStream";
@@ -55,4 +56,8 @@ export const SCREEN_COMPONENTS: Partial<Record<ScreenId, ScreenComponent>> = {
   "explore.metrics": ExploreTable,
   "explore.errors": ExploreTable,
   "explore.conversations": ConversationList,
+  // Dashboards — both destinations are the same list under the filter
+  // `core/dashboards.ts` gives them.
+  "dashboards.all": DashboardList,
+  "dashboards.sentry-built": DashboardList,
 };

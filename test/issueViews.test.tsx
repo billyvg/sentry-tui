@@ -125,7 +125,7 @@ test("reaching a view through the command palette applies its query too", async 
     // target's would silently skip the query reset.
     await h.press((i) => i.pressKey("k", { ctrl: true }));
     await h.waitForFrame((f) => f.includes("Command palette"));
-    await h.press((i) => i.pressKey("sentry built"));
+    await h.press((i) => i.pressKey("teams"));
     await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Not implemented yet"));
 

@@ -110,6 +110,14 @@ export const SAVED_VIEW_STATE_KEY = "issues.saved-view";
 export const REPLAY_DETAIL_STATE_KEY = "explore.replay-detail";
 /** Both Dashboards destinations are the same list with a different filter. */
 const DASHBOARD_LIST = "dashboards.list";
+/**
+ * The slice a dashboard's widget grid is shown in, pushed from either list.
+ *
+ * One key for the kind of view rather than one per dashboard: the grid's
+ * cursor and page filters are what it holds, and reopening a dashboard should
+ * reuse that slice rather than leak one per row.
+ */
+export const DASHBOARD_DETAIL_STATE_KEY = "dashboards.detail";
 
 /**
  * Filters the Discover-backed Explore tables start on.
@@ -190,8 +198,8 @@ export const SCREENS: readonly ScreenDef[] = [
   exploreTable("explore.conversations", "Conversations"),
   s("explore.all-queries", "explore", "All Queries", "stub"),
 
-  s("dashboards.all", "dashboards", "All Dashboards", "stub", DASHBOARD_LIST),
-  s("dashboards.sentry-built", "dashboards", "Sentry Built", "stub", DASHBOARD_LIST),
+  s("dashboards.all", "dashboards", "All Dashboards", "table", DASHBOARD_LIST),
+  s("dashboards.sentry-built", "dashboards", "Sentry Built", "table", DASHBOARD_LIST),
 
   // Monitors — six of the seven are one detector table with a different
   // `type:` filter, so the user's own filters follow them across.

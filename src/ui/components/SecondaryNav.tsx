@@ -47,6 +47,10 @@ export function SecondaryNav({
         width: SECONDARY_NAV_WIDTH,
         flexShrink: 0,
         flexDirection: "column",
+        // A dynamic section can make the list longer than the pane. Without
+        // this the overflowing rows are drawn on top of the ones above them
+        // rather than falling off the bottom, and the sidebar turns to soup.
+        overflow: "hidden",
         // Untinted, on the app background — see `NavRail`.
         border: true,
         borderColor: focused ? theme.borderFocused : theme.border,
@@ -59,7 +63,10 @@ export function SecondaryNav({
         {nav.label}
       </text>
       {sections.map((section, si) => (
-        <box key={si} style={{ flexDirection: "column" }}>
+        // `flexShrink: 0` for the same reason as the clip above: a list taller
+        // than the pane must run off the bottom, not compress its rows into
+        // each other.
+        <box key={si} style={{ flexDirection: "column", flexShrink: 0 }}>
           {/* The rule doubles as the separator a dynamic section hangs under. */}
           <text fg={theme.border}>{"─".repeat(CONTENT_WIDTH)}</text>
           {section.title ? <text fg={theme.muted}>{section.title}</text> : null}
@@ -70,7 +77,7 @@ export function SecondaryNav({
             return (
               <box
                 key={item.label}
-                style={{ flexDirection: "row", height: 1 }}
+                style={{ flexDirection: "row", height: 1, flexShrink: 0 }}
                 onMouseDown={() => onSelect?.(item)}
               >
                 {/*

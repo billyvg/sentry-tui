@@ -140,14 +140,20 @@ test("enter runs whichever row the cursor moved to", async () => {
   const h = await renderApp();
   try {
     await openPalette(h);
-    await h.press((i) => i.pressKey("dashboards"));
-    // Both Dashboards destinations match; walk to the one that is not first.
-    const first = h.frame().includes("▸ All Dashboards") ? "Sentry Built" : "All Dashboards";
+    await h.press((i) => i.pressKey("settings"));
+    // Every Settings destination matches on its group keyword; step off the
+    // first so Enter has somewhere other than the default to land.
+    const items = ["Organization", "Projects", "Teams"];
+    const cursorOn = () => items.find((item) => h.frame().includes(`▸ ${item}`));
+
+    const first = cursorOn();
     await h.press((i) => i.pressArrow("down"));
-    expect(h.frame()).toContain(`▸ ${first}`);
+    const second = cursorOn();
+    expect(second).toBeDefined();
+    expect(second).not.toBe(first);
 
     await h.press((i) => i.pressKey("\r"));
-    expect(h.frame()).toContain(`Dashboards › ${first}`);
+    expect(h.frame()).toContain(`Settings › ${second}`);
   } finally {
     await h.cleanup();
   }
