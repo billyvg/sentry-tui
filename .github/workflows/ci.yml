@@ -90,13 +90,13 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: bun run test:shard "$SHARD" "4"
 
-  # After validate, not alongside it: this job uploads an artifact people can
-  # download and run, and one built off a red commit is indistinguishable from
-  # one built off a green one. Costs a couple of minutes of wall-clock on the
-  # happy path, and saves a runner on every red push.
+  # After validate and every test shard, not alongside them: this job uploads an
+  # artifact people can download and run, and one built off a red commit is
+  # indistinguishable from one built off a green one. Costs a couple of minutes
+  # of wall-clock on the happy path, and saves a runner on every red push.
   build:
     name: Build compiled binary
-    needs: [changes, validate]
+    needs: [changes, validate, test]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
