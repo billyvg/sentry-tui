@@ -857,8 +857,6 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
               : detailView
                 ? [
                     { command: "sentry.nav.back", label: "back" },
-                    { command: "sentry.issue.resolve", label: "resolve" },
-                    { command: "sentry.issue.archive", label: "archive" },
                     { command: "sentry.nav.goto", label: "nav" },
                     { command: "sentry.app.commandPalette", label: "commands" },
                     { command: "sentry.app.help", label: "help" },
