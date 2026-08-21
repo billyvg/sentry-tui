@@ -22,12 +22,10 @@ Env PS1 ❯
 # Act 0 — cold open
 # ---------------------------------------------------------------------------
 
-Type `lynx -accept_all_cookies https://sentry.io`
-Key enter
-Sleep 2s
-
 Meanwhile @B01
-  Sleep 2s
+  Type `lynx -accept_all_cookies https://sentry.io`
+  Key enter
+  Sleep 3s
   Key space
 End
 
@@ -82,18 +80,20 @@ Meanwhile @B06
   Type ` API`
   Sleep 900ms
   Key enter
-  Sleep 1200ms
+  # The refetch takes a couple of seconds; opening the palette any sooner
+  # covers a list that is still empty, and the search never visibly lands.
+  Sleep 3s
   # The palette is also how we reach Seer — goto's item key leaks into the
   # composer, which takes focus on arrival, so the question would come out as
   # "aWhich project…".
   Key ctrl+k
-  Sleep 700ms
+  Sleep 500ms
   Type `ask seer`
-  Sleep 800ms
-  Key enter
-  Sleep 1800ms
-  Type `Which project is failing the most this week?`
   Sleep 600ms
+  Key enter
+  Sleep 1200ms
+  Type `Which project is failing the most this week?`
+  Sleep 400ms
   Key enter
 End
 
@@ -163,23 +163,22 @@ Meanwhile @B09
   Key p
 End
 
-# Back to Seer through the palette, then escape the composer so j scrolls the
+# Back to Seer through the palette, inside the beat so the line plays over the
+# navigation rather than after it. Escape releases the composer so j scrolls the
 # transcript instead of typing into it.
-Key ctrl+k
-Sleep 700ms
-Type `ask seer`
-Sleep 800ms
-Key enter
-Sleep 1500ms
-Key escape
-Sleep 300ms
-
-# Whatever is left of Seer's ~25 seconds. Usually little — the last three beats
-# have been covering it — but this is what makes "fully rendered" a guarantee.
-Settle 30s
-
 Meanwhile @B10
+  Key ctrl+k
+  Sleep 500ms
+  Type `ask seer`
+  Sleep 600ms
+  Key enter
   Sleep 1200ms
+  Key escape
+  Sleep 300ms
+  # Whatever is left of Seer's ~25 seconds — usually little, since the last
+  # three beats have been covering it. This is what makes "fully rendered" a
+  # guarantee, and inside the block the narration plays over it.
+  Settle 30s
   Key j 4
   Sleep 1800ms
   Key j 4
@@ -189,18 +188,20 @@ End
 # Act 4 — outro
 # ---------------------------------------------------------------------------
 
-Key q
-Sleep 800ms
-Type `clear`
-Key enter
-Sleep 400ms
-
 # THE INSTALL COMMAND. Typed, never run — it is there to be copied, and running
 # it would just launch the app over the top of the demo. Change it here if the
 # published name changes. `npx` needs no global install, which is why the outro
 # uses it over `npm install -g`.
-Type `npx sentry-tui`
-Wait @B11
-# Hold the still frame so viewers can copy it. B11's line runs ~6.3s and this
-# adds 6 more, so the command is on screen for about twelve seconds.
-Sleep 6s
+Meanwhile @B11
+  Key q
+  Sleep 800ms
+  Type `clear`
+  Key enter
+  Sleep 400ms
+  Type `npx sentry-tui`
+End
+# Hold the still frame so viewers can copy it. The line starts during the quit,
+# so the command is up for most of B11 and this adds eight more — about fifteen
+# seconds of readable command. This is the one deliberate silence in the cut:
+# it is there to give people time to copy, not to fill.
+Sleep 8s

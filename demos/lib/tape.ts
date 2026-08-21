@@ -232,6 +232,8 @@ export function timeline(
     } else if (step.kind === "meanwhile") {
       // The block runs its own steps and the beat plays over them, so it lasts
       // whichever finishes last.
+      // A nested `Settle` contributes nothing to the plan — like a top-level
+      // one, its real cost is only known while recording.
       const inner = step.steps.reduce((sum, s) => sum + (s.kind === "sleep" ? s.ms : 0), 0);
       holdMs = Math.max(beatMs(step.beat), inner);
     }

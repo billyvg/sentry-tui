@@ -240,6 +240,74 @@ line that outruns its actions still holds to the end, and actions that outrun th
 line still finish. Almost every beat in `demo.tape` is a `Meanwhile`; `Wait` is
 left for the outro, where a still frame is the point.
 
+## Keeping the audio gapless
+
+A beat's block runs for `max(line, actions)`, so any beat whose keystrokes take
+longer than its narration ends in silence. Three things keep that down, and
+`demos/` is tuned so the only deliberate silence is the install frame:
+
+**Put the sleeps inside a beat.** A top-level `Sleep` between two `Meanwhile`
+blocks is silence by construction — nothing is speaking. Fold the navigation into
+the beat it belongs to and the line plays over it. `Settle` works inside a block
+too, so even waiting on the agent happens under narration.
+
+**Slow the beats whose actions outrun them**, with `**Speed:**` rather than
+globally. `DEMO_TTS_SPEED` would drag the whole script to ~120 wpm to fix two
+beats; per-beat overrides leave the rest alone. B07–B09 carry 0.85–0.9 for
+exactly this reason — and because lengthening them widens the window Seer has to
+answer in.
+
+**Trim the dwells.** Most action gaps are a `Sleep` that was generous when it was
+written. Shortening them tightens the cut and closes the gap from the other side.
+
+To see where you stand:
+
+```bash
+bun run demo:tts    # per-beat wpm, and the overall rate
+```
+
+### The synthesizer is not deterministic
+
+The same text at the same speed varies a lot between renders — one beat measured
+3.0s on one pass and 2.7s on the next, another 4.2s then 6.4s. The tape re-times
+itself from `durations.json` every run, so the video always matches whatever the
+audio turned out to be; what moves is the size of the gaps. Tune to roughly
+right, not exactly right, and re-check after a re-render.
+
+## Keeping the audio gapless
+
+A beat's block runs for `max(line, actions)`, so any beat whose keystrokes take
+longer than its narration ends in silence. Three things keep that down — the cut
+is currently 3.4s of incidental silence in 79s, plus the install hold:
+
+**Put the sleeps inside a beat.** A top-level `Sleep` between two `Meanwhile`
+blocks is silence by construction — nothing is speaking over it. Fold the
+navigation into the beat it belongs to and the line plays across it. `Settle`
+works inside a block too, so even waiting on the agent happens under narration.
+
+**Slow the beats whose actions outrun them**, with `**Speed:**` rather than
+globally. `DEMO_TTS_SPEED` would drag the whole script to ~120 wpm to fix two
+beats; a per-beat override leaves the rest alone. B07–B09 carry 0.85–0.9 for
+exactly this reason — and because lengthening them widens the window Seer has to
+answer in.
+
+**Trim the dwells.** Most action gaps are a `Sleep` that was generous when it was
+written. Shortening them tightens the cut and closes the gap from the other side.
+
+`bun run demo:tts` prints the per-beat wpm and the overall rate, which is where
+to look after any edit.
+
+The install frame is the one deliberate silence: the command is on screen for
+about fifteen seconds so people can copy it, and that is the point of it.
+
+### The synthesizer is not deterministic
+
+The same text at the same speed varies a lot between renders — one beat measured
+3.0s on one pass and 2.7s on the next, another 4.2s then 6.4s. The tape re-times
+itself from `durations.json` every run, so the video always matches whatever the
+audio turned out to be; what moves is the size of the gaps. Tune to roughly
+right, not exactly right, and re-check after a re-render.
+
 ## Editing the script
 
 Beats are `### BNN · title` headings in `narration.md`; the `>` blockquote under

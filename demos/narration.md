@@ -84,6 +84,7 @@ the composer and the question comes out as `aWhich project…`.
 ### B07 · triage
 
 **Screen:** back to the feed, Enter into an issue, `r` to resolve, Escape.
+**Speed:** 0.88
 
 > Then triage without breaking stride. Resolve, archive, bookmark — instant, and
 > it rolls back if the server disagrees.
@@ -95,6 +96,7 @@ the composer and the question comes out as `aWhich project…`.
 ### B08 · dashboards
 
 **Screen:** `n`, `d`, `a`, Enter — the starred dashboard, scrolling its widgets.
+**Speed:** 0.9
 
 > Dashboards are here too. Real widgets, real series, no eCharts, drawn in the terminal at
 > whatever size your window happens to be.
@@ -102,6 +104,7 @@ the composer and the question comes out as `aWhich project…`.
 ### B09 · the rest of Explore
 
 **Screen:** fast montage — Logs, Replays, Releases, Profiles.
+**Speed:** 0.85
 
 > Logs, replays, releases, profiles. The whole Explore section, ported.
 

@@ -146,6 +146,9 @@ try {
       for (const inner of step.steps) {
         await perform(inner);
         if (inner.kind === "sleep") await Bun.sleep(inner.ms);
+        // A settle inside a block lets the beat's narration play over the wait
+        // instead of leaving a silent hold before it.
+        if (inner.kind === "settle") await settle(inner.maxMs);
       }
       // Hold whatever is left of the line after the actions have finished.
       const remaining = holdMs - (Date.now() - started);
