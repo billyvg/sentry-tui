@@ -183,25 +183,7 @@ export function ReplayStream({
   registerActions,
   activateRow,
 }: ScreenProps) {
-  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
-  const inputRef = useRef<InputRenderable>(null);
-
-  // Sync native focus/blur (e.g. mouse clicks) back to the app's search state.
-  const inputRefCallback = useCallback(
-    (node: InputRenderable | null) => {
-      const previous = inputRef.current;
-      if (previous) {
-        previous.removeAllListeners(RenderableEvents.FOCUSED);
-        previous.removeAllListeners(RenderableEvents.BLURRED);
-      }
-      inputRef.current = node;
-      if (node) {
-        node.on(RenderableEvents.FOCUSED, () => focusSearch());
-        node.on(RenderableEvents.BLURRED, () => handleSearchBlur());
-      }
-    },
-    [focusSearch, handleSearchBlur],
-  );
+  const { setEntries, setStatus, setOpenDropdown } = state;
 
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
@@ -263,40 +245,7 @@ export function ReplayStream({
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
-      {/* Search bar, matching the issue stream's bordered input. */}
-      <box
-        style={{
-          flexDirection: "row",
-          width,
-          flexShrink: 0,
-          height: SEARCH_ROWS,
-          border: true,
-          borderStyle: "rounded",
-          borderColor: state.searchFocused ? theme.accent : theme.border,
-          backgroundColor: theme.panel,
-          paddingLeft: 1,
-          paddingRight: 1,
-        }}
-      >
-        <text fg={theme.subText}>{"("}</text>
-        <text fg={state.searchFocused ? theme.accent : theme.text}>{"/"}</text>
-        <text fg={theme.subText}>{")"} </text>
-        <input
-          ref={inputRefCallback}
-          value={state.searchQuery}
-          placeholder="Search replays…"
-          focused={state.searchFocused}
-          onInput={state.setSearchQuery}
-          style={{
-            flexGrow: 1,
-            textColor: theme.text,
-            backgroundColor: theme.panel,
-            focusedTextColor: theme.text,
-            focusedBackgroundColor: theme.panel,
-            placeholderColor: theme.subText,
-          }}
-        />
-      </box>
+      <SearchInputPlaceholder state={state} width={width} placeholder="Search replays…" />
 
       <FilterBar
         client={client}
@@ -306,6 +255,7 @@ export function ReplayStream({
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
         sortLabel={rows ? countLabel(rows.length, "replay") : ""}
+        width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={state.setSelectedProjects}
         onEnvChange={state.setSelectedEnvs}
@@ -537,6 +487,7 @@ function ReplayDetail({
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
         sortLabel={errors ? countLabel(errors.length, "error") : ""}
+        width={inner}
         anchorTop={DETAIL_HEADER_ROWS}
         onProjectChange={state.setSelectedProjects}
         onEnvChange={state.setSelectedEnvs}
@@ -654,4 +605,85 @@ function clockOf(iso: string): string {
   if (!iso) return "--:--:--";
   const match = /T(\d{2}:\d{2}:\d{2})/.exec(iso);
   return match?.[1] ?? (iso.slice(11, 19) || "--:--:--");
+}
+
+// ---------------------------------------------------------------------------
+// Search input — provisional
+// ---------------------------------------------------------------------------
+
+/**
+ * The bordered `/`-prefixed search box, kept local on purpose.
+ *
+ * This is the same widget the issue stream and the log stream each draw
+ * inline, and it is being extracted into a shared
+ * `src/ui/components/SearchInput.tsx` on the saved-queries branch. Rather than
+ * add a third inline copy to the pile, it is isolated here behind the props
+ * that component will take — `state`, `width`, `placeholder` — so adopting the
+ * shared one is deleting this function and changing an import, not unpicking
+ * markup from the middle of a screen.
+ */
+function SearchInputPlaceholder({
+  state,
+  width,
+  placeholder,
+}: {
+  state: ScreenState;
+  width: number;
+  placeholder: string;
+}) {
+  const { focusSearch, handleSearchBlur } = state;
+  const inputRef = useRef<InputRenderable>(null);
+
+  // Sync native focus/blur (a mouse click, say) back to the app's search state.
+  const inputRefCallback = useCallback(
+    (node: InputRenderable | null) => {
+      const previous = inputRef.current;
+      if (previous) {
+        previous.removeAllListeners(RenderableEvents.FOCUSED);
+        previous.removeAllListeners(RenderableEvents.BLURRED);
+      }
+      inputRef.current = node;
+      if (node) {
+        node.on(RenderableEvents.FOCUSED, () => focusSearch());
+        node.on(RenderableEvents.BLURRED, () => handleSearchBlur());
+      }
+    },
+    [focusSearch, handleSearchBlur],
+  );
+
+  return (
+    <box
+      style={{
+        flexDirection: "row",
+        width,
+        flexShrink: 0,
+        height: SEARCH_ROWS,
+        border: true,
+        borderStyle: "rounded",
+        borderColor: state.searchFocused ? theme.accent : theme.border,
+        backgroundColor: theme.panel,
+        paddingLeft: 1,
+        paddingRight: 1,
+      }}
+    >
+      <text fg={theme.subText}>{"("}</text>
+      <text fg={state.searchFocused ? theme.accent : theme.text}>{"/"}</text>
+      <text fg={theme.subText}>{")"} </text>
+      <input
+        ref={inputRefCallback}
+        value={state.searchQuery}
+        placeholder={placeholder}
+        focused={state.searchFocused}
+        onInput={state.setSearchQuery}
+        style={{
+          flexGrow: 1,
+          textColor: theme.text,
+          backgroundColor: theme.panel,
+          focusedTextColor: theme.text,
+          focusedBackgroundColor: theme.panel,
+          placeholderColor: theme.subText,
+        }}
+      />
+    </box>
+  );
 }

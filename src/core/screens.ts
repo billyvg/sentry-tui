@@ -175,12 +175,10 @@ export const SCREENS: readonly ScreenDef[] = [
     EXPLORE_DISCOVER,
     DISCOVER_DEFAULTS,
   ),
-  s("explore.replays", "explore", "Replays", "stub"),
   releasesScreen(),
   // Replays has its own endpoint and its own columns, so it keeps its own
   // slice rather than joining the Discover screens' shared one.
   s("explore.replays", "explore", "Replays", "table", undefined, REPLAY_DEFAULTS),
-  s("explore.releases", "explore", "Releases", "stub"),
   s("explore.all-queries", "explore", "All Queries", "stub"),
 
   s("dashboards.all", "dashboards", "All Dashboards", "stub", DASHBOARD_LIST),
