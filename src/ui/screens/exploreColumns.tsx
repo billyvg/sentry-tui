@@ -22,13 +22,19 @@ import type { Column } from "~/ui/components/DataTable";
 import { BOLD, DIM } from "~/ui/lib/attributes";
 
 /**
- * Cells the flex column keeps before anything sheds.
+ * Cells the flex column should keep before anything sheds.
  *
  * These tables carry five or six fixed columns, so `DataTable`'s eight-cell
- * floor would let a description or a prompt be squeezed to nothing while a
- * transaction name kept eighteen cells to itself. Raising it inverts that:
- * the column that says what the row *is* holds a readable width, and the
- * lowest-priority column goes instead.
+ * floor lets a description or a prompt be squeezed to nothing while a
+ * transaction name keeps eighteen cells to itself: at an 80-cell pane
+ * `span.description` gets 10 and `gen_ai.input.messages` gets 9. Raising the
+ * floor inverts that — the column that says what the row *is* holds a readable
+ * width, and the lowest-priority column goes instead.
+ *
+ * The `minFlex` prop it is passed to came from `feat/releases-profiles`
+ * verbatim, as `feat/replays` also took it: three branches hit the same
+ * foundation gap, and a fourth variant of the same six lines would only be a
+ * fourth side of one conflict.
  */
 export const EXPLORE_MIN_FLEX = 24;
 

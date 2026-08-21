@@ -191,6 +191,32 @@ describe("columns", () => {
     }
   });
 
+  /**
+   * The reason `EXPLORE_MIN_FLEX` exists: without it an 80-cell pane "fits" by
+   * squeezing `span.description` to 10 cells and `gen_ai.input.messages` to 9,
+   * which is a column that technically renders and says nothing.
+   */
+  test("the default floor squeezes the flex column instead of shedding", () => {
+    const traces = exploreColumnsFor("explore.traces", { maxDurationMs: 1000 });
+    const flex = layoutColumns(traces, 80, { gap: 1 }).find(
+      (r) => r.column.key === "span.description",
+    );
+    expect(flex?.width).toBeLessThan(EXPLORE_MIN_FLEX);
+  });
+
+  test("EXPLORE_MIN_FLEX sheds a fixed column instead", () => {
+    for (const table of EXPLORE_TABLES) {
+      const columns = exploreColumnsFor(table.id, { maxDurationMs: 1000 });
+      const flexKey = columns.find((c) => c.width === "flex")!.key;
+      const resolved = layoutColumns(columns, 80, { gap: 1, minFlex: EXPLORE_MIN_FLEX });
+      const flex = resolved.find((r) => r.column.key === flexKey);
+      expect({ table: table.id, wide: (flex?.width ?? 0) >= EXPLORE_MIN_FLEX }).toEqual({
+        table: table.id,
+        wide: true,
+      });
+    }
+  });
+
   test("the shed order is lowest priority first", () => {
     const traces = exploreColumnsFor("explore.traces", { maxDurationMs: 1000 });
     const layout = { gap: 1, minFlex: EXPLORE_MIN_FLEX };
@@ -707,6 +733,57 @@ describe("sibling isolation", () => {
 // ---------------------------------------------------------------------------
 // Short terminals
 // ---------------------------------------------------------------------------
+
+describe("narrow terminals", () => {
+  // `FilterBar` wraps its row into a column of one-word fragments below about
+  // 90 columns unless it is given a width — the fix came from
+  // `feat/releases-profiles` verbatim, and this is the caller-side half.
+  test.each([80, 100])("the filter row stays one line at %i columns", async (width) => {
+    const h = await renderApp(stubClient(), width, 32);
+    try {
+      await navigateTo(h, "Traces");
+      await h.waitForFrame((f) => f.includes("all projects"));
+
+      const lines = h.frame().split("\n");
+      const chipRow = lines.findIndex((line) => line.includes("all projects"));
+      expect(chipRow).toBeGreaterThan(-1);
+      expect(lines[chipRow]).toContain("all envs");
+
+      // The symptom of the wrap is what this pins: the sort label spilling one
+      // fragment per line down the pane. Read from the chip's own column so
+      // the nav rail beside it doesn't count as content, and only as far as
+      // the blank gap the row leaves under itself — past that is the chart.
+      const paneLeft = lines[chipRow]!.indexOf("▐");
+      const spill = lines
+        .slice(chipRow + 1, chipRow + 3)
+        .map((line) =>
+          line
+            .slice(paneLeft)
+            .replace(/[│┌┐└┘╭╮╰╯─]/g, "")
+            .trim(),
+        )
+        .filter(Boolean);
+      expect(spill).toEqual([]);
+
+      for (const line of lines) expect(line.length).toBeLessThanOrEqual(width);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("the flex column keeps a readable width at 100 columns", async () => {
+    const h = await renderApp(stubClient(), 100, 32);
+    try {
+      await navigateTo(h, "Traces");
+      await h.waitForFrame((f) => f.includes("SELECT * FROM orders"));
+      // Enough of the description survives to identify the span, rather than
+      // the eight cells the default flex floor would have left.
+      expect(h.frame()).toContain("SELECT * FROM orders");
+    } finally {
+      await h.cleanup();
+    }
+  });
+});
 
 describe("short terminals", () => {
   test("the chart yields to the table when the pane is too short for both", async () => {

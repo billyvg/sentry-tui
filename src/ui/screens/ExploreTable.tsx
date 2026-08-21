@@ -4,15 +4,14 @@
  * These four are the same `events/` query with a different dataset and column
  * set, so they are one component reading its configuration from
  * `src/core/exploreTables.ts` via the registry entry it was handed. The layout
- * is Logs': search box, filter row, volume chart, table.
+ * is Logs': search box, filter row, volume chart, table — through the shared
+ * `SearchInput` rather than a fourth copy of Logs' own bordered box.
  *
  * Read-only. Enter opens an inline panel of the row's fields — including the
  * ones the terminal was too narrow to draw — and nothing here writes.
  */
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
-
-import { RenderableEvents, type InputRenderable } from "@opentui/core";
+import { useCallback, useEffect, useMemo } from "react";
 
 import type { ExploreEvent } from "~/api/exploreEvents";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
@@ -28,6 +27,7 @@ import { fitText, padText } from "~/lib/text";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
 import { DataTable } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { SearchInput } from "~/ui/components/SearchInput";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useExploreEvents } from "~/ui/hooks/useExploreEvents";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -71,25 +71,6 @@ function ExploreTableScreen({
 }: ScreenProps & { table: ExploreTableConfig }) {
   const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
     state;
-  const inputRef = useRef<InputRenderable>(null);
-
-  // Sync native focus/blur (e.g. mouse clicks) back to the app's search state.
-  const inputRefCallback = useCallback(
-    (node: InputRenderable | null) => {
-      const previous = inputRef.current;
-      if (previous) {
-        previous.removeAllListeners(RenderableEvents.FOCUSED);
-        previous.removeAllListeners(RenderableEvents.BLURRED);
-      }
-      inputRef.current = node;
-      if (node) {
-        node.on(RenderableEvents.FOCUSED, () => focusSearch());
-        node.on(RenderableEvents.BLURRED, () => handleSearchBlur());
-      }
-    },
-    [focusSearch, handleSearchBlur],
-  );
-
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
@@ -157,40 +138,15 @@ function ExploreTableScreen({
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
-      {/* Search bar, matching the issue stream's bordered input. */}
-      <box
-        style={{
-          flexDirection: "row",
-          width,
-          flexShrink: 0,
-          height: 3,
-          border: true,
-          borderStyle: "rounded",
-          borderColor: state.searchFocused ? theme.accent : theme.border,
-          backgroundColor: theme.panel,
-          paddingLeft: 1,
-          paddingRight: 1,
-        }}
-      >
-        <text fg={theme.subText}>{"("}</text>
-        <text fg={state.searchFocused ? theme.accent : theme.text}>{"/"}</text>
-        <text fg={theme.subText}>{")"} </text>
-        <input
-          ref={inputRefCallback}
-          value={state.searchQuery}
-          placeholder={table.searchPlaceholder}
-          focused={state.searchFocused}
-          onInput={state.setSearchQuery}
-          style={{
-            flexGrow: 1,
-            textColor: theme.text,
-            backgroundColor: theme.panel,
-            focusedTextColor: theme.text,
-            focusedBackgroundColor: theme.panel,
-            placeholderColor: theme.subText,
-          }}
-        />
-      </box>
+      <SearchInput
+        value={state.searchQuery}
+        placeholder={table.searchPlaceholder}
+        focused={state.searchFocused}
+        width={width}
+        onInput={state.setSearchQuery}
+        onFocus={focusSearch}
+        onBlur={handleSearchBlur}
+      />
 
       <FilterBar
         client={client}
@@ -200,6 +156,7 @@ function ExploreTableScreen({
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
         sortLabel={rows ? countLabel(rows.length, rowNoun(table)) : ""}
+        width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={state.setSelectedProjects}
         onEnvChange={state.setSelectedEnvs}
