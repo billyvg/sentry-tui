@@ -266,8 +266,6 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
 
   return (
     <box style={{ flexDirection: "column", width }}>
-      <text fg={theme.muted}>{`Issues / ${group.shortId}`}</text>
-
       {/* The level bar spans both title lines, as it does in the stream row. */}
       <box style={{ flexDirection: "row", width }}>
         <text fg={level}>{"┃ "}</text>

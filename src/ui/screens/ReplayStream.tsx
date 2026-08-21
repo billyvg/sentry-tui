@@ -67,9 +67,6 @@ const ACTIVITY_STEPS = 10;
  */
 const MIN_SESSION_WIDTH = 15;
 
-/** Rows the breadcrumb line above the detail view's filter row occupies. */
-const DETAIL_HEADER_ROWS = 1;
-
 /**
  * The columns, and the order they are given up in.
  *
@@ -470,8 +467,6 @@ function ReplayDetail({
 
   return (
     <box style={{ flexDirection: "column", width, height, paddingLeft: 1 }}>
-      <text fg={theme.muted}>{`Replays / ${shortReplayId(replay.id)}`}</text>
-
       {/*
         The filter row is not decoration: the app routes P/E/D to whatever list
         is on screen, and a slice whose dropdown opens with nothing mounted to
@@ -488,7 +483,9 @@ function ReplayDetail({
         statsPeriod={state.statsPeriod}
         sortLabel={errors ? countLabel(errors.length, "error") : ""}
         width={inner}
-        anchorTop={DETAIL_HEADER_ROWS}
+        // The filter row is this view's first row now that the app draws the
+        // breadcrumb in the pane's border rather than the screen printing one.
+        anchorTop={0}
         onProjectChange={state.setSelectedProjects}
         onEnvChange={state.setSelectedEnvs}
         onPeriodChange={state.setStatsPeriod}

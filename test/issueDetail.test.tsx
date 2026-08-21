@@ -51,9 +51,12 @@ async function openFirstIssue(client = stubClient()) {
 test("enter opens the issue detail with header metadata", async () => {
   const h = await openFirstIssue();
   try {
-    await h.waitForFrame((f) => f.includes("Issues / PUMP-STATION-1"));
+    await h.waitForFrame((f) => f.includes("Issues › Feed › PUMP-STATION-1"));
     const frame = h.frame();
-    expect(frame).toContain("Issues / PUMP-STATION-1"); // breadcrumb
+    // The trail lives in the pane's border now, and the row under it says how
+    // to leave — both drawn by the app for every pushed view, not by this one.
+    expect(frame).toContain("Issues › Feed › PUMP-STATION-1");
+    expect(frame).toContain("back to Feed");
     expect(frame).toContain("TypeError");
     expect(frame).toContain("1.4k events");
     expect(frame).toContain("92 users");
@@ -66,7 +69,7 @@ test("enter opens the issue detail with header metadata", async () => {
 test("the header separates current state from the actions that change it", async () => {
   const h = await openFirstIssue();
   try {
-    await h.waitForFrame((f) => f.includes("Issues / PUMP-STATION-1"));
+    await h.waitForFrame((f) => f.includes("Issues › Feed › PUMP-STATION-1"));
     const frame = h.frame();
 
     // State — what the issue is. No key, so it can't read as a control.
