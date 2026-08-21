@@ -10,14 +10,17 @@ import pkg from "../../package.json";
 /**
  * Where sentry-tui's own errors go.
  *
- * Empty disables telemetry outright, which is what a checkout without the
- * project DSN should do. `SENTRY_TUI_DSN` overrides it.
+ * A DSN is a public identifier by design — it says where to deliver, and
+ * grants nothing — so it lives in the source rather than in the environment,
+ * the way it must for a binary that has to report from a stranger's terminal.
+ * `SENTRY_TUI_DSN` points it somewhere else; empty turns reporting off.
  *
  * Read deliberately instead of letting the SDK pick up the ambient `SENTRY_DSN`:
  * anyone developing against their own Sentry project has that exported, and
  * their project should not start receiving sentry-tui's crashes.
  */
-export const DEFAULT_DSN = "";
+export const DEFAULT_DSN =
+  "https://1ce8f37a1435bc3dc3ff6dbe7f7a72d6@o1.ingest.us.sentry.io/4511949151469569";
 
 /** `sentry-tui@0.2.0` — the release these events belong to. */
 export const RELEASE = `sentry-tui@${pkg.version}`;

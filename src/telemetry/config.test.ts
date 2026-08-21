@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import { isCompiledBinary, resolveTelemetry, type TelemetryEnv } from "~/telemetry/config";
+import {
+  DEFAULT_DSN,
+  isCompiledBinary,
+  resolveTelemetry,
+  type TelemetryEnv,
+} from "~/telemetry/config";
 
-/** A released binary with the project DSN compiled in. */
+/** A released binary, pointed at a DSN of the test's own. */
 const shipped = (env: TelemetryEnv = {}) =>
   resolveTelemetry({ SENTRY_TUI_DSN: "https://key@example.test/1", ...env }, { compiled: true });
 
@@ -15,8 +20,13 @@ describe("resolveTelemetry", () => {
     });
   });
 
-  test("stays quiet with no DSN to report to", () => {
-    expect(resolveTelemetry({}, { compiled: true })).toBeNull();
+  test("falls back to the project's own DSN", () => {
+    expect(resolveTelemetry({}, { compiled: true })).toMatchObject({ dsn: DEFAULT_DSN });
+  });
+
+  test("stays quiet when the DSN is emptied out", () => {
+    expect(shipped({ SENTRY_TUI_DSN: "" })).toBeNull();
+    expect(shipped({ SENTRY_TUI_DSN: "   " })).toBeNull();
   });
 
   test("honours the opt-out", () => {
