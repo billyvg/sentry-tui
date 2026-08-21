@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { readCredentials, writeCredentials } from "~/api/config";
 import { runLogin, runLogout, runStatus } from "~/app/login";
+import { VERSION_LABEL } from "~/lib/version";
 
 /**
  * The login command's own output is the thing under test, so stderr is
@@ -165,5 +166,10 @@ describe("runStatus", () => {
   test("points at login when nothing is stored", async () => {
     await runStatus();
     expect(output()).toContain("sentry-tui login");
+  });
+
+  test("names the build, signed in or not", async () => {
+    await runStatus();
+    expect(output()).toContain(`Version:  ${VERSION_LABEL}`);
   });
 });

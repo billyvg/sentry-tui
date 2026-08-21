@@ -16,6 +16,7 @@ import {
   resolveSiteUrl,
   unknownClientMessage,
 } from "~/api/oauth";
+import { VERSION_LABEL } from "~/lib/version";
 
 /**
  * The interactive half of the device flow: everything the user sees while
@@ -156,6 +157,9 @@ export async function runStatus(): Promise<void> {
 
   const org = process.env["SENTRY_ORG"]?.trim() || config.org;
   out(`  Org:      ${org ?? "not set"}`);
+  // Outside the branches above: a bug report from someone who never signed in
+  // still needs to say which build produced it.
+  out(`  Version:  ${VERSION_LABEL}`);
 }
 
 function describeExpiry(expiresAt: string, now: number = Date.now()): string {

@@ -13,7 +13,7 @@ import {
 } from "~/core/palette";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
-import { APP_VERSION } from "~/lib/version";
+import { VERSION_LABEL } from "~/lib/version";
 import { HighlightedLabel } from "~/ui/components/HighlightedLabel";
 import { ModalFrame } from "~/ui/components/ModalFrame";
 import {
@@ -44,8 +44,6 @@ const CURSOR_WIDTH = 2;
 const DETAIL_GAP = 2;
 /** Footer hint, kept beside the build version rather than centred under it. */
 const PALETTE_HINT = "↑↓ move · enter select · esc close";
-/** The build version, parked in the footer's right corner. */
-const VERSION_LABEL = `v${APP_VERSION}`;
 
 export interface CommandPaletteProps {
   actions: readonly PaletteAction[];

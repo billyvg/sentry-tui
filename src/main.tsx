@@ -6,6 +6,7 @@
 // Released binaries never take this path; the compiled build has its own entry.
 import { runLogin, runLogout, runStatus } from "~/app/login";
 import { bootstrap, HELP_TEXT, migrateLegacyCredentials, parseArgs } from "~/app/startup";
+import { VERSION_LABEL } from "~/lib/version";
 import {
   beginAppRun,
   initTelemetry,
@@ -16,6 +17,13 @@ import {
 import { runApp } from "~/ui/runApp";
 
 const args = parseArgs(process.argv.slice(2));
+
+// Both answer from the binary alone: ahead of telemetry, credentials, and any
+// other startup step that could fail before the question gets answered.
+if (args.version) {
+  process.stdout.write(`sentry-tui ${VERSION_LABEL}\n`);
+  process.exit(0);
+}
 
 if (args.help) {
   process.stdout.write(HELP_TEXT);

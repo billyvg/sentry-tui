@@ -91,6 +91,8 @@ export interface CliArgs {
   command: Command;
   org?: string;
   help: boolean;
+  /** Print the version and exit, without touching credentials. */
+  version: boolean;
   /** `login` only: print the URL instead of launching a browser. */
   noBrowser: boolean;
 }
@@ -99,10 +101,11 @@ const isCommand = (value: string | undefined): value is Command =>
   COMMANDS.includes(value as Command);
 
 export function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { command: "run", help: false, noBrowser: false };
+  const args: CliArgs = { command: "run", help: false, version: false, noBrowser: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--help" || arg === "-h") args.help = true;
+    else if (arg === "--version" || arg === "-v") args.version = true;
     else if (arg === "--no-browser") args.noBrowser = true;
     else if (arg === "--org" || arg === "-o") {
       // Only take the next token as the value — never swallow the flag after it.
@@ -124,6 +127,7 @@ Options:
   -o, --org <slug>   Organization to open (or set SENTRY_ORG)
       --no-browser   Print the login URL instead of opening a browser
   -h, --help         Show this help
+  -v, --version      Show the version
 
 Environment:
   SENTRY_AUTH_TOKEN    Personal auth token, used ahead of any stored login
