@@ -251,6 +251,55 @@ test("the detail view surfaces an event load failure without losing the header",
   }
 });
 
+test("the scrollbox viewport fills the pane, with the scrollbar beside it", async () => {
+  // A scrollbox lays its root out as a row — viewport, then vertical scrollbar.
+  // Forcing `flexDirection: "column"` on it stacks the bar *under* the
+  // viewport, which halves the visible height and leaves the bar adrift in the
+  // dead space below the content. Long content is what makes that visible.
+  const longEvent = {
+    ...eventFixture,
+    entries: eventFixture.entries.map((entry) =>
+      entry.type === "breadcrumbs"
+        ? {
+            type: "breadcrumbs",
+            data: {
+              values: Array.from({ length: 120 }, (_, i) => ({
+                type: "default",
+                level: "info",
+                category: "worker",
+                message: `crumb ${i}`,
+                timestamp: "2026-08-20T09:12:01Z",
+                data: null,
+              })),
+            },
+          }
+        : entry,
+    ),
+  };
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    let payload: unknown = groupsFixture;
+    if (url.includes("issues-stats")) payload = {};
+    else if (url.includes("/events/")) payload = longEvent;
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as unknown as typeof fetch;
+
+  const h = await openFirstIssue(new SentryClient({ auth, fetchImpl }));
+  try {
+    await h.waitForFrame((f) => f.includes("Breadcrumbs (120)"));
+
+    // Row HEIGHT - 3 is the last row inside the content pane's border, one
+    // above the border and the status bar. Content that tall must reach it.
+    const lastPaneRow = h.frame().split("\n")[HEIGHT - 3]!;
+    expect(lastPaneRow).toContain("crumb ");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("a chip's end caps are painted in its fill color, not as stray blocks", async () => {
   const h = await openFirstIssue();
   try {

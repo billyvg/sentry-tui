@@ -136,7 +136,24 @@ export function IssueDetail({
   const inner = Math.max(20, width - 2);
 
   return (
-    <scrollbox focused={focused} style={{ width, height, flexDirection: "column", paddingLeft: 1 }}>
+    /*
+     * No `flexDirection` here: a scrollbox lays its own root out as a row —
+     * viewport first, vertical scrollbar beside it — and forwards padding to
+     * the content box, which stacks its children in a column already. Setting
+     * `column` on the root instead stacks the scrollbar *under* the viewport,
+     * which halves the visible height and leaves the bar floating in the dead
+     * space below the content.
+     */
+    <scrollbox
+      focused={focused}
+      // Matches the stream screens: a continuously drawn track reads as a
+      // scroll rail rather than as a stray mark at the edge of the pane.
+      verticalScrollbarOptions={{
+        showArrows: false,
+        trackOptions: { backgroundColor: theme.panel, foregroundColor: theme.muted },
+      }}
+      style={{ width, height, paddingLeft: 1 }}
+    >
       <IssueHeader group={group} width={inner} />
 
       {loading ? <text fg={theme.muted}>{`${BODY_INDENT}Loading event…`}</text> : null}
