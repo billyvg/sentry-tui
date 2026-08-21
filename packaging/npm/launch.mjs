@@ -19,10 +19,8 @@ export const PLATFORM_PACKAGES = {
   "linux-arm64": "@billyvg/sentry-tui-linux-arm64",
 };
 
-const INSTALL_HELP = `Or install it another way:
-  brew install billyvg/tap/sentry-tui
-  curl -fsSL https://raw.githubusercontent.com/billyvg/sentry-tui/main/install.sh | bash
-  https://github.com/billyvg/sentry-tui/releases  (binaries, one per platform)`;
+const INSTALL_HELP = `Or download the binary for your platform by hand:
+  https://github.com/billyvg/sentry-tui/releases`;
 
 /** The platform package this machine needs, or undefined when unsupported. */
 export function platformPackage() {

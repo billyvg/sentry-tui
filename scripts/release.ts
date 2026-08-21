@@ -33,7 +33,6 @@ const WORKFLOW = "release.yml";
  * npmjs is not a mistake you get to take back quietly.
  */
 const REGISTRY = "https://registry.npmjs.org";
-const TAP_REPO = "billyvg/homebrew-tap";
 /** Longest `release:cut` will wait for CI before giving up. */
 const CI_WAIT_TIMEOUT_MS = 20 * 60 * 1000;
 /** Gap between check-run polls: unnoticeable to a human, gentle on the API. */
@@ -189,16 +188,6 @@ async function preflight(): Promise<void> {
     bad("NPM_TOKEN secret is missing — CI cannot publish (gh secret set NPM_TOKEN)");
     blocking++;
   }
-
-  if (secrets.out.includes("HOMEBREW_TAP_TOKEN")) {
-    ok("HOMEBREW_TAP_TOKEN secret is set");
-  } else {
-    warn("HOMEBREW_TAP_TOKEN is missing — the tap step will be skipped");
-  }
-
-  const tap = await capture(["gh", "repo", "view", TAP_REPO, "--json", "name"]);
-  if (tap.code === 0) ok(`Homebrew tap ${TAP_REPO} exists`);
-  else warn(`Homebrew tap ${TAP_REPO} does not exist yet — brew installs will not work`);
 
   // The registry is the authority on whether these names are still ours to take.
   for (const name of [ALIAS_PACKAGE, LAUNCHER_PACKAGE]) {
@@ -624,21 +613,6 @@ async function verify(): Promise<void> {
   ]);
   if (npx.code === 0 && npx.out.includes("sentry.io in your terminal")) ok("npx runs the CLI");
   else bad(`npx failed (exit ${npx.code})`);
-
-  const brew = await capture([
-    "brew",
-    "info",
-    "--json=v2",
-    `${TAP_REPO.replace("homebrew-", "")}/sentry-tui`,
-  ]);
-  if (brew.code === 0) {
-    const info = JSON.parse(brew.out) as { formulae?: { versions?: { stable?: string } }[] };
-    const formulaVersion = info.formulae?.[0]?.versions?.stable;
-    if (formulaVersion === version) ok(`Homebrew formula is ${formulaVersion}`);
-    else warn(`Homebrew formula is ${formulaVersion ?? "unknown"}, expected ${version}`);
-  } else {
-    warn("Homebrew tap not installed locally — skipping (brew tap billyvg/tap)");
-  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Turn the per-target binaries in dist/bin/ into the GitHub Release assets:
-# one archive per platform plus a checksums.txt the installer and the Homebrew
-# formula both read.
+# one archive per platform plus a checksums.txt, so a binary downloaded by hand
+# can be verified.
 set -euo pipefail
 
 BIN_DIR="dist/bin"
@@ -30,7 +30,7 @@ for dir in "$BIN_DIR"/*/; do
   echo "packaged sentry-tui-${target}.tar.gz"
 done
 
-# Bare filenames, so the entries match what install.sh and the formula ask for.
+# Bare filenames, so an entry names the asset exactly as the release serves it.
 # `shasum` keeps this runnable on macOS, where there is no sha256sum.
 (
   cd "$OUT_DIR"
