@@ -18,6 +18,7 @@ import {
   type StatsBucket,
   type TimelineStatusConfig,
 } from "~/lib/checkInTimeline";
+import { measureTextWidth } from "~/lib/text";
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
@@ -87,7 +88,14 @@ describe("glyphs", () => {
     }
   });
 
-  test("every glyph is a single character", () => {
+  /**
+   * Display width, not code-point count — that is the property the row's
+   * alignment rests on. `foldCheckIns` emits one glyph per cell and the caller
+   * pads nothing, so a glyph that measured two cells would push every column
+   * to its right off the pane. Box-drawing characters are width 1 everywhere,
+   * but a future "clearer" glyph could easily not be.
+   */
+  test("every glyph occupies exactly one terminal cell", () => {
     const all = [
       ...Object.values(CRON_GLYPHS),
       ...Object.values(UPTIME_GLYPHS),
@@ -95,7 +103,17 @@ describe("glyphs", () => {
       TIMELINE_UNRECOGNISED_GLYPH,
       TIMELINE_PENDING_GLYPH,
     ];
-    for (const glyph of all) expect([...glyph]).toHaveLength(1);
+    for (const glyph of all) {
+      expect([...glyph]).toHaveLength(1);
+      expect(measureTextWidth(glyph)).toBe(1);
+    }
+  });
+
+  test("a folded row measures exactly as many cells as it was given", () => {
+    const buckets = [bucket(0, { ok: 1 }), bucket(HOUR, { error: 1 }), bucket(2 * HOUR, {})];
+    for (const width of [1, 7, 24, 61]) {
+      expect(measureTextWidth(draw(buckets, width))).toBe(width);
+    }
   });
 
   test("every status in the precedence order has a glyph and a label", () => {

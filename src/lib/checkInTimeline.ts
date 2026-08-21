@@ -67,6 +67,15 @@ export interface TimelineCell<S extends string> {
  * Drawn rather than left blank: the gaps in a daily cron's day are most of the
  * row, and a run of spaces reads as a column that failed to render. A dim dot
  * reads as track.
+ *
+ * **Do not fill these in from the neighbouring cell.** An hourly cron in a
+ * sixty-cell row lights about twenty-four of them, and the plan's sketch shows
+ * a solid bar, so a comb reads as a bug — it is not. Holding a check-in's
+ * status forward until the next one would paint "healthy" across a window in
+ * which the monitor may have silently missed, which is the exact failure a
+ * check-in timeline exists to reveal. The web does not do it either: an empty
+ * bucket ends the previous tick (`mergeBuckets`) rather than extending its
+ * colour. A monitor that checks in often enough gets the solid bar for free.
  */
 export const TIMELINE_EMPTY_GLYPH = "·";
 
@@ -117,6 +126,12 @@ export type UptimeCheckStatus = "success" | "failure" | "failure_incident" | "mi
  * timeout"; reading `███████` with `ok` and `error` sharing a glyph says
  * nothing. The closest pair left is `▒` and `▓` — a shade apart, and two
  * statuses that are neither adjacent in meaning nor commonly adjacent in a row.
+ *
+ * **The invariant, so nobody restores the table from the issue text:** severity
+ * climbs with ink, and `█` belongs to the failure alone. Giving `ok` the full
+ * block back would match the sketch in `docs/plans/002-explore-dashboards-
+ * monitors.md` §8.2 and break the "legible without colour" requirement in the
+ * same issue. `src/lib/checkInTimeline.test.ts` fails if the two collide.
  */
 export const CRON_GLYPHS: Readonly<Record<CronCheckInStatus, string>> = {
   ok: "▄",
