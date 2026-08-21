@@ -155,3 +155,113 @@ export async function listStarredDashboards(
   );
   return Array.isArray(page.data) ? page.data : [];
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard detail and its widgets
+// ---------------------------------------------------------------------------
+
+/**
+ * One or more aggregates over one filter — `WidgetQuery` in
+ * `views/dashboards/types.tsx:115-143`.
+ *
+ * `fields` is the legacy union of `columns` and `aggregates`, kept because it
+ * is what carries a table widget's column *order*; `columns` and `aggregates`
+ * are what everything else reads.
+ */
+export interface WidgetQuery {
+  name: string;
+  /** Search query in Sentry's syntax; empty means unfiltered. */
+  conditions: string;
+  /** Grouping columns, e.g. `transaction`. */
+  columns: string[];
+  /** Aggregate expressions, e.g. `count()`, `p95(span.duration)`. */
+  aggregates: string[];
+  /** Sort field, `-` prefixed for descending. */
+  orderby: string;
+  /** Column order for a table widget; `[...columns, ...aggregates]` otherwise. */
+  fields?: string[];
+  /** Display names for `fields`, positionally. */
+  fieldAliases?: string[];
+  /** Which aggregate a big-number widget shows, when it has several. */
+  selectedAggregate?: number;
+}
+
+/**
+ * A widget's slot on the web's 6-column react-grid-layout
+ * (`views/dashboards/types.tsx:179-182`).
+ *
+ * The terminal doesn't reproduce the grid — it stacks widgets one per row — but
+ * `y` then `x` is still the reading order the author laid out.
+ */
+export interface WidgetLayout {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minH?: number;
+}
+
+/**
+ * The dataset a widget queries, as `WidgetType` in
+ * `views/dashboards/types.tsx:57-68`. Not every one is reachable through
+ * `events/` — see `widgetDataset`.
+ */
+export type WidgetType =
+  | "discover"
+  | "issue"
+  | "metrics"
+  | "custom-metrics"
+  | "error-events"
+  | "transaction-like"
+  | "spans"
+  | "logs"
+  | "tracemetrics"
+  | "preprod-app-size"
+  | (string & {});
+
+/** A widget on a dashboard — `Widget` in `views/dashboards/types.tsx:157-177`. */
+export interface DashboardWidget {
+  id?: string;
+  title: string;
+  description?: string | null;
+  displayType: WidgetDisplayType;
+  widgetType?: WidgetType | null;
+  queries: WidgetQuery[];
+  interval?: string;
+  /** `topEvents` for a top-N or categorical widget; null when unset. */
+  limit?: number | null;
+  layout?: WidgetLayout | null;
+}
+
+/** `GET /organizations/{org}/dashboards/{id}/`. */
+export interface DashboardDetails {
+  id: string;
+  title: string;
+  widgets: DashboardWidget[];
+  dateCreated?: string;
+  createdBy?: DashboardOwner | null;
+  /** Saved page filters. Project ids, not slugs. */
+  projects?: number[];
+  environment?: string[] | null;
+  /** Saved stats period, e.g. `"14d"`; absent when the dashboard pins dates. */
+  period?: string;
+  start?: string;
+  end?: string;
+  isFavorited?: boolean;
+  permissions?: DashboardPermissions | null;
+  prebuiltId?: string | null;
+}
+
+/** Fetch a dashboard and its widgets. One request; the widgets fetch their own data. */
+export async function getDashboard(
+  client: SentryClient,
+  { org, id, signal }: { org: string; id: string; signal?: AbortSignal },
+): Promise<DashboardDetails> {
+  const page = await client.request<DashboardDetails>(`/organizations/${org}/dashboards/${id}/`, {
+    signal,
+  });
+  const dashboard = page.data;
+  // Widgets are what the whole screen is; a body without them would reach the
+  // renderer as `undefined.map`.
+  return { ...dashboard, widgets: Array.isArray(dashboard?.widgets) ? dashboard.widgets : [] };
+}

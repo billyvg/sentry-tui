@@ -110,6 +110,14 @@ export const SAVED_VIEW_STATE_KEY = "issues.saved-view";
 export const REPLAY_DETAIL_STATE_KEY = "explore.replay-detail";
 /** Both Dashboards destinations are the same list with a different filter. */
 const DASHBOARD_LIST = "dashboards.list";
+/**
+ * The slice a dashboard's widget grid is shown in, pushed from either list.
+ *
+ * One key for the kind of view rather than one per dashboard: the grid's
+ * cursor and page filters are what it holds, and reopening a dashboard should
+ * reuse that slice rather than leak one per row.
+ */
+export const DASHBOARD_DETAIL_STATE_KEY = "dashboards.detail";
 
 /**
  * Filters the Discover-backed Explore tables start on.

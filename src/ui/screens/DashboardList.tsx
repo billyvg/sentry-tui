@@ -12,7 +12,7 @@
  * here can change it.
  */
 
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 import type { DashboardListItem } from "~/api/dashboards";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
@@ -23,7 +23,10 @@ import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { useDashboards } from "~/ui/hooks/useDashboards";
+import { rowsOf } from "~/ui/hooks/useScreenState";
+import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
+import { dashboardDetailView } from "~/ui/screens/DashboardDetail";
 import type { ScreenProps } from "~/ui/screens/types";
 
 /**
@@ -178,6 +181,16 @@ export function DashboardList(props: ScreenProps) {
   useEffect(() => {
     setStatus({ loading, error: error?.message, noun: "dashboards" });
   }, [loading, error, setStatus]);
+
+  const { pushView } = props;
+  const open = useCallback(
+    (index: number) => {
+      const row = rowsOf<DashboardListItem>(state)[index];
+      if (row) pushView(dashboardDetailView(row));
+    },
+    [state, pushView],
+  );
+  useScreenActions(props.registerActions, { open });
 
   const isPrebuilt = config.filter === "onlyPrebuilt";
   const columns = isPrebuilt ? PREBUILT_COLUMNS : STANDARD_COLUMNS;
