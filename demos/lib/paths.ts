@@ -7,6 +7,8 @@ export const REPO_ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$
 export const BUILD_DIR = `${DEMO_DIR}/build`;
 export const AUDIO_DIR = `${BUILD_DIR}/audio`;
 export const DURATIONS_PATH = `${BUILD_DIR}/durations.json`;
+/** Beat offsets as they actually happened, written by `demo:record`. */
+export const TIMELINE_PATH = `${BUILD_DIR}/timeline.json`;
 export const NARRATION_PATH = `${DEMO_DIR}/narration.md`;
 export const TAPE_PATH = `${DEMO_DIR}/demo.tape`;
 

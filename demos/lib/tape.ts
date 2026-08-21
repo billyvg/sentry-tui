@@ -36,7 +36,16 @@ export type TapeStep =
    * Play a beat while running `steps`. Lasts the longer of the beat's audio and
    * the steps' own sleeps, so a block that outruns its line still finishes.
    */
-  | { kind: "meanwhile"; beat: string; steps: TapeStep[]; line: number };
+  | { kind: "meanwhile"; beat: string; steps: TapeStep[]; line: number }
+  /**
+   * Wait for the screen to stop changing, up to `maxMs`.
+   *
+   * For the parts of the demo that wait on something real — an agent thinking,
+   * a slow query — where a fixed `Sleep` is either a gamble or a long pause. The
+   * duration is only known at record time, so `record.ts` writes the offsets it
+   * actually produced and `mux.ts` lays the audio against those.
+   */
+  | { kind: "settle"; maxMs: number; line: number };
 
 export interface Tape {
   settings: TapeSettings;
@@ -156,6 +165,10 @@ export function parseTape(source: string): Tape {
         push({ kind: "wait", beat: beatId(rest, line), line });
         break;
       }
+      case "Settle": {
+        push({ kind: "settle", maxMs: parseDuration(rest, line), line });
+        break;
+      }
       case "Meanwhile": {
         if (open) throw new TapeError(line, "Meanwhile cannot nest — close the first with End");
         open = { kind: "meanwhile", beat: beatId(rest, line), steps: [], line };
@@ -212,6 +225,10 @@ export function timeline(
       holdMs = step.ms;
     } else if (step.kind === "wait") {
       holdMs = beatMs(step.beat);
+    } else if (step.kind === "settle") {
+      // Unknowable up front. The plan assumes the best case (nothing to wait
+      // for) and `record.ts` reports what really happened.
+      holdMs = 0;
     } else if (step.kind === "meanwhile") {
       // The block runs its own steps and the beat plays over them, so it lasts
       // whichever finishes last.

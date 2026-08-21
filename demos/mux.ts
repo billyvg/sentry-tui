@@ -11,7 +11,7 @@
 import { file, write } from "bun";
 
 import { probeDuration } from "./lib/capture.ts";
-import { BUILD_DIR, AUDIO_DIR, DURATIONS_PATH, TAPE_PATH } from "./lib/paths.ts";
+import { AUDIO_DIR, BUILD_DIR, DURATIONS_PATH, TAPE_PATH, TIMELINE_PATH } from "./lib/paths.ts";
 import { parseTape, timeline } from "./lib/tape.ts";
 
 const tape = parseTape(await file(TAPE_PATH).text());
@@ -29,7 +29,30 @@ if (!(await file(video).exists())) {
 
 const output = `${BUILD_DIR}/demo.mp4`;
 
-/** Beats to place, with the millisecond offset each one starts at. */
+/**
+ * Where each beat's audio goes.
+ *
+ * `demo:record` writes the offsets it actually produced, and those win: a
+ * `Settle` runs for as long as it runs, and every kitty round-trip costs a few
+ * milliseconds that the plan doesn't know about. Re-deriving the timeline here
+ * would drift the narration progressively late against the picture.
+ */
+const recorded = file(TIMELINE_PATH);
+const actual: Map<string, number> = (await recorded.exists())
+  ? new Map(
+      ((await recorded.json()) as { beats: Array<{ id: string; atMs: number }> }).beats.map(
+        ({ id, atMs }) => [id, atMs],
+      ),
+    )
+  : new Map();
+
+if (actual.size === 0) {
+  console.warn(
+    "No build/timeline.json — falling back to the tape's predicted offsets.\n" +
+      "Re-record to get the real ones; anything dynamic will be slightly out of sync.\n",
+  );
+}
+
 const placements: Array<{ beat: string; path: string; atMs: number }> = [];
 for (const { step, atMs } of timeline(tape, durations)) {
   if (step.kind !== "wait" && step.kind !== "meanwhile") continue;
@@ -37,7 +60,7 @@ for (const { step, atMs } of timeline(tape, durations)) {
   if (!(await file(path).exists())) {
     throw new Error(`Tape waits on @${step.beat} but ${path} does not exist. Re-run demo:tts.`);
   }
-  placements.push({ beat: step.beat, path, atMs });
+  placements.push({ beat: step.beat, path, atMs: actual.get(step.beat) ?? atMs });
 }
 
 if (placements.length === 0)

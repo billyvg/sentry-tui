@@ -3,6 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { parseNarration } from "./narration.ts";
 import { buildGotoHotkeys } from "~/core/goto";
 import type { NavGroupId } from "~/core/nav";
+import { findScreen } from "~/core/screens";
+import { SCREEN_COMPONENTS } from "~/ui/screens/registry";
 
 import { beatsInTape, parseDuration, parseTape, TapeError, timeline } from "./tape.ts";
 
@@ -234,36 +236,46 @@ describe("goto keys the tape depends on", () => {
     expect(keyForItem("seer", "Ask Seer")).toBe("a");
   });
 
-  test("the tape only presses goto keys that lead somewhere implemented", async () => {
+  test("every goto sequence in the tape lands on a screen that exists", async () => {
     const source = await Bun.file(new URL("../demo.tape", import.meta.url)).text();
     const steps = parseTape(source).steps;
-
-    // Groups: i Issues, e Explore, s Seer. Items: f Feed, b Inbox/Releases,
-    // v All Views, l Logs, y Replays, p Profiles, a Ask Seer. Everything else in
-    // the nav renders "Not implemented yet." and must not appear on camera.
-    const implemented = new Set(["i", "f", "b", "v", "e", "l", "y", "p", "s", "a"]);
 
     // Most navigation lives inside `Meanwhile` blocks, so the scan has to
     // descend into them — a flat pass finds nothing and passes vacuously.
     const flat = steps.flatMap((step) => (step.kind === "meanwhile" ? step.steps : [step]));
 
-    // Every `Key n` opens goto mode; the next one or two keystrokes choose the
-    // destination. Sleeps are skipped rather than treated as terminators —
-    // there is always one between the keys, to let the printed hotkeys land on
-    // screen before the next press.
-    const pressed: Array<{ line: number; chord: string }> = [];
+    // `n` opens goto mode; the next two keystrokes are a group and an item.
+    // Sleeps between them are the tape letting the printed keys land on screen.
+    const sequences: Array<{ line: number; keys: string[] }> = [];
     flat.forEach((step, i) => {
       if (step.kind !== "key" || step.chord !== "n") return;
-      let taken = 0;
+      const keys: string[] = [];
       for (const next of flat.slice(i + 1)) {
         if (next.kind === "sleep") continue;
-        if (next.kind !== "key" || taken === 2) break;
-        pressed.push({ line: next.line, chord: next.chord });
-        taken++;
+        if (next.kind !== "key" || keys.length === 2) break;
+        keys.push(next.chord);
       }
+      sequences.push({ line: step.line, keys });
     });
 
-    expect(pressed.length).toBeGreaterThan(0);
-    expect(pressed.filter(({ chord }) => !implemented.has(chord))).toEqual([]);
+    expect(sequences.length).toBeGreaterThan(0);
+
+    // Resolve each one the way the app would, and check a component is
+    // registered for where it ends up — the nav offers keys for screens that
+    // still render "Not implemented yet.", and one on camera is a bad look.
+    const groupKeys = buildGotoHotkeys("issues").groups;
+    const unreachable = sequences.filter(({ keys }) => {
+      const [groupKey, itemKey] = keys;
+      const group = [...groupKeys].find(([, hotkey]) => hotkey.key === groupKey)?.[0];
+      if (!group) return true;
+      const item = [...buildGotoHotkeys(group).items].find(
+        ([, hotkey]) => hotkey.key === itemKey,
+      )?.[0];
+      if (!item) return true;
+      const screen = findScreen(group, item);
+      return !screen || !SCREEN_COMPONENTS[screen.id];
+    });
+
+    expect(unreachable).toEqual([]);
   });
 });

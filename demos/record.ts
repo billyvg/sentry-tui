@@ -7,7 +7,7 @@
  * construction rather than by nudging.
  */
 
-import { file } from "bun";
+import { file, write } from "bun";
 import { mkdir } from "node:fs/promises";
 
 import { assertCapturable, probeSize, WindowRecording } from "./lib/capture.ts";
@@ -20,6 +20,7 @@ import {
   shellEnv,
   SOCKET,
   TAPE_PATH,
+  TIMELINE_PATH,
   writeShim,
 } from "./lib/paths.ts";
 import { parseTape, timeline, type TapeStep } from "./lib/tape.ts";
@@ -28,6 +29,9 @@ import { parseTape, timeline, type TapeStep } from "./lib/tape.ts";
 const WARMUP_MS = 1500;
 /** Let the recorder get going before the first keystroke lands. */
 const LEAD_IN_MS = 800;
+/** How long the screen must hold still before `Settle` calls it done. */
+const SETTLE_STABLE_MS = 1500;
+const SETTLE_POLL_MS = 400;
 /** Trailing pad so the final frame isn't the recorder shutting down. */
 const TAIL_MS = 1500;
 
@@ -88,17 +92,56 @@ try {
   recording = await WindowRecording.start(windowId, captureSeconds, output);
   await Bun.sleep(LEAD_IN_MS);
 
+  /** Wall-clock ms since the capture started. */
+  const startedAt = Date.now();
+  const elapsed = () => Date.now() - startedAt;
+
+  /** Where each beat's audio actually begins, for `demo:mux`. */
+  const beatOffsets: Array<{ id: string; atMs: number }> = [];
+
   /** Perform one step. Sleeps are the caller's business. */
   const perform = async (step: TapeStep) => {
     if (step.kind === "type") await kitty.type(step.text);
     else if (step.kind === "key") await kitty.key(step.chord, step.count);
   };
 
+  /**
+   * Wait until the screen has been unchanged for a moment, or `maxMs` passes.
+   *
+   * Polling `get-text` is enough: a streaming answer keeps redrawing, and the
+   * redraws stopping is the only signal that doesn't depend on knowing which
+   * app is on screen or which string it prints when it's done.
+   */
+  const settle = async (maxMs: number) => {
+    const deadline = Date.now() + maxMs;
+    let previous = "";
+    let stableSince = 0;
+    while (Date.now() < deadline) {
+      const screen = await kitty.screenText();
+      if (screen === previous) {
+        if (!stableSince) stableSince = Date.now();
+        if (Date.now() - stableSince >= SETTLE_STABLE_MS) return;
+      } else {
+        previous = screen;
+        stableSince = 0;
+      }
+      await Bun.sleep(SETTLE_POLL_MS);
+    }
+  };
+
   for (const { step, holdMs } of plan) {
+    if (step.kind === "settle") {
+      const before = elapsed();
+      await settle(step.maxMs);
+      console.log(`  settled after ${((elapsed() - before) / 1000).toFixed(1)}s`);
+      continue;
+    }
+
     if (step.kind === "meanwhile") {
       // The beat's audio starts now and the block's steps run underneath it, so
       // the screen keeps moving while the line plays.
       console.log(`  @${step.beat} — ${(holdMs / 1000).toFixed(1)}s (with action)`);
+      beatOffsets.push({ id: step.beat, atMs: elapsed() });
       const started = Date.now();
       for (const inner of step.steps) {
         await perform(inner);
@@ -113,11 +156,17 @@ try {
     await perform(step);
     if (step.kind === "wait") {
       console.log(`  @${step.beat} — ${(holdMs / 1000).toFixed(1)}s`);
+      beatOffsets.push({ id: step.beat, atMs: elapsed() });
     }
     if (holdMs > 0) await Bun.sleep(holdMs);
   }
 
   await recording.finish();
+
+  // The offsets that actually happened, not the ones the plan predicted. A
+  // `Settle` runs for however long it runs, and every kitty round-trip adds a
+  // little, so re-deriving these in `mux` would drift the audio late.
+  await write(TIMELINE_PATH, `${JSON.stringify({ beats: beatOffsets }, null, 2)}\n`);
 } finally {
   await kitty.close();
 }

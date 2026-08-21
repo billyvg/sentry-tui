@@ -24,7 +24,7 @@ Env PS1 ❯
 
 Type `lynx -accept_all_cookies https://sentry.io`
 Key enter
-Sleep 3s
+Sleep 2s
 
 Meanwhile @B01
   Sleep 2s
@@ -76,88 +76,124 @@ End
 Meanwhile @B06
   Key /
   Sleep 400ms
-  Type `is:unresolved`
-  Sleep 1200ms
+  # A leading space, and a term the default query does not already contain:
+  # `/` focuses the bar with `is:unresolved issue.priority:[high, medium]`
+  # already in it and the cursor at the end, so this appends to it.
+  Type ` API`
+  Sleep 900ms
   Key enter
   Sleep 1200ms
+  # The palette is also how we reach Seer — goto's item key leaks into the
+  # composer, which takes focus on arrival, so the question would come out as
+  # "aWhich project…".
   Key ctrl+k
   Sleep 700ms
-  Type `rep`
+  Type `ask seer`
+  Sleep 800ms
+  Key enter
+  Sleep 1800ms
+  Type `Which project is failing the most this week?`
+  Sleep 600ms
+  Key enter
 End
 
+# Seer is thinking from here — about 25 seconds. The next three beats cover it.
+# Escape first: the composer still holds focus and n would type into it.
 Meanwhile @B07
   Key escape
-  Sleep 500ms
+  Sleep 300ms
+  Key n
+  Sleep 300ms
+  Key i
+  Sleep 300ms
+  Key f
+  Sleep 1600ms
   Key enter
-  Sleep 2500ms
+  Sleep 2200ms
   Key r
-  Sleep 1800ms
+  Sleep 1600ms
   Key escape
 End
 
 # ---------------------------------------------------------------------------
-# Act 3 — how much is here
+# Act 3 — while Seer works
 # ---------------------------------------------------------------------------
 
-# A montage: Logs, Replays, Releases, Profiles, then Seer. Explore's goto keys
-# are l, y, b and p; Seer is s then a.
 Meanwhile @B08
   Key n
-  Sleep 400ms
+  Sleep 300ms
+  Key d
+  Sleep 300ms
+  Key a
+  Sleep 1200ms
+  Key enter
+  Sleep 2500ms
+  Key j 3
+  Sleep 1600ms
+  Key j 3
+End
+
+Meanwhile @B09
+  Key n
+  Sleep 300ms
   Key e
   Sleep 300ms
   Key l
-  Sleep 1600ms
+  Sleep 1300ms
   Key n
-  Sleep 300ms
+  Sleep 250ms
   Key e
-  Sleep 300ms
+  Sleep 250ms
   Key y
-  Sleep 1600ms
+  Sleep 1300ms
   Key n
-  Sleep 300ms
+  Sleep 250ms
   Key e
-  Sleep 300ms
+  Sleep 250ms
   Key b
-  Sleep 1400ms
+  Sleep 1200ms
   Key n
-  Sleep 300ms
+  Sleep 250ms
   Key e
-  Sleep 300ms
+  Sleep 250ms
   Key p
-  Sleep 1400ms
-  Key n
-  Sleep 300ms
-  Key s
-  Sleep 300ms
-  Key a
 End
 
-# The Seer composer takes focus on arrival, so the question types straight in.
-Meanwhile @B09
-  Sleep 900ms
-  Type `Which project is failing the most this week?`
-  Sleep 900ms
-  Key enter
+# Back to Seer through the palette, then escape the composer so j scrolls the
+# transcript instead of typing into it.
+Key ctrl+k
+Sleep 700ms
+Type `ask seer`
+Sleep 800ms
+Key enter
+Sleep 1500ms
+Key escape
+Sleep 300ms
+
+# Whatever is left of Seer's ~25 seconds. Usually little — the last three beats
+# have been covering it — but this is what makes "fully rendered" a guarantee.
+Settle 30s
+
+Meanwhile @B10
+  Sleep 1200ms
+  Key j 4
+  Sleep 1800ms
+  Key j 4
 End
 
 # ---------------------------------------------------------------------------
 # Act 4 — outro
 # ---------------------------------------------------------------------------
 
-# Escape releases the Seer composer before q can reach the app.
-Key escape
-Sleep 400ms
 Key q
 Sleep 800ms
 Type `clear`
 Key enter
 Sleep 400ms
 
-# THE INSTALL COMMAND. Typed, never run — it is there to be copied, and running
-# it inside the demo would just reinstall over the top. Change it here if the
-# published name ever changes.
+# THE INSTALL COMMAND. Typed, never run — it is there to be copied. Change it
+# here if the published name ever changes.
 Type `npm install -g sentry-tui`
-Wait @B10
-# Hold the still frame so viewers can copy it: B10's line plus this is ~10s.
+Wait @B11
+# Hold the still frame so viewers can copy it: B11's line plus this is ~10s.
 Sleep 6s

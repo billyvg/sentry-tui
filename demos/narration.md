@@ -14,7 +14,7 @@ The beat is the unit the whole pipeline runs on:
 So the video is cut to the voice, not the other way round. Re-record one line and
 only that beat's timing moves.
 
-**Runtime: ~75 seconds**, of which the last 10 are a still frame of the install
+**Runtime: ~80 seconds**, of which the last 10 are a still frame of the install
 command so viewers can copy it. The hard cap is three minutes; this is built to
 land well inside it, which is why it sells the thing rather than explaining it.
 
@@ -55,14 +55,13 @@ which only answers for orgs where the Explorer agent is enabled.
 
 **Screen:** `sentry-tui`, and the issue stream paints.
 
-> This is Sentry. Not a status widget — the actual product, in your terminal.
+> This is Sentry. Not a status widget — the actual product.
 
 ### B04 · speed
 
 **Screen:** hold on the loaded stream; `j` down a few rows.
 
-> Two seconds to open. No tab to find, no dashboard to wait on — your issues are
-> just there.
+> Two seconds to open. No tab to find, no dashboard to wait on.
 
 ---
 
@@ -73,43 +72,52 @@ which only answers for orgs where the Explorer agent is enabled.
 **Screen:** `n` — every nav label grows a key. Then `i`, `f` back to Feed.
 
 > It's built for the keyboard. Press n, and every destination tells you its key.
-> Anywhere is two presses away.
 
-### B06 · search and the palette
+### B06 · the palette, and a question for Seer
 
-**Screen:** `/` and a query, then `ctrl+k` and a few letters.
+**Screen:** `/` and a query, then `ctrl+k` → `ask seer` → the question, sent.
+**Note:** reach Seer through the palette, never goto — goto's item key leaks into
+the composer and the question comes out as `aWhich project…`.
 
-> Slash to search. Control-K for a palette over every command there is.
+> Slash to search. Control-K is a palette over every command — including Seer,
+> Sentry's agent. Ask it about your own data.
 
 ### B07 · triage
 
-**Screen:** Enter into an issue, `r` to resolve, Escape back.
+**Screen:** back to the feed, Enter into an issue, `r` to resolve, Escape.
 
-> Triage without breaking stride — resolve, archive, bookmark. It lands instantly,
-> and rolls back if the server disagrees.
+> Then triage without breaking stride. Resolve, archive, bookmark — instant, and
+> it rolls back if the server disagrees.
 
 ---
 
-## Act 3 — How much is here
+## Act 3 — While Seer works
 
-### B08 · the whole surface
+### B08 · dashboards
 
-**Screen:** a fast montage — Logs, Replays, Releases, Profiles, then Seer.
+**Screen:** `n`, `d`, `a`, Enter — the starred dashboard, scrolling its widgets.
 
-> Logs, replays, releases, profiles — the whole Explore section, ported. And Seer,
-> Sentry's agent, right in the same window.
+> Dashboards come across too. Real widgets, real series, drawn in the terminal at
+> whatever size your window happens to be.
 
-### B09 · it's real
+### B09 · the rest of Explore
 
-**Screen:** Seer working on a real question.
+**Screen:** fast montage — Logs, Replays, Releases, Profiles.
 
-> All of this is the real app, making real requests against a real org.
+> Logs, replays, releases, profiles. The whole Explore section, ported.
+
+### B10 · Seer answered
+
+**Screen:** back to Seer via the palette; the finished conversation, scrolled.
+
+> Seer's done — it searched your errors and came back with real numbers, from the
+> real app.
 
 ---
 
 ## Act 4 — Outro
 
-### B10 · install
+### B11 · install
 
 **Screen:** back to a bare prompt with `npm install -g sentry-tui` typed and not
 run. Holds for ten seconds so viewers can copy it.
@@ -145,9 +153,14 @@ specifically so people run it. That package has to exist on npm by then — see
 
 - **"Two seconds to open"** — measured: chrome paints at 0.8s, real rows with
   sparklines and counts by 2.0s.
-- **"The whole Explore section"** — Logs, Replays, Releases and Profiles have
-  real screens. Traces, Metrics, Discover and Conversations do not, and the
-  montage doesn't visit them.
+- **"The whole Explore section"** — every item now has a real screen; the
+  montage visits four of them.
+- **Seer takes about 25 seconds** to answer this question — measured: first tool
+  step at 21s, answer complete at 25s. That is why it is asked back in B06,
+  four beats before the answer is shown: triage, dashboards and the Explore
+  montage exist partly to cover the wait with something worth watching. The
+  `Settle` before B10 absorbs whatever is left, so the conversation is always
+  fully rendered before the camera returns to it.
 - **"Rolls back if the server disagrees"** — `useTriage` keeps the original and
   restores it on failure.
 - **Keyboard only.** The app does take a mouse, and the script no longer says so
