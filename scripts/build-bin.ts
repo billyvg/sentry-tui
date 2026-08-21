@@ -70,6 +70,23 @@ if (target) {
   args.push("--target", target.bunTarget);
 }
 
+// Measured on darwin-arm64: 70.20MB -> 68.37MB raw, 24.26MB -> 24.07MB gzipped.
+// The compressed win is small because minified JS has less redundancy for gzip
+// to exploit, but it is a win in both directions, so there is nothing to trade off.
+args.push("--minify");
+
+// OpenTUI picks its native library through `process.env.OPENTUI_LIBC`, a runtime
+// check the bundler cannot see through, so it embeds the glibc *and* musl copies
+// of `libopentui` — 20MB each on Linux. The musl branch can never be taken here:
+// `bun build --compile` bases every Linux binary on a glibc-linked runtime
+// (interpreter `/lib64/ld-linux-x86-64.so.2`), so on a musl-only system the
+// executable fails to start long before any of our code runs. Dropping the copy
+// that cannot load takes each Linux binary from ~147MB to ~127MB.
+//
+// Supporting Alpine means adding musl entries to `RELEASE_TARGETS` and building
+// them on a musl runner — not shipping a second library glibc builds ignore.
+args.push("--external", "@opentui/core-*-musl");
+
 await $`${args}`;
 
 console.log(`Binary written to ${output}`);
