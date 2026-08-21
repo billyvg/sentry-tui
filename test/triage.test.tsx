@@ -231,7 +231,7 @@ test("triage works from the detail view and updates its header", async () => {
   const h = await renderList(impl, { height: 40 });
   try {
     await h.press((i) => i.pressEnter());
-    await h.waitForFrame((f) => f.includes("Issues / PUMP-STATION-1"));
+    await h.waitForFrame((f) => f.includes("Issues › Feed › PUMP-STATION-1"));
     expect(h.frame()).toContain("(r) resolve");
     expect(h.frame()).toContain("unresolved · javascript");
 

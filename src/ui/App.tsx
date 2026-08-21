@@ -12,7 +12,9 @@ import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { findScreen, stateKeyOf } from "~/core/screens";
 import { theme } from "~/core/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
+import { breadcrumbTrail } from "~/lib/breadcrumb";
 import { CommandPalette } from "~/ui/components/CommandPalette";
+import { DetailBackRow, DETAIL_BACK_ROW_HEIGHT } from "~/ui/components/DetailBackRow";
 import { isDropdownMounted } from "~/ui/components/Dropdown";
 import { HelpDialog } from "~/ui/components/HelpDialog";
 import {
@@ -33,6 +35,12 @@ import { navItemsFor, navTargetOf, type NavItemSpec } from "~/ui/lib/navSections
 import { SCREEN_COMPONENTS } from "~/ui/screens/registry";
 import type { ScreenActions, ViewStackEntry } from "~/ui/screens/types";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
+
+/**
+ * Cells the pane's frame costs a border title: one border cell each side, plus
+ * the space the title is padded with so it doesn't butt against the corners.
+ */
+const BREADCRUMB_CHROME_WIDTH = 4;
 
 const REGIONS = ["nav", "secondary", "content"] as const;
 type Region = (typeof REGIONS)[number];
@@ -547,9 +555,13 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           setGotoMode(false);
           return "mine";
         },
-        // 3. The detail view owns Escape (back) before anything else claims it.
+        // 3. The pushed view owns Escape (back) before anything else claims it
+        // — unless the secondary drawer is open over it. Escape undoes the most
+        // recent thing the user opened, and while the drawer is up that is the
+        // drawer, not the view underneath it.
         () => {
           if (!topView) return "notMine";
+          if (showSecondary) return "notMine";
           if (matchesCommand("sentry.nav.back", key)) {
             popView();
             return "mine";
@@ -630,12 +642,10 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
         // 6. Triage actions, valid in both the list and the detail view.
         () => {
           if (!activeIssue) return "notMine";
-          // In the list these belong to the content pane; the nav panes keep
-          // their own j/k. In the detail view there is only one issue, so no
-          // focus check is needed.
-          if (!detailView && focus.focusedRef.current !== "content") {
-            return "notMine";
-          }
+          // Triage belongs to the content pane, in the detail view as much as
+          // in the list: the nav panes are live over an open issue now, and a
+          // rail cursor is no place to resolve from.
+          if (focus.focusedRef.current !== "content") return "notMine";
           for (const action of TRIAGE_ACTIONS) {
             if (matchesCommand(action.commandId, key)) {
               triage.run(action.commandId, activeIssue);
@@ -644,9 +654,11 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           }
           return "notMine";
         },
-        // 7. Nav rail: j/k moves the cursor, Enter opens secondary nav.
+        // 7. Nav rail: j/k moves the cursor, Enter opens secondary nav. Live
+        // whenever the rail holds focus, a pushed view included — Tab can put
+        // the cursor up here from anywhere, and a focused pane that answers
+        // nothing is indistinguishable from a hung app.
         () => {
-          if (topView) return "notMine";
           if (focus.focusedRef.current !== "nav") return "notMine";
           if (matchesCommand("sentry.nav.open", key)) {
             openNavGroup(railGroup);
@@ -664,8 +676,9 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           return "mine";
         },
         // 8. Secondary nav: j/k moves the cursor, Enter selects and closes.
+        // Live over a pushed view for the same reason the rail is; choosing an
+        // item goes through `navigateTo`, which clears the stack.
         () => {
-          if (topView) return "notMine";
           if (!showSecondary) return "notMine";
           if (focus.focusedRef.current !== "secondary") return "notMine";
           const index = secondaryItems.findIndex((item) => item.label === secondaryItem);
@@ -746,6 +759,78 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const secondaryWidth = showSecondaryPane ? SECONDARY_NAV_WIDTH : 0;
   const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
   const contentHeight = Math.max(3, height - 3);
+  // A pushed view gives up a row to its back control. Screens keep the lot.
+  const paneHeight = Math.max(3, contentHeight - (topView ? DETAIL_BACK_ROW_HEIGHT : 0));
+
+  /**
+   * Where Escape lands from the view on top: the view beneath it, else the
+   * screen the stack was pushed from. Named rather than left as "back" so the
+   * control says what it costs to press.
+   */
+  const backTarget = viewStack.at(-2)?.label ?? activeItem;
+
+  /**
+   * The trail printed in the pane's border while a view is open — the app's
+   * answer to "how deep am I?". Absent at the top level, where the screen's own
+   * heading already says where you are and a second copy would only be noise.
+   *
+   * The renderer draws a border title as one flat string, so it is clamped here
+   * rather than left to overrun the frame in a narrow terminal.
+   */
+  const breadcrumb = useMemo(() => {
+    if (viewStack.length === 0) return undefined;
+    const trail = breadcrumbTrail(
+      [getNavGroup(activeGroup).label, activeItem, ...viewStack.map((view) => view.label)],
+      // Two cells of border, plus the space each side of the title itself.
+      Math.max(0, contentWidth - BREADCRUMB_CHROME_WIDTH),
+    );
+    return trail ? ` ${trail} ` : undefined;
+  }, [viewStack, activeGroup, activeItem, contentWidth]);
+
+  /**
+   * The status bar's key row, for whatever the app is in the middle of.
+   *
+   * Escape leads it whenever there is a stack to pop. That used to hold only
+   * for a static detail pane, which left an opened saved query or dashboard
+   * printing the ordinary list hints and no way out at all — the one control in
+   * the app you had to already know about to find.
+   */
+  const statusHints = useMemo(() => {
+    if (gotoMode) return [{ command: "sentry.nav.back", label: "cancel" }];
+    if (state.searchFocused) {
+      return [
+        { command: "sentry.nav.open", label: "submit" },
+        { command: "sentry.nav.back", label: "cancel" },
+      ];
+    }
+
+    const back = topView ? [{ command: "sentry.nav.back", label: "back" }] : [];
+    // A static detail pane has no cursor and no search box, so neither hint
+    // would mean anything on it.
+    const list = detailView
+      ? []
+      : [
+          {
+            command: "sentry.nav.open",
+            // Enter toggles a panel on some screens, so the one hint carries
+            // both directions.
+            label: state.detailOpen ? "close" : (screen?.openLabel ?? "open"),
+          },
+          { command: "sentry.nav.search", label: "search" },
+        ];
+
+    return [
+      ...back,
+      ...list,
+      { command: "sentry.nav.goto", label: "nav" },
+      { command: "sentry.app.commandPalette", label: "commands" },
+      { command: "sentry.app.help", label: "help" },
+      // Quit yields its place to `back` rather than pushing the row past the
+      // width of a small terminal. `q` still quits; it just stops being the
+      // hint worth spending the cells on once there is somewhere to go back to.
+      ...(topView ? [] : [{ command: "sentry.app.quit", label: "quit" }]),
+    ];
+  }, [gotoMode, state.searchFocused, state.detailOpen, topView, detailView, screen?.openLabel]);
 
   /**
    * What the content pane hands whatever it draws. A screen and a pushed view
@@ -756,7 +841,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
     org,
     focused: focus.isFocused("content"),
     width: contentWidth,
-    height: contentHeight,
+    height: paneHeight,
     reloadToken,
     pendingIds: triage.pending,
     pushView,
@@ -795,6 +880,8 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           />
         ) : null}
         <box
+          title={breadcrumb}
+          titleColor={theme.accent}
           style={{
             flexGrow: 1,
             flexDirection: "column",
@@ -811,13 +898,16 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           {/* Seer reads its transcript from here; every other screen ignores it. */}
           <SeerChatContext.Provider value={seerChat}>
             {topView ? (
-              topView.render({
-                ...paneProps,
-                // A view with no slice of its own gets none: it is a detail
-                // pane, and `state` would be the list's underneath it.
-                state: topView.stateKey ? state : undefined,
-                issue: topView.issue,
-              })
+              <>
+                <DetailBackRow parent={backTarget} width={contentWidth} />
+                {topView.render({
+                  ...paneProps,
+                  // A view with no slice of its own gets none: it is a detail
+                  // pane, and `state` would be the list's underneath it.
+                  state: topView.stateKey ? state : undefined,
+                  issue: topView.issue,
+                })}
+              </>
             ) : ScreenComponent && screen ? (
               <ScreenComponent {...paneProps} screen={screen} state={state} />
             ) : (
@@ -846,35 +936,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
                 : toNotice(state.status)))
         }
         elapsedMs={detailView || gotoMode ? undefined : state.status.elapsedMs}
-        hints={
-          gotoMode
-            ? [{ command: "sentry.nav.back", label: "cancel" }]
-            : state.searchFocused
-              ? [
-                  { command: "sentry.nav.open", label: "submit" },
-                  { command: "sentry.nav.back", label: "cancel" },
-                ]
-              : detailView
-                ? [
-                    { command: "sentry.nav.back", label: "back" },
-                    { command: "sentry.nav.goto", label: "nav" },
-                    { command: "sentry.app.commandPalette", label: "commands" },
-                    { command: "sentry.app.help", label: "help" },
-                  ]
-                : [
-                    {
-                      command: "sentry.nav.open",
-                      // Enter toggles a panel on some screens, so the one hint
-                      // carries both directions.
-                      label: state.detailOpen ? "close" : (screen?.openLabel ?? "open"),
-                    },
-                    { command: "sentry.nav.search", label: "search" },
-                    { command: "sentry.nav.goto", label: "nav" },
-                    { command: "sentry.app.commandPalette", label: "commands" },
-                    { command: "sentry.app.help", label: "help" },
-                    { command: "sentry.app.quit", label: "quit" },
-                  ]
-        }
+        hints={statusHints}
       />
 
       {showHelp ? <HelpDialog onClose={() => setShowHelp(false)} /> : null}

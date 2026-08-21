@@ -386,9 +386,12 @@ test("enter pushes a detail view with the replay's metadata", async () => {
     await h.waitForFrame((f) => f.includes("Alice Nguyen"));
     await h.press((i) => i.pressEnter());
 
-    await h.waitForFrame((f) => f.includes("Replays / 8a3f2c1d"));
+    await h.waitForFrame((f) => f.includes("Explore › Replays › 8a3f2c1d"));
     const frame = h.frame();
-    expect(frame).toContain("Replays / 8a3f2c1d");
+    // The app draws the trail in the pane border for every pushed view; this
+    // screen no longer prints one of its own.
+    expect(frame).toContain("Explore › Replays › 8a3f2c1d");
+    expect(frame).toContain("back to Replays");
     expect(frame).toContain("2:05");
     expect(frame).toContain("Mac OS X 14 · Chrome 120");
     expect(frame).toContain("4 dead · 1 rage");
