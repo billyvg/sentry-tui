@@ -1,5 +1,3 @@
-import * as readline from "node:readline";
-
 import {
   clearCredentials,
   credentialsPath,
@@ -184,20 +182,18 @@ function describeExpiry(expiresAt: string, now: number = Date.now()): string {
 }
 
 /**
- * Offer the device flow when startup finds no credentials at all. Declining —
- * or having no terminal to ask in — leaves the caller to report the original
- * "no credentials" error, which explains the personal-token route too.
+ * Sign in from a cold start, when the app was launched with no credentials at
+ * all. There is exactly one way in, so this runs the device flow outright
+ * rather than asking permission to run it — the browser opening is the answer
+ * to "how do I sign in", not a second question.
+ *
+ * Returns null when there is no terminal in front of us: a piped or scripted
+ * run has nobody to read the code, so the caller reports the original "no
+ * credentials" error instead of blocking on a login nobody can complete.
  */
-export async function offerLogin(options: LoginOptions = {}): Promise<StoredCredentials | null> {
+export async function autoLogin(options: LoginOptions = {}): Promise<StoredCredentials | null> {
   if (!process.stdin.isTTY) return null;
 
-  out("No Sentry credentials found.");
-  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
-  const answer = await new Promise<string>((resolve) => {
-    rl.question("Sign in with your browser now? [Y/n] ", resolve);
-  });
-  rl.close();
-
-  if (/^n/i.test(answer.trim())) return null;
+  out("No Sentry credentials found — signing you in.");
   return await runLogin(options);
 }
