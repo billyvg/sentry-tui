@@ -133,6 +133,13 @@ describe("resolveAuthProvider", () => {
 
   test("points at `sentry-tui login` when there is nothing at all", async () => {
     expect(resolveAuthProvider()).rejects.toThrow(MissingTokenError);
+
+    // OAuth is the only way in we advertise — no token-minting detour.
+    const message = new MissingTokenError().message;
+    expect(message).toContain("sentry-tui login");
+    for (const leak of ["SENTRY_AUTH_TOKEN", "auth-tokens", "personal", "sntryu_"]) {
+      expect(message).not.toContain(leak);
+    }
   });
 });
 

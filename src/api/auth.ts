@@ -1,15 +1,9 @@
-import {
-  credentialsPath,
-  readCredentials,
-  type StoredCredentials,
-  writeCredentials,
-} from "~/api/config";
+import { readCredentials, type StoredCredentials, writeCredentials } from "~/api/config";
 import { REQUIRED_SCOPES, refreshAccessToken, resolveClientId, resolveSiteUrl } from "~/api/oauth";
 
 /**
  * The seam between the app and however a token was obtained: an OAuth device
- * login, an environment variable, or a personal token on disk. Call sites only
- * ever see `getToken()`.
+ * login or an environment variable. Call sites only ever see `getToken()`.
  */
 export interface AuthProvider {
   getToken(): Promise<string>;
@@ -24,28 +18,13 @@ export interface AuthProvider {
 }
 
 export { REQUIRED_SCOPES };
-export const TOKEN_SETTINGS_URL = "https://sentry.io/settings/account/api/auth-tokens/";
 
 /** Refresh this long before expiry, so a request never races the deadline. */
 const EXPIRY_SKEW_MS = 60_000;
 
 export class MissingTokenError extends Error {
   constructor() {
-    super(
-      [
-        "No Sentry credentials found.",
-        "",
-        "Sign in with:",
-        "  sentry-tui login",
-        "",
-        "Or use a personal token instead — create one at",
-        `${TOKEN_SETTINGS_URL}`,
-        `with scopes: ${REQUIRED_SCOPES.join(" ")}`,
-        "then either:",
-        "  export SENTRY_AUTH_TOKEN=sntryu_…",
-        `  or write {"accessToken": "sntryu_…"} to ${credentialsPath()}`,
-      ].join("\n"),
-    );
+    super(["No Sentry credentials found.", "", "Sign in with:", "  sentry-tui login"].join("\n"));
     this.name = "MissingTokenError";
   }
 }

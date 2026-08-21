@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { readCredentials, writeCredentials } from "~/api/config";
-import { runLogin, runLogout, runStatus } from "~/app/login";
+import { autoLogin, runLogin, runLogout, runStatus } from "~/app/login";
 import { VERSION_LABEL } from "~/lib/version";
 
 /**
@@ -120,6 +120,52 @@ describe("runLogin", () => {
     } finally {
       delete process.env["SENTRY_URL"];
     }
+  });
+});
+
+describe("autoLogin", () => {
+  const realIsTTY = process.stdin.isTTY;
+  const setTTY = (value: boolean) => {
+    Object.defineProperty(process.stdin, "isTTY", { value, configurable: true });
+  };
+
+  afterEach(() => {
+    Object.defineProperty(process.stdin, "isTTY", { value: realIsTTY, configurable: true });
+  });
+
+  test("signs in on the spot instead of asking for permission first", async () => {
+    setTTY(true);
+    const fetchImpl = stubFetch([
+      json({
+        device_code: "dc",
+        user_code: "WDJB-MJHT",
+        verification_uri: "https://sentry.io/oauth/device/",
+        expires_in: 600,
+        interval: 0,
+      }),
+      json({ access_token: "access_1", expires_in: 3600, scope: "org:read" }),
+    ]);
+
+    const credentials = await autoLogin({ noBrowser: true, fetchImpl });
+
+    expect(credentials?.accessToken).toBe("access_1");
+    expect(output()).toContain("WDJB-MJHT");
+    // No confirmation step, and no pointer at a command they'd have to run.
+    expect(output()).not.toContain("[Y/n]");
+    expect(output()).not.toContain("sentry-tui login");
+  });
+
+  test("stands aside when there is no terminal to sign in from", async () => {
+    setTTY(false);
+    let called = false;
+    const fetchImpl = (async () => {
+      called = true;
+      return json({});
+    }) as unknown as typeof fetch;
+
+    expect(await autoLogin({ fetchImpl })).toBeNull();
+    expect(called).toBe(false);
+    expect(await readCredentials()).toBeNull();
   });
 });
 
