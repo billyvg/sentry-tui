@@ -11,18 +11,26 @@ import { describe, expect, test } from "bun:test";
 
 import { EXPLORE_NAV_BADGES } from "~/core/exploreNav";
 import { getNavGroup } from "~/core/nav";
-import { navItemsFor, navSectionsFor, type SecondaryNavExtras } from "~/ui/lib/navSections";
-import { useSecondaryNavExtras } from "~/ui/hooks/useSecondaryNavExtras";
+import {
+  navItemsFor,
+  navSectionsFor,
+  NO_NAV_EXTRAS,
+  type SecondaryNavExtras,
+} from "~/ui/lib/navSections";
+import { exploreNavExtras } from "~/ui/hooks/useSecondaryNavExtras";
 
 const EXPLORE_ITEMS = getNavGroup("explore").sections.flatMap((section) => section.items);
 
 /**
- * The hook holds no state today, so it can be called directly. If a fetch
- * lands in it this becomes a render test — but the invariant below is the
- * point either way, and `navSectionsFor` covers it without a renderer.
+ * Asserted against the Explore arm itself rather than through
+ * `useSecondaryNavExtras`, which became a real hook once Dashboards' starred
+ * section landed a fetch in it and can no longer be called outside a render.
+ *
+ * The invariant lives here anyway: this function is what attaches the badges
+ * on every path, and the hook's `case "explore"` does nothing but return it.
  */
 function exploreExtras(): SecondaryNavExtras {
-  return useSecondaryNavExtras(null, "acme", "explore", 0);
+  return exploreNavExtras();
 }
 
 describe("Explore nav badges", () => {
@@ -79,8 +87,10 @@ describe("Explore nav badges", () => {
   });
 
   test("no other group gets Explore's badges", () => {
-    for (const group of ["issues", "dashboards", "monitors", "settings"] as const) {
-      expect(useSecondaryNavExtras(null, "acme", group, 0).badges).toEqual({});
-    }
+    // Every other group either falls through to `NO_NAV_EXTRAS` or returns its
+    // own arm. Asserted on the fall-through here because the hook now fetches
+    // and cannot be called outside a render; the Dashboards arm builds its own
+    // `badges: {}` and is covered by `test/dashboards.test.tsx`.
+    expect(NO_NAV_EXTRAS.badges).toEqual({});
   });
 });

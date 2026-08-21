@@ -73,8 +73,7 @@ async function openDashboard(h: Awaited<ReturnType<typeof renderHarness>>) {
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
   await h.press((i) => i.pressEnter());
-  // Not the full title: the list's flex column truncates it at narrow widths.
-  await h.waitForFrame((f) => f.includes("Checkout"));
+  await h.waitForFrame((f) => f.includes("Checkout Health"));
   await h.press((i) => i.pressEnter());
   await h.waitForFrame((f) => f.includes("Errors Today"));
 }
@@ -369,6 +368,48 @@ test("a Sentry Built dashboard says why the API has no widgets for it", async ()
   }
 });
 
+/**
+ * The grid renders the filter row, so the keys that open a dropdown have one.
+ *
+ * A pushed `stateKey` view is driven by the app's key router exactly as a
+ * screen is, which includes `P` / `E` / `D` — and a dropdown with nothing
+ * mounted to close it swallows every later key. The widget queries take these
+ * filters, so the row belongs here anyway.
+ */
+test("P opens a real filter dropdown on the grid, and escape closes it", async () => {
+  const h = await renderApp();
+  try {
+    await openDashboard(h);
+
+    await h.press((i) => i.pressKey("P", { shift: true }));
+    expect(h.frame()).toContain("Project");
+
+    await h.pressEscape();
+    expect(h.frame()).not.toContain("Project");
+    // The keyboard is still live.
+    await h.press((i) => i.pressKey("?", { shift: true }));
+    expect(h.frame()).toContain("Keyboard");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("/ on the grid focuses nothing it cannot give back", async () => {
+  const h = await renderApp();
+  try {
+    await openDashboard(h);
+    // The grid has no search box; `/` still arms the search state, and Escape
+    // has to be able to disarm it or the keys stay captured.
+    await h.press((i) => i.pressKey("/"));
+    await h.pressEscape();
+
+    await h.press((i) => i.pressKey("?", { shift: true }));
+    expect(h.frame()).toContain("Keyboard");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Geometry
 // ---------------------------------------------------------------------------
@@ -393,6 +434,30 @@ for (const width of [80, 100, 140]) {
     }
   });
 }
+
+/**
+ * The filter row stays one line tall.
+ *
+ * The row is wider than the pane below about 90 cells. Left to wrap, its sort
+ * label becomes a column of one- and two-character fragments eight lines deep
+ * and shoves the widget stack down out of the pane — which is what the pane
+ * did before `FilterBar` learned to keep itself on one line. Short terminal on
+ * purpose: at 44 rows there is enough slack to hide it.
+ */
+test("the filter row does not push the widget stack off a short 80-column terminal", async () => {
+  const h = await renderHarness(<App onQuit={() => {}} client={stubClient()} org="acme" />, {
+    width: 80,
+    height: 30,
+  });
+  try {
+    await openDashboard(h);
+    const lines = h.frame().split("\n");
+    // Heading, the three-line filter row, the card border, then the title.
+    expect(lines.findIndex((line) => line.includes("Errors Today"))).toBeLessThanOrEqual(7);
+  } finally {
+    await h.cleanup();
+  }
+});
 
 test("the grid holds its geometry before the dashboard has arrived", async () => {
   // The detail request never settles, so the grid stays on the widget shapes

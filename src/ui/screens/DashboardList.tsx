@@ -12,9 +12,7 @@
  * here can change it.
  */
 
-import { useCallback, useEffect, useRef } from "react";
-
-import { RenderableEvents, type InputRenderable } from "@opentui/core";
+import { useCallback, useEffect } from "react";
 
 import type { DashboardListItem } from "~/api/dashboards";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
@@ -23,7 +21,7 @@ import { theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
-import { SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { SearchInput } from "~/ui/components/SearchInput";
 import { useDashboards } from "~/ui/hooks/useDashboards";
 import { rowsOf } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -33,6 +31,14 @@ import type { ScreenProps } from "~/ui/screens/types";
 
 /** Header row plus the two lines of screen heading above the table. */
 const HEADING_ROWS = 2;
+
+/**
+ * Narrowest a dashboard title may be squeezed to before the table gives up a
+ * column instead. A title is the only thing identifying a row, so it outranks
+ * every piece of metadata beside it — and without a floor the default of eight
+ * cells lets every column "fit" at 100 columns while the title says nothing.
+ */
+const MIN_TITLE_WIDTH = 24;
 
 const STAR_COLUMN: Column<DashboardListItem> = {
   key: "star",
@@ -88,7 +94,7 @@ const STANDARD_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
   {
     key: "owner",
     label: "Owner",
-    width: 16,
+    width: 18,
     priority: 3,
     render: (row, _selected, width) => (
       <text fg={theme.muted}>{padText(ownerLabel(row), width)}</text>
@@ -106,7 +112,7 @@ const STANDARD_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
   {
     key: "created",
     label: "Created",
-    width: 9,
+    width: 10,
     priority: 2,
     render: (row, _selected, width) => (
       <text fg={theme.subText}>
@@ -142,7 +148,7 @@ const PREBUILT_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
 
 export function DashboardList(props: ScreenProps) {
   const { client, org, screen, state, focused, width, height, reloadToken } = props;
-  const { setEntries, setStatus, focusSearch, handleSearchBlur } = state;
+  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
 
   const view = getDashboardListView(screen.id);
   // Every id in `SCREEN_COMPONENTS` pointing here has an entry, and
@@ -177,6 +183,23 @@ export function DashboardList(props: ScreenProps) {
     setStatus({ loading, error: error?.message, noun: "dashboards" });
   }, [loading, error, setStatus]);
 
+  /**
+   * Make `P` / `E` / `D` no-ops instead of a soft keyboard lock.
+   *
+   * The app's key router opens a filter dropdown for any list screen, and the
+   * only thing that closes one is the `Dropdown` component's own listener —
+   * while `openDropdown` is set, every key is routed to it. A screen that
+   * renders no `FilterBar` therefore has nothing to close what the router just
+   * opened, and the app stops responding to everything, Escape included.
+   *
+   * The dashboards list filters by title, not by project or period, so there
+   * is no honest filter row to render here; closing the dropdown as soon as it
+   * opens is what makes those keys do nothing rather than do damage.
+   */
+  useEffect(() => {
+    if (state.openDropdown) setOpenDropdown(null);
+  }, [state.openDropdown, setOpenDropdown]);
+
   const { pushView } = props;
   const open = useCallback(
     (index: number) => {
@@ -192,7 +215,7 @@ export function DashboardList(props: ScreenProps) {
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
-      <SearchBox
+      <SearchInput
         value={state.searchQuery}
         placeholder={config.searchPlaceholder}
         focused={state.searchFocused}
@@ -216,6 +239,7 @@ export function DashboardList(props: ScreenProps) {
         rows={rows}
         columns={columns}
         width={width}
+        minFlex={MIN_TITLE_WIDTH}
         selectedIndex={state.selected}
         focused={focused}
         rowKey={(row) => row.id}
@@ -262,88 +286,4 @@ function accessLabel(row: DashboardListItem): string {
   if (!permissions || permissions.isEditableByEveryone) return "All";
   const teams = permissions.teamsWithEditAccess?.length ?? 0;
   return teams > 0 ? `Creator +${teams}` : "Creator";
-}
-
-/**
- * The screen's search box — a local placeholder, deliberately.
- *
- * `SearchInput` is being extracted as a shared component on another branch,
- * along with the log stream's migration onto it. Rather than land a second
- * component at the same path, this stays inside the one screen that needs it
- * and is deleted in favour of the shared one when that branch merges.
- *
- * The focus listeners are the part that can't be trimmed: the app's key router
- * decides where keystrokes go from `state.searchFocused`, so a click into or
- * out of the input has to tell it, or the two disagree about who has the caret.
- */
-function SearchBox({
-  value,
-  placeholder,
-  focused,
-  width,
-  onInput,
-  onFocus,
-  onBlur,
-}: {
-  value: string;
-  placeholder: string;
-  focused: boolean;
-  width: number;
-  onInput: (next: string) => void;
-  onFocus: () => void;
-  onBlur: () => void;
-}) {
-  const inputRef = useRef<InputRenderable | null>(null);
-
-  const attach = useCallback(
-    (node: InputRenderable | null) => {
-      const previous = inputRef.current;
-      if (previous) {
-        previous.removeAllListeners(RenderableEvents.FOCUSED);
-        previous.removeAllListeners(RenderableEvents.BLURRED);
-      }
-      inputRef.current = node;
-      if (node) {
-        node.on(RenderableEvents.FOCUSED, onFocus);
-        node.on(RenderableEvents.BLURRED, onBlur);
-      }
-    },
-    [onFocus, onBlur],
-  );
-
-  return (
-    <box
-      style={{
-        flexDirection: "row",
-        width,
-        flexShrink: 0,
-        height: SEARCH_ROWS,
-        border: true,
-        borderStyle: "rounded",
-        borderColor: focused ? theme.accent : theme.border,
-        backgroundColor: theme.panel,
-        paddingLeft: 1,
-        paddingRight: 1,
-      }}
-    >
-      <text fg={theme.subText}>{"("}</text>
-      <text fg={focused ? theme.accent : theme.text}>{"/"}</text>
-      <text fg={theme.subText}>{")"} </text>
-      <input
-        ref={attach}
-        value={value}
-        placeholder={placeholder}
-        focused={focused}
-        onInput={onInput}
-        style={{
-          flexGrow: 1,
-          textColor: theme.text,
-          backgroundColor: theme.panel,
-          focusedTextColor: theme.text,
-          focusedBackgroundColor: theme.panel,
-          placeholderColor: theme.subText,
-        }}
-      />
-    </box>
-  );
 }
