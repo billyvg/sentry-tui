@@ -22,6 +22,8 @@ import {
   updatesDisabled,
   verifyIntegrity,
 } from "../packaging/npm/update.mjs";
+import { canSelfUpdate, readyUpdate } from "../src/app/selfUpdate.ts";
+import { APP_VERSION } from "../src/lib/version.ts";
 
 /** A cache directory holding the given versions, each with a stub binary. */
 function cacheWith(versions: string[]): { env: Record<string, string>; dir: string } {
@@ -31,6 +33,12 @@ function cacheWith(versions: string[]): { env: Record<string, string>; dir: stri
     writeFileSync(join(dir, version, "sentry-tui"), "#!/bin/sh\nexit 0\n");
   }
   return { env: { SENTRY_TUI_CACHE_DIR: dir }, dir };
+}
+
+/** The version one patch above `version` — always an update, whatever we cut. */
+function bumped(version: string): string {
+  const [major = "0", minor = "0", patch = "0"] = version.split("-", 1)[0]!.split(".");
+  return `${major}.${minor}.${Number.parseInt(patch, 10) + 1}`;
 }
 
 /** A fetch that answers the metadata request and nothing else. */
@@ -264,5 +272,51 @@ describe("updatesDisabled", () => {
     expect(updatesDisabled({ SENTRY_TUI_NO_UPDATE: "1" })).toBe(true);
     expect(updatesDisabled({ CI: "true" })).toBe(true);
     expect(updatesDisabled({})).toBe(false);
+  });
+});
+
+describe("what the running app is offered", () => {
+  test("a cached build newer than the running one is offered, with its path", () => {
+    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    try {
+      const ready = readyUpdate(env);
+      expect(ready?.version).toBe(bumped(APP_VERSION));
+      expect(ready?.path).toBe(join(dir, bumped(APP_VERSION), "sentry-tui"));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the running version, and anything below it, is not an update", () => {
+    // The launcher leaves the build it started us on in the cache, so the
+    // common case is a cache whose newest entry is exactly what is running.
+    const { env, dir } = cacheWith(["0.0.1", APP_VERSION]);
+    try {
+      expect(readyUpdate(env)).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("an empty cache offers nothing rather than throwing", () => {
+    expect(
+      readyUpdate({ SENTRY_TUI_CACHE_DIR: join(tmpdir(), "sentry-tui-not-a-directory") }),
+    ).toBeUndefined();
+  });
+});
+
+describe("canSelfUpdate", () => {
+  const managed = { SENTRY_TUI_MANAGED: "1" };
+
+  test("only inside a process the npm launcher started", () => {
+    // Without the marker the binary was run some other way — off the releases
+    // page, say — where a restart into the cache reverts on the next launch.
+    expect(canSelfUpdate({})).toBe(false);
+    expect(canSelfUpdate(managed)).toBe(true);
+  });
+
+  test("the same opt-outs the launcher honours close it too", () => {
+    expect(canSelfUpdate({ ...managed, SENTRY_TUI_NO_UPDATE: "1" })).toBe(false);
+    expect(canSelfUpdate({ ...managed, CI: "true" })).toBe(false);
   });
 });

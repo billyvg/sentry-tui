@@ -75,6 +75,19 @@ export function resolveBinary() {
 }
 
 /**
+ * Environment for the binary: ours, plus the marker saying we launched it.
+ *
+ * The app offers an in-app update — a pill in the status bar that restarts
+ * into a build already sitting in the cache. That only sticks when something
+ * prefers the cache on the next launch, which is this launcher and nothing
+ * else. A binary downloaded from the releases page and run directly sees no
+ * marker, so it never makes an offer it cannot keep.
+ */
+function childEnv() {
+  return { ...process.env, SENTRY_TUI_MANAGED: "1" };
+}
+
+/**
  * Run the compiled binary with this process's arguments, then exit with
  * whatever it exited with.
  *
@@ -127,7 +140,7 @@ export function main(argv = process.argv.slice(2)) {
   startBackgroundUpdate({ packageName: platformPackage(), localVersion: local.version });
 
   const binary = local.path;
-  let result = spawnSync(binary, argv, { stdio: "inherit" });
+  let result = spawnSync(binary, argv, { stdio: "inherit", env: childEnv() });
 
   // npm preserves the executable bit, but tarballs unpacked by other tooling
   // sometimes don't. One retry costs nothing and saves a confusing failure.
@@ -139,7 +152,7 @@ export function main(argv = process.argv.slice(2)) {
     } catch {
       try {
         chmodSync(binary, 0o755);
-        result = spawnSync(binary, argv, { stdio: "inherit" });
+        result = spawnSync(binary, argv, { stdio: "inherit", env: childEnv() });
       } catch {
         /* keep the original spawn error */
       }
@@ -152,7 +165,7 @@ export function main(argv = process.argv.slice(2)) {
     process.stderr.write(
       `sentry-tui ${local.version} did not start, falling back to ${bundled.version}\n`,
     );
-    result = spawnSync(bundled.path, argv, { stdio: "inherit" });
+    result = spawnSync(bundled.path, argv, { stdio: "inherit", env: childEnv() });
   }
 
   if (result.error) {

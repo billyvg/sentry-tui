@@ -32,6 +32,7 @@ import { StatusBar, type Notice } from "~/ui/components/StatusBar";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
 import { useNavigationTrace } from "~/ui/hooks/useNavigationTrace";
 import { SeerChatContext, useSeerChat } from "~/ui/hooks/useSeerChat";
+import { useUpdateCheck } from "~/ui/hooks/useUpdateCheck";
 import { rowsOf, useScreenState, type ScreenStatus } from "~/ui/hooks/useScreenState";
 import { useSecondaryNavExtras } from "~/ui/hooks/useSecondaryNavExtras";
 import { useTriage } from "~/ui/hooks/useTriage";
@@ -60,6 +61,14 @@ export interface AppProps {
    * render pass per keystroke, and at ~29ms each that dwarfed the assertions.
    */
   initialScreen?: ScreenId;
+  /**
+   * Hand the terminal to a newly downloaded build and exit.
+   *
+   * Owned by `runApp`, which has to tear the renderer down before the exec.
+   * Absent — as in every test that does not pass one — means the update pill
+   * never appears, so nothing can offer a restart it cannot perform.
+   */
+  onRestart?: (binaryPath: string) => void;
 }
 
 /** Issues › Feed — where the app opens when nothing says otherwise. */
@@ -70,6 +79,7 @@ export function App({
   client = null,
   org: initialOrg = "",
   initialScreen = DEFAULT_SCREEN,
+  onRestart,
 }: AppProps) {
   const { width, height } = useTerminalDimensions();
 
@@ -362,13 +372,36 @@ export function App({
     [activeGroup, activeItem, navExtras, navigateTo],
   );
 
+  // A newer build sitting in the cache, if there is one. Undefined the whole
+  // time for anyone the launcher did not start — see `canSelfUpdate`.
+  const pendingUpdate = useUpdateCheck();
+  const updateReady = Boolean(pendingUpdate && onRestart);
+
+  /**
+   * Restart into the downloaded build, or say why there is nothing to do.
+   *
+   * No success notice: `onRestart` tears the renderer down and hands the
+   * terminal over, so anything written here would be painted and dropped in
+   * the same frame. `runApp` prints the line that covers the gap instead.
+   */
+  const runUpdate = useCallback(() => {
+    if (!pendingUpdate || !onRestart) {
+      // Short on purpose: the hints row owns the other end of the bar, and at
+      // 100 cells anything longer than this is clipped mid-word.
+      showNotice({ kind: "idle", text: "already up to date" });
+      return;
+    }
+    onRestart(pendingUpdate.path);
+  }, [pendingUpdate, onRestart, showNotice]);
+
   const paletteActions = useMemo(
     () =>
       buildPaletteActions({
         streamView: listActive,
         hasIssue: Boolean(activeIssue),
+        updateReady,
       }),
-    [listActive, activeIssue],
+    [listActive, activeIssue, updateReady],
   );
 
   /**
@@ -398,6 +431,9 @@ export function App({
           return;
         case "sentry.app.switchOrg":
           setShowOrgPicker(true);
+          return;
+        case "sentry.app.update":
+          runUpdate();
           return;
         case "sentry.nav.search":
           focus.focus("content");
@@ -646,6 +682,10 @@ export function App({
           }
           if (matchesCommand("sentry.app.switchOrg", key)) {
             setShowOrgPicker(true);
+            return "mine";
+          }
+          if (matchesCommand("sentry.app.update", key)) {
+            runUpdate();
             return "mine";
           }
           if (matchesCommand("sentry.app.quit", key)) {
@@ -977,6 +1017,7 @@ export function App({
         }
         elapsedMs={detailView || gotoMode ? undefined : state.status.elapsedMs}
         hints={statusHints}
+        onUpdate={updateReady ? runUpdate : undefined}
       />
 
       {showHelp ? <HelpDialog onClose={() => setShowHelp(false)} /> : null}

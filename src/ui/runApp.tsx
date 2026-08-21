@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 
+import { restartInto } from "~/app/selfUpdate";
 import type { AppContext } from "~/app/startup";
 import { finishStartup, log, setTerminalRestore, shutdownTelemetry } from "~/telemetry/index";
 import { App } from "~/ui/App";
@@ -40,6 +41,28 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
     process.exit(0);
   };
 
+  /**
+   * Hand the terminal to a newly downloaded build.
+   *
+   * `renderer.destroy()` first, for the same reason `shutdown` does it: the
+   * child inherits this terminal, and one left in `-echo`/`-icanon` reaches it
+   * that way. Telemetry is closed the same way too — the exec never returns, so
+   * anything still buffered would die with this process.
+   *
+   * The line to stderr covers the gap the exec opens: the new binary resolves
+   * credentials before it can draw, and a blank terminal for a second reads as
+   * a crash.
+   */
+  const restart = async (binaryPath: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    renderer.destroy();
+    log("info", "session ended", { duration_ms: Date.now() - openedAt, reason: "update" });
+    await shutdownTelemetry();
+    process.stderr.write("sentry-tui: restarting into the new version…\n");
+    restartInto(binaryPath);
+  };
+
   // A crash reporter needs the screen back before it can print anything.
   setTerminalRestore(() => renderer.destroy());
 
@@ -49,7 +72,12 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
   createRoot(renderer).render(
     <ErrorBoundary onQuit={() => void shutdown()}>
       <FirstPaint />
-      <App onQuit={() => void shutdown()} client={client} org={org} />
+      <App
+        onQuit={() => void shutdown()}
+        onRestart={(path) => void restart(path)}
+        client={client}
+        org={org}
+      />
     </ErrorBoundary>,
   );
 }

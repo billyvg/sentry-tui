@@ -4,6 +4,7 @@ import { KeyHint } from "~/ui/components/KeyHint";
 import { SentryLogo } from "~/ui/components/NavIcon";
 import { useSpinnerFrame } from "~/ui/components/Spinner";
 import { useImageSupport } from "~/ui/hooks/useImageSupport";
+import { BOLD } from "~/ui/lib/attributes";
 
 /**
  * What a notice is announcing. The kind is the event, not the styling — the
@@ -47,6 +48,25 @@ function HintItem({ commandId, label }: { commandId: string; label?: string }) {
 }
 
 /**
+ * The offer to restart into a build that is already downloaded.
+ *
+ * Capitalised where every notice beside it is lower case, and bold where none
+ * of them are: this is the one thing in the bar that is not the app narrating
+ * itself, and it has to survive being ignored for an hour without ever being
+ * mistaken for another "loading issues…".
+ */
+function UpdatePill({ onPress }: { onPress: () => void }) {
+  return (
+    <box style={{ flexDirection: "row", flexShrink: 0 }} onMouseDown={onPress}>
+      <text fg={theme.highlight} attributes={BOLD}>
+        Update
+      </text>
+      <text fg={theme.subText}>{" · "}</text>
+    </box>
+  );
+}
+
+/**
  * The single global activity slot. Any in-flight request must be visible here —
  * a silent multi-second pause is indistinguishable from a hang.
  */
@@ -54,11 +74,14 @@ export function StatusBar({
   notice,
   hints,
   elapsedMs,
+  onUpdate,
 }: {
   notice: Notice;
   hints: ReadonlyArray<{ command: string; label?: string }>;
   /** Wall-clock elapsed for the current load, so "slow" reads differently to "hung". */
   elapsedMs?: number;
+  /** Present only when a newer build is downloaded and ready to restart into. */
+  onUpdate?: () => void;
 }) {
   const loading = notice.kind === "loading";
   const frame = useSpinnerFrame(loading);
@@ -82,6 +105,7 @@ export function StatusBar({
         paddingRight: 1,
       }}
     >
+      {onUpdate ? <UpdatePill onPress={onUpdate} /> : null}
       <text fg={noticeColor(notice.kind)}>{text}</text>
       <box style={{ flexGrow: 1 }} />
       {hints.map(({ command, label }, i) => {
