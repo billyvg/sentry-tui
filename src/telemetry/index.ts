@@ -111,7 +111,14 @@ export function identify(who: {
       username: who.user.name,
     });
   }
-  if (who.org) sentry.setTag("org", who.org);
+  if (who.org) {
+    // Both, because they reach different places. A tag is searchable on events
+    // and nothing else; logs carry the scope's *attributes*, which tags are
+    // not. Setting it here once puts it on everything that follows — no call
+    // site has to remember to pass it.
+    sentry.setTag("org", who.org);
+    sentry.setAttributes({ org: who.org });
+  }
 }
 
 export interface ReportContext {

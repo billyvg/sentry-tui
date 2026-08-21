@@ -180,6 +180,35 @@ describe("createOAuthAuthProvider", () => {
     expect(persisted?.clientId).toBe("client_1");
   });
 
+  test("a renewal keeps the signed-in account", async () => {
+    // A refresh response carries tokens and nothing else — no `user`. Losing
+    // the account here is quiet and lasting: the file is rewritten without it,
+    // so `status` stops naming who you are and every crash report from then on
+    // is anonymous, until the next full login.
+    const fetchImpl = (async () =>
+      json({
+        access_token: "access_2",
+        refresh_token: "refresh_2",
+        expires_in: 2_592_000,
+      })) as unknown as typeof fetch;
+
+    const provider = createOAuthAuthProvider({
+      credentials: oauthCredentials({
+        expiresAt: new Date(Date.now() + 30_000).toISOString(),
+        user: { id: "147086", name: "Someone", email: "someone@example.test" },
+      }),
+      fetchImpl,
+    });
+
+    await provider.getToken();
+
+    expect((await readCredentials())?.user).toEqual({
+      id: "147086",
+      name: "Someone",
+      email: "someone@example.test",
+    });
+  });
+
   test("shares one refresh between concurrent callers", async () => {
     let calls = 0;
     const fetchImpl = (async () => {
