@@ -29,7 +29,7 @@ Meanwhile @B01
   # than guessing a Sleep matters more than it looks: every key below lands in
   # the page, so if it is still loading the quit never happens and `sentry-tui`
   # gets typed into lynx instead of the shell.
-  Settle 20s
+  Settle 15s
   Key space
 End
 
@@ -86,7 +86,7 @@ Meanwhile @B06
   Key enter
   # Wait for the refetch rather than guessing at it: opening the palette any
   # sooner covers a list that is still empty, and the search never visibly lands.
-  Settle 6s
+  Settle 5s
   # The palette is also how we reach Seer — goto's item key leaks into the
   # composer, which takes focus on arrival, so the question would come out as
   # "aWhich project…".
@@ -116,7 +116,7 @@ Meanwhile @B07
   # The detail view fetches the event, its stacktrace and its tags. Two seconds
   # was a picture of it loading; `Settle` waits for the real thing and then
   # leaves it up long enough to look at.
-  Settle 6s
+  Settle 5s
   Key r
   Sleep 1800ms
   Key escape
@@ -136,7 +136,7 @@ Meanwhile @B08
   Key enter
   # Every widget fetches its own series. Scrolling before they land is a tour of
   # skeletons, which is the opposite of the point being made.
-  Settle 8s
+  Settle 6s
   Key j 3
   Sleep 1800ms
   Key j 3
@@ -157,25 +157,25 @@ Meanwhile @B09
   Key e
   Sleep 250ms
   Key l
-  Settle 6s
+  Settle 5s
   Key n
   Sleep 250ms
   Key e
   Sleep 250ms
   Key y
-  Settle 6s
+  Settle 5s
   Key n
   Sleep 250ms
   Key e
   Sleep 250ms
   Key b
-  Settle 6s
+  Settle 5s
   Key n
   Sleep 250ms
   Key e
   Sleep 250ms
   Key p
-  Settle 6s
+  Settle 5s
 End
 
 # Back to Seer through the palette, inside the beat so the line plays over the
@@ -193,7 +193,7 @@ Meanwhile @B10
   # Whatever is left of Seer's ~25 seconds — usually little, since the last
   # three beats have been covering it. This is what makes "fully rendered" a
   # guarantee, and inside the block the narration plays over it.
-  Settle 30s
+  Settle 15s
   Key j 4
   Sleep 2000ms
   Key j 4

@@ -114,8 +114,17 @@ const FPS = 30;
  * across the stretches where nothing moved, which is also what makes the trim
  * below land where it says it does.
  */
+/**
+ * `tpad` carries the last frame past the final change on screen.
+ *
+ * The capture emits nothing at all while the picture is still, so the outro — a
+ * prompt holding the install command, which is the entire point of the outro —
+ * arrives as one frame with no duration behind it, and the file would end the
+ * moment the last line does. Cloning that frame gives the trim below something
+ * to cut, and the viewer time to copy the command.
+ */
 const filterComplex =
-  `[0:v]fps=${FPS}[v];${filters};` +
+  `[0:v]fps=${FPS},tpad=stop_mode=clone:stop_duration=60[v];${filters};` +
   `${mixInputs}amix=inputs=${placements.length}:normalize=0[out]`;
 
 /**
