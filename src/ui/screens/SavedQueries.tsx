@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 
-import type { SavedQuery } from "~/api/savedQueries";
+import { savedQueryProjectSlugs, type SavedQuery } from "~/api/savedQueries";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { savedQueryScreen, type SavedQueryScreenConfig } from "~/core/savedQueryScreens";
 import { theme } from "~/core/theme";
@@ -175,7 +175,7 @@ export function SavedQueries(props: ScreenProps) {
   const open = useCallback(
     (index: number) => {
       const query = rowsOf<SavedQuery>(state)[index];
-      if (query) pushView(savedQueryResultsView(query, projectSlugs(query, slugById)));
+      if (query) pushView(savedQueryResultsView(query, savedQueryProjectSlugs(query, slugById)));
     },
     [state, pushView, slugById],
   );
@@ -238,18 +238,4 @@ function describe(query: SavedQuery): string {
 function activity(query: SavedQuery): string {
   const iso = query.lastVisited ?? query.dateUpdated;
   return iso ? timeAgo(iso) : "—";
-}
-
-/**
- * A saved query's projects as filter slugs.
- *
- * `-1` is Sentry's "all projects" sentinel, and an id with no slug means the
- * project list hasn't landed or the project is gone. Both drop out: filtering
- * on a number the rest of the app reads as a slug would return nothing at all.
- */
-function projectSlugs(query: SavedQuery, slugById: ReadonlyMap<string, string>): string[] {
-  return query.projects
-    .filter((id) => id !== -1)
-    .map((id) => slugById.get(String(id)))
-    .filter((slug): slug is string => slug !== undefined);
 }
