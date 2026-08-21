@@ -134,7 +134,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the GitHub Release
-      id-token: write # npm provenance
+      id-token: write # npm trusted publishing (OIDC), and provenance
     env:
       VERSION: ${{ needs.verify.outputs.version }}
       DRY_RUN: ${{ needs.verify.outputs.dry_run }}
@@ -161,11 +161,19 @@ jobs:
       - name: Assemble npm packages
         run: bun run build:npm --strict
 
-      # Uses the npm that ships with the runner image; provenance needs the
-      # id-token permission granted above, not a particular Node version.
+      # Trusted publishing needs npm 11.5.1+, and the runner image's npm is
+      # whatever it happens to be. Pinning the upgrade here rather than
+      # trusting the image keeps a release from turning on that lottery.
+      - name: Upgrade npm for trusted publishing
+        if: env.DRY_RUN != 'true'
+        run: npm install -g npm@latest
+
       - name: Publish to npm
         if: env.DRY_RUN != 'true'
         env:
+          # Fallback only. Where a package has a trusted publisher configured,
+          # npm authenticates over OIDC and never reads this — which is the
+          # whole point, since a token guarded by 2FA answers CI with EOTP.
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: .github/scripts/publish-npm.sh
 

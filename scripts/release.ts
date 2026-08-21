@@ -162,7 +162,7 @@ async function preflight(): Promise<void> {
 
   const npmUser = await capture(["npm", "whoami", "--registry", REGISTRY]);
   if (npmUser.code !== 0) {
-    // Not blocking: CI publishes with NPM_TOKEN, so a local login only matters
+    // Not blocking: CI publishes over OIDC, so a local login only matters
     // for `release:publish`.
     warn(
       `npm: not logged in to ${REGISTRY} — \`npm login --registry ${REGISTRY}\`, needed only for a manual publish`,
@@ -181,12 +181,17 @@ async function preflight(): Promise<void> {
     ok("gh: authenticated");
   }
 
+  // CI authenticates over OIDC, so a token is a fallback rather than a
+  // requirement. Its absence is the healthy state; its presence is worth a
+  // word, because a token guarded by 2FA is answered with EOTP and there is no
+  // prompt an unattended job can satisfy. npm exposes no way to read a
+  // package's trusted-publisher config, so this cannot be checked from here —
+  // npmjs.com is the only place that knows.
   const secrets = await capture(["gh", "secret", "list", "--repo", REPOSITORY]);
   if (secrets.out.includes("NPM_TOKEN")) {
-    ok("NPM_TOKEN secret is set");
+    warn("NPM_TOKEN secret is set — a fallback, unread wherever a trusted publisher exists");
   } else {
-    bad("NPM_TOKEN secret is missing — CI cannot publish (gh secret set NPM_TOKEN)");
-    blocking++;
+    ok("no NPM_TOKEN secret — CI publishes over OIDC");
   }
 
   // The registry is the authority on whether these names are still ours to take.

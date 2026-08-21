@@ -179,6 +179,31 @@ describe("release workflow", () => {
     expect(workflow).toMatch(/needs: \[verify, test, build\]/);
   });
 
+  test("npm is authenticated over OIDC, not by a required token", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+    const script = await read(".github/scripts/publish-npm.sh");
+
+    // An account with 2FA on writes answers a token publish with EOTP, and no
+    // unattended job can produce a one-time password. OIDC is not subject to
+    // it, but only with `id-token: write` and npm 11.5.1+ — miss either and
+    // the failure names neither OIDC nor the missing piece.
+    expect(workflow).toContain("id-token: write");
+    expect(workflow).toContain("npm install -g npm@latest");
+
+    // A token may remain as a fallback, but requiring one puts the release
+    // back on the path that cannot work unattended.
+    expect(script).not.toContain('"${NPM_TOKEN:?');
+  });
+
+  test("a partly-published release can be re-run", async () => {
+    const script = await read(".github/scripts/publish-npm.sh");
+
+    // Six uploads, and a failure partway leaves some of them on the registry.
+    // Without this the retry dies on "cannot publish over the previously
+    // published version" and the release can never be completed.
+    expect(script).toContain("already published — skipping");
+  });
+
   test("publishing is skipped on a dry run", async () => {
     const workflow = await read(".github/workflows/release.yml");
     const publishSteps = workflow

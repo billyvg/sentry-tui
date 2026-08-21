@@ -63,15 +63,38 @@ run a step yourself. `--yes` skips confirmations; `--npm-dry-run` makes
    `scripts/release.ts` pins the public registry for the same reason; only
    hand-typed commands are exposed. `release:preflight` reports which registry is
    configured.
-2. **`NPM_TOKEN` secret.** On npmjs.com, Access Tokens → Generate → **Granular
-   with "All packages"**, or Classic → Automation. A granular token scoped to
-   `@billyvg` is not enough: the unscoped `sentry-tui` does not exist yet, so it
-   cannot be pre-selected and publishing it would 403. Automation-class tokens
-   also bypass 2FA, which CI needs.
+2. **Trusted publishing, once per package.** CI authenticates to npm over
+   OIDC rather than with a token. On npmjs.com, for each of the six published
+   packages: Settings → Trusted publishing → GitHub Actions, then
 
-   ```bash
-   gh secret set NPM_TOKEN --repo billyvg/sentry-tui
-   ```
+   | Field             | Value           |
+   | ----------------- | --------------- |
+   | Organization/user | `billyvg`       |
+   | Repository        | `sentry-tui`    |
+   | Workflow filename | `release.yml`   |
+   | Environment       | _(leave empty)_ |
+   | Allowed actions   | `npm publish`   |
+
+   The fields are case-sensitive, npm does not validate them on save, and a
+   mismatch surfaces at publish time as a 404 about a package that plainly
+   exists. The workflow filename is the bare name, not a path.
+
+   This replaces the `NPM_TOKEN` secret, and not merely for tidiness. An
+   account with two-factor auth on writes answers a token publish with `EOTP`,
+   demanding a one-time password no unattended job can produce; only
+   automation-class tokens are exempt, and the stricter "require 2FA and
+   disallow tokens" setting exempts nothing. OIDC is unaffected by both — npm
+   verifies the workflow itself, so there is no second factor to ask for.
+   Provenance also comes for free, since the same `id-token` permission backs
+   it.
+
+   A package is bound to one trusted publisher at a time, and the package must
+   already exist before one can be configured — which is why the first release
+   of a new name still needs a token.
+
+   `NPM_TOKEN` may stay as a fallback for a package not yet configured; npm
+   prefers OIDC wherever a publisher is set and leaves the token unread. Once
+   every package is configured, delete the secret and revoke the token.
 
 `bun run release:preflight` checks all of the above at once, plus whether the
 names are still free and whether the version you are about to publish is already
@@ -183,11 +206,14 @@ Anything already on the registry at this version is skipped rather than
 retried, so a run interrupted halfway — a dropped connection, an OTP that
 expired between two 24MB uploads — is fixed by running the command again.
 
+Trusted publishing does not reach here: OIDC identifies a workflow run, and
+there is no workflow run on your laptop. Hand-publishing is therefore always
+token-or-OTP, which is the other reason to let CI do it.
+
 With 2FA on writes, pass `--otp`. Six uploads can outlive one 30-second code
 though, so an **automation token** is the calmer route — automation-class
 tokens bypass 2FA entirely. Set `NPM_TOKEN` and the command authenticates with
-it, writing a 0600 npmrc to a temp dir and deleting it afterwards, exactly as CI
-does:
+it, writing a 0600 npmrc to a temp dir and deleting it afterwards:
 
 ```bash
 NPM_TOKEN=npm_xxx bun run release:publish
