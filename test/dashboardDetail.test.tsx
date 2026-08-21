@@ -341,6 +341,33 @@ test("a dashboard with no widgets says so", async () => {
   }
 });
 
+test("a Sentry Built dashboard says why the API has no widgets for it", async () => {
+  // Prebuilt dashboards keep their widgets in the web app's own
+  // `prebuiltConfigs`, so the detail endpoint answers with the shell alone —
+  // which must not read as "somebody emptied this dashboard".
+  const h = await renderApp(
+    stubClient({
+      detail: { ...dashboardDetailFixture, widgets: [], prebuiltId: "ai-agents-overview" },
+    }),
+  );
+  try {
+    await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
+    await h.press((i) => i.pressTab());
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("Checkout Health"));
+    await h.press((i) => i.pressEnter());
+
+    await h.waitForFrame((f) => f.includes("Sentry Built dashboards have no widgets"));
+    expect(h.frame()).toContain("defined in the web app");
+    expect(h.frame()).not.toContain("Add one on sentry.io");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Geometry
 // ---------------------------------------------------------------------------

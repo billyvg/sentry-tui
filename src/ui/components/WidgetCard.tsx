@@ -11,7 +11,12 @@
 
 import type { ReactNode } from "react";
 
-import { unsupportedReason, type WidgetData, type WidgetRenderKind } from "~/api/dashboardWidgets";
+import {
+  formatWidgetValue,
+  unsupportedReason,
+  type WidgetData,
+  type WidgetRenderKind,
+} from "~/api/dashboardWidgets";
 import type { DashboardWidget } from "~/api/dashboards";
 import type { DiscoverRow } from "~/api/discover";
 import { errorOf, isLoading, valueOf, type AsyncStatus } from "~/core/async";
@@ -309,7 +314,7 @@ function stretch(points: readonly SeriesPoint[], width: number): SeriesPoint[] {
 /** Top row carries the maximum, bottom row the zero; the rest stay blank. */
 function axisLabel(row: number, rows: number, max: number, settled: boolean): string {
   if (!settled) return "";
-  if (row === 0) return formatCount(max);
+  if (row === 0) return formatWidgetValue(max);
   if (row === rows - 1) return "0";
   return "";
 }
@@ -324,7 +329,11 @@ function timeAxis(
   const first = clock(points[0]![0]);
   const last = clock(points[points.length - 1]![0]);
   const middle = Math.max(1, width - first.length - last.length);
-  return `${first}${padText(fitText(label, middle), middle, "center")}${last}`.slice(0, width);
+  // Two cells of air on each side so a long aggregate never abuts a time.
+  return `${first}${padText(fitText(label, Math.max(0, middle - 4)), middle, "center")}${last}`.slice(
+    0,
+    width,
+  );
 }
 
 function clock(unixSeconds: number): string {

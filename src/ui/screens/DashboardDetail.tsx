@@ -119,6 +119,12 @@ export function DashboardWidgetGrid({
 
   const showing = details ? widgets : placeholders;
   const isPlaceholder = !details;
+  /**
+   * A Sentry-built dashboard, whose widgets the API never sends: they live in
+   * the web app's own `prebuiltConfigs`, and the detail response carries only
+   * the shell. Worth saying out loud rather than reading as an empty dashboard.
+   */
+  const isPrebuilt = Boolean(details?.prebuiltId ?? dashboard.prebuiltId);
 
   useEffect(() => {
     setEntries(widgets);
@@ -226,8 +232,16 @@ export function DashboardWidgetGrid({
 
       {details && showing.length === 0 ? (
         <box style={{ flexDirection: "column", padding: 1 }}>
-          <text fg={theme.text}>This dashboard has no widgets.</text>
-          <text fg={theme.muted}>Add one on sentry.io — this client is read-only.</text>
+          <text fg={theme.text}>
+            {isPrebuilt
+              ? "Sentry Built dashboards have no widgets to fetch."
+              : "This dashboard has no widgets."}
+          </text>
+          <text fg={theme.muted}>
+            {isPrebuilt
+              ? "Their widgets are defined in the web app rather than stored on the dashboard (views/dashboards/utils/prebuiltConfigs/), so the API returns the dashboard without them."
+              : "Add one on sentry.io — this client is read-only."}
+          </text>
         </box>
       ) : null}
 
