@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  EXPLORE_NAV_BADGES,
   EXPLORE_TABLES,
   exploreChartTitle,
   exploreEmptyLines,
@@ -171,21 +170,5 @@ describe("chart titles and empty states", () => {
     expect(exploreEmptyLines(table, "span.duration:>1s")).toContain("span.duration:>1s");
     // An empty query has nothing to echo, so the line is dropped rather than blank.
     expect(exploreEmptyLines(table, "").filter(Boolean)).toHaveLength(2);
-  });
-});
-
-describe("nav badges", () => {
-  test("the web's three feature badges are keyed by nav label", () => {
-    expect(EXPLORE_NAV_BADGES).toEqual({
-      Metrics: "NEW",
-      Errors: "ALPHA",
-      Conversations: "BETA",
-    });
-  });
-
-  test("every badged label is a real Explore nav item", () => {
-    for (const label of Object.keys(EXPLORE_NAV_BADGES)) {
-      expect(EXPLORE_ITEMS).toContain(label);
-    }
   });
 });

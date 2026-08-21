@@ -20,7 +20,7 @@
  */
 
 import type { DiscoverDataset } from "~/api/discover";
-import { getScreen, type ScreenId } from "~/core/screens";
+import type { ScreenId } from "~/core/screens";
 
 export interface ExploreTable {
   /** The screen this configures. Ids are the key: a nav label can be copy-edited. */
@@ -52,8 +52,6 @@ export interface ExploreTable {
    * reads as "not enabled here" rather than "nothing happened".
    */
   feature?: string;
-  /** Dim tag drawn after the item's label in the sidebar, as the web does. */
-  badge?: string;
 }
 
 /**
@@ -101,7 +99,6 @@ const METRICS: ExploreTable = {
   searchPlaceholder: "Search metrics…",
   referrer: "sentry-tui.explore-metrics",
   feature: "tracemetrics-enabled",
-  badge: "NEW",
 };
 
 /**
@@ -125,7 +122,6 @@ const ERRORS: ExploreTable = {
   searchPlaceholder: "Search error events…",
   referrer: "sentry-tui.explore-errors",
   feature: "explore-errors",
-  badge: "ALPHA",
 };
 
 /**
@@ -165,7 +161,6 @@ const CONVERSATIONS: ExploreTable = {
   searchPlaceholder: "Search AI conversations…",
   referrer: "sentry-tui.explore-conversations",
   feature: "gen-ai-conversations",
-  badge: "BETA",
 };
 
 export const EXPLORE_TABLES: readonly ExploreTable[] = [TRACES, METRICS, ERRORS, CONVERSATIONS];
@@ -218,16 +213,3 @@ export function exploreEmptyLines(table: ExploreTable, query: string): Array<str
       : "This organization may not be sending this data yet.",
   ];
 }
-
-/**
- * Sidebar badges for the Explore group, by nav label.
- *
- * The web draws a feature badge beside three of these items; the labels come
- * from the screen registry so a nav copy edit can't leave a badge orphaned.
- */
-export const EXPLORE_NAV_BADGES: Readonly<Record<string, string>> = Object.fromEntries(
-  EXPLORE_TABLES.filter((table) => table.badge).map((table) => [
-    getScreen(table.id).item,
-    table.badge!,
-  ]),
-);

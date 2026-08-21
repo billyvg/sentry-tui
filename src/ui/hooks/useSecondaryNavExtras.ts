@@ -25,19 +25,32 @@
  */
 
 import type { SentryClient } from "~/api/client";
-import { EXPLORE_NAV_BADGES } from "~/core/exploreTables";
+import { EXPLORE_NAV_BADGES } from "~/core/exploreNav";
 import type { NavGroupId } from "~/core/nav";
-import { NO_NAV_EXTRAS, type SecondaryNavExtras } from "~/ui/lib/navSections";
+import { NO_NAV_EXTRAS, type NavSectionSpec, type SecondaryNavExtras } from "~/ui/lib/navSections";
 
 /**
- * Explore's feature badges.
+ * Everything Explore's sidebar shows beyond the static IA.
  *
- * No fetch behind them: they are what the web ships statically
- * (`exploreSecondaryNavigation.tsx`), so this arm is a constant rather than a
- * hook. A group that *does* fetch adds its own hook beside this — the switch
- * is the shape, one arm per group, so several can land independently.
+ * **The badges are attached here, at the arm, and on every path.** They are
+ * static — the web hard-codes them — while the sections are fetched, so the
+ * two have different failure modes: a fetch that returns nothing, fails, or
+ * has not run yet must still leave the badges on. Building the return value
+ * through this function is what makes that structural rather than a thing to
+ * remember. A section builder that returns `NO_NAV_EXTRAS` on its empty path —
+ * which is the natural way to write one, and how the starred-queries work on
+ * `feat/saved-queries` does write it — would otherwise silently take all three
+ * badges with it for any org that has starred nothing.
+ *
+ * So when the Starred Queries fetch lands here, it supplies `sections`; it
+ * must not construct the `SecondaryNavExtras` itself.
+ *
+ * @param sections Dynamic sections, appended below the static ones. Empty
+ *   today: no Explore section is fetched yet.
  */
-const EXPLORE_EXTRAS: SecondaryNavExtras = { sections: [], badges: EXPLORE_NAV_BADGES };
+function exploreNavExtras(sections: readonly NavSectionSpec[] = []): SecondaryNavExtras {
+  return { sections, badges: EXPLORE_NAV_BADGES };
+}
 
 /**
  * @param client Authenticated API client, or null before sign-in.
@@ -53,7 +66,7 @@ export function useSecondaryNavExtras(
 ): SecondaryNavExtras {
   switch (group) {
     case "explore":
-      return EXPLORE_EXTRAS;
+      return exploreNavExtras();
     default:
       return NO_NAV_EXTRAS;
   }
