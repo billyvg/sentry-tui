@@ -94,10 +94,14 @@ export function FilterBar({
     return () => controller.abort();
   }, [client, org]);
 
+  // Slugs only, never display names: the slug is what the chip shows once a
+  // project is picked, what the API takes, and what a filter query is typed
+  // against — a second name for the same row only makes the list harder to
+  // scan.
   const projectItems: DropdownItem[] = useMemo(
     () =>
       projects.map((p) => ({
-        label: p.name || p.slug,
+        label: p.slug,
         value: p.slug,
         platform: p.platform ?? null,
       })),
@@ -184,6 +188,10 @@ export function FilterBar({
           selected={selectedProjects}
           anchorLeft={projectAnchorLeft}
           anchorTop={dropdownTop}
+          // An org's project list runs to hundreds of rows; the environment
+          // and date lists are a handful each, so only this one is worth a row
+          // of filter box.
+          filterable
           onSelect={handleProjectSelect}
           onClose={onDropdownClose}
         />
