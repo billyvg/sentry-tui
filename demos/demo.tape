@@ -6,14 +6,20 @@
 #
 # Beat text lives in narration.md. Keep the two in step: `demo:mux` fails loudly
 # if the tape waits on a beat that has no audio.
+#
+# Navigation uses goto mode (`n`) rather than tab-and-cursor: two keystrokes,
+# and the keys are printed on screen as they're pressed. Those keys are derived
+# from the nav labels at runtime — tape.test.ts pins the ones used here so a
+# rename breaks the suite rather than the take.
+#
+# Run `bun run demo:seer-prep` first: Act 12 needs an org with Seer enabled.
 
 Set Columns 160
 Set Rows 44
 Set FontSize 18
 Set Output build/video.mp4
 
-# The harness puts a `sentry-tui` shim first on PATH, so the demo types the real
-# command while running from source — see writeShim in demos/lib/paths.ts.
+# The harness puts a `sentry-tui` shim first on PATH — see writeShim.
 Env PS1 ❯
 # Slow the first paint enough that the skeleton is actually on screen.
 Env SENTRY_TUI_LATENCY 900
@@ -131,34 +137,65 @@ Sleep 800ms
 Wait @B16
 
 # ---------------------------------------------------------------------------
-# Act 7 — issue detail
+# Act 7 — issue views, via goto mode
 # ---------------------------------------------------------------------------
 
-Key enter
+# n opens goto mode and prints a key in every label; i points the secondary
+# pane at Issues and stays in the mode; b commits Inbox and leaves it.
+Key n
 Sleep 1200ms
+Key i
+Sleep 900ms
+Key b
+Sleep 1500ms
 Wait @B17
 
+Key n
+Sleep 700ms
+Key i
+Sleep 500ms
+Key v
+Sleep 1500ms
 Wait @B18
 
-Key 2
-Sleep 700ms
-Key 2
-Sleep 700ms
-Key z
-Sleep 700ms
-Key z
+# ---------------------------------------------------------------------------
+# Act 8 — issue detail
+# ---------------------------------------------------------------------------
+
+# Back to Feed before opening an issue — Inbox and All Views are different lists.
+Key n
+Sleep 600ms
+Key i
+Sleep 400ms
+Key f
+Sleep 1800ms
+Key enter
+Sleep 1200ms
 Wait @B19
 
-Key j 8
 Wait @B20
 
+Key 2
+Sleep 700ms
+Key 2
+Sleep 700ms
+Key z
+Sleep 700ms
+Key z
+Wait @B21
+
+Key j 8
+Wait @B22
+
+Wait @B23
+
 # ---------------------------------------------------------------------------
-# Act 8 — triage
+# Act 9 — triage
 # ---------------------------------------------------------------------------
 
 Key r
 Sleep 800ms
-Wait @B22
+Wait @B24
 
 Key u
 Sleep 700ms
@@ -169,57 +206,83 @@ Sleep 700ms
 Key escape
 Sleep 600ms
 Key a
-Wait @B23
+Wait @B25
 
-Wait @B24
+Wait @B26
 
 # ---------------------------------------------------------------------------
-# Act 9 — the command palette
+# Act 10 — the command palette
 # ---------------------------------------------------------------------------
 
 Key ctrl+k
 Sleep 700ms
 Type `log`
-Wait @B26
-
-# ---------------------------------------------------------------------------
-# Act 10 — Explore › Logs
-# ---------------------------------------------------------------------------
-
-Key enter
-Sleep 1500ms
-Wait @B27
-
-Key j 3
 Wait @B28
 
+# ---------------------------------------------------------------------------
+# Act 11 — Explore › Logs
+# ---------------------------------------------------------------------------
+
+Key enter
+Sleep 2s
+Key j 3
+Wait @B29
+
 Key enter
 Sleep 900ms
 Key j
 Sleep 900ms
 Key j
-Wait @B29
+Wait @B30
 
 Key escape
 Sleep 400ms
 
 # ---------------------------------------------------------------------------
-# Act 11 — help
+# Act 12 — Seer
 # ---------------------------------------------------------------------------
 
-Key ?
+# n → s (Seer) → a (Ask Seer). The composer takes focus on arrival, so the
+# question can be typed straight away.
+Key n
+Sleep 900ms
+Key s
 Sleep 700ms
-Wait @B30
+Key a
+Sleep 1800ms
+Type `Which of my projects is failing the most this week, and why?`
+Wait @B31
+
+Key enter
+Sleep 6s
+Wait @B32
+
+Key escape
+Sleep 800ms
+Key i
+Sleep 800ms
+Wait @B33
 
 Key escape
 Sleep 500ms
 
 # ---------------------------------------------------------------------------
-# Act 12 — close
+# Act 13 — help
+# ---------------------------------------------------------------------------
+
+Key ?
+Sleep 700ms
+Wait @B34
+
+Key escape
+Sleep 500ms
+
+# ---------------------------------------------------------------------------
+# Act 14 — close
 # ---------------------------------------------------------------------------
 
 Key q
 Sleep 600ms
 Type `clear`
 Key enter
-Wait @B31
+Wait @B35

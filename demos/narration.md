@@ -14,11 +14,15 @@ The beat is the unit the whole pipeline runs on:
 So the video is cut to the voice, not the other way round. Re-record one line and
 only that beat's timing moves.
 
-**Runtime:** ~4:20 at 165 wpm. Beats marked `[CUT]` are the ones to drop first —
-without them it lands around 3:10.
+**Runtime:** ~5:10 at 165 wpm. Beats marked `[CUT]` are the ones to drop first —
+without them it lands around 3:50.
 
 Everything narrated here is implemented and working. See
 [Fidelity notes](#fidelity-notes) for what's deliberately absent and why.
+
+**Before recording**, run `bun run demo:seer-prep` — the Seer act only works
+against an org where the Explorer agent is enabled, and that script picks the org
+and proves Seer answers for it before you spend a take finding out.
 
 ---
 
@@ -79,10 +83,11 @@ let the fallback message print.
 **Screen:** slow beat on the whole frame; Tab once to move the focus box to the
 nav rail and back.
 
-> Five nav groups down the left, mirroring the web app's real information
-> architecture. The content pane. And a status bar that owns every piece of
-> activity in the app — if something is loading it says so, and past two seconds
-> it starts counting, so slow never looks like hung.
+> Six nav groups down the left, mirroring the web app's real information
+> architecture — issues, explore, dashboards, Seer, monitors, settings. Your org
+> sits at the top with the key that switches it. And a status bar that owns every
+> piece of activity in the app: if something is loading it says so, and past two
+> seconds it starts counting, so slow never looks like hung.
 
 ---
 
@@ -105,7 +110,7 @@ nav rail and back.
 > The counts and the sparklines arrive on a second request, exactly like the web
 > app does it — the list paints first and fills in after.
 
-### B10 · responsive columns
+### B10 · responsive columns `[CUT]`
 
 **Screen:** narrow the window, then widen it back.
 
@@ -166,15 +171,36 @@ nav rail and back.
 
 ---
 
-## Act 7 — Issue detail
+## Act 7 — Issue views
 
-### B17 · open
+### B17 · goto mode, and Inbox
 
-**Screen:** Enter on an issue with a real stack trace.
+**Screen:** `n` — both nav panes open with a key printed inside every label.
+Then `i` to point at Issues, `b` for Inbox.
+
+> Press n and every destination in the app prints a key inside its own label, so
+> anywhere is two keystrokes away. Issues, Inbox — the views aren't cosmetic,
+> each one is the query its web page runs, and the pane names the view you're on.
+
+### B18 · All Views `[CUT]`
+
+**Screen:** `n`, `i`, `v`.
+
+> All Views lists the searches you and your team have saved, split by who made
+> them.
+
+---
+
+## Act 8 — Issue detail
+
+### B19 · open
+
+**Screen:** back to Feed (`n`, `i`, `f`), then Enter on an issue with a real
+stack trace.
 
 > Enter opens the issue.
 
-### B18 · the header
+### B20 · the header
 
 **Screen:** hold on the header block.
 
@@ -183,7 +209,7 @@ nav rail and back.
 > counts, first seen, last seen — and the actions you can take, each one wearing
 > the key that fires it.
 
-### B19 · sections
+### B21 · sections
 
 **Screen:** `2` folds breadcrumbs, `2` unfolds, `z` folds all, `z` again.
 
@@ -191,7 +217,7 @@ nav rail and back.
 > SDK. Each one prints the digit that folds it, so you read the binding off the
 > screen instead of memorizing it. z folds everything at once.
 
-### B20 · the stack trace
+### B22 · the stack trace
 
 **Screen:** scroll through the exception section slowly.
 
@@ -199,7 +225,7 @@ nav rail and back.
 > highlighting, and local variables. Repeated frames collapse to a count, and
 > frames outside your own code stay out of the way until you want them.
 
-### B21 · the rest `[CUT]`
+### B23 · the rest `[CUT]`
 
 **Screen:** scroll down through breadcrumbs, tags, contexts.
 
@@ -208,23 +234,23 @@ nav rail and back.
 
 ---
 
-## Act 8 — Triage
+## Act 9 — Triage
 
-### B22 · resolve
+### B24 · resolve
 
 **Screen:** `r`. The badge and the row change immediately; the status bar confirms
 with the short ID.
 
 > Triage is where a terminal client earns its keep. r resolves.
 
-### B23 · the rest of the verbs
+### B25 · the rest of the verbs
 
 **Screen:** `u`, `b`, `m`, then Escape back to the stream and `a` from the list.
 
 > a archives until it escalates. u unresolves, b bookmarks, m marks reviewed — and
 > they all work the same whether you're in the list or in the issue.
 
-### B24 · optimism
+### B26 · optimism
 
 **Screen:** hold on a row that just changed.
 
@@ -232,7 +258,7 @@ with the short ID.
 > the request fails, the row rolls back to exactly what it was before — no
 > refetch, no guessing.
 
-### B25 · refresh `[CUT]`
+### B27 · refresh `[CUT]`
 
 **Screen:** `ctrl+r`; spinner in the status bar.
 
@@ -240,36 +266,30 @@ with the short ID.
 
 ---
 
-## Act 9 — The command palette
+## Act 10 — The command palette
 
-### B26 · ctrl+k
+### B28 · ctrl+k
 
 **Screen:** `ctrl+k`, type `log`, watch the results narrow.
 
-> Control-K is the command palette. Every destination and every command, fuzzy
+> Control-K is the command palette — every destination and every command, fuzzy
 > matched. It's built from the same navigation and command definitions the rest of
-> the app uses, so it can't drift out of date — and a command with no handler
-> never appears in it.
+> the app uses, so it can't drift out of date, and a command with no handler never
+> appears in it.
 
 ---
 
-## Act 10 — Explore › Logs
+## Act 11 — Explore › Logs
 
-### B27 · navigate
+### B29 · the log stream
 
-**Screen:** Enter on the palette's `Logs` result.
-
-> Which is also the fastest way to get anywhere.
-
-### B28 · the log stream
-
-**Screen:** hold on the logs view; `j` a few times.
+**Screen:** Enter on the palette's `Logs` result; hold, then `j` a few times.
 
 > Explore, Logs. A volume chart across the window, then the stream itself — time,
 > severity, project, message, colored by level. Same search bar, same filters,
 > same keys.
 
-### B29 · log detail
+### B30 · log detail
 
 **Screen:** Enter opens the panel; `j` twice so it follows the cursor.
 
@@ -279,9 +299,38 @@ with the short ID.
 
 ---
 
-## Act 11 — Help
+## Act 12 — Seer
 
-### B30 · the overlay
+### B31 · ask
+
+**Screen:** `n`, `s`, `a` — Seer, Ask Seer. The composer already has focus; type
+the question and press Enter.
+
+> And this is Seer — Sentry's agent, in the same window. The composer takes focus
+> the moment you arrive, so you just start typing.
+
+### B32 · the answer
+
+**Screen:** hold while the run polls: tool calls appear as readable steps, then
+the answer.
+
+> It streams back what it's doing as it does it — reading a file, searching your
+> telemetry — as plain sentences rather than raw tool names. Then the answer.
+
+### B33 · the conversation keys `[CUT]`
+
+**Screen:** Escape to the transcript, `i` back to the composer, `N` for a fresh
+chat.
+
+> Escape drops you into the transcript to scroll it, i puts you back in the
+> composer, shift-N starts over, and x stops Seer mid-thought if it's heading the
+> wrong way.
+
+---
+
+## Act 13 — Help
+
+### B34 · the overlay
 
 **Screen:** `?`, hold, Escape.
 
@@ -291,14 +340,13 @@ with the short ID.
 
 ---
 
-## Act 12 — Close
+## Act 14 — Close
 
-### B31 · quit
+### B35 · quit
 
 **Screen:** `q`, back to a bare prompt. Hold two beats on the empty terminal.
 
-> Eight thousand lines of TypeScript, on OpenTUI and Bun. Sentry, in your
-> terminal.
+> Nine thousand lines of TypeScript, on OpenTUI and Bun. Sentry, in your terminal.
 
 ---
 
@@ -312,14 +360,17 @@ graphics or sixel **and** `HERDR_ENV` / `TMUX` / `STY` are unset. VHS renders
 through a headless browser terminal that doesn't advertise kitty graphics, and a
 Herdr pane is excluded by name. Both would produce a text-only nav rail.
 
-So `demos/record.ts` drives a real Kitty window over its remote-control socket
-instead. Run it from a normal shell, **not** from inside Herdr or tmux — the
-launched Kitty inherits the environment, and `HERDR_ENV` in it would switch the
-icons back off. `record.ts` refuses to start if it finds one of those set.
+So `demos/record.ts` drives a real Kitty window over its remote-control socket.
+Run it from a normal shell — `record.ts` refuses to start inside a multiplexer.
+
+### Goto keys are derived, not fixed
+
+The keys the tape presses in goto mode (`i` for Issues, `b` for Inbox, `l` for
+Logs, `s`/`a` for Seer) are assigned at runtime from the **labels**, so renaming a
+nav item silently changes them. `demos/lib/tape.test.ts` asserts the ones the tape
+depends on, so a rename fails the suite instead of the recording.
 
 ### Deliberately not narrated
-
-None of these are wired up, so none of them appear:
 
 - **Changing the sort.** `SORT_OPTIONS` exists and the filter row displays the
   current sort, but `IssueStream` holds it in a `useState` with no setter — it is
@@ -328,9 +379,6 @@ None of these are wired up, so none of them appear:
   `onPress`; resolve/archive/bookmark in the detail header are keyboard-only. B16
   says "you can click them" about the _filter_ chips — keep the mouse off the
   detail header.
-- **Every nav section except Issues and Explore › Logs.** Dashboards, Monitors,
-  Settings and the rest of Explore render an honest "Not implemented yet." Worth
-  showing as a design decision if you want a detour, but it's off-message here.
-
-Note that **any Issues item** — Feed, Inbox, All Views — renders the same stream.
-Stay on Feed so the secondary nav never claims something it isn't doing.
+- **Dashboards, Monitors, Settings**, and most of Explore. They render an honest
+  "Not implemented yet." Goto mode prints keys for them, so don't press one on
+  camera.

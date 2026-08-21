@@ -60,29 +60,46 @@ variable either.
 The tape types `sentry-tui`, but that resolves to a shim the harness writes
 (`writeShim` in `lib/paths.ts`) which execs `bun run src/main.tsx`.
 
-That is deliberate. `bun build --compile` bundles the code and nothing else, so
-`src/assets/**` is simply absent at runtime and every `<image>` resolves to a path
-that doesn't exist — no nav icons, no platform icons, no assignee avatars. They
-fail silently: the layout still reserves the cells, so the binary looks _almost_
-right, which is worse. Only the org avatar survives, because it's fetched over
-HTTP rather than read off disk.
+This started as a workaround: `bun build --compile` used to leave `src/assets/**`
+out of the bundle, so every `<image>` resolved to a path that wasn't there and
+each icon silently rendered as nothing. #56 fixed that — the art is embedded now
+— but the shim stays, because running from source needs no build step and cannot
+drift from the working tree. It costs nothing on screen: the typed command is
+`sentry-tui` either way.
 
-So `dist/sentry-tui` can't be used for a demo whose entire point is the icons. If
-the binary learns to embed its assets, this shim can go.
+Drop it and put `dist` on PATH instead if you'd rather record the real artifact —
+but check the icons in the first frames if you do.
 
 ## Recording
 
 ```bash
-bun run demo:tts      # synthesize narration, measure each beat
-bun run demo:record   # replay the tape into kitty → build/video.mov
-bun run demo:mux      # lay the audio on → build/demo.mp4
+bun run demo:seer-prep   # pick the org, prove Seer answers for it
+bun run demo:tts         # synthesize narration, measure each beat
+bun run demo:record      # replay the tape into kitty → build/video.mov
+bun run demo:mux         # lay the audio on → build/demo.mp4
 
-bun run demo          # all three
+bun run demo             # tts + record + mux
 ```
 
-Set the org you want on camera before recording — the demo opens on whatever
-`sentry-tui` is configured for, and an org with no matching issues records an
-honest but dull "No issues match this search."
+### Preparing the org
+
+Act 12 asks Seer a question, and Seer only answers for orgs where the Explorer
+agent is enabled — so the demo's default org has to be one of those.
+
+```bash
+bun run demo:seer-prep --list            # which orgs can you pick from
+bun run demo:seer-prep --org acme-prod   # make it the default, then probe
+bun run demo:seer-prep --no-probe        # set/report only, no Seer run
+bun run demo:seer-prep --query "…"       # probe with your own question
+```
+
+`--org` writes the stored default (the same one the app falls back to), then asks
+Seer a real question and prints the answer, so you can judge whether it's worth
+putting on camera before spending a take. A run costs a Seer query; `--no-probe`
+skips it. `SENTRY_ORG` still overrides for a single run.
+
+The org matters for the rest of the demo too — one with no matching issues records
+an honest but very dull "No issues match this search."
 
 ## How the timing works
 

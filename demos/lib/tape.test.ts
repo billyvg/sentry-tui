@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 import { parseNarration } from "./narration.ts";
+import { buildGotoHotkeys } from "~/core/goto";
+import type { NavGroupId } from "~/core/nav";
+
 import { beatsInTape, parseDuration, parseTape, TapeError, timeline } from "./tape.ts";
 
 describe("parseDuration", () => {
@@ -156,5 +159,58 @@ describe("the real demo", () => {
     const waited = beatsInTape(tape);
     const duplicated = waited.filter((id, i) => waited.indexOf(id) !== i);
     expect(duplicated).toEqual([]);
+  });
+});
+
+describe("goto keys the tape depends on", () => {
+  // Goto keys are assigned at runtime from the nav *labels*, so renaming an item
+  // silently repoints a tape step at a different destination — or at a nav
+  // section that renders "Not implemented yet." on camera. These pin the ones
+  // demo.tape actually presses.
+  const keyForGroup = (group: NavGroupId, target: NavGroupId) =>
+    buildGotoHotkeys(group).groups.get(target)?.key;
+  const keyForItem = (group: NavGroupId, label: string) =>
+    buildGotoHotkeys(group).items.get(label)?.key;
+
+  test("group keys", () => {
+    expect(keyForGroup("issues", "issues")).toBe("i");
+    expect(keyForGroup("issues", "explore")).toBe("e");
+    expect(keyForGroup("issues", "seer")).toBe("s");
+  });
+
+  test("item keys, per open group", () => {
+    expect(keyForItem("issues", "Feed")).toBe("f");
+    expect(keyForItem("issues", "Inbox")).toBe("b");
+    expect(keyForItem("issues", "All Views")).toBe("v");
+    expect(keyForItem("explore", "Logs")).toBe("l");
+    expect(keyForItem("seer", "Ask Seer")).toBe("a");
+  });
+
+  test("the tape only presses goto keys that lead somewhere implemented", async () => {
+    const source = await Bun.file(new URL("../demo.tape", import.meta.url)).text();
+    const steps = parseTape(source).steps;
+
+    // Only Issues, Explore › Logs and Seer have real screens; the rest of the
+    // nav renders "Not implemented yet." and must not appear on camera.
+    const implemented = new Set(["i", "f", "b", "v", "e", "l", "s", "a"]);
+
+    // Every `Key n` opens goto mode; the next one or two keystrokes choose the
+    // destination. Sleeps are skipped rather than treated as terminators —
+    // there is always one between the keys, to let the printed hotkeys land on
+    // screen before the next press.
+    const pressed: Array<{ line: number; chord: string }> = [];
+    steps.forEach((step, i) => {
+      if (step.kind !== "key" || step.chord !== "n") return;
+      let taken = 0;
+      for (const next of steps.slice(i + 1)) {
+        if (next.kind === "sleep") continue;
+        if (next.kind !== "key" || taken === 2) break;
+        pressed.push({ line: next.line, chord: next.chord });
+        taken++;
+      }
+    });
+
+    expect(pressed.length).toBeGreaterThan(0);
+    expect(pressed.filter(({ chord }) => !implemented.has(chord))).toEqual([]);
   });
 });
