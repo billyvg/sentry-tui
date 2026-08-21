@@ -20,17 +20,10 @@ Next: command palette, org/project switcher, and the remaining nav sections.
 
 ## Install
 
-Every route below installs the same self-contained binary — no Bun, Node, or
-npm needed at runtime.
+npm installs a self-contained binary — no Bun or Node needed at runtime.
 
 ```bash
-# Homebrew
-brew install billyvg/tap/sentry-tui
-
-# Shell installer → ~/.local/bin (set SENTRY_TUI_INSTALL_DIR to change that)
-curl -fsSL https://raw.githubusercontent.com/billyvg/sentry-tui/main/install.sh | bash
-
-# npm — one-off, or installed globally
+# one-off, or installed globally
 npx sentry-tui
 npm install -g sentry-tui
 ```
@@ -45,9 +38,8 @@ immediately on the build you already have, and a background process fetches
 anything newer for next time — so a release reaches you without `npm i -g`
 again, and without ever making you wait on a 24MB download. Nothing about
 starting the app touches the network. Set `SENTRY_TUI_NO_UPDATE=1` to pin
-whatever you have; `CI` is treated the same way. Homebrew and the shell
-installer do not self-update — `brew upgrade` and re-running `install.sh` are
-their update paths.
+whatever you have; `CI` is treated the same way. A binary downloaded by hand
+from the releases page is on its own — replace it the same way you got it.
 
 Supported: macOS and Linux, on arm64 and x64. Windows and musl-based Linux
 (Alpine) aren't built — run from source there.

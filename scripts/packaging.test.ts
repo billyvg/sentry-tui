@@ -1,25 +1,18 @@
 /**
  * Guards the distribution chain against drift.
  *
- * The platform list lives in `release-targets.ts`, but four other files repeat
+ * The platform list lives in `release-targets.ts`, but two other files repeat
  * it in their own syntax: the launcher's lookup table (plain JS, shipped to
- * npm), the release workflow's build matrix (YAML), the installer (bash), and
- * the Homebrew formula (Ruby). Nothing but these tests connects them, so a
- * target added in one place and forgotten elsewhere fails here rather than in
- * a release.
+ * npm) and the release workflow's build matrix (YAML). Nothing but these tests
+ * connects them, so a target added in one place and forgotten elsewhere fails
+ * here rather than in a release.
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
 import { aliasManifest, launcherManifest, packageDirName, platformManifest } from "./build-npm.ts";
-import { parseChecksums, renderFormula } from "./build-formula.ts";
 import { COMMANDS } from "./release.ts";
-import {
-  ALIAS_PACKAGE,
-  ARCHIVE_EXT,
-  LAUNCHER_PACKAGE,
-  RELEASE_TARGETS,
-} from "./release-targets.ts";
+import { ALIAS_PACKAGE, LAUNCHER_PACKAGE, RELEASE_TARGETS } from "./release-targets.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -147,87 +140,10 @@ describe("release workflow", () => {
     const workflow = await read(".github/workflows/release.yml");
     const publishSteps = workflow
       .split("      - name: ")
-      .filter((step) => /run: .*(publish-npm|gh release create|update-homebrew-tap)/s.test(step));
+      .filter((step) => /run: .*(publish-npm|gh release create)/s.test(step));
 
-    expect(publishSteps.length).toBe(3);
+    expect(publishSteps.length).toBe(2);
     for (const step of publishSteps) expect(step).toContain("env.DRY_RUN != 'true'");
-  });
-});
-
-describe("install.sh", () => {
-  test("it can name every POSIX target it claims to serve", async () => {
-    const script = await read("install.sh");
-
-    for (const target of RELEASE_TARGETS) {
-      // The script builds the asset name from `${os}-${arch}`, so check the
-      // halves it maps `uname` output onto.
-      expect(script).toContain(`os="${target.os}"`);
-      expect(script).toContain(`arch="${target.cpu}"`);
-    }
-
-    expect(script).toContain("sentry-tui-${target}.tar.gz");
-    expect(script).toContain("checksums.txt");
-  });
-
-  test("it resolves the target for the machine it runs on", () => {
-    // Sourcing it rather than running it — the guard exists for exactly this.
-    const result = Bun.spawnSync(
-      ["bash", "-c", "SENTRY_TUI_INSTALL_SH_NO_RUN=1 source install.sh; detect_target"],
-      { cwd: ROOT },
-    );
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout.toString()).toBe(`${process.platform}-${process.arch}`);
-  });
-
-  test("it verifies the checksum before installing", async () => {
-    const script = await read("install.sh");
-    const verifyAt = script.indexOf("checksum mismatch");
-    const installAt = script.indexOf('mv "${INSTALL_DIR}/.sentry-tui.new"');
-
-    expect(verifyAt).toBeGreaterThan(-1);
-    expect(installAt).toBeGreaterThan(verifyAt);
-  });
-});
-
-describe("homebrew formula", () => {
-  const checksums = new Map(
-    RELEASE_TARGETS.map((target, index) => [
-      `${target.asset}.${ARCHIVE_EXT}`,
-      String(index + 1).repeat(64),
-    ]),
-  );
-
-  test("it covers every target with its own url and sha", () => {
-    const formula = renderFormula("1.2.3", checksums);
-
-    for (const target of RELEASE_TARGETS) {
-      expect(formula).toContain(`${target.asset}.${ARCHIVE_EXT}`);
-      expect(formula).toContain(checksums.get(`${target.asset}.${ARCHIVE_EXT}`)!);
-    }
-
-    expect(formula).toContain('version "1.2.3"');
-    expect(formula).toContain("/download/v1.2.3/");
-    expect(formula).toContain('bin.install "sentry-tui"');
-  });
-
-  test("a missing checksum fails the build rather than shipping a blank one", () => {
-    const incomplete = new Map(checksums);
-    incomplete.delete("sentry-tui-linux-x64.tar.gz");
-
-    expect(() => renderFormula("1.2.3", incomplete)).toThrow(/sentry-tui-linux-x64/);
-  });
-
-  test("checksum parsing accepts sha256sum output", () => {
-    const parsed = parseChecksums(
-      `${"a".repeat(64)}  sentry-tui-darwin-arm64.tar.gz\n` +
-        `${"B".repeat(64)} *sentry-tui-linux-arm64.tar.gz\n` +
-        `not a checksum line\n`,
-    );
-
-    expect(parsed.get("sentry-tui-darwin-arm64.tar.gz")).toBe("a".repeat(64));
-    expect(parsed.get("sentry-tui-linux-arm64.tar.gz")).toBe("b".repeat(64));
-    expect(parsed.size).toBe(2);
   });
 });
 

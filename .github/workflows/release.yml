@@ -138,8 +138,6 @@ jobs:
     env:
       VERSION: ${{ needs.verify.outputs.version }}
       DRY_RUN: ${{ needs.verify.outputs.dry_run }}
-      # `secrets` is not readable from a step-level `if`, so fold it into env here.
-      HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -163,9 +161,6 @@ jobs:
       - name: Assemble npm packages
         run: bun run build:npm --strict
 
-      - name: Generate Homebrew formula
-        run: bun run build:formula
-
       # Uses the npm that ships with the runner image; provenance needs the
       # id-token permission granted above, not a particular Node version.
       - name: Publish to npm
@@ -185,12 +180,6 @@ jobs:
             --generate-notes \
             dist/release/*
 
-      - name: Update Homebrew tap
-        if: env.DRY_RUN != 'true' && env.HAS_TAP_TOKEN == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: .github/scripts/update-homebrew-tap.sh
-
       - name: Upload release bundle (dry run)
         if: env.DRY_RUN == 'true'
         uses: actions/upload-artifact@v7
@@ -199,5 +188,4 @@ jobs:
           path: |
             dist/release
             dist/npm
-            dist/homebrew
           retention-days: 7
