@@ -474,8 +474,14 @@ async function cut(): Promise<void> {
   }
 
   await run(["git", "commit", "-am", `chore: release v${version}`]);
-  await run(["git", "tag", `v${version}`]);
-  await run(["git", "push", "origin", branch, "--follow-tags"]);
+  // Annotated, and pushed as a refspec of its own. `--follow-tags` carries
+  // annotated tags and silently ignores the rest, so a lightweight `git tag`
+  // stayed home while the branch landed: no tag on origin, no release run, and
+  // this command still printing "Pushed." Naming the ref means a tag that does
+  // not reach origin fails loudly instead.
+  await run(["git", "tag", "-a", `v${version}`, "-m", `v${version}`]);
+  await run(["git", "push", "origin", branch]);
+  await run(["git", "push", "origin", `v${version}`]);
 
   console.log(`\n${green("Pushed.")} Follow the release with:\n  ${bold("gh run watch")}`);
 }

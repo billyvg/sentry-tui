@@ -120,8 +120,15 @@ Doing it by hand is the same four steps:
 $EDITOR package.json                        # "version": "0.2.0"
 gh run list --commit "$(git rev-parse HEAD)"   # green?
 git commit -am "chore: release v0.2.0"
-git tag v0.2.0 && git push origin main --follow-tags
+git tag -a v0.2.0 -m v0.2.0
+git push origin main && git push origin v0.2.0
 ```
+
+Tag annotated, and pushed by name. `git push --follow-tags` looks like it
+covers both refs and does not: it carries annotated tags only, so a lightweight
+`git tag` is left behind without a word, and the release commit lands on `main`
+with nothing to trigger the workflow. Pushing the tag as its own refspec turns
+that silence into an error.
 
 A tag pushed by hand skips the local gate, but not the suite: the workflow's
 own `test` job runs before anything is built or published.
