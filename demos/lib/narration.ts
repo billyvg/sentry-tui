@@ -17,9 +17,24 @@ export interface Beat {
   text: string;
   /** Beats tagged `[CUT]` are optional — the first things to drop for length. */
   optional: boolean;
+  /**
+   * Playback rate for this beat alone, from a `**Speed:** 0.85` line.
+   *
+   * The synthesizer's pace varies with the sentence, not just the setting, so a
+   * punchline can come out rushed in a script that reads fine overall. A global
+   * speed can't fix one beat without moving all of them.
+   */
+  speed?: number;
 }
 
 const HEADING = /^###\s+(B\d+)\s*[·.\-–]?\s*(.*)$/;
+/**
+ * `**Speed:** 0.85` — a stage direction, so it is never spoken.
+ *
+ * Matches the label loosely and validates the value, so a typo is an error
+ * rather than a line that looks like it set something and didn't.
+ */
+const SPEED = /^\*\*Speed:\*\*\s*(.*)$/;
 
 /**
  * Parse every beat in a narration document, in document order.
@@ -32,7 +47,7 @@ export function parseNarration(source: string): Beat[] {
   const beats: Beat[] = [];
   const lines = source.split("\n");
 
-  let current: { id: string; title: string; quote: string[] } | null = null;
+  let current: { id: string; title: string; quote: string[]; speed?: number } | null = null;
 
   const flush = () => {
     if (!current) return;
@@ -43,6 +58,7 @@ export function parseNarration(source: string): Beat[] {
       title: current.title.replace(/\s*`?\[CUT\]`?\s*$/, "").trim(),
       text,
       optional: /\[CUT\]/.test(current.title),
+      ...(current.speed === undefined ? {} : { speed: current.speed }),
     });
     current = null;
   };
@@ -58,6 +74,15 @@ export function parseNarration(source: string): Beat[] {
     // the document, which contain blockquotes that are not narration.
     if (line.startsWith("#")) {
       flush();
+      continue;
+    }
+    const speed = current && SPEED.exec(line.trim());
+    if (speed) {
+      const value = Number(speed[1]);
+      if (!(value > 0)) {
+        throw new Error(`Beat ${current!.id} has an unusable Speed: "${speed[1]}"`);
+      }
+      current!.speed = value;
       continue;
     }
     if (current && line.trimStart().startsWith(">")) {

@@ -14,7 +14,7 @@ The beat is the unit the whole pipeline runs on:
 So the video is cut to the voice, not the other way round. Re-record one line and
 only that beat's timing moves.
 
-**Runtime: ~77 seconds**, of which the last 10 are a still frame of the install
+**Runtime: ~79 seconds**, of which the last 10 are a still frame of the install
 command so viewers can copy it. The hard cap is three minutes; this is built to
 land well inside it, which is why it sells the thing rather than explaining it.
 
@@ -119,6 +119,7 @@ the composer and the question comes out as `aWhich project…`.
 
 **Screen:** back to a bare prompt with `npx sentry-tui` typed and not
 run. Holds for ten seconds so viewers can copy it.
+**Speed:** 0.85
 
 > This is the next generation of user interfaces. Go see for yourself. And no, it doesn't run on Windows, sorry Bruno.
 

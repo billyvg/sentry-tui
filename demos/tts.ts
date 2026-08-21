@@ -19,7 +19,7 @@ import { file, write } from "bun";
 import { mkdir } from "node:fs/promises";
 
 import { probeDuration } from "./lib/capture.ts";
-import { parseNarration } from "./lib/narration.ts";
+import { parseNarration, type Beat } from "./lib/narration.ts";
 import { AUDIO_DIR, BUILD_DIR, DURATIONS_PATH, NARRATION_PATH } from "./lib/paths.ts";
 
 interface Backend {
@@ -109,8 +109,12 @@ const measureOnly = Bun.argv.includes("--measure-only");
 // `resolveBackend` exits when it can't find a key.
 const backend = measureOnly ? null : resolveBackend();
 
-/** One request. Returns the mp3 bytes, or throws with the provider's own words. */
-async function synthesize(text: string): Promise<ArrayBuffer> {
+/**
+ * One request. Returns the mp3 bytes, or throws with the provider's own words.
+ *
+ * @param speed Overrides the backend's rate for this line alone.
+ */
+async function synthesize(text: string, speed?: number): Promise<ArrayBuffer> {
   if (!backend) throw new Error("No TTS backend resolved.");
   const response = await fetch(backend.url, {
     method: "POST",
@@ -120,7 +124,7 @@ async function synthesize(text: string): Promise<ArrayBuffer> {
       voice: backend.voice,
       input: text,
       response_format: "mp3",
-      speed: backend.speed,
+      speed: speed ?? backend.speed,
       ...(backend.supportsInstructions ? { instructions: INSTRUCTIONS } : {}),
     }),
   });
@@ -198,9 +202,12 @@ const cache: Record<string, CacheEntry> = (await cacheFile.exists())
 
 // The provider is part of the key: the same words in a different voice are a
 // different recording, and a different length.
-const hashOf = (text: string) =>
+const hashOf = (beat: Beat) =>
   new Bun.CryptoHasher("sha256")
-    .update(`${backend?.url} ${backend?.model} ${backend?.voice} ${backend?.speed} ${text}`)
+    .update(
+      `${backend?.url} ${backend?.model} ${backend?.voice} ` +
+        `${beat.speed ?? backend?.speed} ${beat.text}`,
+    )
     .digest("hex");
 
 /**
@@ -237,7 +244,7 @@ const missing: string[] = [];
 
 for (const beat of beats) {
   const path = `${AUDIO_DIR}/${beat.id}.mp3`;
-  const hash = hashOf(beat.text);
+  const hash = hashOf(beat);
   const cached = cache[beat.id];
 
   // Audio you recorded wins over anything this script could produce, and it is
@@ -268,12 +275,15 @@ for (const beat of beats) {
     continue;
   }
 
-  await write(path, await synthesize(beat.text));
+  await write(path, await synthesize(beat.text, beat.speed));
   const seconds = await probeDuration(path);
   durations[beat.id] = seconds;
   cache[beat.id] = { hash, seconds, source: "synth" };
   rendered++;
-  console.log(`  ${beat.id} ${seconds.toFixed(1)}s ${pace(beat.text, seconds)} — ${beat.title}`);
+  const rate = beat.speed === undefined ? "" : ` @${beat.speed}×`;
+  console.log(
+    `  ${beat.id} ${seconds.toFixed(1)}s ${pace(beat.text, seconds)}${rate} — ${beat.title}`,
+  );
 }
 
 await write(DURATIONS_PATH, `${JSON.stringify(durations, null, 2)}\n`);

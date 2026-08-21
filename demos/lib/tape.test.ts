@@ -183,6 +183,28 @@ Intro prose.
     expect(second?.title).toBe("second beat");
   });
 
+  test("reads a per-beat Speed override, and never speaks it", () => {
+    const [beat] = parseNarration(
+      "### B01 · sign-off\n\n**Screen:** a prompt.\n**Speed:** 0.85\n\n> The punchline.\n",
+    );
+    expect(beat?.speed).toBe(0.85);
+    expect(beat?.text).toBe("The punchline.");
+  });
+
+  test("a beat with no Speed leaves it unset, so the backend decides", () => {
+    const [beat] = parseNarration("### B01 · plain\n\n> Just a line.\n");
+    expect(beat?.speed).toBeUndefined();
+  });
+
+  test("an unusable Speed is an error rather than a silent default", () => {
+    expect(() => parseNarration("### B01 · x\n\n**Speed:** nope\n\n> Line.\n")).toThrow(
+      "unusable Speed",
+    );
+    expect(() => parseNarration("### B01 · x\n\n**Speed:** 0\n\n> Line.\n")).toThrow(
+      "unusable Speed",
+    );
+  });
+
   test("a beat with no blockquote is an error, not a silent gap", () => {
     expect(() => parseNarration("### B01 · empty\n\nJust a stage direction.\n")).toThrow(
       "no narration blockquote",

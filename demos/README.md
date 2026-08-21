@@ -157,6 +157,32 @@ A useful order: render everything with a provider first to settle the pacing,
 then re-record the beats you want in your own voice and run `--measure-only`
 again. The tape re-times itself around whatever the files actually are.
 
+### Slowing down one beat
+
+`DEMO_TTS_SPEED` moves the whole script. For a single line — a punchline that
+needs air, a dense sentence that needs room — add a `**Speed:**` stage direction
+to the beat:
+
+```markdown
+### B11 · install
+
+**Screen:** a bare prompt with `npx sentry-tui` typed and not run.
+**Speed:** 0.85
+
+> This is the next generation of user interfaces. Go see for yourself.
+```
+
+It's a stage direction, so it is never spoken, and it joins the cache key — only
+that beat re-renders when you change it.
+
+The rate is **not** linear in this model, so measure rather than predict. For the
+sign-off above: `1.0` → 6.3s / 199 wpm, `0.92` → 7.5s / 168, `0.85` → 7.9s / 159,
+`0.82` → 10.3s / 122. `demo:tts` prints the wpm and marks the beat `@0.85×`.
+
+Remember a slower beat is a longer video. That's free at the end of the cut —
+the install frame just holds longer — but a beat inside the Seer cover window
+(B07–B09) changes how long the agent has to answer.
+
 ### On OpenRouter
 
 OpenRouter exposes an OpenAI-shaped `/audio/speech`, with two differences that
