@@ -18,14 +18,40 @@ honest stubs.
 
 Next: command palette, org/project switcher, and the remaining nav sections.
 
-## Requirements
+## Install
 
-**Bun ≥ 1.3.0.** OpenTUI's Node support pins to exactly Node 26.4.0, so Bun is the
-supported path here.
-
-## Getting started
+Every route below installs the same self-contained binary — no Bun, Node, or
+npm needed at runtime.
 
 ```bash
+# Homebrew
+brew install billyvg/tap/sentry-tui
+
+# Shell installer → ~/.local/bin (set SENTRY_TUI_INSTALL_DIR to change that)
+curl -fsSL https://raw.githubusercontent.com/billyvg/sentry-tui/main/install.sh | bash
+
+# npm — one-off, or installed globally
+npx sentry-tui
+npm install -g sentry-tui
+```
+
+`sentry-tui` and `@billyvg/sentry-tui` are the same package; the platform
+binary arrives as an optional dependency, so you download one binary rather
+than four. Binaries are also attached to every
+[release](https://github.com/billyvg/sentry-tui/releases).
+
+Supported: macOS and Linux, on arm64 and x64. Windows and musl-based Linux
+(Alpine) aren't built — run from source there.
+
+### From source
+
+Running from source needs **Bun ≥ 1.3.0**. OpenTUI reaches its native renderer
+through `bun:ffi`; the Node backend wants `node:ffi`, which is Node 26.1+ behind
+`--experimental-ffi`, so Bun is the supported path.
+
+```bash
+git clone https://github.com/billyvg/sentry-tui
+cd sentry-tui
 bun install
 bun start
 ```
