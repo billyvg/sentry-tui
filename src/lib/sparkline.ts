@@ -162,7 +162,10 @@ export function formatCount(value: number | string | undefined): string {
   if (value === undefined) return "··";
   const n = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(n)) return "0";
-  if (n < 1000) return String(n);
+  // Two decimals at most: a count is a whole number and is unaffected, but the
+  // same helper labels a chart of `p95(span.duration)`, whose axis would
+  // otherwise read `28.345678901234375`.
+  if (n < 1000) return String(Number(n.toFixed(2)));
   if (n < 10_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   if (n < 1_000_000) return `${Math.round(n / 1000)}k`;
   return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;

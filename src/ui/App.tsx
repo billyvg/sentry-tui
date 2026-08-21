@@ -426,13 +426,18 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           }
           return "mine";
         },
-        // 1b. Filter dropdowns swallow keys while open — the Dropdown
-        // component handles its own navigation via a separate useKeyboard.
-        // Returning "focused" stops this routing chain so later handlers
-        // (e.g. the list cursor) don't steal j/k, while still letting the
-        // Dropdown's global listener fire.
+        // 1b. Dropdowns swallow keys while open — the Dropdown component
+        // handles its own navigation via a separate useKeyboard. Returning
+        // "focused" stops this routing chain so later handlers (e.g. the list
+        // cursor) don't steal j/k, while still letting the Dropdown's global
+        // listener fire.
+        //
+        // Mounted, not just "the app set the state": Explore's query builder
+        // opens its own menus from the screen rather than through
+        // `openDropdown`, and a menu the app didn't open still owns the
+        // keyboard for as long as it is on screen.
         () => {
-          if (!state.openDropdown && !showOrgPicker) return "notMine";
+          if (!state.openDropdown && !showOrgPicker && !isDropdownMounted()) return "notMine";
           // Rescue an *orphaned* dropdown. `P` is in the command table for
           // every screen, including those with no filter row to mount a
           // `Dropdown` — and with nothing mounted, "focused" ends the chain

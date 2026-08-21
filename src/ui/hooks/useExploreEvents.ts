@@ -19,12 +19,19 @@ import {
   toAsyncError,
   type AsyncStatus,
 } from "~/core/async";
+import type { ResolvedExploreQuery } from "~/core/exploreQuery";
 import { exploreQuery, type ExploreTable } from "~/core/exploreTables";
 
 export interface ExploreEventsQuery {
   org: string;
   /** The user's committed query. The table's base filter is added here. */
   query: string;
+  /**
+   * Columns, sort and chart aggregate, as the query builder resolved them —
+   * the table's own defaults until the user changes one. Memoize it: it is an
+   * effect dependency, so a fresh object every render is a fetch every render.
+   */
+  request: ResolvedExploreQuery;
   statsPeriod: string;
   project?: string[];
   environment?: string[];
@@ -47,7 +54,7 @@ export interface ExploreEventsState {
 export function useExploreEvents(
   client: SentryClient | null,
   table: ExploreTable,
-  { org, query, statsPeriod, project, environment, reloadToken = 0 }: ExploreEventsQuery,
+  { org, query, request, statsPeriod, project, environment, reloadToken = 0 }: ExploreEventsQuery,
 ): ExploreEventsState {
   const [events, setEvents] = useState<AsyncStatus<ExploreEvent[]>>(idle);
   const [timeseries, setTimeseries] = useState<AsyncStatus<TimeseriesBucket[]>>(idle);
@@ -83,9 +90,9 @@ export function useExploreEvents(
         const page = await listExploreEvents(client, {
           ...filters,
           dataset: table.dataset,
-          fields: table.fields,
-          sort: table.sort,
-          idField: table.idField,
+          fields: request.fields,
+          sort: request.sort,
+          idField: request.idField,
           referrer: table.referrer,
         });
         if (cancelled) return;
@@ -101,7 +108,7 @@ export function useExploreEvents(
         const buckets = await listExploreTimeseries(client, {
           ...filters,
           dataset: table.dataset,
-          yAxis: table.yAxis,
+          yAxis: request.yAxis,
           referrer: `${table.referrer}-chart`,
         });
         if (cancelled) return;
@@ -118,7 +125,7 @@ export function useExploreEvents(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, combined, statsPeriod, project, environment, reloadToken, table]);
+  }, [client, org, combined, request, statsPeriod, project, environment, reloadToken, table]);
 
   return { events, timeseries };
 }

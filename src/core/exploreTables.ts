@@ -23,6 +23,7 @@
  */
 
 import type { DiscoverDataset } from "~/api/discover";
+import type { TraceItemType } from "~/api/traceItemAttributes";
 import type { ScreenId } from "~/core/screens";
 
 export interface ExploreTable {
@@ -40,8 +41,15 @@ export interface ExploreTable {
    * user typed. Deliberately not screen state — see the module comment.
    */
   baseQuery?: string;
-  /** Aggregate plotted in the chart above the table. */
+  /** Aggregate plotted in the chart above the table, and the builder's default. */
   yAxis: string;
+  /**
+   * The item type whose attributes the query builder offers, for a screen that
+   * has one. Its absence is what leaves a table with no Visualize/Group By row
+   * — `trace-items/attributes/` only knows the trace item datasets, so a table
+   * built on `errors` has nowhere to read its options from.
+   */
+  traceItemType?: TraceItemType;
   /** What a row is called, for the status bar and the row count. */
   noun: string;
   /** Placeholder in the search box. */
@@ -63,9 +71,12 @@ export interface ExploreTable {
  * Fields and sort are `defaultFields()` / `defaultSortBys()` verbatim from
  * `views/explore/spans/spansQueryParams.tsx:186-206`, and the chart plots
  * `DEFAULT_VISUALIZATION` (`contexts/pageParamsContext/visualizes.tsx:21`,
- * resolving to `count(span.duration)`). The aggregate/group-by builder that
- * sits above the web's table is out of scope: it is a query-construction UI,
- * not a view of data.
+ * resolving to `count(span.duration)`).
+ *
+ * These are the *defaults*: `traceItemType` puts the web's Visualize / Group
+ * By / Sort By toolbar on the screen, and everything it changes is resolved by
+ * `src/core/exploreQuery.ts` — including the switch to an aggregate query,
+ * which replaces the fields below with the group bys and the visualize.
  */
 const TRACES: ExploreTable = {
   id: "explore.traces",
@@ -74,6 +85,7 @@ const TRACES: ExploreTable = {
   sort: "-timestamp",
   idField: "id",
   yAxis: "count(span.duration)",
+  traceItemType: "spans",
   noun: "spans",
   searchPlaceholder: "Search spans…",
   referrer: "sentry-tui.explore-traces",
@@ -155,10 +167,12 @@ export function exploreQuery(table: ExploreTable, userQuery: string): string {
  * Title for the chart above the table.
  *
  * A bare `count()` says nothing a reader can use, so the noun is folded in;
- * an aggregate that already names its field is left alone.
+ * an aggregate that already names its field is left alone. Takes the aggregate
+ * the query builder resolved to, which is the config's own until it is
+ * changed.
  */
-export function exploreChartTitle(table: ExploreTable): string {
-  return table.yAxis === "count()" ? `count(${table.noun})` : table.yAxis;
+export function exploreChartTitle(table: ExploreTable, yAxis: string = table.yAxis): string {
+  return yAxis === "count()" ? `count(${table.noun})` : yAxis;
 }
 
 /**
