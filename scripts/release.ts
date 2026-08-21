@@ -34,6 +34,10 @@ const WORKFLOW = "release.yml";
  */
 const REGISTRY = "https://registry.npmjs.org";
 const TAP_REPO = "billyvg/homebrew-tap";
+/** Longest `release:cut` will wait for CI before giving up. */
+const CI_WAIT_TIMEOUT_MS = 20 * 60 * 1000;
+/** Gap between check-run polls: unnoticeable to a human, gentle on the API. */
+const CI_POLL_MS = 15 * 1000;
 /** Packages in publish order: platforms first, then the launcher, then the alias. */
 const PUBLISH_ORDER = [
   ...RELEASE_TARGETS.map((target) => target.npmPackage),
@@ -57,6 +61,12 @@ const flags = {
   yes: process.argv.includes("--yes") || process.argv.includes("-y"),
   npmDryRun: process.argv.includes("--npm-dry-run"),
   skipDownload: process.argv.includes("--skip-download"),
+  /** Run the full local suite too, on top of reading CI. */
+  check: process.argv.includes("--check"),
+  /** Release anyway, whatever CI says. */
+  force: process.argv.includes("--force"),
+  /** Wait for an in-progress CI run. Default; `--no-wait` stops instead. */
+  wait: !process.argv.includes("--no-wait"),
 };
 
 function die(message: string): never {
@@ -284,6 +294,115 @@ async function latestRunId(): Promise<string | undefined> {
 // cut
 // ---------------------------------------------------------------------------
 
+interface CheckRun {
+  name: string;
+  status: string;
+  conclusion: string | null;
+}
+
+/** Every check GitHub has recorded against a commit. */
+async function checkRunsFor(sha: string): Promise<CheckRun[]> {
+  const result = await capture([
+    "gh",
+    "api",
+    `repos/${REPOSITORY}/commits/${sha}/check-runs`,
+    "--jq",
+    ".check_runs",
+  ]);
+  if (result.code !== 0) throw new Error(`could not read CI status for ${sha.slice(0, 7)}`);
+  return JSON.parse(result.out || "[]") as CheckRun[];
+}
+
+/**
+ * Refuse to tag a commit CI has not blessed.
+ *
+ * The release workflow builds and publishes but never runs the test suite, so
+ * something has to vouch for the code — and the run on `main` already did,
+ * against exactly the commit being tagged. Reading that verdict beats
+ * re-running the suite locally: it is seconds rather than minutes, and it
+ * describes the pushed commit rather than one machine's working tree.
+ */
+async function requireGreenCi(sha: string): Promise<void> {
+  step(`Checking CI for ${sha.slice(0, 7)}`);
+
+  /** What was last printed, so waiting does not repeat itself every poll. */
+  let reported = "";
+  const deadline = Date.now() + CI_WAIT_TIMEOUT_MS;
+
+  for (let attempt = 0; ; attempt++) {
+    if (Date.now() > deadline) {
+      die(
+        `CI has not finished for ${sha.slice(0, 7)} after ` +
+          `${Math.round(CI_WAIT_TIMEOUT_MS / 60000)} minutes. Check the run, ` +
+          `then release again.`,
+      );
+    }
+
+    const runs = await checkRunsFor(sha);
+
+    if (runs.length === 0) {
+      // Almost always "CI has not started yet" rather than "there is nothing to
+      // run": the workflow's first job runs on every push, docs included. Waving
+      // this through would drop the gate exactly when a release is racing the
+      // run it depends on.
+      if (flags.wait) {
+        if (attempt === 0) console.log(dim("  no checks yet, waiting for CI to start…"));
+        await Bun.sleep(CI_POLL_MS);
+        continue;
+      }
+      die(
+        `no checks recorded for ${sha.slice(0, 7)} yet — CI may not have started. ` +
+          `Drop --no-wait to wait for it, or --force if this commit genuinely has no CI.`,
+      );
+    }
+
+    const failed = runs.filter(
+      (check) =>
+        check.status === "completed" &&
+        check.conclusion !== null &&
+        !["success", "skipped", "neutral"].includes(check.conclusion),
+    );
+    const pending = runs.filter((check) => check.status !== "completed");
+
+    const summary = runs
+      .map((check) => {
+        const state = check.status === "completed" ? (check.conclusion ?? "?") : check.status;
+        return `${check.name}: ${state}`;
+      })
+      .sort()
+      .join("\n");
+
+    if (summary !== reported) {
+      reported = summary;
+      for (const check of runs) {
+        const state = check.status === "completed" ? (check.conclusion ?? "?") : check.status;
+        if (failed.includes(check)) bad(`${check.name}: ${state}`);
+        else if (pending.includes(check)) warn(`${check.name}: ${state}`);
+        else ok(`${check.name}: ${state}`);
+      }
+    }
+
+    if (failed.length > 0) {
+      die(
+        `CI is red for ${sha.slice(0, 7)} — fix it, or \`--force\` to release anyway.\n` +
+          `  gh run list --commit ${sha}`,
+      );
+    }
+
+    if (pending.length === 0) return;
+
+    if (!flags.wait) {
+      die(
+        `CI is still running for ${sha.slice(0, 7)}. Re-run when it finishes, ` +
+          `or --force to skip the check.`,
+      );
+    }
+
+    if (attempt === 0) console.log(dim("  waiting for CI to finish…"));
+    await Bun.sleep(CI_POLL_MS);
+  }
+}
+
 /**
  * Bump the version, verify, commit, tag, and push — CI takes it from the tag.
  * Without an argument it releases whatever version package.json already names.
@@ -303,6 +422,25 @@ async function cut(): Promise<void> {
   const branch = (await capture(["git", "rev-parse", "--abbrev-ref", "HEAD"])).out;
   if (branch !== "main") warn(`releasing from ${branch}, not main`);
 
+  // The commit has to be on the remote already, or CI has never seen the code
+  // about to be published and there is no verdict to read.
+  const fetched = await capture(["git", "fetch", "--quiet", "origin", branch]);
+  if (fetched.code !== 0 && !flags.force) {
+    die(`origin has no ${branch}. Push the branch first so CI can run against it.`);
+  }
+
+  const head = (await capture(["git", "rev-parse", "HEAD"])).out;
+  const remote = (await capture(["git", "rev-parse", `origin/${branch}`])).out;
+  if (head !== remote && !flags.force) {
+    die(
+      `HEAD is not origin/${branch}. Push first so CI can run against it, ` +
+        `or --force to release regardless.`,
+    );
+  }
+
+  if (flags.force) warn("--force: releasing without checking CI");
+  else await requireGreenCi(head);
+
   const existingTag = await capture([
     "git",
     "rev-parse",
@@ -312,24 +450,36 @@ async function cut(): Promise<void> {
   ]);
   if (existingTag.code === 0) die(`tag v${version} already exists`);
 
+  const manifestPath = join(ROOT, "package.json");
+  const original = await Bun.file(manifestPath).text();
+  /** Put the manifest back, so an abort leaves the tree as it was found. */
+  const restore = async () => {
+    if (version !== current) await Bun.write(manifestPath, original);
+  };
+
   if (version !== current) {
     step(`Bumping ${current} → ${version}`);
-    const manifest = await Bun.file(join(ROOT, "package.json")).text();
     // Replace only the top-level version field, which is the first one.
-    const bumped = manifest.replace(`"version": "${current}"`, `"version": "${version}"`);
-    if (bumped === manifest) die("could not find the version field in package.json");
-    await Bun.write(join(ROOT, "package.json"), bumped);
+    const bumped = original.replace(`"version": "${current}"`, `"version": "${version}"`);
+    if (bumped === original) die("could not find the version field in package.json");
+    await Bun.write(manifestPath, bumped);
     ok(`package.json is now ${version}`);
   }
 
-  step("Verifying");
-  await run(["bun", "run", "check"]);
+  // Only on request: CI has already run all of this against this commit.
+  if (flags.check) {
+    step("Verifying locally");
+    await run(["bun", "run", "check"]);
+  }
 
   step(`Releasing v${version}`);
   console.log(`  commit, tag v${version}, and push to origin/${branch}`);
   console.log(`  CI then builds ${RELEASE_TARGETS.length} binaries and publishes:`);
   for (const name of PUBLISH_ORDER) console.log(`    ${name}@${version}`);
-  check(`\nPush v${version}? This publishes to npm.`);
+  if (!flags.yes && !confirm(`\nPush v${version}? This publishes to npm.`)) {
+    await restore();
+    die("aborted");
+  }
 
   await run(["git", "commit", "-am", `chore: release v${version}`]);
   await run(["git", "tag", `v${version}`]);
