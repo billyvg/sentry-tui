@@ -475,7 +475,7 @@ describe("Explore › Metrics", () => {
     }
   });
 
-  test("draws the web's feature badges in the Explore sidebar", async () => {
+  test("draws the Explore sidebar items unadorned", async () => {
     const h = await renderApp(stubClient());
     try {
       await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
@@ -483,11 +483,12 @@ describe("Explore › Metrics", () => {
       await h.press((i) => i.pressKey("j")); // Issues → Explore
       await h.press((i) => i.pressEnter()); // open the sidebar, without leaving it
 
+      // The web tags Metrics `new`, Errors `alpha` and Conversations `beta`;
+      // we draw the labels alone.
       const frame = h.frame();
-      expect(frame).toContain("Metrics NEW");
-      expect(frame).toContain("Errors ALPHA");
-      expect(frame).toContain("Conversations BETA");
-      // Only the three the web badges — Traces and Logs carry none.
+      expect(frame).toMatch(/Metrics\s*│/);
+      expect(frame).toMatch(/Errors\s*│/);
+      expect(frame).toMatch(/Conversations\s*│/);
       expect(frame).toMatch(/Traces\s*│/);
     } finally {
       await h.cleanup();

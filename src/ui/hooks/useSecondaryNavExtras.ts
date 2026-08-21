@@ -1,5 +1,5 @@
 /**
- * Dynamic sections and item badges for a nav group's sidebar.
+ * Dynamic sections for a nav group's sidebar.
  *
  * `core/nav.ts` holds the static IA; this holds the parts of the sidebar that
  * are lists of *your* things, fetched per organization. `App` renders whatever
@@ -14,8 +14,6 @@
  *
  * Filled in so far:
  *
- * - **Explore's feature badges**, which are static — the web hard-codes three
- *   of them (`exploreSecondaryNavigation.tsx:62`, `:74`, `:149`).
  * - **Explore › Starred Queries** — `GET /organizations/{org}/explore/saved/`
  *   with `starred: true`, capped at `MAX_STARRED_SAVED_QUERIES_IN_NAV`
  *   (`exploreSecondaryNavigation.tsx:169`).
@@ -39,34 +37,12 @@ import {
   type SavedQuery,
 } from "~/api/savedQueries";
 import { valueOf } from "~/core/async";
-import { EXPLORE_NAV_BADGES } from "~/core/exploreNav";
 import type { NavGroupId } from "~/core/nav";
 import { useDashboardsNavExtras } from "~/ui/hooks/useDashboards";
 import { useProjects } from "~/ui/hooks/useProjects";
 import { useSavedQueries } from "~/ui/hooks/useSavedQueries";
 import { NO_NAV_EXTRAS, type NavSectionSpec, type SecondaryNavExtras } from "~/ui/lib/navSections";
 import { savedQueryResultsView } from "~/ui/screens/SavedQueryResults";
-
-/**
- * Everything Explore's sidebar shows beyond the static IA.
- *
- * **The badges are attached here, at the arm, and on every path.** They are
- * static — the web hard-codes them — while the sections are fetched, so the
- * two have different failure modes: a fetch that returns nothing, fails, or
- * has not run yet must still leave the badges on. Building the return value
- * through this function is what makes that structural rather than a thing to
- * remember. A section builder that returns `NO_NAV_EXTRAS` on its empty path —
- * which is the natural way to write one — would otherwise silently take all
- * three badges with it for any org that has starred nothing.
- *
- * So the Starred Queries fetch below supplies `sections`; it does not
- * construct the `SecondaryNavExtras` itself.
- *
- * @param sections Dynamic sections, appended below the static ones.
- */
-export function exploreNavExtras(sections: readonly NavSectionSpec[] = []): SecondaryNavExtras {
-  return { sections, badges: EXPLORE_NAV_BADGES };
-}
 
 /**
  * @param client Authenticated API client, or null before sign-in.
@@ -85,7 +61,7 @@ export function useSecondaryNavExtras(
 
   switch (group) {
     case "explore":
-      return exploreNavExtras(exploreSections);
+      return { sections: exploreSections };
     case "dashboards":
       return dashboards;
     default:
@@ -100,9 +76,6 @@ export function useSecondaryNavExtras(
  * Selecting one runs it: the item targets All Queries so the list is what
  * Escape comes back to, and carries the query's results as its `open` view, so
  * it lands on the query itself rather than on the list it lives in.
- *
- * Returns sections rather than a `SecondaryNavExtras` — see `exploreNavExtras`
- * for why that split exists.
  */
 function useExploreNavSections(
   client: SentryClient | null,

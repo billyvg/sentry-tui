@@ -16,8 +16,6 @@ import type { ViewStackEntry } from "~/ui/screens/types";
 export interface NavItemSpec {
   /** The label shown in the sidebar, and the id the app navigates by. */
   label: string;
-  /** Short dim tag drawn after the label, e.g. `NEW`. */
-  badge?: string;
   /**
    * Where selecting the item goes. Defaults to the item of the same label in
    * its own group — which is what every static item wants. A dynamic item
@@ -52,15 +50,13 @@ export interface NavSectionSpec {
   items: readonly NavItemSpec[];
 }
 
-/** Extra sections and badges a group's sidebar shows beyond the static IA. */
+/** Extra sections a group's sidebar shows beyond the static IA. */
 export interface SecondaryNavExtras {
   /** Sections appended below the static ones, each under its own rule. */
   sections: readonly NavSectionSpec[];
-  /** Badge text by item label, e.g. `{ Metrics: "NEW" }`. */
-  badges: Readonly<Record<string, string>>;
 }
 
-export const NO_NAV_EXTRAS: SecondaryNavExtras = { sections: [], badges: {} };
+export const NO_NAV_EXTRAS: SecondaryNavExtras = { sections: [] };
 
 /**
  * A group's sections as the sidebar draws them: the static IA, then whatever
@@ -72,7 +68,7 @@ export function navSectionsFor(
 ): NavSectionSpec[] {
   const staticSections = getNavGroup(group).sections.map((section) => ({
     title: section.title,
-    items: section.items.map((label) => ({ label, badge: extras.badges[label] })),
+    items: section.items.map((label) => ({ label })),
   }));
   return [...staticSections, ...extras.sections];
 }

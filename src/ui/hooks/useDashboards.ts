@@ -151,7 +151,6 @@ export function useDashboardsNavExtras(
           })),
         },
       ],
-      badges: {},
     };
   }, [starred]);
 }

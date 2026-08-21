@@ -14,7 +14,6 @@ const EXTRAS: SecondaryNavExtras = {
       ],
     },
   ],
-  badges: { Metrics: "NEW" },
 };
 
 const render = (extras: SecondaryNavExtras, onSelect?: (item: { label: string }) => void) =>
@@ -47,26 +46,9 @@ test("dynamic sections are appended under their own rule", async () => {
   }
 });
 
-test("an item badge renders beside its label without widening the sidebar", async () => {
-  const h = await render(EXTRAS);
-  try {
-    const metrics = h
-      .frame()
-      .split("\n")
-      .find((line) => line.includes("Metrics"));
-    expect(metrics).toContain("NEW");
-    for (const line of h.frame().split("\n").filter(Boolean)) {
-      expect(line.length).toBeLessThanOrEqual(SECONDARY_NAV_WIDTH);
-    }
-  } finally {
-    await h.cleanup();
-  }
-});
-
 test("a long dynamic label is trimmed rather than overflowing", async () => {
   const h = await render({
-    sections: [{ items: [{ label: "an extremely long starred query name", badge: "NEW" }] }],
-    badges: {},
+    sections: [{ items: [{ label: "an extremely long starred query name" }] }],
   });
   try {
     for (const line of h.frame().split("\n").filter(Boolean)) {
@@ -82,8 +64,6 @@ test("dynamic items join the cursor's item list, carrying their target", () => {
   const items = navItemsFor("explore", EXTRAS);
   expect(items.map((item) => item.label)).toContain("p95 by route");
   expect(items.at(-1)?.target).toEqual({ group: "explore", item: "All Queries" });
-  // The badge reaches the item that owns it, not the section.
-  expect(items.find((item) => item.label === "Metrics")?.badge).toBe("NEW");
 });
 
 test("clicking a dynamic item reports the item, target and all", async () => {
