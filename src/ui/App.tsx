@@ -281,14 +281,20 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   /**
    * Commit a secondary nav item as the active view — shared by Enter on the
    * secondary cursor and a click on a secondary item. A dynamic item can point
-   * somewhere other than its own label; a static one never does.
+   * somewhere other than its own label, and can carry a view of its own; a
+   * static one never does either.
    */
   const selectNavItem = useCallback(
     (item: NavItemSpec) => {
       const target = navTargetOf(railGroup, item);
       navigateTo(target.group, target.item);
+      // A starred item's `open` is what makes it *that* query rather than the
+      // list it lives in. `navigateTo` has just cleared the stack, and both
+      // updates land in one batch, so the pushed view is the only one on it.
+      const view = item.open?.();
+      if (view) pushView(view);
     },
-    [railGroup, navigateTo],
+    [railGroup, navigateTo, pushView],
   );
 
   // Keys for goto mode, for the group whose items are on screen. Computed only

@@ -70,13 +70,16 @@ export function SecondaryNav({
           {/* The rule doubles as the separator a dynamic section hangs under. */}
           <text fg={theme.border}>{"─".repeat(CONTENT_WIDTH)}</text>
           {section.title ? <text fg={theme.muted}>{section.title}</text> : null}
-          {section.items.map((item) => {
+          {section.items.map((item, ii) => {
             const isActive = item.label === activeItem;
             // The wrapper stretches to the pane's content width, so a click
             // anywhere on the row counts — not just on the label's glyphs.
+            //
+            // Keyed by position, not by label: a dynamic section lists things
+            // the user named, and two starred queries may well share a name.
             return (
               <box
-                key={item.label}
+                key={`${si}:${ii}:${item.label}`}
                 style={{ flexDirection: "row", height: 1, flexShrink: 0 }}
                 onMouseDown={() => onSelect?.(item)}
               >

@@ -189,14 +189,17 @@ export const SCREENS: readonly ScreenDef[] = [
   logsScreen(),
   exploreTable("explore.metrics", "Metrics"),
   exploreTable("explore.errors", "Errors"),
-  s("explore.discover", "explore", "Discover", "stub", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
   profilesScreen(),
   releasesScreen(),
   // Replays has its own endpoint and its own columns, so it keeps its own
   // slice rather than joining the Discover screens' shared one.
   s("explore.replays", "explore", "Replays", "table", undefined, REPLAY_DEFAULTS),
   exploreTable("explore.conversations", "Conversations"),
-  s("explore.all-queries", "explore", "All Queries", "stub"),
+  // Discover and All Queries are saved-query *lists*, not Discover queries:
+  // they read `discover/saved/` and `explore/saved/`, so they keep their own
+  // slice — the shared Explore filters mean nothing to a list of queries.
+  s("explore.discover", "explore", "Discover", "table"),
+  s("explore.all-queries", "explore", "All Queries", "table"),
 
   s("dashboards.all", "dashboards", "All Dashboards", "table", DASHBOARD_LIST),
   s("dashboards.sentry-built", "dashboards", "Sentry Built", "table", DASHBOARD_LIST),
