@@ -1,18 +1,20 @@
-import { join } from "node:path";
-
+import { navIconBytes } from "~/assets/navIcons";
 import type { NavGroupId } from "~/core/nav";
 
-/** Directory containing the pre-rendered nav icon PNGs. */
-const ICONS_DIR = join(import.meta.dir, "../../assets/icons");
-
-/** Map each nav group to its icon base name (matches Sentry web icon names). */
-const ICON_BASE: Record<NavGroupId, string> = {
+/**
+ * Map each nav group to its icon base name (matches Sentry web icon names).
+ *
+ * `as const satisfies` rather than an annotation so the names stay literal
+ * types — that is what lets the lookup below typecheck against the embedded
+ * icon set instead of accepting any string.
+ */
+const ICON_BASE = {
   issues: "issues",
   explore: "compass",
   dashboards: "dashboard",
   monitors: "monitors",
   settings: "settings",
-};
+} as const satisfies Record<NavGroupId, string>;
 
 /**
  * Icon footprint in terminal cells. A cell is roughly twice as tall as it is
@@ -35,13 +37,11 @@ interface NavIconProps {
  * pre-rendered PNGs with matching theme colors.
  */
 export function NavIcon({ groupId, active }: NavIconProps) {
-  const base = ICON_BASE[groupId];
   const variant = active ? "active" : "inactive";
-  const source = join(ICONS_DIR, `${base}_${variant}.png`);
 
   return (
     <image
-      source={source}
+      source={navIconBytes(`${ICON_BASE[groupId]}_${variant}`)}
       fit="fit"
       style={{
         width: NAV_ICON_WIDTH,
@@ -53,11 +53,9 @@ export function NavIcon({ groupId, active }: NavIconProps) {
 
 /** The Sentry logo mark for the top of the nav rail. */
 export function SentryLogo() {
-  const source = join(ICONS_DIR, "sentry.png");
-
   return (
     <image
-      source={source}
+      source={navIconBytes("sentry")}
       fit="fit"
       style={{
         width: NAV_ICON_WIDTH,
