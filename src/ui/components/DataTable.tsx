@@ -84,6 +84,14 @@ export interface DataTableProps<T> {
   errorTitle?: string;
   /** Cells between two columns. */
   gap?: number;
+  /**
+   * Width the flex column will not shrink below before a column is shed.
+   *
+   * Raise it when the flex column is the one the table is *for* — a function
+   * name or a message — so a pane too narrow for everything gives up a fixed
+   * column rather than squeezing the headline down to an ellipsis.
+   */
+  minFlex?: number;
   /** Cells reserved on the right for the scrollbar. */
   gutter?: number;
   /**
@@ -114,12 +122,13 @@ export function DataTable<T>({
   empty,
   errorTitle = "Failed to load",
   gap = 1,
+  minFlex,
   gutter = DEFAULT_GUTTER,
   layout = [],
 }: DataTableProps<T>) {
   const listRef = useRef<ScrollBoxRenderable>(null);
   const rowWidth = Math.max(1, width - gutter);
-  const resolved = layoutColumns(columns, rowWidth, { gap });
+  const resolved = layoutColumns(columns, rowWidth, { gap, minFlex });
   const rowHeight = rowHeightOf({ renderDetail, separator });
 
   useRowScrollFollow(listRef, {
