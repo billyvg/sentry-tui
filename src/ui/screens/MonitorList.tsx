@@ -8,14 +8,15 @@
  * 76px-tall detector row: `Name · Type · Last Issue · Assignee · Alerts`, and
  * under it the type-dependent detail line `core/detectors.ts` builds.
  *
- * The columns live in `monitorColumns.tsx`, which is also where a check-in
- * timeline slots in: hand `monitorColumns` a visualization column and the
- * three middle columns give way to it.
+ * The columns live in `monitorColumns.tsx`. Cron and Uptime hand it a
+ * visualization column and the three middle columns give way to a check-in
+ * timeline — `monitorTimeline.tsx` builds that, and the stats behind it are
+ * fetched once for the whole page rather than once per row.
  *
  * Read-only: nothing here enables, disables, or edits a monitor.
  */
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { Detector } from "~/api/detectors";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
@@ -23,6 +24,7 @@ import { buildDetectorQuery, getMonitorListView, type MonitorListView } from "~/
 import { theme } from "~/core/theme";
 import { DataTable } from "~/ui/components/DataTable";
 import { SearchInput } from "~/ui/components/SearchInput";
+import { useCheckInStats } from "~/ui/hooks/useCheckInStats";
 import { useDetectors } from "~/ui/hooks/useDetectors";
 import { useProjects } from "~/ui/hooks/useProjects";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -33,6 +35,12 @@ import {
   MONITOR_MIN_FLEX,
   renderDetectorDetail,
 } from "~/ui/screens/monitorColumns";
+import {
+  timelineColumn,
+  timelineColumnWidth,
+  timelineKindFor,
+  timelineStatsIds,
+} from "~/ui/screens/monitorTimeline";
 import type { ScreenProps } from "~/ui/screens/types";
 
 /** The two lines of screen heading between the search box and the table. */
@@ -132,7 +140,63 @@ export function MonitorList(props: ScreenProps) {
   );
   useScreenActions(props.registerActions, { open });
 
-  const columns = useMemo(() => monitorColumns(), []);
+  /**
+   * Cron and Uptime trade their three middle columns for a check-in timeline.
+   *
+   * Keyed off the view's detector type rather than the screen id, so the two
+   * screens that have a history to draw are named once, in `core/monitors.ts`,
+   * and nothing here restates which ids those are.
+   */
+  const timelineKind = timelineKindFor(view.type);
+  const trackWidth = timelineColumnWidth(width);
+  const { monitorIds, uptimeDetectorIds } = useMemo(
+    () => (timelineKind ? timelineStatsIds(rows) : { monitorIds: [], uptimeDetectorIds: [] }),
+    [timelineKind, rows],
+  );
+
+  // One request per endpoint for the whole page — see `useCheckInStats`. It
+  // stands down entirely on the five screens with no timeline, because both
+  // id lists are empty there.
+  const statsStatus = useCheckInStats(client, {
+    org,
+    monitorIds,
+    uptimeDetectorIds,
+    width: trackWidth,
+    reloadToken,
+  });
+  const stats = valueOf(statsStatus);
+  // Nothing to draw and nothing coming: the rows show the unlit track rather
+  // than a pending rail that never resolves.
+  const statsFailed = statsStatus.state === "error" && stats === undefined;
+
+  /**
+   * Say so when the timelines are missing because the request failed.
+   *
+   * A degraded timeline looks exactly like a monitor that never checked in,
+   * and the list itself is fine, so nothing else on screen would give it away.
+   * One notice per failure — the ref is what stops it firing on every render
+   * while the error state persists.
+   */
+  const { notify } = props;
+  const notifiedError = useRef<string | undefined>(undefined);
+  const statsError = errorOf(statsStatus)?.message;
+  useEffect(() => {
+    if (!timelineKind) return;
+    if (statsError && notifiedError.current !== statsError) {
+      notify({ kind: "warning", text: "check-in history unavailable" });
+    }
+    notifiedError.current = statsError;
+  }, [timelineKind, statsError, notify]);
+
+  const columns = useMemo(
+    () =>
+      monitorColumns(
+        timelineKind
+          ? { visualization: timelineColumn({ stats, failed: statsFailed, width: trackWidth }) }
+          : undefined,
+      ),
+    [timelineKind, stats, statsFailed, trackWidth],
+  );
   const renderDetail = useCallback(
     (detector: Detector, _selected: boolean, detailWidth: number) =>
       renderDetectorDetail(detector, detailWidth, { projectSlugs }),

@@ -7,6 +7,11 @@
  * against the theme's own `bg` and `panel` surfaces.
  */
 import { test, expect, describe } from "bun:test";
+import {
+  CRON_STATUS_COLORS,
+  TIMELINE_TRACK_COLOR,
+  UPTIME_STATUS_COLORS,
+} from "~/core/checkInTimeline";
 import { theme } from "~/core/theme";
 
 /** Parse a hex color (#RRGGBB) to linear-light sRGB components. */
@@ -126,6 +131,62 @@ describe("theme contrast", () => {
     const [r2, g2, b2] = channels(theme.danger);
     const spread = Math.max(Math.abs(r1! - r2!), Math.abs(g1! - g2!), Math.abs(b1! - b2!));
     expect(spread).toBeGreaterThanOrEqual(64);
+  });
+
+  // ---------------------------------------------------------------------
+  // The check-in timeline
+  // ---------------------------------------------------------------------
+  //
+  // A timeline cell is one character of colour with no label beside it, so it
+  // is held to the UI-component ratio on every surface a monitor row can be
+  // drawn on — including `selected`, since the cursor lands on these rows.
+  for (const [name, colors] of [
+    ["cron", CRON_STATUS_COLORS],
+    ["uptime", UPTIME_STATUS_COLORS],
+  ] as const) {
+    for (const [status, color] of Object.entries(colors)) {
+      for (const bg of ["bg", "panel", "selected"] as const) {
+        test(`timeline ${name}.${status} on ${bg} meets ${AA_LARGE}:1`, () => {
+          expect(contrastRatio(color, theme[bg])).toBeGreaterThanOrEqual(AA_LARGE);
+        });
+      }
+    }
+  }
+
+  // Every lit cell has to separate from the unlit track it sits in, or a run
+  // of check-ins reads as a gap.
+  for (const [name, colors] of [
+    ["cron", CRON_STATUS_COLORS],
+    ["uptime", UPTIME_STATUS_COLORS],
+  ] as const) {
+    for (const [status, color] of Object.entries(colors)) {
+      test(`timeline ${name}.${status} separates from the unlit track`, () => {
+        expect(contrastRatio(color, TIMELINE_TRACK_COLOR)).toBeGreaterThanOrEqual(2);
+      });
+    }
+  }
+
+  // The track is meant to recede — visible as a groove, never mistaken for a
+  // check-in that happened.
+  test("the timeline's unlit track is visible but recedes", () => {
+    expect(contrastRatio(TIMELINE_TRACK_COLOR, theme.bg)).toBeGreaterThanOrEqual(1.3);
+    expect(contrastRatio(TIMELINE_TRACK_COLOR, theme.bg)).toBeLessThan(AA_LARGE);
+  });
+
+  // The pair the whole row exists to distinguish. The glyphs differ too — see
+  // `CRON_GLYPHS` — but hue is the first thing the eye uses, so it must not be
+  // doing the work alone *or* be doing it badly.
+  test("okay and failed are not mistakable for each other", () => {
+    const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    for (const [good, bad] of [
+      [CRON_STATUS_COLORS.ok, CRON_STATUS_COLORS.error],
+      [UPTIME_STATUS_COLORS.success, UPTIME_STATUS_COLORS.failure_incident],
+    ]) {
+      const [r1, g1, b1] = channels(good!);
+      const [r2, g2, b2] = channels(bad!);
+      const spread = Math.max(Math.abs(r1! - r2!), Math.abs(g1! - g2!), Math.abs(b1! - b2!));
+      expect(spread).toBeGreaterThanOrEqual(64);
+    }
   });
 
   // Focus ring must be visually distinct from resting border
