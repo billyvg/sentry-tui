@@ -220,9 +220,9 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
   const activeIssue =
     topView?.issue ?? (activeGroup === "issues" ? rowsOf<Group>(state)[state.selected] : undefined);
 
-  // Dynamic nav sections (starred queries, starred dashboards) and item
-  // badges. Empty until something supplies them; the cursor and the click
-  // handler already walk whatever arrives.
+  // Dynamic nav sections (starred queries, starred dashboards). Empty until
+  // something supplies them; the cursor and the click handler already walk
+  // whatever arrives.
   const navExtras = useSecondaryNavExtras(client, org, railGroup, reloadToken);
   const secondaryItems = useMemo(() => navItemsFor(railGroup, navExtras), [railGroup, navExtras]);
 

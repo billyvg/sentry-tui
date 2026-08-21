@@ -1,9 +1,8 @@
 import { getNavGroup, type NavGroupId } from "~/core/nav";
 import { theme } from "~/core/theme";
 import type { Hotkey } from "~/lib/hotkeys";
-import { fitText, measureTextWidth } from "~/lib/text";
+import { fitText } from "~/lib/text";
 import { NavHotkeyLabel } from "~/ui/components/NavHotkeyLabel";
-import { DIM } from "~/ui/lib/attributes";
 import {
   navSectionsFor,
   NO_NAV_EXTRAS,
@@ -29,8 +28,8 @@ export function SecondaryNav({
   activeItem: string;
   focused: boolean;
   /**
-   * Dynamic sections appended below the static ones, and badges by item label.
-   * The starred-query and starred-dashboard sections arrive this way.
+   * Dynamic sections appended below the static ones. The starred-query and
+   * starred-dashboard sections arrive this way.
    */
   extras?: SecondaryNavExtras;
   /** Goto keys to print in the labels. Absent unless goto mode is open. */
@@ -85,21 +84,16 @@ export function SecondaryNav({
               >
                 {/*
                  * Keyed by the full label — goto builds its keys from the nav's
-                 * own labels, while what we print is trimmed to leave room for
-                 * a badge. A dynamic item (a starred query) has no goto key and
-                 * renders as the plain text this component drew before.
+                 * own labels, while what we print is trimmed to the pane's
+                 * width. A dynamic item (a starred query) has no goto key and
+                 * renders as plain text.
                  */}
                 <NavHotkeyLabel
-                  label={labelText(item)}
+                  label={fitText(item.label, CONTENT_WIDTH)}
                   hotkey={hotkeys?.get(item.label)}
                   fg={isActive ? theme.accent : theme.muted}
                   bold={isActive}
                 />
-                {item.badge ? (
-                  <text fg={theme.subText} attributes={DIM}>
-                    {` ${item.badge}`}
-                  </text>
-                ) : null}
               </box>
             );
           })}
@@ -107,16 +101,4 @@ export function SecondaryNav({
       ))}
     </box>
   );
-}
-
-/**
- * The label, trimmed to leave room for its badge.
- *
- * A badge is worth less than the name it annotates, but it can't be allowed to
- * push the row past the sidebar's width either — so the label gives up the
- * cells rather than the row overflowing.
- */
-function labelText(item: NavItemSpec): string {
-  const badgeWidth = item.badge ? measureTextWidth(item.badge) + 1 : 0;
-  return fitText(item.label, CONTENT_WIDTH - badgeWidth);
 }
