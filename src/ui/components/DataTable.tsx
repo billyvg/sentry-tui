@@ -95,16 +95,6 @@ export interface DataTableProps<T> {
   /** Cells reserved on the right for the scrollbar. */
   gutter?: number;
   /**
-   * Width the flex column will not shrink below before a column is shed.
-   *
-   * Raise it when the flex column is the one the table is *for* — a function
-   * name or a message — so a pane too narrow for everything gives up a fixed
-   * column rather than squeezing the headline down to an ellipsis.
-   */
-  minFlex?: number;
-  /** Cells reserved on the right for the scrollbar. */
-  gutter?: number;
-  /**
    * Values that change the viewport's height (a chart appearing, a detail
    * panel opening) and so need the scroll offset recomputed.
    */
@@ -132,8 +122,6 @@ export function DataTable<T>({
   empty,
   errorTitle = "Failed to load",
   gap = 1,
-  minFlex,
-  gutter = DEFAULT_GUTTER,
   minFlex,
   gutter = DEFAULT_GUTTER,
   layout = [],

@@ -19,7 +19,6 @@ import {
 } from "~/ui/screens/exploreColumns";
 import {
   exploreTimeseriesFixture,
-  rawConversationRowsFixture,
   rawErrorRowsFixture,
   rawMetricRowsFixture,
   rawSpanRowsFixture,
@@ -67,26 +66,6 @@ function stubClient(
 
     if (url.includes("/events-stats/")) return json({ data: timeseries });
     if (url.includes("/events/")) return json({ data: rowsByDataset[dataset] ?? [] });
-    return json([]);
-  }) as unknown as typeof fetch;
-  return new SentryClient({ auth, fetchImpl });
-}
-
-/** Conversations and Traces are both `dataset=spans`; tell them apart by query. */
-function conversationClient(rows: unknown = rawConversationRowsFixture) {
-  const fetchImpl = (async (input: RequestInfo | URL) => {
-    const url = String(input);
-    const query = new URL(url, "https://sentry.io").searchParams.get("query") ?? "";
-    const json = (body: unknown) =>
-      new Response(JSON.stringify(body), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-
-    if (url.includes("/events-stats/")) return json({ data: exploreTimeseriesFixture });
-    if (url.includes("/events/")) {
-      return json({ data: query.includes("gen_ai.conversation.id") ? rows : [] });
-    }
     return json([]);
   }) as unknown as typeof fetch;
   return new SentryClient({ auth, fetchImpl });
@@ -546,48 +525,6 @@ describe("Explore › Errors", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Conversations
-// ---------------------------------------------------------------------------
-
-describe("Explore › Conversations", () => {
-  test("filters spans to gen-AI client calls and shows the prompt", async () => {
-    const h = await renderApp(conversationClient());
-    try {
-      await navigateTo(h, "Conversations");
-      await h.waitForFrame((f) => f.includes("Summarise the last four deploys"));
-
-      const frame = h.frame();
-      expect(frame).toContain("Conversation");
-      expect(frame).toContain("conv_7f3a91");
-      expect(frame).toContain("claude-opus-5");
-      expect(frame).toContain("1.4k");
-      expect(frame).toContain("$0.0184");
-      // Both message encodings read as text, not as JSON.
-      expect(frame).toContain("Summarise the last four deploys");
-      expect(frame).toContain("Why did the checkout job fail?");
-      expect(frame).not.toContain('{"type"');
-    } finally {
-      await h.cleanup();
-    }
-  });
-
-  test("an org without the feature gets an honest empty state, not 'no results'", async () => {
-    const h = await renderApp(conversationClient([]));
-    try {
-      await navigateTo(h, "Conversations");
-      await h.waitForFrame((f) => f.includes("No AI spans found"));
-
-      const frame = h.frame();
-      expect(frame).toContain("No AI spans found");
-      expect(frame).toContain("gen-ai-conversations");
-      expect(frame).toContain("may not have");
-    } finally {
-      await h.cleanup();
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Skeleton geometry
 // ---------------------------------------------------------------------------
 
@@ -603,7 +540,6 @@ const FIXTURES_BY_ID: Record<string, DiscoverRow[]> = {
   "explore.traces": rawSpanRowsFixture,
   "explore.metrics": rawMetricRowsFixture,
   "explore.errors": rawErrorRowsFixture,
-  "explore.conversations": rawConversationRowsFixture,
 };
 
 function renderRows(

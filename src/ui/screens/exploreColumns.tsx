@@ -1,10 +1,13 @@
 /**
- * Column specs for the four Discover-backed Explore tables.
+ * Column specs for the Discover-backed Explore tables.
  *
  * The query config lives in `src/core/exploreTables.ts`; this is the other
  * half — how each requested field draws. Kept beside the screen rather than in
  * `core/` because a column is a renderer, and kept out of the screen file
  * because four column sets is most of a file on its own.
+ *
+ * `formatCost` and `formatDuration` are also drawn on by Conversations, which
+ * is not one of these tables but renders the same two kinds of number.
  *
  * Every column's `key` is the Discover field it reads, which is what lets
  * `test/exploreTables.test.tsx` assert that no column draws a field the query
@@ -19,7 +22,7 @@ import { formatCount, proportionalBar } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { clockTime } from "~/lib/time";
 import type { Column } from "~/ui/components/DataTable";
-import { BOLD, DIM } from "~/ui/lib/attributes";
+import { BOLD } from "~/ui/lib/attributes";
 
 /**
  * Cells the flex column should keep before anything sheds.
@@ -60,8 +63,6 @@ export function exploreColumnsFor(
       return METRIC_COLUMNS;
     case "explore.errors":
       return ERROR_COLUMNS;
-    case "explore.conversations":
-      return CONVERSATION_COLUMNS;
     default:
       return [];
   }
@@ -389,96 +390,6 @@ const ERROR_COLUMNS: ReadonlyArray<Column<ExploreEvent>> = [
     priority: 1,
     render: (event, _selected, width) => (
       <text fg={theme.subText}>{padText(field(event, "user.display"), width)}</text>
-    ),
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Conversations
-// ---------------------------------------------------------------------------
-
-/**
- * Conversation · Prompt · Model · Tokens · Cost · Time.
- *
- * The prompt is the flex column and never sheds: a list of AI calls with the
- * prompts hidden is a list of identical rows. Cost and tokens are the two
- * numbers anyone opens this screen to add up, so they outrank the model.
- */
-const CONVERSATION_COLUMNS: ReadonlyArray<Column<ExploreEvent>> = [
-  {
-    key: "gen_ai.conversation.id",
-    label: "Conversation",
-    width: 12,
-    render: (event, _selected, width) => (
-      <text fg={theme.muted}>
-        {padText(shortId(field(event, "gen_ai.conversation.id"), 12), width)}
-      </text>
-    ),
-  },
-  {
-    key: "gen_ai.input.messages",
-    label: "Prompt",
-    width: "flex",
-    render: (event, _selected, width) => (
-      <text fg={theme.text}>
-        {padText(messagePreview(field(event, "gen_ai.input.messages")), width)}
-      </text>
-    ),
-  },
-  {
-    key: "gen_ai.response.model",
-    label: "Model",
-    width: 20,
-    priority: 3,
-    render: (event, _selected, width) => (
-      <text fg={theme.subText}>{padText(field(event, "gen_ai.response.model"), width)}</text>
-    ),
-  },
-  {
-    key: "gen_ai.usage.total_tokens",
-    label: "Tokens",
-    width: 8,
-    align: "right",
-    priority: 4,
-    render: (event, _selected, width) => {
-      const tokens = rowNumber(event.row, "gen_ai.usage.total_tokens");
-      return (
-        <text fg={theme.text}>
-          {padText(tokens === undefined ? "—" : formatCount(tokens), width, "right")}
-        </text>
-      );
-    },
-  },
-  {
-    key: "gen_ai.cost.total_tokens",
-    label: "Cost",
-    width: 9,
-    align: "right",
-    priority: 5,
-    render: (event, _selected, width) => (
-      <text fg={theme.accent}>
-        {padText(formatCost(rowNumber(event.row, "gen_ai.cost.total_tokens")), width, "right")}
-      </text>
-    ),
-  },
-  {
-    key: "timestamp",
-    label: "Time",
-    width: 8,
-    priority: 2,
-    render: (event, _selected, width) => (
-      <text fg={theme.muted}>{padText(clockTime(rowString(event.row, "timestamp")), width)}</text>
-    ),
-  },
-  {
-    key: "id",
-    label: "Span",
-    width: 8,
-    priority: 1,
-    render: (event, _selected, width) => (
-      <text fg={theme.subText} attributes={DIM}>
-        {padText(shortId(event.id), width)}
-      </text>
     ),
   },
 ];

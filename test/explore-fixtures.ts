@@ -140,37 +140,6 @@ export const rawErrorRowsFixture: DiscoverRow[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Conversations (dataset=spans, gen-AI filter)
-// ---------------------------------------------------------------------------
-
-export const rawConversationRowsFixture: DiscoverRow[] = [
-  {
-    id: "aa11bb22cc33dd44",
-    "gen_ai.conversation.id": "conv_7f3a91",
-    // The nested envelope the Python SDK sends, verbatim in shape from a live
-    // `events/?dataset=spans` response: parts under a role, prose under
-    // `content`.
-    "gen_ai.input.messages": JSON.stringify([
-      { role: "user", parts: [{ type: "text", content: "Summarise the last four deploys" }] },
-    ]),
-    "gen_ai.response.model": "claude-opus-5",
-    "gen_ai.usage.total_tokens": 1420,
-    "gen_ai.cost.total_tokens": 0.0184,
-    timestamp: isoAt(0),
-  },
-  {
-    id: "bb22cc33dd44ee55",
-    "gen_ai.conversation.id": "conv_2c88ef",
-    // The plain-string form, which older SDKs send instead.
-    "gen_ai.input.messages": "Why did the checkout job fail?",
-    "gen_ai.response.model": "claude-sonnet-5",
-    "gen_ai.usage.total_tokens": 320,
-    "gen_ai.cost.total_tokens": 0.0009,
-    timestamp: isoAt(-60),
-  },
-];
-
-// ---------------------------------------------------------------------------
 // Timeseries
 // ---------------------------------------------------------------------------
 

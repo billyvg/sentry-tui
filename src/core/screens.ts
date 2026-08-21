@@ -241,13 +241,18 @@ function releasesScreen(): ScreenDef {
       statsPeriod: DEFAULT_RELEASE_PERIOD,
     }),
     openLabel: "expand",
+  };
+}
+
 /**
- * One of the four Discover-backed Explore tables.
+ * An Explore list that shares the Discover filter slice and opens an inline
+ * panel rather than a view.
  *
- * The query each one runs lives in `core/exploreTables.ts`, keyed by the id
- * given here; only the things the *registry* owns are set. Enter opens an
- * inline panel of the row's fields, as it does on Logs, so they take its label
- * too — none of them has a detail view to push.
+ * Three of these are the Discover tables configured in
+ * `core/exploreTables.ts`; Conversations is not one — its rows come
+ * pre-aggregated from `/ai-conversations/` (`core/conversations.ts`) — but it
+ * takes the same filters and the same Enter, so it registers the same way.
+ * Only what the *registry* owns is set here.
  */
 function exploreTable(id: ScreenId, item: string): ScreenDef {
   return {

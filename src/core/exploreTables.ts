@@ -1,17 +1,20 @@
 /**
- * The four Discover-backed Explore tables, as configuration.
+ * The Discover-backed Explore tables, as configuration.
  *
- * Traces, Metrics, Errors and Conversations are one `events/` query with a
- * different `dataset`, `field[]` and base filter — so they are one component
+ * Traces, Metrics and Errors are one `events/` query with a different
+ * `dataset` and `field[]` — so they are one component
  * (`src/ui/screens/ExploreTable.tsx`) reading a row of this table, not four
  * near-identical screens. The pattern, and the reason for it, is
  * `src/core/issueViews.ts`; the contract is
  * `docs/plans/002-screen-contract.md` §2.
  *
  * Everything that distinguishes one screen from its siblings lives here.
- * Nothing here is user state: the four share the `explore.discover` slice, so
- * the project filter and the typed query follow you across them while the base
+ * Nothing here is user state: they share the `explore.discover` slice, so the
+ * project filter and the typed query follow you across them while the base
  * filter does not.
+ *
+ * Conversations is deliberately *not* here — it is not a Discover query. See
+ * `core/conversations.ts`.
  *
  * Field choices are quoted from the web app and cited per screen. Column
  * *layout* is not here — that is the renderer's business — but every column a
@@ -124,46 +127,7 @@ const ERRORS: ExploreTable = {
   feature: "explore-errors",
 };
 
-/**
- * Explore › Conversations — gen-AI spans.
- *
- * The base filter is the web's, from
- * `views/explore/conversations/components/conversationsChart.tsx:51-52`:
- * every span carrying a conversation id, narrowed to the client calls so one
- * row is one model call rather than one span of a trace. Fields are the
- * `GEN_AI_*` tags from `views/explore/constants.tsx:56-70`.
- *
- * The web's own list is served by a dedicated `/ai-conversations/` endpoint
- * that pre-aggregates spans into conversations (`hooks/useConversations.tsx`).
- * This screen is the span-level view of the same data, which is what puts it
- * on the shared Discover path with its three siblings; rolling spans up into
- * conversations is a different screen, and a bigger one.
- */
-const CONVERSATIONS: ExploreTable = {
-  id: "explore.conversations",
-  dataset: "spans",
-  fields: [
-    "id",
-    "gen_ai.conversation.id",
-    "gen_ai.input.messages",
-    "gen_ai.response.model",
-    "gen_ai.usage.total_tokens",
-    "gen_ai.cost.total_tokens",
-    "timestamp",
-  ],
-  sort: "-timestamp",
-  idField: "id",
-  baseQuery: "has:gen_ai.conversation.id gen_ai.operation.type:ai_client",
-  // The web's "Individual Chats" series, which counts conversations rather
-  // than the spans that make them up.
-  yAxis: "count_unique(gen_ai.conversation.id)",
-  noun: "AI spans",
-  searchPlaceholder: "Search AI conversations…",
-  referrer: "sentry-tui.explore-conversations",
-  feature: "gen-ai-conversations",
-};
-
-export const EXPLORE_TABLES: readonly ExploreTable[] = [TRACES, METRICS, ERRORS, CONVERSATIONS];
+export const EXPLORE_TABLES: readonly ExploreTable[] = [TRACES, METRICS, ERRORS];
 
 const BY_ID = new Map<ScreenId, ExploreTable>(EXPLORE_TABLES.map((table) => [table.id, table]));
 

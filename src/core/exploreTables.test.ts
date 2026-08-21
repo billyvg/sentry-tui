@@ -41,6 +41,10 @@ describe("explore table configs", () => {
   test("a screen with no config resolves to undefined rather than a default", () => {
     expect(getExploreTable("explore.logs")).toBeUndefined();
     expect(getExploreTable("issues.feed")).toBeUndefined();
+    // Conversations shares these screens' filters and their nav section, but
+    // its rows come pre-aggregated from its own endpoint — it is not a
+    // Discover table and must not acquire a config here by accident.
+    expect(getExploreTable("explore.conversations")).toBeUndefined();
   });
 
   test("every config requests the field it sorts by", () => {
@@ -109,22 +113,16 @@ describe("field choices match the web app", () => {
     }
     expect(errors.fields).toContain("level");
   });
-
-  test("Conversations filters spans down to gen-AI client calls", () => {
-    const conversations = getExploreTable("explore.conversations")!;
-    expect(conversations.dataset).toBe("spans");
-    expect(conversations.baseQuery).toBe(
-      "has:gen_ai.conversation.id gen_ai.operation.type:ai_client",
-    );
-    for (const genAi of conversations.fields.filter((f) => f !== "id" && f !== "timestamp")) {
-      expect(genAi.startsWith("gen_ai.")).toBe(true);
-    }
-  });
 });
 
 describe("exploreQuery", () => {
   const traces = getExploreTable("explore.traces")!;
-  const conversations = getExploreTable("explore.conversations")!;
+  /**
+   * No table carries a base filter today — Conversations did, and left for a
+   * screen of its own. The combining rule stays tested because the next
+   * sibling to need one will reach for it, and getting `and` wrong is silent.
+   */
+  const withBase = { ...traces, baseQuery: "has:gen_ai.conversation.id" };
 
   test("a table with no base filter sends the user's query untouched", () => {
     expect(exploreQuery(traces, "span.duration:>1s")).toBe("span.duration:>1s");
@@ -132,15 +130,12 @@ describe("exploreQuery", () => {
   });
 
   test("a table with a base filter sends it when nothing is typed", () => {
-    const base = conversations.baseQuery!;
-    expect(exploreQuery(conversations, "")).toBe(base);
-    expect(exploreQuery(conversations, "   ")).toBe(base);
+    expect(exploreQuery(withBase, "")).toBe("has:gen_ai.conversation.id");
+    expect(exploreQuery(withBase, "   ")).toBe("has:gen_ai.conversation.id");
   });
 
   test("both are ANDed, parenthesised so an OR can't swallow the base filter", () => {
-    expect(exploreQuery(conversations, "a OR b")).toBe(
-      "(has:gen_ai.conversation.id gen_ai.operation.type:ai_client) and (a OR b)",
-    );
+    expect(exploreQuery(withBase, "a OR b")).toBe("(has:gen_ai.conversation.id) and (a OR b)");
   });
 });
 
@@ -152,9 +147,6 @@ describe("chart titles and empty states", () => {
   test("an aggregate that already names its field is left alone", () => {
     expect(exploreChartTitle(getExploreTable("explore.traces")!)).toBe("count(span.duration)");
     expect(exploreChartTitle(getExploreTable("explore.metrics")!)).toBe("count(value)");
-    expect(exploreChartTitle(getExploreTable("explore.conversations")!)).toBe(
-      "count_unique(gen_ai.conversation.id)",
-    );
   });
 
   test("a gated dataset's empty state names the flag rather than claiming no results", () => {
