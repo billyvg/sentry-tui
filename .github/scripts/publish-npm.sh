@@ -30,8 +30,9 @@ publish() {
 
   echo "==> publishing $name"
   # --provenance ties the tarball to this workflow run; it needs the id-token
-  # permission the release job grants.
-  npm publish "$dir" --access public --provenance
+  # permission the release job grants. The registry is pinned rather than
+  # inherited, matching scripts/release.ts.
+  npm publish "$dir" --access public --provenance --registry https://registry.npmjs.org
 }
 
 # Platform packages, then the launcher, then the alias.

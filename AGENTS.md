@@ -57,6 +57,14 @@ bun run icons:build             # re-rasterize platform icons (needs librsvg)
 bun run check                   # all CI checks in one command
 ```
 
+```bash
+bun run release:preflight       # is this machine and repo ready to release?
+bun run release:dry-run         # build + package on CI, publish nothing
+bun run release:cut 0.2.0       # bump, verify, commit, tag, push
+bun run release:publish         # publish from CI artifacts, by hand
+bun run release:verify          # check what landed on npm and in the tap
+```
+
 ## distribution
 
 Releases ship a `bun build --compile` binary per platform — OpenTUI's renderer

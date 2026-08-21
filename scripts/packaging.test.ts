@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import { aliasManifest, launcherManifest, packageDirName, platformManifest } from "./build-npm.ts";
 import { parseChecksums, renderFormula } from "./build-formula.ts";
+import { COMMANDS } from "./release.ts";
 import {
   ALIAS_PACKAGE,
   ARCHIVE_EXT,
@@ -206,6 +207,24 @@ describe("homebrew formula", () => {
     expect(parsed.get("sentry-tui-darwin-arm64.tar.gz")).toBe("a".repeat(64));
     expect(parsed.get("sentry-tui-linux-arm64.tar.gz")).toBe("b".repeat(64));
     expect(parsed.size).toBe(2);
+  });
+});
+
+describe("release commands", () => {
+  test("every subcommand has a package.json script, and vice versa", async () => {
+    const manifest = (await Bun.file(join(ROOT, "package.json")).json()) as {
+      scripts: Record<string, string>;
+    };
+
+    const scripted = Object.entries(manifest.scripts)
+      .filter(([name]) => name.startsWith("release:"))
+      .map(([name, body]) => {
+        const subcommand = name.slice("release:".length);
+        expect(body).toBe(`bun run ./scripts/release.ts ${subcommand}`);
+        return subcommand;
+      });
+
+    expect(scripted.sort()).toEqual(Object.keys(COMMANDS).sort());
   });
 });
 

@@ -33,52 +33,93 @@ Cross-compiling is deliberately not attempted: `bun build --compile --target=X`
 must resolve `@opentui/core-<X>`, and `bun install` skips packages whose
 `os`/`cpu` don't match the host. Hence one native runner per target.
 
+## The commands
+
+```bash
+bun run release:preflight     # is this machine and this repo ready?
+bun run release:dry-run       # build and package on CI, publish nothing
+bun run release:cut 0.2.0     # bump, verify, commit, tag, push — CI does the rest
+bun run release:publish       # publish from CI artifacts, by hand
+bun run release:verify        # check what actually landed
+```
+
+The rest of this page is what they do, for when one of them fails or you want to
+run a step yourself. `--yes` skips confirmations; `--npm-dry-run` makes
+`release:publish` upload nothing.
+
 ## One-time setup
 
-1. **npm account.** `npm login` as `billyvg`, and confirm with `npm whoami`.
-   Nothing is published from a laptop except by the manual path below.
-2. **`NPM_TOKEN` secret.** On npmjs.com, Access Tokens → Generate → **Granular**
-   (or Classic → Automation), with publish rights. Add it to the repo as
-   `NPM_TOKEN` under Settings → Secrets and variables → Actions. Publishing uses
-   `--provenance`, which also needs the `id-token: write` permission the release
-   job already grants.
-3. **Homebrew tap.** Create `billyvg/homebrew-tap` (a public repo — Homebrew
-   requires the `homebrew-` prefix). Add a `HOMEBREW_TAP_TOKEN` secret holding a
+1. **npm account.** `npm login --registry https://registry.npmjs.org`, as
+   `billyvg`. Pass the registry explicitly — a Sentry laptop points npm at an
+   internal proxy through `NPM_CONFIG_REGISTRY`, and a bare `npm login` or
+   `npm publish` would talk to that instead. Every npm call in
+   `scripts/release.ts` pins the public registry for the same reason; only
+   hand-typed commands are exposed. `release:preflight` reports which registry is
+   configured.
+2. **`NPM_TOKEN` secret.** On npmjs.com, Access Tokens → Generate → **Granular
+   with "All packages"**, or Classic → Automation. A granular token scoped to
+   `@billyvg` is not enough: the unscoped `sentry-tui` does not exist yet, so it
+   cannot be pre-selected and publishing it would 403. Automation-class tokens
+   also bypass 2FA, which CI needs.
+
+   ```bash
+   gh secret set NPM_TOKEN --repo billyvg/sentry-tui
+   ```
+
+3. **Homebrew tap.** Create `billyvg/homebrew-tap` (public, and the
+   `homebrew-` prefix is required). Add a `HOMEBREW_TAP_TOKEN` secret holding a
    PAT with write access to it; the default `GITHUB_TOKEN` cannot reach another
    repository. Without that secret the tap step is skipped and the rest of the
    release still runs.
 
+`bun run release:preflight` checks all of the above at once, plus whether the
+names are still free and whether the version you are about to publish is already
+taken. It exits non-zero only on problems that would actually break a release.
+
 ## Cutting a release
 
 ```bash
-# 1. Bump the single source of truth.
-#    scripts/build-npm.ts stamps every generated manifest from this.
-$EDITOR package.json          # "version": "0.2.0"
-
-# 2. Verify.
-bun run check
-bun run test:packaging
-
-# 3. Commit, tag, push. The tag must match the version or CI fails the run.
-git commit -am "chore: release v0.2.0"
-git tag v0.2.0
-git push origin main --tags
+bun run release:cut 0.2.0
 ```
 
-Watch the run in Actions. It builds four binaries — macOS and Linux, arm64 and
-x64 — smoke-tests each with `--help` on its own runner, then publishes.
+It bumps `version` in package.json (the single source of truth every generated
+manifest is stamped from), runs `bun run check`, commits, tags `v0.2.0`, and
+pushes — after showing you exactly what will be published and asking. Called
+with no version it releases whatever package.json already names.
 
-### Rehearsing without publishing
+CI takes over from the tag: four binaries — macOS and Linux, arm64 and x64 —
+each smoke-tested with `--help` on its own runner, then npm, the GitHub Release,
+and the tap. The tag must match the version or the run fails on its first job.
 
-Actions → Release → Run workflow, with `dry_run` checked — or from the terminal:
+Doing it by hand is the same four steps:
 
 ```bash
-gh workflow run release.yml -f dry_run=true
-gh run watch                                   # pick the run, follow it
+$EDITOR package.json                        # "version": "0.2.0"
+bun run check
+git commit -am "chore: release v0.2.0"
+git tag v0.2.0 && git push origin main --follow-tags
 ```
 
-It builds and packages everything and publishes nothing. Alongside the four
-per-target binary artifacts it uploads `release-bundle`, holding the release
+## Rehearsing without publishing
+
+```bash
+bun run release:dry-run
+```
+
+Dispatches the workflow with `dry_run` set, waits for it, and prints the run's
+artifacts. Equivalent to Actions → Release → Run workflow with the box checked,
+or:
+
+```bash
+gh workflow run release.yml -f dry_run=true --ref "$(git branch --show-current)"
+gh run watch
+```
+
+Note that `gh workflow run` can only find `release.yml` once it exists on the
+default branch — before this lands on `main`, use the Actions UI on the branch.
+
+A dry run builds and packages everything and publishes nothing. Alongside the
+four per-target binary artifacts it uploads `release-bundle`, holding the release
 assets, the npm package trees, and the formula:
 
 ```bash
@@ -90,57 +131,59 @@ find bundle -maxdepth 2
 root is the least common ancestor of the uploaded paths — `dist/` — so its
 contents land as `bundle/release`, `bundle/npm`, and `bundle/homebrew`.
 
-### Publishing by hand
-
-You cannot build a full release on one machine — each target needs its own
-runner — so a manual publish still starts from a CI build. Run the workflow with
-`dry_run` checked, then pull down the four binary artifacts and re-assemble the
-packages locally:
+## Publishing by hand
 
 ```bash
-gh run list --workflow release.yml --limit 5      # find the run id
+bun run release:publish              # newest release-workflow run
+bun run release:publish 12345678     # a specific run
+bun run release:publish --npm-dry-run
+```
 
+You cannot build a full release on one machine — each target needs its own
+runner — so this still starts from a CI build. It downloads the four binary
+artifacts into `dist/bin`, re-runs `build:npm --strict`, shows you what it is
+about to publish, and then publishes in dependency order: platform packages,
+launcher, alias. `--skip-download` reuses whatever is already in `dist/bin`.
+
+Regenerating with `build:npm` is not busywork: **artifact downloads do not
+preserve the executable bit**, and `npm publish` ships whatever mode the file has
+on disk. `build-npm.ts` chmods each binary to 0755 as it copies. Publishing
+straight from the `release-bundle` artifact would ship a 0644 binary — the
+launcher's chmod-and-retry saves the user, but only where the install directory
+is writable.
+
+The same thing by hand:
+
+```bash
 gh run download <run-id> --dir dist/bin \
   -n darwin-arm64 -n darwin-x64 -n linux-x64 -n linux-arm64
-
 bun run build:npm --strict
 
-# Platform packages first, then the launcher, then the alias: each depends on
-# the ones before it.
-for pkg in dist/npm/billyvg-sentry-tui-*; do npm publish "$pkg" --access public; done
-npm publish dist/npm/billyvg-sentry-tui --access public
-npm publish dist/npm/sentry-tui --access public
+for pkg in dist/npm/billyvg-sentry-tui-*; do
+  npm publish "$pkg" --access public --registry https://registry.npmjs.org
+done
+npm publish dist/npm/billyvg-sentry-tui --access public --registry https://registry.npmjs.org
+npm publish dist/npm/sentry-tui --access public --registry https://registry.npmjs.org
 ```
 
 Each artifact extracts into a directory named after itself, which is exactly the
-`dist/bin/<target>/sentry-tui` layout `build:npm` reads.
-
-Regenerating with `build:npm` is not busywork: **artifact downloads do not
-preserve the executable bit**, and `npm publish` ships whatever mode the file
-has on disk. `build-npm.ts` chmods each binary to 0755 as it copies. Publishing
-straight from the `release-bundle` artifact instead would ship a 0644 binary —
-the launcher's chmod-and-retry saves the user, but only where the install
-directory is writable. If you do publish from that bundle, chmod first:
-
-```bash
-chmod 755 npm/billyvg-sentry-tui-*/bin/sentry-tui
-```
-
-Add `--dry-run` to any publish to see the file list and computed tarball without
-uploading. Manual publishes have no provenance attestation — CI publishes do.
+`dist/bin/<target>/sentry-tui` layout `build:npm` reads. Manual publishes carry
+no provenance attestation; CI publishes do.
 
 Publishing only the platform package you can build locally is a trap worth
-naming: the other platforms' optional dependencies simply won't resolve, and
+naming: the other platforms' optional dependencies simply will not resolve, and
 users there get the launcher's "binary package missing" error instead of a
 working install.
 
 ## Verifying a release
 
 ```bash
-npx sentry-tui@latest --help
-curl -fsSL https://raw.githubusercontent.com/billyvg/sentry-tui/main/install.sh | bash
-brew install billyvg/tap/sentry-tui && sentry-tui --help
+bun run release:verify
 ```
+
+Checks each package's published version against package.json, runs
+`npx sentry-tui@<version> --help` for real (that downloads ~24MB), and compares
+the Homebrew formula's version if the tap is installed locally.
 
 To exercise the installer without a published release, serve the assets locally
 and point it at them:
