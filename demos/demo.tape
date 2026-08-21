@@ -38,7 +38,14 @@ Meanwhile @B02
   # Capital Q quits outright. Lowercase q raises an "are you sure" prompt, and
   # answering it is one more thing to mistime.
   Key shift+q
-  Sleep 800ms
+  # Lynx restores the terminal on its way out and the shell redraws behind it,
+  # and anything typed into that window is eaten a character at a time — a fixed
+  # 800ms produced `lear: command not found` on screen. Wait for the redraw to
+  # finish, then spend a keystroke that costs nothing if it is the one that gets
+  # dropped.
+  Settle 5s
+  Key enter
+  Sleep 500ms
   Type `clear`
   Key enter
 End
@@ -211,10 +218,25 @@ End
 # uses it over `npm install -g`.
 Meanwhile @B11
   Key q
-  Sleep 800ms
-  Type `clear`
+  # Same as leaving lynx: the app hands the terminal back and the shell redraws.
+  Settle 4s
   Key enter
   Sleep 400ms
+  Type `clear`
+  Key enter
+  Sleep 600ms
+  # Walk the prompt down the window so the sign-off sits near the middle of the
+  # frame rather than pinned to the top edge, where it reads like a stray line
+  # of output. Rows is 44 and this lands the pair on rows 21 and 22 — measured,
+  # not guessed, so it moves if `Set Rows` does.
+  Key enter 20
+  Sleep 500ms
+  # A comment, so it is inert if anyone does hit return. zsh only treats `#`
+  # that way with `interactivecomments`, which `lib/kitty.ts` sets on the
+  # recorded shell — without it this is `command not found: #` on camera.
+  Type `# use sentry.terminal now`
+  Key enter
+  Sleep 900ms
   Type `npx sentry-tui`
 End
 # Hold the still frame so viewers can copy it. The line starts during the quit,

@@ -6,13 +6,6 @@ export const DEMO_DIR = new URL("..", import.meta.url).pathname.replace(/\/$/, "
 export const REPO_ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
 export const BUILD_DIR = `${DEMO_DIR}/build`;
 export const AUDIO_DIR = `${BUILD_DIR}/audio`;
-/**
- * Beats corrected onto one speaking rate by `demo:pace`, and what the rest of
- * the pipeline plays. Derived, never edited: `AUDIO_DIR` holds the take as it
- * was synthesized or recorded, so re-pacing is repeatable rather than
- * cumulative.
- */
-export const PACED_DIR = `${AUDIO_DIR}/paced`;
 export const DURATIONS_PATH = `${BUILD_DIR}/durations.json`;
 /** Beat offsets as they actually happened, written by `demo:record`. */
 export const TIMELINE_PATH = `${BUILD_DIR}/timeline.json`;

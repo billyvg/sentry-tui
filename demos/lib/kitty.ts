@@ -40,6 +40,9 @@ export class KittySession {
    * `env` then gives a clean single-glyph prompt. Kitty's shell integration is
    * off for the same reason — it would redraw a prompt of its own.
    *
+   * `interactivecomments` is the one option added back, because the outro types
+   * a `#` line and zsh otherwise tries to execute it.
+   *
    * macOS runs the shell under `login` regardless, which prints a "Last login"
    * banner that no shell flag suppresses. {@link clearScreen} wipes it before
    * the capture starts.
@@ -47,10 +50,11 @@ export class KittySession {
   static async launch(options: KittyOptions): Promise<KittySession> {
     await rm(options.socket, { force: true });
 
-    // The trailing space belongs to the prompt, not to the tape — a tape value
-    // is trimmed when it's parsed, so relying on one there gives `❯command`.
     const prompt = options.env["PS1"]?.trim() ?? "❯";
-    const env = { ...options.env, PS1: `${prompt} `, PROMPT: `${prompt} ` };
+    // No trailing space here: kitty strips whitespace off an `-o env=` value, so
+    // it never reaches the shell and every command comes out as `❯command`.
+    // {@link setPrompt} puts it back from inside the shell instead.
+    const env = { ...options.env, PS1: prompt, PROMPT: prompt };
     const args = [
       "kitty",
       "--listen-on",
@@ -83,6 +87,10 @@ export class KittySession {
       ...Object.entries(env).flatMap(([key, value]) => ["-o", `env=${key}=${value}`]),
       "/bin/zsh",
       "-f",
+      // The outro types a `#` comment, and zsh runs `#` as a command unless
+      // this is set — "command not found: #", on camera, at the sign-off.
+      "-o",
+      "interactivecomments",
     ];
 
     const process = Bun.spawn(args, { stdout: "ignore", stderr: "ignore", stdin: "ignore" });
@@ -147,6 +155,20 @@ export class KittySession {
    * shell flag suppresses — so the demo clears it away rather than trying to
    * prevent it.
    */
+  /**
+   * Set the prompt from inside the shell, where a trailing space survives.
+   *
+   * kitty trims its `-o env=` values, so a prompt passed that way loses the
+   * space after the glyph and the demo types `❯npx sentry-tui`. Assigning it as
+   * a shell parameter is the only way to keep it. Call this before
+   * {@link clearScreen}, and the line that does it is never on camera.
+   */
+  async setPrompt(prompt: string): Promise<void> {
+    if (prompt.includes("'")) throw new Error(`Prompt cannot contain a quote: ${prompt}`);
+    await this.type(`PS1='${prompt} '`);
+    await this.key("enter");
+  }
+
   async clearScreen(): Promise<void> {
     await this.type("clear\r");
   }

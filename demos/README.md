@@ -74,8 +74,7 @@ but check the icons in the first frames if you do.
 
 ```bash
 bun run demo:seer-prep   # pick the org, prove Seer answers for it
-bun run demo:tts         # synthesize narration, pace it, measure each beat
-bun run demo:pace        # re-pace existing audio — no API key, no synthesis
+bun run demo:tts         # synthesize narration, measure how it reads
 bun run demo:record      # replay the tape into kitty → build/video.mov
 bun run demo:mux         # lay the audio on → build/demo.mp4
 
@@ -158,85 +157,50 @@ A useful order: render everything with a provider first to settle the pacing,
 then re-record the beats you want in your own voice and run `--measure-only`
 again. The tape re-times itself around whatever the files actually are.
 
-### Pace: every beat reads at the same speed
+### Pace: measured, not corrected
 
-A synthesizer's `speed` is a request, not a rate. Asking one model for the same
-speed across this script produced a cold open at 3.5 syllables a second and the
-line after it at 4.3, then a 5.3 in the middle — heard back to back, that sounds
-like a slow, laggy first sentence followed by a different, faster narrator. Per
-beat `Speed:` overrides made it worse: fixing one line moved the discontinuity to
-its neighbour.
+An earlier version of this pipeline resampled every beat onto a common speaking
+rate — stretch the speech, rebuild the pauses to a budget — and it worked, in the
+sense that the numbers came out flat: 3.59–3.64 syllables per second across the
+script, against 3.34–4.14 before. It also sounded processed, which is a bad trade
+for a demo whose entire pitch is that what you are looking at is real. **Whatever
+the provider returns is what ships.** Nothing downstream touches the samples.
 
-So pace is measured and corrected instead, as the last stage of `demo:tts`, and
-it holds **two** rates rather than one:
-
-| Target                |      | What it controls                                                  |
-| --------------------- | ---- | ----------------------------------------------------------------- |
-| `TARGET_ARTICULATION` | 4.35 | syllables per second of speech — how fast the mouth moves         |
-| `TARGET_OVERALL`      | 3.60 | syllables per second including pauses — how fast the line arrives |
-
-Two, because one knob cannot hold both and a listener hears both. Correcting only
-the articulation left a beat the synthesizer ran together in a single breath —
-0.16s of pause in 3.5 seconds — sitting next to one that paused for a fifth of
-its length. Same mouth speed to within 2%; 210 words a minute against 118. The
-gap between the two targets is the share of a beat spent not talking, about 17%,
-which is ordinary for narration.
-
-Each beat is then cut at its silences and rebuilt:
-
-1. Count the syllables the line should take to say.
-2. Measure the take: seconds of voice, and the length of every pause in it.
-3. Scale the pauses toward the budget the overall rate implies — together, in
-   proportion to how the read placed them, so the longest pause stays the
-   longest.
-4. `atempo` the speech to whatever articulation makes the total land on the
-   overall rate.
-
-Pauses move first because silence never sounds resampled and speech does, but
-they only move so far: growing a 0.08s breath fourfold is a stutter, not a pause,
-so the ceiling is 2.2× and anything left over goes to the speech — within ±12% of
-the articulation target. A line read in one breath comes out slightly slower
-rather than punctuated with pauses it never had, which is what a person does with
-the same sentence.
+`demo:tts` still measures each beat, because knowing why a line sounds off is
+worth having:
 
 ```
-B01 3.8s  4.81 → 3.99 syl/s @0.82×  overall 3.62 (pauses 2.20×)  172wpm — lynx renders sentry.io
-B04 4.7s  3.46 → 4.35 syl/s @1.26×  overall 3.60 (pauses 0.55×)  166wpm — speed
-B09 4.7s  4.01 → 4.34 syl/s @1.09×  overall 3.59 (pauses 0.80×)  115wpm — the rest of Explore
+B04 5.1s  4.35 syl/s speaking, 3.60 overall  153wpm — speed
+B10 3.5s  5.71 syl/s speaking, 4.61 overall  240wpm — Seer answered ⚡rushed
 ```
 
-**Words per minute is not the target, and shouldn't be.** It still varies in that
-table — 115 to 178 — because "Logs, replays, releases, profiles" packs 1.8
-syllables into every word and "just like in the web app" packs 1.1. Equalising
-wpm would make the first line articulate half again as fast as the second, which
-is the inconsistency you can actually hear. Syllables are what the mouth does; if
-a beat still reads long, the lever is the writing.
-
-`bun run demo:pace` runs the stage on its own — no key, no synthesis, reading
-whatever is in `build/audio`, so it works on your own recordings too.
-`--dry-run` reports the rates and writes nothing; `--target` and `--overall` move
-the two rates. Correction is capped at 0.7–1.55×: past that the resampling is
-audible, and the real fix is a re-render or a shorter line. A clamped beat says
-so, and so does a beat whose audio predates an edit to its line — that pair
-disagreeing is how you get a confident correction computed from words nobody
-spoke.
-
-**One beat that should sit apart** — a punchline that needs air — takes an
-`**Emphasis:**` stage direction, which moves both rates together:
+Two rates, because a listener hears both: how fast the mouth moves, and how fast
+the line arrives once its pauses are counted. A beat flagged `⚡rushed` or
+`🐢draggy` sits outside the band the rest of the script reads at, and the fixes
+are the honest ones — shorten the line, break the sentence, or slow that one beat
+at synthesis time:
 
 ```markdown
-### B11 · install
+### B10 · Seer answered
 
-**Screen:** a bare prompt with `npx sentry-tui` typed and not run.
+**Screen:** the finished conversation, scrolled.
 **Emphasis:** 0.9
 
-> This is the next generation of user interfaces. Go see for yourself.
+> Talk to Seer, just like in the web app, but in your terminal.
 ```
 
-Use it sparingly. It is the thing that made the old cut sound spliced.
+`**Emphasis:**` is passed to the provider as its `speed` for that beat alone. The
+model reads the line differently; nothing is done to what it sends back. It is a
+stage direction, so it is never spoken, and it joins the cache key — only that
+beat re-renders when you change it.
 
-Remember a slower beat is a longer video. That's free at the end of the cut —
-the install frame just holds longer — but a beat inside the Seer cover window
+**Words per minute is a poor way to judge this**, which is why the report leads
+with syllables. "Logs, replays, releases, profiles" packs 1.8 syllables into
+every word and "just like in the web app" packs 1.1, so two lines read at exactly
+the same speed can be 60 wpm apart. Syllables are what the mouth does.
+
+Remember a slower beat is a longer video — free at the end of the cut, where the
+install frame just holds longer, but a beat inside the Seer cover window
 (B07–B09) changes how long the agent has to answer.
 
 ### On OpenRouter
@@ -268,13 +232,36 @@ switching providers re-renders the script rather than reusing stale timings.
 The video is cut to the voice rather than the other way round:
 
 1. `demo:tts` renders each beat's blockquote to `build/audio/BNN.mp3`.
-2. The pace stage rebuilds each one at the script's speaking rate — speech and
-   pauses both — writes `build/audio/paced/BNN.mp3`, and measures those into
-   `build/durations.json`.
+2. It measures them into `build/durations.json`.
 3. `Wait @BNN` in the tape holds for exactly that long.
 4. `demo:mux` walks the same timeline and places each beat's audio at the offset
    its action actually happens at — so a `Sleep` between two `Wait`s becomes
    silence, and nothing downstream slides.
+
+### When the voice doesn't fit, the picture waits
+
+Step 3 uses the lengths the narration had _when the tape was recorded_. Re-render
+the script — a reworded line, or just the same line again, since the synthesizer
+is not deterministic — and those lengths move. A beat that came back a second
+longer would start while the one before it is still talking, and every beat after
+it drifts.
+
+`demo:mux` fixes that from the picture's side: it holds the frame at the point
+the next action happens until the previous line has finished, then carries on,
+shifting everything after it along. A terminal recording is mostly still anyway,
+so a held frame is invisible in a way that a stretched voice is not. It says what
+it did:
+
+```
+  holding the picture at 2 points for 1.8s, so every line finishes before the next starts
+```
+
+A line that got _shorter_ is left alone — pulling it earlier would mean cutting
+picture the tape asked for, and it asked for a reason. That shows up as silence,
+which is the cheaper thing to spend.
+
+This is what makes re-rendering narration without re-recording safe. It is not a
+substitute for a re-record when the tape or the app changed.
 
 Re-record one line of narration and only that beat's timing moves. Synthesis is
 cached on a hash of the text, so iterating on pacing is cheap.
@@ -343,11 +330,10 @@ blocks is silence by construction — nothing is speaking over it. Fold the
 navigation into the beat it belongs to and the line plays across it. `Settle`
 works inside a block too, so even waiting on the agent happens under narration.
 
-**Don't close a gap by slowing the line.** That was what the old per-beat
-`Speed:` overrides did, and an inconsistent read is far more noticeable than a
-second of quiet — especially between two beats that play back to back. Close it
-from the picture instead, or leave it: a montage that holds each screen long
-enough to be read is worth the silence at the end of the beat.
+**Don't close a gap by re-timing the audio.** A processed voice is far more
+noticeable than a second of quiet. Close it from the picture instead, or leave
+it: a montage that holds each screen long enough to be read is worth the silence
+at the end of the beat.
 
 **Trim the dwells.** Most action gaps are a `Sleep` that was generous when it was
 written. Shortening them tightens the cut and closes the gap from the other side.
@@ -385,10 +371,29 @@ text box. `n` does not open goto mode there, it types an "n". The tape presses
 escape to drop into the transcript before anything else, and any step you add
 after Act 12 has to do the same.
 
-## Known sharp edge
+## Known sharp edges
 
 Kitty's `send-key` reports success even when nothing was delivered — it can't
 know whether the program's keyboard mode accepted the key. So a tape step that
 silently does nothing is a real failure mode, and **the only true test of a
 recording is watching it.** `demo:record` says so when it finishes, and it isn't
 being polite.
+
+Three specific ways that bites, all of them fixed in the tape but worth knowing
+if you add a step:
+
+**Typing too soon after a full-screen program exits.** lynx and the app both
+restore the terminal on their way out, and the shell redraws behind them.
+Anything sent into that window is eaten a character at a time — a fixed 800ms
+wait after quitting lynx put `lear: command not found` on screen in one cut. Wait
+with `Settle`, then spend a `Key enter` that costs nothing if it is the keystroke
+that gets dropped.
+
+**`#` is not a comment in zsh.** Not by default: `# use sentry.terminal now` at
+an interactive prompt is `command not found: #`. The recorded shell is launched
+with `-o interactivecomments` so the sign-off can type one.
+
+**kitty strips whitespace off `-o env=` values.** A prompt of `❯ ` arrives as
+`❯`, and every command in the demo reads `❯npx sentry-tui`. `KittySession.setPrompt`
+assigns it from inside the shell instead, before the screen is cleared, so the
+line that does it never reaches the capture.

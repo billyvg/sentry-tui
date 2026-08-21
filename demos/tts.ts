@@ -2,12 +2,14 @@
 /**
  * `bun run demo:tts` — synthesize each narration beat and measure it.
  *
- * Output is one mp3 per beat, a pace-corrected copy of each in
- * `build/audio/paced`, and `build/durations.json` — which is what lets the tape
- * hold each action for exactly as long as its line takes to say.
+ * Output is one mp3 per beat plus `build/durations.json`, which is what lets
+ * the tape hold each action for exactly as long as its line takes to say.
  *
- * The correction is the last stage and it is not optional: see `lib/pace.ts`
- * for why a synthesizer's idea of `speed` is not a speaking rate.
+ * What comes back from the provider is what ships. An earlier version of this
+ * resampled every beat onto a common speaking rate, which made the script
+ * metronomic and made the voice sound processed; the pace of a line is now the
+ * synthesizer's business, and `lib/pace.ts` only measures it so an uneven read
+ * can be fixed in the writing.
  *
  * Synthesis is cached on a hash of the text, model and voice, so re-running
  * after an edit only re-renders the beats that actually changed — which matters,
@@ -24,14 +26,8 @@ import { mkdir } from "node:fs/promises";
 
 import { probeDuration } from "./lib/capture.ts";
 import { parseNarration, type Beat } from "./lib/narration.ts";
-import {
-  formatPacingReport,
-  paceAll,
-  TARGET_ARTICULATION,
-  TARGET_OVERALL,
-  textFingerprint,
-} from "./lib/pace.ts";
-import { AUDIO_DIR, BUILD_DIR, DURATIONS_PATH, NARRATION_PATH, PACED_DIR } from "./lib/paths.ts";
+import { formatRateReport, measureBeats, rateVerdict, textFingerprint } from "./lib/pace.ts";
+import { AUDIO_DIR, BUILD_DIR, DURATIONS_PATH, NARRATION_PATH } from "./lib/paths.ts";
 
 interface Backend {
   label: string;
@@ -185,8 +181,8 @@ interface CacheEntry {
    */
   source?: "synth" | "external";
   /**
-   * What the beat said when this audio was made. `demo:pace` compares it
-   * against the script to catch audio that predates an edit.
+   * What the beat said when this audio was made. `demo:mux` compares it against
+   * the script, so a cut can't quietly ship the previous wording of a line.
    */
   text?: string;
 }
@@ -295,7 +291,7 @@ for (const beat of beats) {
     continue;
   }
 
-  await write(path, await synthesize(beat.text));
+  await write(path, await synthesize(beat.text, beat.emphasis));
   const seconds = await probeDuration(path);
   durations[beat.id] = seconds;
   cache[beat.id] = { hash, seconds, source: "synth", text: textFingerprint(beat.text) };
@@ -308,18 +304,13 @@ for (const beat of beats) {
 await write(cachePath, `${JSON.stringify(cache, null, 2)}\n`);
 
 // ---------------------------------------------------------------------------
-// Pace: one speaking rate across the script.
-//
-// The lengths above are what the provider felt like producing — the same
-// setting reads one line at 3.1 syllables a second and the next at 5.3, which
-// is heard as two different narrators rather than as one changing tempo. What
-// the tape holds for, and what `demo:mux` lays down, is the corrected audio, so
-// `durations.json` is written from that and not from the take.
+// Measure. Nothing here changes a file — it reports how each line came out, so
+// a beat that reads rushed can be rewritten or given an Emphasis rather than
+// resampled after the fact.
 // ---------------------------------------------------------------------------
 
-const paced =
-  missing.length > 0 ? [] : await paceAll(beats, { audioDir: AUDIO_DIR, pacedDir: PACED_DIR });
-for (const beat of paced) durations[beat.id] = beat.seconds;
+const rates = missing.length > 0 ? [] : await measureBeats(beats, AUDIO_DIR);
+for (const beat of rates) durations[beat.id] = beat.seconds;
 
 await write(DURATIONS_PATH, `${JSON.stringify(durations, null, 2)}\n`);
 
@@ -327,20 +318,21 @@ const total = Object.values(durations).reduce((sum, seconds) => sum + seconds, 0
 const optional = beats.filter((beat) => beat.optional);
 const withoutOptional = total - optional.reduce((sum, beat) => sum + (durations[beat.id] ?? 0), 0);
 
-if (paced.length > 0) {
-  const rates = paced.map((beat) => beat.pacedRate);
+if (rates.length > 0) {
+  const overall = rates.map((beat) => beat.overall);
   console.log(
-    `\nPaced onto ${TARGET_ARTICULATION.toFixed(2)} syllables of speech per second and ` +
-      `${TARGET_OVERALL.toFixed(2)} including pauses ` +
-      `(${Math.min(...rates).toFixed(2)}–${Math.max(...rates).toFixed(2)} after correction):\n`,
+    `\nHow they came out — ${Math.min(...overall).toFixed(2)}–${Math.max(...overall).toFixed(2)} ` +
+      `syllables per second including pauses:\n`,
   );
-  console.log(formatPacingReport(paced));
-  const clamped = paced.filter((beat) => beat.clamped);
-  if (clamped.length > 0) {
+  console.log(formatRateReport(rates));
+
+  const uneven = rates.filter((beat) => rateVerdict(beat) !== "fine");
+  if (uneven.length > 0) {
     console.warn(
-      `\n${clamped.map((beat) => beat.id).join(", ")} could not be corrected the whole way — ` +
-        `the source is too far off the target to resample without it showing.\n` +
-        `Re-render those lines, or shorten them.`,
+      `\n${uneven.map((beat) => beat.id).join(", ")} sit outside the band the rest of the ` +
+        `script reads at.\nThe fix is the line, not the audio: shorten it, break the sentence, ` +
+        `or give that beat an\n\`**Emphasis:**\` so the model reads it differently. Nothing here ` +
+        `resamples what came back.`,
     );
   }
 }
@@ -358,14 +350,13 @@ console.log(`Wrote ${DURATIONS_PATH}`);
 
 // Individual beats are allowed to sit outside the word-rate band — a line of
 // short words says more of them per minute at the same speaking rate — so this
-// only judges the script as a whole. After pacing it is a report rather than a
-// problem to fix: the lever is the target rate, not a provider setting.
-const overall = Math.round(wpm(beats.map((beat) => beat.text).join(" "), total));
+// only judges the script as a whole, where the lever is `DEMO_TTS_SPEED`.
+const script = Math.round(wpm(beats.map((beat) => beat.text).join(" "), total));
 console.log(
-  overall > WPM_MAX || overall < WPM_MIN
-    ? `Reads at ${overall} wpm overall, outside the usual ${WPM_MIN}–${WPM_MAX} band.\n` +
-        `Re-pace the script with:  bun run demo:pace --target ${(TARGET_ARTICULATION * (150 / overall)).toFixed(2)}`
-    : `Reads at ${overall} wpm overall.`,
+  script > WPM_MAX || script < WPM_MIN
+    ? `Reads at ${script} wpm overall, outside the usual ${WPM_MIN}–${WPM_MAX} band.\n` +
+        `Re-render the script with:  DEMO_TTS_SPEED=${Math.max(0.5, Math.min(2, (backend?.speed ?? 1) * (150 / script))).toFixed(2)} bun run demo:tts`
+    : `Reads at ${script} wpm overall.`,
 );
 
 if (missing.length > 0) {

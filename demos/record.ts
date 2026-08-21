@@ -98,8 +98,9 @@ const kitty = await KittySession.launch({
 let recording: WindowRecording | undefined;
 try {
   await Bun.sleep(WARMUP_MS);
-  // Wipe the login banner before anything is captured, so the tape never has to
-  // know that macOS prints one.
+  await kitty.setPrompt(tape.env["PS1"]?.trim() ?? "❯");
+  // Wipe the login banner — and the prompt line above — before anything is
+  // captured, so the tape never has to know that macOS prints one.
   await kitty.clearScreen();
   await Bun.sleep(500);
 

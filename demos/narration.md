@@ -5,9 +5,8 @@ narration mapped to one on-screen action.
 
 The beat is the unit the whole pipeline runs on:
 
-1. `bun run demo:tts` synthesizes each beat's `>` blockquote, corrects it onto the
-   script's one speaking rate (`build/audio/paced/BNN.mp3`), and measures that,
-   writing `build/durations.json`.
+1. `bun run demo:tts` synthesizes each beat's `>` blockquote to
+   `build/audio/BNN.mp3` and measures it, writing `build/durations.json`.
 2. `demo.tape` says `Wait @BNN` where the action should hold for that beat.
 3. `bun run demo:record` replays the tape into a real Kitty window and captures it.
 4. `bun run demo:mux` lays each beat's audio at its exact offset on the timeline.
@@ -21,10 +20,11 @@ frame of the install command so viewers can copy it. The hard cap is three
 minutes; this is built to land well inside it, which is why it sells the thing
 rather than explaining it.
 
-Every beat is read at the same pace, and that is enforced rather than requested —
-see [Pace](README.md#pace-every-beat-reads-at-the-same-speed). Don't reach for a
-`**Emphasis:**` override to fill a gap in the picture; an inconsistent read is
-the most audible thing in a demo.
+The audio is whatever the synthesizer returns — nothing resamples it, because a
+processed voice is the most audible thing in a demo. `demo:tts` reports how each
+line came out and flags the rushed ones; the fix is the writing, or an
+`**Emphasis:**` on that beat, which asks the model to read it slower. See
+[Pace](README.md#pace-measured-not-corrected).
 
 ## What this is and isn't
 
@@ -113,7 +113,7 @@ the composer and the question comes out as `aWhich project…`.
 actually loaded take longer to show than one sentence takes to say, and skeletons
 on screen would undercut the claim the sentence is making.
 
-> Logs, replays, releases, profiles. Explore at your fingertips. Simple to browse, simple to use, just simple.
+> Logs, replays, releases, profiles. Explore at your fingertips. Simple to browse, simple to use, simple.
 
 ### B10 · Seer answered
 
@@ -130,7 +130,7 @@ on screen would undercut the claim the sentence is making.
 **Screen:** back to a bare prompt with `npx sentry-tui` typed and not
 run. Holds for ten seconds so viewers can copy it.
 
-> This is the cutting edge of user interfaces. Go see it for yourself. And no, it doesn't run on Windows, sorry Bruno.
+> This is the cutting edge of user interfaces. Go see it for yourself. And no, I'm never adding Windows support, sorry Bruno.
 
 ---
 
