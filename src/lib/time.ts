@@ -21,3 +21,22 @@ export function clockTime(iso: string | undefined): string {
   const match = iso.match(/T(\d{2}:\d{2}:\d{2})/);
   return match?.[1] ?? (iso.slice(11, 19) || NO_CLOCK);
 }
+
+/**
+ * A duration in seconds as one compact unit: `45s`, `5m`, `2h`, `3d`.
+ *
+ * The counterpart to `timeAgo` for a *configured* interval rather than an
+ * elapsed one — an uptime monitor's `Every 60s`. Rounded down to the largest
+ * whole unit that fits, like the web's `getDuration`, but abbreviated: a
+ * detector's detail line is competing for the same row as its project and its
+ * URL.
+ */
+export function durationText(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
