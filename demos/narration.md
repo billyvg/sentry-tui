@@ -14,7 +14,7 @@ The beat is the unit the whole pipeline runs on:
 So the video is cut to the voice, not the other way round. Re-record one line and
 only that beat's timing moves.
 
-**Runtime: ~80 seconds**, of which the last 10 are a still frame of the install
+**Runtime: ~77 seconds**, of which the last 10 are a still frame of the install
 command so viewers can copy it. The hard cap is three minutes; this is built to
 land well inside it, which is why it sells the thing rather than explaining it.
 
@@ -45,7 +45,7 @@ which only answers for orgs where the Explorer agent is enabled.
 
 **Screen:** a page-down, then out to a bare prompt.
 
-> Thirty-five years later — terminal UIs are so back.
+> Thirty-five years later — terminal UIs are so fucking back.
 
 ---
 
@@ -55,13 +55,13 @@ which only answers for orgs where the Explorer agent is enabled.
 
 **Screen:** `sentry-tui`, and the issue stream paints.
 
-> This is Sentry. Not a status widget — the actual product.
+> This is Sentry, not screenshots — the actual UI, in YOUR terminal.
 
 ### B04 · speed
 
 **Screen:** hold on the loaded stream; `j` down a few rows.
 
-> Two seconds to open. No tab to find, no dashboard to wait on.
+> Lightning fast to open. No tab to find, no dashboard to wait on.
 
 ---
 
@@ -79,8 +79,7 @@ which only answers for orgs where the Explorer agent is enabled.
 **Note:** reach Seer through the palette, never goto — goto's item key leaks into
 the composer and the question comes out as `aWhich project…`.
 
-> Slash to search. Control-K is a palette over every command — including Seer,
-> Sentry's agent. Ask it about your own data.
+> Slash to search. Control-K is a palette over every command.
 
 ### B07 · triage
 
@@ -97,7 +96,7 @@ the composer and the question comes out as `aWhich project…`.
 
 **Screen:** `n`, `d`, `a`, Enter — the starred dashboard, scrolling its widgets.
 
-> Dashboards come across too. Real widgets, real series, drawn in the terminal at
+> Dashboards are here too. Real widgets, real series, no eCharts, drawn in the terminal at
 > whatever size your window happens to be.
 
 ### B09 · the rest of Explore
@@ -110,8 +109,7 @@ the composer and the question comes out as `aWhich project…`.
 
 **Screen:** back to Seer via the palette; the finished conversation, scrolled.
 
-> Seer's done — it searched your errors and came back with real numbers, from the
-> real app.
+> Talk to Seer, just like in the web app, but in your terminal.
 
 ---
 
@@ -119,10 +117,10 @@ the composer and the question comes out as `aWhich project…`.
 
 ### B11 · install
 
-**Screen:** back to a bare prompt with `npm install -g sentry-tui` typed and not
+**Screen:** back to a bare prompt with `npx sentry-tui` typed and not
 run. Holds for ten seconds so viewers can copy it.
 
-> It's faster than the browser. Go find out for yourself.
+> This is the next generation of user interfaces. Go see for yourself. And no, it doesn't run on Windows, sorry Bruno.
 
 ---
 
@@ -143,11 +141,12 @@ The keys the tape presses in goto mode are assigned at runtime from the nav
 `demos/lib/tape.test.ts` pins the ones the tape depends on and fails if a press
 would land on a section that isn't implemented.
 
-### The install command has to be true before this ships
+### The install command
 
-The outro holds `npm install -g sentry-tui` on screen for ten seconds
-specifically so people run it. That package has to exist on npm by then — see
-`bun run release:cut`. It is one `Type` line at the end of `demo.tape`.
+The outro holds `npx sentry-tui` on screen for about twelve seconds specifically
+so people run it. `sentry-tui` is published (0.1.0 at the time of writing), so it
+works — but check `npm view sentry-tui version` before a re-record, and keep the
+command in step with the README. It is one `Type` line at the end of `demo.tape`.
 
 ### Claims the script makes, and what backs them
 

@@ -127,10 +127,14 @@ Meanwhile @B08
   Key a
   Sleep 1200ms
   Key enter
-  Sleep 2500ms
+  Sleep 2200ms
   Key j 3
-  Sleep 1600ms
+  Sleep 1500ms
   Key j 3
+  Sleep 1500ms
+  Key j 3
+  Sleep 1200ms
+  Key k 4
 End
 
 Meanwhile @B09
@@ -191,9 +195,12 @@ Type `clear`
 Key enter
 Sleep 400ms
 
-# THE INSTALL COMMAND. Typed, never run — it is there to be copied. Change it
-# here if the published name ever changes.
-Type `npm install -g sentry-tui`
+# THE INSTALL COMMAND. Typed, never run — it is there to be copied, and running
+# it would just launch the app over the top of the demo. Change it here if the
+# published name changes. `npx` needs no global install, which is why the outro
+# uses it over `npm install -g`.
+Type `npx sentry-tui`
 Wait @B11
-# Hold the still frame so viewers can copy it: B11's line plus this is ~10s.
+# Hold the still frame so viewers can copy it. B11's line runs ~6.3s and this
+# adds 6 more, so the command is on screen for about twelve seconds.
 Sleep 6s
