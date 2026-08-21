@@ -52,6 +52,7 @@ bun run format:check            # oxfmt check (CI)
 bun run lint                    # oxlint with --deny-warnings
 bun run lint:fix                # oxlint with --fix
 bun test                        # all tests
+bun run test:shard 1 4          # one shard of the suite (what CI runs)
 bun run test:theme-contrast     # WCAG contrast checks
 bun run test:boundaries         # source import boundary audit
 bun run test:packaging          # distribution chain stays in step

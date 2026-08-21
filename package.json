@@ -27,6 +27,7 @@
     "lint": "oxlint . --deny-warnings",
     "lint:fix": "oxlint . --fix",
     "test": "bun test ./src ./test",
+    "test:shard": "bun run ./scripts/test-shard.ts",
     "test:theme-contrast": "bun test scripts/check-theme-contrast.test.ts",
     "test:boundaries": "bun test scripts/source-boundaries.test.ts",
     "deps:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known",
