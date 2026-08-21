@@ -1,5 +1,4 @@
-import { useCallback, useState } from "react";
-import { useKeyboard } from "@opentui/react";
+import { useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -11,17 +10,25 @@ import {
   type SentryEvent,
 } from "~/api/types";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
-import { matchesCommand } from "~/core/commands";
 import { theme } from "~/core/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { countLabel, sparklineBlock, timeAgo } from "~/lib/sparkline";
-import { fitText, measureTextWidth, padText } from "~/lib/text";
+import { fitText, measureTextWidth } from "~/lib/text";
 import { ChipRow, type ChipSpec } from "~/ui/components/Chip";
+import {
+  BODY_INDENT,
+  Divider,
+  Empty,
+  Field,
+  KEY_COLUMN,
+  keyCell,
+  Section,
+  useSectionFolds,
+} from "~/ui/components/DetailSections";
 import { PlatformIcon } from "~/ui/components/PlatformIcon";
 import { Placeholder } from "~/ui/components/Placeholder";
 import { ExceptionSection } from "~/ui/components/StackTrace";
 import { BOLD } from "~/ui/lib/attributes";
-import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
 import { useIssueEvent } from "~/ui/hooks/useIssueEvent";
 
 /** Section ids, mirroring `views/issueDetails/context.tsx`'s SectionKey. */
@@ -46,16 +53,6 @@ const SECTION_TITLES: Record<SectionKey, string> = {
   sdk: "SDK",
 };
 
-/**
- * Every section body starts here, empty states included.
- *
- * The old screen indented some bodies and not others, which left the fold
- * markers as the only thing holding the page together — and they sit in the
- * same column as half the content.
- */
-const BODY_INDENT = "  ";
-/** Key column in the two-column bodies (tags, contexts, breadcrumb categories). */
-const KEY_COLUMN = 18;
 /** One column per hour of the 24h window, when the series is that long. */
 const HEADER_SPARKLINE_WIDTH = 24;
 /** Rows of block glyphs in the header chart — 24 levels of vertical detail. */
@@ -84,54 +81,11 @@ export function IssueDetail({
   const error = errorOf(status);
   const loading = isInitialLoad(status);
 
-  const [collapsed, setCollapsed] = useState<ReadonlySet<SectionKey>>(() => new Set());
+  const { collapsed, toggle } = useSectionFolds(SECTION_ORDER, focused);
   const [expandedFrames] = useState<ReadonlySet<number>>(
     // The crashing frame is the one you want to see first.
     () => new Set([0, 1]),
   );
-
-  const toggle = useCallback((key: SectionKey) => {
-    setCollapsed((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
-
-  // Folds everything unless everything is already folded. Keying off "any
-  // section is open" instead would make the same keystroke expand or collapse
-  // depending on state the user can't see all of at once.
-  const toggleAll = useCallback(() => {
-    setCollapsed((current) =>
-      current.size === SECTION_ORDER.length ? new Set() : new Set(SECTION_ORDER),
-    );
-  }, []);
-
-  useKeyboard((key) => {
-    // The scrollbox owns j/k and the page keys here, so folding is bound to the
-    // digits printed in each section header instead of a cursor of its own.
-    if (!focused) return;
-    routeKeyOwnership(
-      [
-        () => {
-          if (matchesCommand("sentry.view.toggleAllSections", key)) {
-            toggleAll();
-            return "mine";
-          }
-          if (matchesCommand("sentry.view.toggleSection", key)) {
-            const target = SECTION_ORDER[Number(key.name) - 1];
-            if (!target) return "notMine";
-            toggle(target);
-            return "mine";
-          }
-          return "notMine";
-        },
-      ],
-      key,
-      consumeKey,
-    );
-  });
 
   const inner = Math.max(20, width - 2);
 
@@ -351,11 +305,6 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
   );
 }
 
-/** The ` · ` that separates metadata items, dimmer than what it separates. */
-function Divider() {
-  return <text fg={theme.subText}>{" · "}</text>;
-}
-
 // ---------------------------------------------------------------------------
 // Sections
 // ---------------------------------------------------------------------------
@@ -372,77 +321,6 @@ function sectionCount(key: SectionKey, event: SentryEvent): number | undefined {
     default:
       return undefined;
   }
-}
-
-function Section({
-  index,
-  title,
-  count,
-  collapsed,
-  width,
-  onToggle,
-  children,
-}: {
-  /** The digit that folds this section, printed so the binding is discoverable. */
-  index: number;
-  title: string;
-  count?: number;
-  collapsed: boolean;
-  width: number;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  const label = count === undefined ? title : `${title} (${count})`;
-  const prefix = `${collapsed ? "▸" : "▾"} ${index} `;
-  // The rule runs the header out to the full width, which is what separates one
-  // section from the next now that the bodies share an indent.
-  const rule = Math.max(0, width - measureTextWidth(prefix) - measureTextWidth(label) - 1);
-
-  return (
-    <box style={{ flexDirection: "column", width, paddingTop: 1 }}>
-      <box style={{ flexDirection: "row", width }} onMouseDown={onToggle}>
-        <text fg={theme.accent}>{prefix}</text>
-        <text fg={theme.text} attributes={BOLD}>
-          {label}
-        </text>
-        <text fg={theme.border}>{` ${"─".repeat(rule)}`}</text>
-      </box>
-      {collapsed ? null : children}
-    </box>
-  );
-}
-
-/** An indented "there is nothing here" line, in the one place that decides how. */
-function Empty({ children }: { children: string }) {
-  return <text fg={theme.subText}>{`${BODY_INDENT}${children}`}</text>;
-}
-
-/**
- * A key padded into its column, always leaving a gutter before the value.
- *
- * Padding a key that already fills the column produces `Sec-WebSocket-Ver…13`,
- * where the ellipsis and the value collide and the row stops parsing as two
- * fields — so the key is fitted one cell short of the column it pads into.
- */
-function keyCell(name: string): string {
-  return padText(fitText(name, KEY_COLUMN - 1), KEY_COLUMN);
-}
-
-/**
- * An indented `key   value` row.
- *
- * Splitting the color is what makes a block of sixteen tags scannable: the eye
- * follows the bright column and treats the dim one as a ruler.
- */
-function Field({ name, value, width }: { name: string; value: string; width: number }) {
-  return (
-    <box style={{ flexDirection: "row", width }}>
-      <text fg={theme.muted}>{`${BODY_INDENT}${keyCell(name)}`}</text>
-      <text fg={theme.text}>
-        {fitText(value, Math.max(0, width - KEY_COLUMN - BODY_INDENT.length))}
-      </text>
-    </box>
-  );
 }
 
 function SectionBody({

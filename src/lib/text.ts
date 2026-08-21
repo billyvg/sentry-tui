@@ -6,11 +6,54 @@ export function measureTextWidth(text: string): number {
 }
 
 /**
+ * Escape sequences a value can arrive wrapped in.
+ *
+ * Sentry stores what the SDK sent, and what the SDK sent is sometimes a jest
+ * or pytest failure with its colours still on: an issue title that reads
+ * `Error: \u001b[2mexpect(\u001b[22m…`. `string-width` ignores those when it
+ * measures, but the terminal does not ignore them when it draws — so a cell
+ * padded to its measured width breaks its row, and the colours leak into the
+ * theme. OSC first, since its payload can contain anything.
+ */
+// eslint-disable-next-line no-control-regex -- escape sequences are the point
+const OSC_SEQUENCE = /\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g;
+// eslint-disable-next-line no-control-regex
+const ESCAPE_SEQUENCE = /\u001b(?:\[[0-9;?]*[ -/]*[@-~]|[@-Z\\-_])/g;
+/** Anything that would start a new line, including the Unicode separators. */
+const LINE_BREAK = /[\n\r\t\v\f\u0085\u2028\u2029]+/g;
+/** Everything else in C0 and DEL, which draw as nothing or as garbage. */
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f]/g;
+
+/**
+ * One line of printable text, whatever arrived.
+ *
+ * A cell is one line by construction, but the *values* are not: an issue title
+ * can contain a newline or a colour escape, and a `<text>` holding either
+ * breaks its fixed-width box — the newline wraps and grows the row, the escape
+ * measures zero cells and repaints the rest of the line. Both are the API's
+ * data rather than the app's, so they are normalised at the one place every
+ * cell already goes through.
+ */
+function sanitizeLine(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (!/[\u0000-\u001f\u007f\u0085\u2028\u2029]/.test(text)) return text;
+  return text
+    .replace(OSC_SEQUENCE, "")
+    .replace(ESCAPE_SEQUENCE, "")
+    .replace(LINE_BREAK, " ")
+    .replace(CONTROL, "");
+}
+
+/**
  * Truncate to `width` cells, appending an ellipsis when it doesn't fit.
  * Width is measured in display cells, not code units, so CJK and emoji behave.
+ *
+ * The result is always a single line of printable text: see `sanitizeLine`.
  */
-export function fitText(text: string, width: number, ellipsis = "…"): string {
+export function fitText(input: string, width: number, ellipsis = "…"): string {
   if (width <= 0) return "";
+  const text = sanitizeLine(input);
   if (measureTextWidth(text) <= width) return text;
 
   const ellipsisWidth = measureTextWidth(ellipsis);
@@ -93,4 +136,51 @@ export function padText(
   }
   const pad = " ".repeat(slack);
   return align === "left" ? fitted + pad : pad + fitted;
+}
+
+/**
+ * Trim from the middle, keeping both ends: `checkout-service-worker` at 16
+ * cells becomes `checkout…worker`.
+ *
+ * The end of a value is often what distinguishes it — a URL's path, a query's
+ * last clause — so a detector's URL or query is trimmed this way rather than
+ * with `fitText`, matching the web's `middleEllipsis`
+ * (`utils/string/middleEllipsis.tsx`). That version prefers to drop whole
+ * words; this one cuts wherever the budget runs out, which for the
+ * forty-cell budget the monitor row uses lands in the same place often
+ * enough not to be worth a word-splitting pass.
+ */
+export function middleEllipsis(input: string, width: number, ellipsis = "…"): string {
+  if (width <= 0) return "";
+  const text = sanitizeLine(input);
+  if (measureTextWidth(text) <= width) return text;
+
+  const ellipsisWidth = measureTextWidth(ellipsis);
+  if (width <= ellipsisWidth) return ellipsis.slice(0, width);
+
+  const budget = width - ellipsisWidth;
+  const headBudget = Math.ceil(budget / 2);
+  const tailBudget = budget - headBudget;
+
+  const characters = [...text];
+  let head = "";
+  let used = 0;
+  for (const character of characters) {
+    const w = measureTextWidth(character);
+    if (used + w > headBudget) break;
+    head += character;
+    used += w;
+  }
+
+  let tail = "";
+  used = 0;
+  for (let i = characters.length - 1; i >= 0; i--) {
+    const character = characters[i]!;
+    const w = measureTextWidth(character);
+    if (used + w > tailBudget) break;
+    tail = character + tail;
+    used += w;
+  }
+
+  return head + ellipsis + tail;
 }
