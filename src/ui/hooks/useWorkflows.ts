@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import {
-  listWorkflowDetectors,
-  listWorkflows,
-  type Workflow,
-  type WorkflowDetector,
-} from "~/api/workflows";
+import { listDetectorsByIds, type Detector } from "~/api/detectors";
+import { listWorkflows, type Workflow } from "~/api/workflows";
 import {
   idle,
   rejected,
@@ -73,7 +69,7 @@ export function useWorkflows(
 /** What the Projects column knows so far. */
 export interface WorkflowDetectorLookup {
   /** Detector id → detector, for the ids the current workflows reference. */
-  byId: ReadonlyMap<string, WorkflowDetector>;
+  byId: ReadonlyMap<string, Detector>;
   /** A lookup is in flight, so an unresolved id is pending rather than absent. */
   loading: boolean;
 }
@@ -117,7 +113,7 @@ export function useWorkflowDetectors(
     let cancelled = false;
     setLookup((current) => ({ byId: current.byId, loading: true }));
 
-    void listWorkflowDetectors(client, { org, ids: key.split(","), signal: controller.signal })
+    void listDetectorsByIds(client, { org, ids: key.split(","), signal: controller.signal })
       .then((detectors) => {
         if (cancelled) return;
         setLookup({ byId: new Map(detectors.map((d) => [d.id, d])), loading: false });

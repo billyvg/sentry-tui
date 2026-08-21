@@ -14,7 +14,7 @@ import {
 
 /** A detector with only the fields a case is about. */
 function detector(overrides: Partial<Detector> & Pick<Detector, "type">): Detector {
-  return { id: "1", name: "monitor", enabled: true, ...overrides };
+  return { id: "1", name: "monitor", enabled: true, projectId: "42", ...overrides };
 }
 
 const METRIC = detector({

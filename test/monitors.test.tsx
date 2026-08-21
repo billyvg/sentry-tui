@@ -208,6 +208,44 @@ for (const [screen, query] of QUERY_CASES) {
   });
 }
 
+/**
+ * The seven screens share a state slice and, because they are one component in
+ * one position, a component instance too — so a load that carried its rows
+ * forward would open Metric on Cron's detectors. A refresh or a search still
+ * carries them: only the screen changing drops them.
+ */
+test("switching screens drops the previous screen's rows rather than showing them", async () => {
+  let detectorCalls = 0;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    if (url.includes("/detectors/")) {
+      detectorCalls += 1;
+      if (detectorCalls > 1) return new Promise<Response>(() => {});
+      return json(detectorListFixture);
+    }
+    return json([]);
+  }) as unknown as typeof fetch;
+
+  const h = await renderMonitors(new SentryClient({ auth, fetchImpl, maxRetries: 0 }));
+  try {
+    await h.waitForFrame((f) => f.includes("checkout p95 latency"));
+
+    await h.press((i) => i.pressKey("k", { ctrl: true }));
+    await h.press((i) => i.pressKey("metric"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("Thresholds and anomalies"));
+
+    expect(h.frame()).not.toContain("checkout p95 latency");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("a submitted search narrows within the screen's own filter", async () => {
   const calls: string[] = [];
   const h = await renderMonitors(stubClient({ calls }), "monitors.cron");

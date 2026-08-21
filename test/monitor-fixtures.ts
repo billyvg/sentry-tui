@@ -11,7 +11,8 @@
  * `queryObj`.
  */
 
-import type { Detector } from "~/api/detectors";
+import type { Detector, DetectorOpenPeriod } from "~/api/detectors";
+import type { Workflow } from "~/api/workflows";
 
 /** `GET /organizations/{org}/detectors/` — one of each type. */
 export const detectorListFixture: Detector[] = [
@@ -154,4 +155,54 @@ export const monitorProjectsFixture = [
   { id: "43", slug: "billing", name: "Billing", platform: "python" },
   { id: "44", slug: "marketing", name: "Marketing", platform: "javascript-react" },
   { id: "45", slug: "mobile", name: "Mobile", platform: "android" },
+];
+
+/**
+ * `GET /organizations/{org}/open-periods/?detectorId=1` — when the metric
+ * monitor's issue was open. One closed period and one still running, which is
+ * the pair the detail pane draws differently.
+ */
+export const openPeriodsFixture: DetectorOpenPeriod[] = [
+  {
+    id: "8801",
+    start: "2026-08-21T06:00:00Z",
+    end: null,
+    isOpen: true,
+    activities: [{ id: "1", type: "opened", value: "high", dateCreated: "2026-08-21T06:00:00Z" }],
+  },
+  {
+    id: "8800",
+    start: "2026-08-19T09:15:00Z",
+    end: "2026-08-19T11:45:00Z",
+    isOpen: false,
+    activities: [],
+  },
+];
+
+/** `GET /organizations/{org}/workflows/?detector=1` — the alerts wired to it. */
+export const detectorWorkflowsFixture: Workflow[] = [
+  {
+    id: "11",
+    name: "Page the on-call",
+    enabled: true,
+    detectorIds: ["1"],
+    lastTriggered: "2026-08-21T06:00:30Z",
+    actionFilters: [
+      {
+        id: "70",
+        actions: [
+          { id: "80", type: "pagerduty" },
+          { id: "81", type: "slack" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "12",
+    name: "Weekly digest",
+    enabled: false,
+    detectorIds: ["1"],
+    lastTriggered: null,
+    actionFilters: [{ id: "71", actions: [{ id: "82", type: "email" }] }],
+  },
 ];

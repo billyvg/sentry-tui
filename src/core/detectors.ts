@@ -323,3 +323,150 @@ function thresholdSuffix(aggregate: string): string {
   if (/size|bytes/.test(field)) return "B";
   return "";
 }
+
+// ---------------------------------------------------------------------------
+// The detail view's labelled fields
+// ---------------------------------------------------------------------------
+
+/** A labelled value, for a key/value row in a detail pane. */
+export interface DetectorField {
+  label: string;
+  value: string;
+}
+
+/**
+ * A detector's configuration as labelled rows.
+ *
+ * The second projection of the same facts `detectorDetailParts` returns: that
+ * one is the list row's single line, where space is the constraint and a field
+ * is identified by where it sits; this one is the detail pane, where every
+ * field gets a label, a line of its own, and its untrimmed value — a metric
+ * detector's query is mid-ellipsised to forty cells on the row and shown whole
+ * here.
+ *
+ * Both are built from the same formatters (`metricThresholdText`,
+ * `cronScheduleText`, `preprodThresholdText`, and the data-source narrowing
+ * above), which is what keeps the row and the detail from drifting. An empty
+ * list means the type has nothing to configure — an error detector turns every
+ * error in its project into an issue and has no settings at all.
+ */
+export function detectorConfigFields(detector: Detector): DetectorField[] {
+  switch (detector.type) {
+    case "metric_issue":
+      return metricConfigFields(detector);
+    case "uptime_domain_failure":
+      return uptimeConfigFields(detector);
+    case "monitor_check_in_failure":
+      return cronConfigFields(detector);
+    case "preprod_size_analysis":
+      return preprodConfigFields(detector);
+    default:
+      return [];
+  }
+}
+
+/** Drop the rows whose value never arrived, so a pane has no blank labels. */
+function present(fields: Array<DetectorField | undefined>): DetectorField[] {
+  return fields.filter(
+    (field): field is DetectorField => field !== undefined && field.value !== "",
+  );
+}
+
+/** `label` with `value`, or nothing at all when there is no value. */
+function field(
+  label: string,
+  value: string | number | null | undefined,
+): DetectorField | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  return { label, value: String(value) };
+}
+
+function metricConfigFields(detector: Detector): DetectorField[] {
+  const query = metricQuery(detector);
+  const window = query?.timeWindow;
+  return present([
+    field("Aggregate", query?.aggregate),
+    field("Query", query?.query),
+    field("Dataset", query?.dataset),
+    field("Environment", query?.environment),
+    field("Time window", typeof window === "number" ? durationText(window) : undefined),
+    field("Detection", detector.config?.detectionType ?? "static"),
+    field("Threshold", metricThresholdText(detector)),
+  ]);
+}
+
+function uptimeConfigFields(detector: Detector): DetectorField[] {
+  const subscription = uptimeSubscription(detector);
+  const interval = subscription?.intervalSeconds;
+  const timeout = subscription?.timeoutMs;
+  const config = detector.config;
+  return present([
+    field("URL", subscription?.url),
+    field("Method", subscription?.method),
+    field("Interval", typeof interval === "number" ? `Every ${durationText(interval)}` : undefined),
+    field("Timeout", typeof timeout === "number" ? durationText(timeout / 1000) : undefined),
+    field("Environment", config?.environment),
+    field("Downtime after", failureCount(config?.downtimeThreshold)),
+    field("Recovers after", successCount(config?.recoveryThreshold)),
+  ]);
+}
+
+function cronConfigFields(detector: Detector): DetectorField[] {
+  const monitor = cronMonitor(detector);
+  const config = monitor?.config;
+  const environments = (monitor?.environments ?? []).map((environment) => environment.name);
+  return present([
+    field("Schedule", cronScheduleText(config)),
+    field("Timezone", config?.timezone),
+    field("Check-in margin", minutesText(config?.checkin_margin)),
+    field("Max runtime", minutesText(config?.max_runtime)),
+    field("Fails after", failureCount(config?.failure_issue_threshold)),
+    field("Recovers after", successCount(config?.recovery_threshold)),
+    field("Environments", environments.join(", ")),
+  ]);
+}
+
+function preprodConfigFields(detector: Detector): DetectorField[] {
+  const config = detector.config;
+  return present([
+    field("Measurement", config?.measurement),
+    field("Threshold type", config?.thresholdType),
+    field("Query", config?.query),
+  ]);
+}
+
+/** `5 minutes`, or nothing when the setting is unset. */
+function minutesText(minutes: number | null | undefined): string | undefined {
+  if (typeof minutes !== "number") return undefined;
+  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+}
+
+/** `3 consecutive failures` — the threshold that opens an issue. */
+function failureCount(count: number | null | undefined): string | undefined {
+  if (typeof count !== "number") return undefined;
+  return count === 1 ? "1 failure" : `${count} consecutive failures`;
+}
+
+/** `2 consecutive successes` — the threshold that closes one. */
+function successCount(count: number | null | undefined): string | undefined {
+  if (typeof count !== "number") return undefined;
+  return count === 1 ? "1 success" : `${count} consecutive successes`;
+}
+
+/**
+ * The single environment a detector watches, or nothing.
+ *
+ * Mirrors `getDetectorEnvironment` (`utils/getDetectorEnvironment.tsx`),
+ * including its deliberate `null` for crons — those carry one environment per
+ * check-in source, and `detectorConfigFields` lists them all instead.
+ */
+export function detectorEnvironment(detector: Detector): string | undefined {
+  switch (detector.type) {
+    case "metric_issue":
+      return metricQuery(detector)?.environment ?? undefined;
+    case "uptime_domain_failure":
+      return detector.config?.environment ?? undefined;
+    default:
+      return undefined;
+  }
+}

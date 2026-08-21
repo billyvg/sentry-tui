@@ -27,7 +27,9 @@ import { SearchInput } from "~/ui/components/SearchInput";
 import { useCheckInStats } from "~/ui/hooks/useCheckInStats";
 import { useDetectors } from "~/ui/hooks/useDetectors";
 import { useProjects } from "~/ui/hooks/useProjects";
+import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
+import { monitorDetailView } from "~/ui/screens/MonitorDetail";
 import {
   monitorColumns,
   MONITOR_MIN_FLEX,
@@ -68,7 +70,9 @@ export function MonitorList(props: ScreenProps) {
   const view = getMonitorListView(screen.id) ?? fallbackView(screen.item);
   const query = buildDetectorQuery(view, state.committedQuery);
 
-  const status = useDetectors(client, { org, query, reloadToken });
+  // `resetKey` is the screen: the seven share a slice *and* a component
+  // instance, so without it this screen opens showing the last one's rows.
+  const status = useDetectors(client, { org, query, reloadToken, resetKey: screen.id });
   const rows = valueOf(status);
   const error = errorOf(status);
   const loading = status.state === "loading";
@@ -106,6 +110,35 @@ export function MonitorList(props: ScreenProps) {
     () => new Map(projects.map((project) => [project.id, project.slug])),
     [projects],
   );
+
+  /**
+   * Enter opens the monitor under the cursor.
+   *
+   * The row it pushes is the one the list already has — the list endpoint
+   * returns the same serializer the detail endpoint does — so the pane paints
+   * with no request of its own, and the project slug goes with it rather than
+   * being resolved a second time.
+   *
+   * Read from `rows` rather than from `state.entries`, which is what the
+   * contract's example does. The seven Monitors screens share one slice, and
+   * that slice still holds the *previous* screen's detectors until this
+   * screen's fetch lands — so `state.entries` during the skeleton is Cron's
+   * rows on the Metric screen, and Enter opened a monitor that wasn't on
+   * screen. Caught in a real terminal, not by a test. `rows` is undefined
+   * until the fetch lands, so Enter does nothing while the skeleton is up,
+   * which is the honest answer.
+   */
+  const { pushView } = props;
+  const open = useCallback(
+    (index: number) => {
+      const row = rows?.[index];
+      if (!row) return;
+      const slug = row.projectId ? projectSlugs.get(row.projectId) : undefined;
+      pushView(monitorDetailView(row, slug ?? row.latestGroup?.project?.slug));
+    },
+    [rows, pushView, projectSlugs],
+  );
+  useScreenActions(props.registerActions, { open });
 
   /**
    * Cron and Uptime trade their three middle columns for a check-in timeline.
