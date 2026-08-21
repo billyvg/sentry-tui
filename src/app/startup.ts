@@ -5,10 +5,12 @@ import {
   credentialsPath,
   migrateLegacyToken,
   readConfig,
+  readCredentials,
   writeConfig,
 } from "~/api/config";
 import { listOrganizations } from "~/api/issues";
 import { offerLogin } from "~/app/login";
+import { identify, traceStartupStep } from "~/telemetry/index";
 import * as readline from "node:readline";
 
 export interface AppContext {
@@ -129,6 +131,7 @@ Environment:
   SENTRY_CLIENT_ID     OAuth application to log in through (self-hosted)
   SENTRY_URL           Sentry install to talk to (default https://sentry.io)
   SENTRY_TUI_LATENCY   Artificial request delay in ms, for testing
+  SENTRY_TUI_NO_TELEMETRY=1  Stop sentry-tui reporting its own crashes
 
 Files:
   ${configPath()}       preferences (org)
@@ -168,18 +171,26 @@ async function resolveCredentials(): Promise<AuthProvider> {
  */
 export async function bootstrap(args: CliArgs): Promise<AppContext> {
   const config = await readConfig();
-  const auth = await resolveCredentials();
 
-  // Surface a missing or unrenewable token now rather than mid-render.
-  await auth.getToken();
+  const auth = await traceStartupStep("resolve credentials", async () => {
+    const provider = await resolveCredentials();
+    // Surface a missing or unrenewable token now rather than mid-render.
+    await provider.getToken();
+    return provider;
+  });
 
   let org = args.org ?? process.env["SENTRY_ORG"] ?? config.org;
 
   const client = new SentryClient({ auth });
 
   if (!org) {
-    org = await promptForOrg(client);
+    org = await traceStartupStep("resolve organization", () => promptForOrg(client));
   }
+
+  // Who this is, for the crash reports. An OAuth login already stored the
+  // account, so this costs no request; a personal-token user has no stored
+  // account and is known only by the organization they opened.
+  identify({ user: (await readCredentials())?.user, org });
 
   return { client, org, tokenSource: auth.describe() };
 }

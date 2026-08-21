@@ -3,7 +3,8 @@
  *
  * The architecture has four tiers, each importing strictly downward:
  *
- *   src/lib/    → dependency-free helpers (text width, color, time-ago, sparkline)
+ *   src/lib/       → dependency-free helpers (text width, color, time-ago, sparkline)
+ *   src/telemetry/ → Sentry SDK wrapper; a leaf, called from every tier above
  *   src/api/    → Sentry HTTP client, auth, zod schemas, domain types
  *   src/core/   → store, actions, reducer, selectors, commands, theme
  *   src/ui/     → OpenTUI surface — screens, components, hooks
@@ -31,6 +32,14 @@ module.exports = {
       severity: "error",
       from: { path: "^src/lib/" },
       to: { path: "^src/", pathNot: "^src/lib/" },
+    },
+    {
+      name: "telemetry-is-a-leaf",
+      comment:
+        "src/telemetry wraps the Sentry SDK and is called from every tier, so it must depend on none of them; it may use src/lib.",
+      severity: "error",
+      from: { path: "^src/telemetry/" },
+      to: { path: "^src/", pathNot: "^src/(telemetry|lib)/" },
     },
     {
       name: "api-stays-below-core-and-ui",

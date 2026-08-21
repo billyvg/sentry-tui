@@ -52,6 +52,18 @@ their update paths.
 Supported: macOS and Linux, on arm64 and x64. Windows and musl-based Linux
 (Alpine) aren't built — run from source there.
 
+### Crash reporting
+
+sentry-tui reports **its own** crashes to Sentry, which is how bugs that only
+happen on someone else's terminal ever get fixed. What goes: the error and its
+stack, the screen you were on, the Sentry API calls leading up to it, your OS
+and terminal details, and — so a report can be followed up — the account and
+organization you're signed in to. What never goes: your auth token, anything
+you typed into a search box, and the contents of your issues.
+
+Set `SENTRY_TUI_NO_TELEMETRY=1` to turn it off. It is also off automatically
+when `CI` is set, and when running from source.
+
 ### From source
 
 Running from source needs **Bun ≥ 1.3.0**. OpenTUI reaches its native renderer

@@ -49,25 +49,35 @@ function importsFrom(importPath: string, srcDir: string): boolean {
   return importPath.startsWith(`~/${srcDir}/`) || importPath.startsWith(`~/${srcDir}`);
 }
 
+/**
+ * Every `~/` import out of `dir` that doesn't land in one of `allowed`.
+ *
+ * Shared by the two leaf tiers: `lib` may reach nowhere in `src/`, `telemetry`
+ * may reach `lib` and nothing else.
+ */
+async function leafViolations(dir: string, allowed: string[], known = new Set<string>()) {
+  const violations: string[] = [];
+
+  for await (const file of walkTs(join(SRC, dir))) {
+    const source = await readFile(file, "utf8");
+    for (const imp of extractImports(source)) {
+      if (!imp.startsWith("~/")) continue;
+      if (allowed.some((tier) => importsFrom(imp, tier))) continue;
+      const violation = `${relative(SRC, file)}: imports ${imp}`;
+      if (!known.has(violation)) violations.push(violation);
+    }
+  }
+
+  return violations;
+}
+
 describe("source boundaries", () => {
   test("src/lib/ does not import from other src/ directories", async () => {
-    const violations: string[] = [];
-    const libDir = join(SRC, "lib");
+    expect(await leafViolations("lib", ["lib"], KNOWN_LIB_VIOLATIONS)).toEqual([]);
+  });
 
-    for await (const file of walkTs(libDir)) {
-      const source = await readFile(file, "utf8");
-      const imports = extractImports(source);
-      for (const imp of imports) {
-        if (imp.startsWith("~/") && !importsFrom(imp, "lib")) {
-          const v = `${relative(SRC, file)}: imports ${imp}`;
-          if (!KNOWN_LIB_VIOLATIONS.has(v)) {
-            violations.push(v);
-          }
-        }
-      }
-    }
-
-    expect(violations).toEqual([]);
+  test("src/telemetry/ imports nothing above src/lib/", async () => {
+    expect(await leafViolations("telemetry", ["telemetry", "lib"])).toEqual([]);
   });
 
   test("src/api/ does not import from core/ or ui/", async () => {
