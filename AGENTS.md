@@ -72,6 +72,13 @@ needs `bun:ffi`, so there is no runtime-agnostic package to publish. That one
 artifact feeds every channel: npm (a launcher package plus `os`/`cpu`-gated
 optional dependencies), the GitHub Release, `install.sh`, and the Homebrew tap.
 
+The npm launcher self-updates, one release behind by design: it runs the
+newest build in `~/.cache/sentry-tui/versions` (or the bundled one) straight
+away, then spawns `packaging/npm/background-update.mjs` detached to fetch
+anything newer for next launch. The worker must never write to stdout or
+stderr — a TUI owns the screen — so failures go to `update.log` in that cache.
+`SENTRY_TUI_NO_UPDATE=1` disables it, as does `CI`.
+
 `scripts/release-targets.ts` is the single source of truth for the platform
 list; the workflow matrix, `packaging/npm/launch.mjs`, and `install.sh` each
 restate it in their own syntax, and `scripts/packaging.test.ts` fails when they

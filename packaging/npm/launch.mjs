@@ -1,8 +1,11 @@
 // Plain JS on purpose: this file is what an npm consumer runs under Node, so
 // it must have no build step, no dependencies, and no TypeScript.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { accessSync, chmodSync, constants } from "node:fs";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+
+import { bestLocal, updatesDisabled } from "./update.mjs";
 
 /**
  * `${process.platform}-${process.arch}` → the npm package carrying that binary.
@@ -20,6 +23,25 @@ const INSTALL_HELP = `Or install it another way:
   brew install billyvg/tap/sentry-tui
   curl -fsSL https://raw.githubusercontent.com/billyvg/sentry-tui/main/install.sh | bash
   https://github.com/billyvg/sentry-tui/releases  (binaries, one per platform)`;
+
+/** The platform package this machine needs, or undefined when unsupported. */
+export function platformPackage() {
+  return PLATFORM_PACKAGES[`${process.platform}-${process.arch}`];
+}
+
+/**
+ * The version npm installed, from this package's own manifest.
+ *
+ * Undefined when the manifest cannot be read — running from a checkout, say —
+ * which the updater reads as "anything on the registry is newer".
+ */
+export function bundledVersion() {
+  try {
+    return createRequire(import.meta.url)("../package.json").version;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Absolute path to the compiled binary for this machine.
@@ -62,15 +84,51 @@ export function resolveBinary() {
  * needs for raw mode and for the alternate screen; it also puts the child in
  * this process group, so Ctrl-C reaches it directly.
  */
-export function main(argv = process.argv.slice(2)) {
-  let binary;
+/**
+ * Kick off an update in a process of our own, and return immediately.
+ *
+ * Detached with stdio ignored, so it outlives this launch and cannot write over
+ * a TUI that owns the screen. The new build lands in the cache and the next
+ * launch runs it — nobody waits on a 24MB download to read `--help`.
+ *
+ * @returns {boolean} whether a worker was started
+ */
+export function startBackgroundUpdate({ packageName, localVersion, env = process.env } = {}) {
+  if (!packageName || updatesDisabled(env)) return false;
+
   try {
-    binary = resolveBinary();
+    const worker = fileURLToPath(new URL("./background-update.mjs", import.meta.url));
+    const child = spawn(process.execPath, [worker, packageName, localVersion ?? ""], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    return true;
+  } catch {
+    // Whatever went wrong there, the app still starts.
+    return false;
+  }
+}
+
+export function main(argv = process.argv.slice(2)) {
+  let bundled;
+  try {
+    bundled = { version: bundledVersion(), path: resolveBinary() };
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exit(1);
   }
 
+  // Run what is already here: the binary npm installed, or a newer one that an
+  // earlier launch fetched. Starting the app never waits on the network.
+  const local = bestLocal(bundled);
+
+  // Then look for something newer, in a process of our own. Releases land
+  // often, and this is what keeps people current without ever asking them to
+  // reinstall. `SENTRY_TUI_NO_UPDATE=1` switches it off.
+  startBackgroundUpdate({ packageName: platformPackage(), localVersion: local.version });
+
+  const binary = local.path;
   let result = spawnSync(binary, argv, { stdio: "inherit" });
 
   // npm preserves the executable bit, but tarballs unpacked by other tooling
@@ -88,6 +146,15 @@ export function main(argv = process.argv.slice(2)) {
         /* keep the original spawn error */
       }
     }
+  }
+
+  // A cached build that will not start is worse than the stale one that will,
+  // so fall back once to whatever npm installed.
+  if (result.error && binary !== bundled.path) {
+    process.stderr.write(
+      `sentry-tui ${local.version} did not start, falling back to ${bundled.version}\n`,
+    );
+    result = spawnSync(bundled.path, argv, { stdio: "inherit" });
   }
 
   if (result.error) {
