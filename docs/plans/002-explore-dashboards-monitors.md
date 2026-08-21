@@ -215,8 +215,18 @@ any realistic width, so **implement `WEB_MAX_800` as the default** and let `Data
 
 Session is a composite cell — replay id, user, project, and `started_at` — which maps onto
 the two-line row the issue stream already renders. Playback is obviously out of scope; the
-detail pane shows metadata and the error list, with `o` opening the replay in a browser via
-the OSC-8 link the app already emits for issues.
+detail pane shows metadata and the error list, and prints the replay's URL under a note
+saying playback isn't available here.
+
+**The app emits no OSC-8 hyperlinks, and `o` is not free.** An earlier draft of this section
+had `o` opening the replay in a browser "via the OSC-8 link the app already emits for
+issues". It emits none — the idea was floated in
+[001-issues-and-foundation.md](001-issues-and-foundation.md) and never built — and `o` is
+bound to `sentry.app.switchOrg` (`src/core/commands.ts`), so taking it would break the org
+picker. OpenTUI paints into a cell framebuffer, so an escape sequence inside `<text>` is
+mangled rather than linkified. Printing the URL _is_ the feature: most terminals linkify a
+bare URL on cmd/ctrl-click. A global "open in browser" command is worth adding once, in the
+shared base where one `App.tsx` branch lights up every screen, rather than per screen.
 
 ### 7.4 Releases
 

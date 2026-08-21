@@ -18,6 +18,7 @@ import { LogStream } from "~/ui/screens/LogStream";
 import { SeerScreen } from "~/ui/screens/SeerScreen";
 import { ProfileFunctions } from "~/ui/screens/ProfileFunctions";
 import { ReleaseCards } from "~/ui/screens/ReleaseCards";
+import { ReplayStream } from "~/ui/screens/ReplayStream";
 import type { ScreenComponent } from "~/ui/screens/types";
 
 export type {
@@ -44,4 +45,5 @@ export const SCREEN_COMPONENTS: Partial<Record<ScreenId, ScreenComponent>> = {
   "seer.ask": SeerScreen,
   "explore.profiles": ProfileFunctions,
   "explore.releases": ReleaseCards,
+  "explore.replays": ReplayStream,
 };
