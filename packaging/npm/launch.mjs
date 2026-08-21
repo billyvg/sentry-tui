@@ -88,20 +88,16 @@ function childEnv() {
 }
 
 /**
- * Run the compiled binary with this process's arguments, then exit with
- * whatever it exited with.
- *
- * `stdio: "inherit"` hands the real TTY straight to the child, which the TUI
- * needs for raw mode and for the alternate screen; it also puts the child in
- * this process group, so Ctrl-C reaches it directly.
- */
-/**
  * Kick off an update in a process of our own, and return immediately.
  *
- * Detached with stdio ignored, so it outlives this launch and cannot write over
- * a TUI that owns the screen. The new build lands in the cache and the next
- * launch runs it — nobody waits on a 24MB download to read `--help`.
+ * Detached with stdio ignored, so it outlives this process and cannot write
+ * over a terminal it no longer owns. The new build lands in the cache and the
+ * next launch runs it — nobody waits on a 24MB download to read `--help`.
  *
+ * @param {object} [options]
+ * @param {string} [options.packageName] platform package to look for
+ * @param {string} [options.localVersion] newest version already on disk
+ * @param {Record<string, string | undefined>} [options.env]
  * @returns {boolean} whether a worker was started
  */
 export function startBackgroundUpdate({ packageName, localVersion, env = process.env } = {}) {
@@ -121,6 +117,14 @@ export function startBackgroundUpdate({ packageName, localVersion, env = process
   }
 }
 
+/**
+ * Run the compiled binary with this process's arguments, then exit with
+ * whatever it exited with.
+ *
+ * `stdio: "inherit"` hands the real TTY straight to the child, which the TUI
+ * needs for raw mode and for the alternate screen; it also puts the child in
+ * this process group, so Ctrl-C reaches it directly.
+ */
 export function main(argv = process.argv.slice(2)) {
   let bundled;
   try {
@@ -133,11 +137,6 @@ export function main(argv = process.argv.slice(2)) {
   // Run what is already here: the binary npm installed, or a newer one that an
   // earlier launch fetched. Starting the app never waits on the network.
   const local = bestLocal(bundled);
-
-  // Then look for something newer, in a process of our own. Releases land
-  // often, and this is what keeps people current without ever asking them to
-  // reinstall. `SENTRY_TUI_NO_UPDATE=1` switches it off.
-  startBackgroundUpdate({ packageName: platformPackage(), localVersion: local.version });
 
   const binary = local.path;
   let result = spawnSync(binary, argv, { stdio: "inherit", env: childEnv() });
@@ -167,6 +166,23 @@ export function main(argv = process.argv.slice(2)) {
     );
     result = spawnSync(bundled.path, argv, { stdio: "inherit", env: childEnv() });
   }
+
+  // Now that nothing of ours is running, look for something newer. Whoever is
+  // running decides when to check, and while the app was up it was checking
+  // for itself — `src/app/selfUpdate.ts` states that schedule in full. This
+  // covers the window nothing else can: `--help`, `login`, `logout` and
+  // `status` never start the app, and a session can end before its first
+  // check. Detached, so the shell prompt is already back by the time the
+  // download starts, and the next launch runs whatever it left behind.
+  // `SENTRY_TUI_NO_UPDATE=1` switches it off.
+  //
+  // `bestLocal` again rather than `local`: a session that took the update
+  // offer downloaded a newer build than the one we started, and asking for it
+  // twice would cost 24MB for nothing.
+  startBackgroundUpdate({
+    packageName: platformPackage(),
+    localVersion: bestLocal(bundled).version,
+  });
 
   if (result.error) {
     process.stderr.write(`sentry-tui failed to start: ${result.error.message}\n`);

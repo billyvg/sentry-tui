@@ -80,6 +80,21 @@ describe("npm launcher", () => {
     for (const [, options] of spawns) expect(options).toContain("env: childEnv()");
   });
 
+  test("it looks for an update only once nothing of ours is running", async () => {
+    // The cadence lives in `src/app/selfUpdate.ts`; the launcher's share of it
+    // is this single call, after the child has exited. Move it back above the
+    // spawn and every TUI launch checks twice — once here and once from inside
+    // the app — which is the arrangement #103 was filed about.
+    const source = await read("packaging/npm/launch.mjs");
+
+    const calls = [...source.matchAll(/(?<!function )startBackgroundUpdate\(/g)];
+    expect(calls.length).toBe(1);
+
+    const handover = source.indexOf("spawnSync(binary, argv");
+    expect(handover).toBeGreaterThan(-1);
+    expect(calls[0]!.index).toBeGreaterThan(handover);
+  });
+
   test("the bin entries point at the launcher module", async () => {
     expect(await read("packaging/npm/bin-launcher.mjs")).toContain("../lib/launch.mjs");
     expect(await read("packaging/npm/bin-alias.mjs")).toContain(`${LAUNCHER_PACKAGE}/launch`);

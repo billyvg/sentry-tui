@@ -5,7 +5,9 @@
  * `packaging/npm/update.mjs` already honours (`SENTRY_TUI_CACHE_DIR`) plus the
  * marker the launcher sets (`SENTRY_TUI_MANAGED`) are enough to stand the whole
  * thing up. Nothing here touches the network — the mount-time look is a
- * directory read, and the hourly poll never fires inside a test.
+ * directory read, and the app's first real check is ten seconds out, which no
+ * test here lives long enough to reach. `scripts/selfUpdate.test.ts` drives
+ * that schedule directly, with the numbers turned down.
  */
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
