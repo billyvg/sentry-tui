@@ -14,14 +14,13 @@
 import { useCallback, useEffect, useMemo } from "react";
 
 import { savedQueryProjectSlugs, type SavedQuery } from "~/api/savedQueries";
-import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { savedQueryScreen, type SavedQueryScreenConfig } from "~/core/savedQueryScreens";
 import { theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { SearchInput } from "~/ui/components/SearchInput";
-import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useProjects } from "~/ui/hooks/useProjects";
 import { useSavedQueries } from "~/ui/hooks/useSavedQueries";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -147,7 +146,7 @@ export function SavedQueries(props: ScreenProps) {
   const queries = valueOf(status);
   const error = errorOf(status);
   const loading = status.state === "loading";
-  const elapsed = useElapsed(loading, status.state === "loading" ? status.since : undefined);
+  const since = loadingSince(status);
 
   // Saved queries carry project *ids* while the rest of the app filters by
   // slug, so the mapping is resolved here, where a query's results view needs
@@ -166,11 +165,11 @@ export function SavedQueries(props: ScreenProps) {
   useEffect(() => {
     setStatus({
       loading,
-      elapsedMs: elapsed ?? elapsedMs(status, Date.now()),
+      since,
       error: error?.message,
       noun: config.noun,
     });
-  }, [loading, elapsed, error, status, config.noun, setStatus]);
+  }, [loading, since, error, status, config.noun, setStatus]);
 
   const open = useCallback(
     (index: number) => {

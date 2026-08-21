@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  elapsedMs,
   errorOf,
   idle,
   isInitialLoad,
+  loadingSince,
   rejected,
   resolved,
   startLoading,
@@ -13,6 +13,7 @@ import {
 import { createStore } from "~/core/store";
 import { formatCount, sparkline, SPARKLINE_PENDING, timeAgo } from "~/lib/sparkline";
 import { IssueRow, IssueRowSkeleton } from "~/ui/components/IssueRow";
+import { StatusBar } from "~/ui/components/StatusBar";
 import { groupFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
 
@@ -39,9 +40,9 @@ describe("AsyncStatus", () => {
     expect(errorOf(failed)?.message).toBe("boom");
   });
 
-  test("elapsed time is only defined while loading", () => {
-    expect(elapsedMs(startLoading(idle(), 1000), 3500)).toBe(2500);
-    expect(elapsedMs(resolved([], 1000), 3500)).toBeUndefined();
+  test("the load's start time is only defined while loading", () => {
+    expect(loadingSince(startLoading(idle(), 1000))).toBe(1000);
+    expect(loadingSince(resolved([], 1000))).toBeUndefined();
   });
 });
 
@@ -159,5 +160,38 @@ describe("IssueRow", () => {
       await h.cleanup();
     }
     expect(new Set(frames).size).toBeGreaterThan(1);
+  });
+});
+
+// The bar owns the whole "we are waiting" animation: the spinner it already
+// ticks, and the elapsed count that rides that tick. A screen that ticked
+// instead re-rendered its table ten times a second — see #98.
+describe("StatusBar", () => {
+  const WIDTH = 60;
+
+  const render = (since: number | undefined) =>
+    renderHarness(
+      <StatusBar notice={{ kind: "loading", text: "loading replays…" }} hints={[]} since={since} />,
+      { width: WIDTH, height: 3 },
+    );
+
+  test("counts up from the load's start once the wait is worth naming", async () => {
+    const h = await render(Date.now() - 3200);
+    try {
+      expect(h.frame()).toContain("loading replays… 3.2s");
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("says nothing about elapsed time for a wait nobody would notice", async () => {
+    const h = await render(Date.now() - 400);
+    try {
+      const frame = h.frame();
+      expect(frame).toContain("loading replays…");
+      expect(frame).not.toMatch(/\d\.\ds/);
+    } finally {
+      await h.cleanup();
+    }
   });
 });

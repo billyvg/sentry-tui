@@ -73,7 +73,7 @@ export function IssueStreamView({
   useScreenActions(registerActions, { open });
 
   const handleStatus = useCallback(
-    (status: { loading: boolean; elapsedMs?: number; error?: string }) =>
+    (status: { loading: boolean; since?: number; error?: string }) =>
       setStatus({ ...status, noun: "issues" }),
     [setStatus],
   );

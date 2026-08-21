@@ -28,14 +28,13 @@ import {
   type Replay,
   type ReplayError,
 } from "~/api/replays";
-import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { REPLAY_DETAIL_STATE_KEY } from "~/core/screens";
 import { theme } from "~/core/theme";
 import { countLabel, timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
-import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useProjects } from "~/ui/hooks/useProjects";
 import { useReplayErrors, useReplays } from "~/ui/hooks/useReplays";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
@@ -196,8 +195,7 @@ export function ReplayStream({
   });
 
   const loading = replays.state === "loading";
-  const since = replays.state === "loading" ? replays.since : undefined;
-  const elapsed = useElapsed(loading, since);
+  const since = loadingSince(replays);
 
   const fetched = valueOf(replays);
   const error = errorOf(replays);
@@ -225,11 +223,11 @@ export function ReplayStream({
   useEffect(() => {
     setStatus({
       loading,
-      elapsedMs: elapsed ?? elapsedMs(replays, Date.now()),
+      since,
       error: error?.message,
       noun: "replays",
     });
-  }, [loading, elapsed, error, replays, setStatus]);
+  }, [loading, since, error, replays, setStatus]);
 
   const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
 

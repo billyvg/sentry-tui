@@ -318,55 +318,49 @@ test("every row is exactly two lines tall at every width", async () => {
   }
 });
 
-// Hangs on CI, passes locally every time — see issue #66. Skipped rather than
-// deleted: it is the check that a skeleton holds a real row's exact geometry.
-test.skipIf(Boolean(process.env.CI))(
-  "the skeleton holds the loaded row's geometry",
-  async () => {
-    let release = () => {};
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const h = await openReplays(stubClient({ gate }));
-    try {
-      /** Line the column headers sit on, and the line the first row starts on. */
-      const anatomy = (frame: string) => {
-        const lines = frame.split("\n");
-        // The header labels, not the search box's border — several lines are a
-        // run of box-drawing rule by the time the table is reached.
-        const header = lines.findIndex(
-          (line) => line.includes("Browser") && line.includes("Duration"),
-        );
-        return { header, firstRow: header + 2, lines };
-      };
+test("the skeleton holds the loaded row's geometry", async () => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const h = await openReplays(stubClient({ gate }));
+  try {
+    /** Line the column headers sit on, and the line the first row starts on. */
+    const anatomy = (frame: string) => {
+      const lines = frame.split("\n");
+      // The header labels, not the search box's border — several lines are a
+      // run of box-drawing rule by the time the table is reached.
+      const header = lines.findIndex(
+        (line) => line.includes("Browser") && line.includes("Duration"),
+      );
+      return { header, firstRow: header + 2, lines };
+    };
 
-      await h.waitForFrame((f) => f.includes("Search replays"));
-      const skeleton = h.frame();
-      // The skeleton is drawn from the same resolved columns, so it advertises
-      // the same set — including the ones only a wide pane keeps.
-      expect(skeleton).toContain("Activity");
-      const loading = anatomy(skeleton);
-      // Two skeleton lines per row, the same as a real one: the line after the
-      // first row's own line is the second half of that row, not a new row.
-      expect(loading.lines[loading.firstRow]).toMatch(/─/);
-      expect(loading.lines[loading.firstRow + 1]).toMatch(/─/);
+    await h.waitForFrame((f) => f.includes("Search replays"));
+    const skeleton = h.frame();
+    // The skeleton is drawn from the same resolved columns, so it advertises
+    // the same set — including the ones only a wide pane keeps.
+    expect(skeleton).toContain("Activity");
+    const loading = anatomy(skeleton);
+    // Two skeleton lines per row, the same as a real one: the line after the
+    // first row's own line is the second half of that row, not a new row.
+    expect(loading.lines[loading.firstRow]).toMatch(/─/);
+    expect(loading.lines[loading.firstRow + 1]).toMatch(/─/);
 
-      // Through `press` so the resolution and the React work it schedules are
-      // settled inside the same `act()` the harness uses for input.
-      await h.press(() => release());
-      await h.waitForFrame((f) => f.includes("Alice Nguyen"));
+    // Through `press` so the resolution and the React work it schedules are
+    // settled inside the same `act()` the harness uses for input.
+    await h.press(() => release());
+    await h.waitForFrame((f) => f.includes("Alice Nguyen"));
 
-      // Nothing above or inside the table moved when the data landed.
-      const loaded = anatomy(h.frame());
-      expect(loaded.header).toBe(loading.header);
-      expect(loaded.lines[loaded.firstRow]).toContain("Alice Nguyen");
-      expect(loaded.lines[loaded.firstRow + 1]).toContain("8a3f2c1d");
-    } finally {
-      await h.cleanup();
-    }
-  },
-  20_000,
-);
+    // Nothing above or inside the table moved when the data landed.
+    const loaded = anatomy(h.frame());
+    expect(loaded.header).toBe(loading.header);
+    expect(loaded.lines[loaded.firstRow]).toContain("Alice Nguyen");
+    expect(loaded.lines[loaded.firstRow + 1]).toContain("8a3f2c1d");
+  } finally {
+    await h.cleanup();
+  }
+});
 
 test("no row overflows the pane at any width", async () => {
   for (const width of [80, 100, 140]) {

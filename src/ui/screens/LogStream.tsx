@@ -11,7 +11,7 @@
 import { useCallback, useEffect } from "react";
 
 import type { LogEntry, LogSeverity } from "~/api/logs";
-import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText, padText } from "~/lib/text";
 import { clockTime } from "~/lib/time";
@@ -19,7 +19,6 @@ import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInput } from "~/ui/components/SearchInput";
-import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useLogs, useLogTimeseries } from "~/ui/hooks/useLogs";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
@@ -134,8 +133,7 @@ export function LogStream({
   );
 
   const loading = logs.state === "loading";
-  const since = logs.state === "loading" ? logs.since : undefined;
-  const elapsed = useElapsed(loading, since);
+  const since = loadingSince(logs);
 
   const entries = valueOf(logs);
   const error = errorOf(logs);
@@ -147,11 +145,11 @@ export function LogStream({
   useEffect(() => {
     setStatus({
       loading,
-      elapsedMs: elapsed ?? elapsedMs(logs, Date.now()),
+      since,
       error: error?.message,
       noun: "logs",
     });
-  }, [loading, elapsed, error, logs, setStatus]);
+  }, [loading, since, error, logs, setStatus]);
 
   const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
 
