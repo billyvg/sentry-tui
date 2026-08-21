@@ -707,11 +707,9 @@ function slowMetricsClient() {
 }
 
 describe("sibling isolation", () => {
-  // Hangs on CI, passes locally every time — see issue #66. Skipped rather
-  // than deleted: this is the test that caught four Explore screens sharing a
-  // component and slot, so Metrics painted Traces' rows until its own fetch
-  // landed.
-  test.skipIf(Boolean(process.env.CI))(
+  // This is the test that caught four Explore screens sharing a component and
+  // slot, so Metrics painted Traces' rows until its own fetch landed.
+  test(
     "a sibling screen never shows the previous one's rows or chart",
     async () => {
       const h = await renderTable(slowMetricsClient(), "Traces");

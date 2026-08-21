@@ -1015,7 +1015,7 @@ export function App({
                 ? { kind: "idle", text: detailView.label ?? "" }
                 : toNotice(state.status)))
         }
-        elapsedMs={detailView || gotoMode ? undefined : state.status.elapsedMs}
+        since={detailView || gotoMode ? undefined : state.status.since}
         hints={statusHints}
         onUpdate={updateReady ? runUpdate : undefined}
       />

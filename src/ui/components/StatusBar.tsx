@@ -73,13 +73,13 @@ function UpdatePill({ onPress }: { onPress: () => void }) {
 export function StatusBar({
   notice,
   hints,
-  elapsedMs,
+  since,
   onUpdate,
 }: {
   notice: Notice;
   hints: ReadonlyArray<{ command: string; label?: string }>;
-  /** Wall-clock elapsed for the current load, so "slow" reads differently to "hung". */
-  elapsedMs?: number;
+  /** When the current load started, so "slow" reads differently to "hung". */
+  since?: number;
   /** Present only when a newer build is downloaded and ready to restart into. */
   onUpdate?: () => void;
 }) {
@@ -88,6 +88,11 @@ export function StatusBar({
 
   let text = notice.text;
   if (loading) {
+    // The elapsed count rides the spinner's tick rather than a timer of its
+    // own: the bar is already re-rendering at 80ms, and it is the only thing
+    // in the app that needs to. A screen that ticked instead would re-render
+    // its whole table ten times a second to move one decimal place.
+    const elapsedMs = since === undefined ? undefined : Date.now() - since;
     // Only surface elapsed time once the wait is long enough to worry about.
     const suffix =
       elapsedMs !== undefined && elapsedMs >= 2000 ? ` ${(elapsedMs / 1000).toFixed(1)}s` : "";

@@ -114,7 +114,13 @@ export function errorOf<T>(status: AsyncStatus<T> | undefined): AsyncError | und
   return status?.state === "error" ? status.error : undefined;
 }
 
-/** How long the current load has been running, for the status bar. */
-export function elapsedMs<T>(status: AsyncStatus<T> | undefined, now: number): number | undefined {
-  return status?.state === "loading" ? now - status.since : undefined;
+/**
+ * When the current load started, for the status bar to count up from.
+ *
+ * The bar is handed the start time rather than an elapsed duration on purpose:
+ * a duration has to be recomputed on a timer, and a timer in a screen re-renders
+ * the screen. Only the bar itself needs to tick.
+ */
+export function loadingSince<T>(status: AsyncStatus<T> | undefined): number | undefined {
+  return status?.state === "loading" ? status.since : undefined;
 }

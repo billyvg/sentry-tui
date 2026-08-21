@@ -23,7 +23,7 @@ import {
   conversationUserLabel,
   type Conversation,
 } from "~/api/aiConversations";
-import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import {
   CONVERSATION_CHART,
   CONVERSATION_NOUN,
@@ -37,7 +37,6 @@ import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { useConversations } from "~/ui/hooks/useConversations";
-import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD, DIM } from "~/ui/lib/attributes";
 import { formatCost, formatDuration } from "~/ui/screens/exploreColumns";
@@ -193,8 +192,7 @@ export function ConversationList({
   });
 
   const loading = conversations.state === "loading";
-  const since = conversations.state === "loading" ? conversations.since : undefined;
-  const elapsed = useElapsed(loading, since);
+  const since = loadingSince(conversations);
 
   const rows = valueOf(conversations);
   const error = errorOf(conversations);
@@ -207,11 +205,11 @@ export function ConversationList({
   useEffect(() => {
     setStatus({
       loading,
-      elapsedMs: elapsed ?? elapsedMs(conversations, Date.now()),
+      since,
       error: error?.message,
       noun: CONVERSATION_NOUN,
     });
-  }, [loading, elapsed, error, conversations, setStatus]);
+  }, [loading, since, error, conversations, setStatus]);
 
   const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
 

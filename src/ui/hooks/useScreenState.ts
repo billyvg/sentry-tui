@@ -20,8 +20,8 @@ import type { FilterDropdownType } from "~/ui/components/FilterBar";
 /** Where a screen's fetch has got to, as the status bar needs to read it. */
 export interface ScreenStatus {
   loading: boolean;
-  /** How long the current load has been running. */
-  elapsedMs?: number;
+  /** When the current load started; the status bar counts up from it. */
+  since?: number;
   error?: string;
   /** What is loading, for the status bar: `"logs"` reads as "loading logs…". */
   noun?: string;
@@ -140,12 +140,7 @@ function initialData(key: string): ScreenStateData {
 }
 
 function sameStatus(a: ScreenStatus, b: ScreenStatus): boolean {
-  return (
-    a.loading === b.loading &&
-    a.elapsedMs === b.elapsedMs &&
-    a.error === b.error &&
-    a.noun === b.noun
-  );
+  return a.loading === b.loading && a.since === b.since && a.error === b.error && a.noun === b.noun;
 }
 
 /**

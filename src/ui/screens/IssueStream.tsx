@@ -12,14 +12,13 @@ import {
   type SortOption,
 } from "~/api/issues";
 import type { Group } from "~/api/types";
-import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { assigneeAvatarUrl } from "~/core/avatars";
 import { theme } from "~/core/theme";
 import { fitText, measureTextWidth } from "~/lib/text";
 import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
-import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useIssues } from "~/ui/hooks/useIssues";
 import { useMemberAvatars } from "~/ui/hooks/useMemberAvatars";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
@@ -45,7 +44,7 @@ export interface IssueStreamProps {
   focused: boolean;
   selectedIndex: number;
   onIssuesChange?: (issues: Group[]) => void;
-  onStatusChange?: (status: { loading: boolean; elapsedMs?: number; error?: string }) => void;
+  onStatusChange?: (status: { loading: boolean; since?: number; error?: string }) => void;
   /**
    * Rows to render instead of the fetched ones. The App owns the list once
    * loaded so optimistic triage updates can rewrite it; also lets tests render
@@ -163,8 +162,7 @@ export function IssueStream({
   });
 
   const loading = issues.state === "loading";
-  const since = issues.state === "loading" ? issues.since : undefined;
-  const elapsed = useElapsed(loading, since);
+  const since = loadingSince(issues);
 
   const fetched = valueOf(issues);
   const rows = issuesOverride ?? fetched;
@@ -182,10 +180,10 @@ export function IssueStream({
   useEffect(() => {
     onStatusChange?.({
       loading: loading || statsLoading,
-      elapsedMs: elapsed ?? elapsedMs(issues, Date.now()),
+      since,
       error: error?.message,
     });
-  }, [loading, statsLoading, elapsed, error, rows, issues, onStatusChange]);
+  }, [loading, statsLoading, since, error, rows, issues, onStatusChange]);
 
   useRowScrollFollow(listRef, {
     index: selectedIndex,

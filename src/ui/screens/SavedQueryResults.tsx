@@ -18,7 +18,7 @@ import { useEffect, useMemo } from "react";
 
 import type { DiscoverRow } from "~/api/discover";
 import type { SavedQuery } from "~/api/savedQueries";
-import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { SAVED_QUERY_RESULTS_STATE_KEY } from "~/core/savedQueryScreens";
 import { theme } from "~/core/theme";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
@@ -26,7 +26,6 @@ import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { useDiscoverRows } from "~/ui/hooks/useDiscoverRows";
-import { useElapsed } from "~/ui/hooks/useElapsed";
 import type { ScreenState } from "~/ui/hooks/useScreenState";
 import { BOLD } from "~/ui/lib/attributes";
 import type { DetailContext, ViewStackEntry } from "~/ui/screens/types";
@@ -87,7 +86,7 @@ function SavedQueryResults({
   const rows = valueOf(status);
   const error = errorOf(status);
   const loading = status.state === "loading";
-  const elapsed = useElapsed(loading, status.state === "loading" ? status.since : undefined);
+  const since = loadingSince(status);
 
   useEffect(() => {
     if (rows) setEntries(rows);
@@ -96,11 +95,11 @@ function SavedQueryResults({
   useEffect(() => {
     setStatus({
       loading,
-      elapsedMs: elapsed ?? elapsedMs(status, Date.now()),
+      since,
       error: error?.message,
       noun: "results",
     });
-  }, [loading, elapsed, error, status, setStatus]);
+  }, [loading, since, error, status, setStatus]);
 
   const columns = useMemo(() => columnsFor(savedQuery.fields), [savedQuery.fields]);
 
