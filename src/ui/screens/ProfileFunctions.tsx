@@ -123,7 +123,20 @@ export function ProfileFunctions({
     state;
   const inputRef = useRef<InputRenderable>(null);
 
-  // Sync native focus/blur (e.g. mouse clicks) back to the app's search state.
+  /**
+   * PLACEHOLDER, awaiting `src/ui/components/SearchInput.tsx`.
+   *
+   * The saved-queries branch is extracting the bordered `/`-prefixed input out
+   * of `LogStream` into a shared component. Whichever of the two lands second
+   * deletes this callback and the box that uses it and renders that component
+   * instead — nothing else in this file touches `inputRef`.
+   *
+   * Left working rather than stubbed out: `committedQuery` is what the
+   * function list is fetched with, so a placeholder that couldn't commit a
+   * query would take the filter away with it.
+   *
+   * Syncs native focus/blur (a mouse click) back to the app's search state.
+   */
   const inputRefCallback = useCallback(
     (node: InputRenderable | null) => {
       const previous = inputRef.current;
@@ -193,6 +206,7 @@ export function ProfileFunctions({
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
+      {/* PLACEHOLDER: replaced by `SearchInput` — see `inputRefCallback` above. */}
       <box
         style={{
           flexDirection: "row",
