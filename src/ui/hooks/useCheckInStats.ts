@@ -29,8 +29,6 @@ export interface CheckInStats {
   uptime: UptimeStats;
 }
 
-const EMPTY_STATS = (window: StatsWindow): CheckInStats => ({ window, monitors: {}, uptime: {} });
-
 export interface CheckInStatsQuery {
   org: string;
   /** Monitor guids of the cron rows on screen. */
@@ -93,8 +91,15 @@ export function useCheckInStats(
     const detectors = uptimeKey ? uptimeKey.split(",") : [];
     const window = timelineWindow(width);
 
+    // Nothing to ask about — stay idle rather than resolving an empty page.
+    //
+    // A resolved page is a *value*, and `startLoading` carries the last value
+    // forward so a refresh doesn't blank the screen. An empty placeholder
+    // carried forward that way is indistinguishable from a monitor with no
+    // check-ins, so the first real load would draw settled empty rows instead
+    // of the pending rail. Caught by `test/monitorTimeline.test.tsx`.
     if (monitors.length === 0 && detectors.length === 0) {
-      setStatus(resolved(EMPTY_STATS(window), Date.now()));
+      setStatus(idle);
       return;
     }
 
@@ -139,6 +144,14 @@ export function useCheckInStats(
 /**
  * One cron monitor's buckets out of a fetched page, flattened across
  * environments — what `<CheckInTimeline>` takes.
+ *
+ * The `undefined` / `[]` distinction is the one the component draws on:
+ * `undefined` only while there is no fetched page at all, and an empty array
+ * once there is one that simply has nothing for this monitor. A row absent
+ * from a settled response has no check-ins, not pending ones —
+ * `uptime-stats/` omits a subscription with no timeseries entirely
+ * (`organization_uptime_stats.py:_format_response`), so this is a real
+ * response, not a defensive branch.
  */
 export function cronBuckets(
   stats: CheckInStats | undefined,
@@ -146,16 +159,14 @@ export function cronBuckets(
   environment?: string,
 ): Array<StatsBucket<CronCheckInStatus>> | undefined {
   if (!stats || !monitorId) return undefined;
-  const buckets = stats.monitors[monitorId];
-  if (!buckets) return undefined;
-  return selectEnvironment(buckets, environment);
+  return selectEnvironment(stats.monitors[monitorId], environment);
 }
 
-/** One uptime detector's buckets out of a fetched page. */
+/** One uptime detector's buckets out of a fetched page. See `cronBuckets`. */
 export function uptimeBuckets(
   stats: CheckInStats | undefined,
   detectorId: string | undefined,
 ): ReadonlyArray<StatsBucket<UptimeCheckStatus>> | undefined {
   if (!stats || !detectorId) return undefined;
-  return stats.uptime[detectorId];
+  return stats.uptime[detectorId] ?? [];
 }

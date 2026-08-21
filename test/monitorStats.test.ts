@@ -13,10 +13,12 @@ import { SentryClient } from "~/api/client";
 import {
   DEFAULT_TIMELINE_WINDOW_SECONDS,
   MAX_UPTIME_DETECTORS_PER_REQUEST,
+  UPTIME_RESOLUTIONS_SECONDS,
   fetchMonitorStats,
   fetchUptimeStats,
   selectEnvironment,
   timelineWindow,
+  uptimeResolution,
 } from "~/api/monitorStats";
 import { resolutionForWidth } from "~/lib/checkInTimeline";
 import {
@@ -157,6 +159,55 @@ test("fetchUptimeStats asks by detector id", async () => {
   expect(url.searchParams.getAll("uptimeDetectorId")).toEqual([CHECKOUT_UPTIME_ID]);
   expect(stats[CHECKOUT_UPTIME_ID]).toHaveLength(24);
   expect(stats[CHECKOUT_UPTIME_ID]![9]).toEqual([SINCE + 9 * 3600, { success: 3, failure: 1 }]);
+});
+
+/**
+ * `uptime-stats/` forwards `resolution` to Snuba as a granularity, and Snuba
+ * has a fixed ladder — anything off it answers `400 "error making request"`.
+ * Found against sentry.io during a live run: every uptime row drew an empty
+ * track because the request the width implied (1200s) is not on the ladder.
+ */
+test("the uptime resolution is snapped to a granularity Snuba accepts", () => {
+  // The value a 72-cell column over a day implies, and the one it must become.
+  expect(uptimeResolution(1200)).toBe(900);
+  expect(uptimeResolution(2400)).toBe(1800);
+  // Already on the ladder: unchanged.
+  for (const allowed of UPTIME_RESOLUTIONS_SECONDS) {
+    expect(uptimeResolution(allowed)).toBe(allowed);
+  }
+  // Rounds down, never up: a coarser bucket would return fewer buckets than
+  // the column has cells.
+  for (const resolution of [61, 299, 899, 3599, 100_000]) {
+    expect(uptimeResolution(resolution)).toBeLessThanOrEqual(resolution);
+  }
+  // Clamped at both ends rather than falling off.
+  expect(uptimeResolution(1)).toBe(60);
+  expect(uptimeResolution(Number.NaN)).toBe(60);
+  expect(uptimeResolution(1_000_000)).toBe(86_400);
+});
+
+test("fetchUptimeStats sends a snapped resolution, not the one it was given", async () => {
+  const calls: string[] = [];
+  await fetchUptimeStats(stubClient({}, calls), {
+    org: "acme",
+    detectorIds: [CHECKOUT_UPTIME_ID],
+    ...WINDOW,
+    resolution: 1200,
+  });
+
+  expect(new URL(calls[0]!).searchParams.get("resolution")).toBe("900s");
+});
+
+test("fetchMonitorStats sends the resolution unchanged — crons bucket in Postgres", async () => {
+  const calls: string[] = [];
+  await fetchMonitorStats(stubClient({}, calls), {
+    org: "acme",
+    monitors: [NIGHTLY_ROLLUP_ID],
+    ...WINDOW,
+    resolution: 1200,
+  });
+
+  expect(new URL(calls[0]!).searchParams.get("resolution")).toBe("1200s");
 });
 
 test("duplicate detector ids are asked for once", async () => {

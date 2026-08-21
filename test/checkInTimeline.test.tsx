@@ -358,14 +358,16 @@ test("the fetched stats reach the rows they belong to", async () => {
   }
 });
 
-test("no rows to draw means no request at all", async () => {
+test("no rows to draw means no request, and no resolved empty page either", async () => {
   const calls: string[] = [];
   const h = await renderHarness(<StatsProbe client={statsClient(calls)} />, {
     width: 40,
     height: 8,
   });
   try {
-    await h.waitForFrame((f) => f.includes("state:ready"));
+    // Idle, not ready: a resolved empty page is a value, and `startLoading`
+    // would carry it into the first real load as though it were data.
+    expect(h.frame()).toContain("state:idle");
     expect(calls).toEqual([]);
   } finally {
     await h.cleanup();
