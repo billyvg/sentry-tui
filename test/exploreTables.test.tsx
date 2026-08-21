@@ -4,6 +4,7 @@ import { createTokenAuthProvider } from "~/api/auth";
 import type { DiscoverRow } from "~/api/discover";
 import type { ExploreEvent } from "~/api/exploreEvents";
 import { SentryClient } from "~/api/client";
+import { defaultExploreQuery, resolveExploreQuery, withGroupBys } from "~/core/exploreQuery";
 import { EXPLORE_TABLES, getExploreTable } from "~/core/exploreTables";
 import { getScreen } from "~/core/screens";
 import { proportionalBar } from "~/lib/sparkline";
@@ -12,8 +13,10 @@ import { layoutColumns } from "~/ui/lib/tableLayout";
 import { App } from "~/ui/App";
 import { SCREEN_COMPONENTS } from "~/ui/screens/registry";
 import {
+  aggregateColumns,
   EXPLORE_MIN_FLEX,
   exploreColumnsFor,
+  formatAggregate,
   formatDuration,
   messagePreview,
 } from "~/ui/screens/exploreColumns";
@@ -132,6 +135,26 @@ describe("columns", () => {
         expect(table.fields).toContain(column.key);
       }
     }
+  });
+
+  test("a grouped query draws exactly the fields it asked for", () => {
+    const traces = getExploreTable("explore.traces")!;
+    const state = withGroupBys(defaultExploreQuery(traces), ["span.op", "transaction"], traces);
+    const resolved = resolveExploreQuery(traces, state);
+    const columns = aggregateColumns(state.groupBys, resolved.yAxis, 1000);
+    expect(columns.map((c) => c.key)).toEqual([...resolved.fields]);
+    // The leading group by is what the rows are read by, so it never sheds;
+    // the rest go from the right.
+    expect(columns[0]!.priority).toBeUndefined();
+    expect(columns[1]!.priority).toBe(1);
+  });
+
+  test("an aggregate is formatted in the unit its expression implies", () => {
+    expect(formatAggregate("count", "span.duration", 1284)).toBe("1.3k");
+    expect(formatAggregate("p95", "span.duration", 340.5)).toBe("341ms");
+    expect(formatAggregate("failure_rate", "", 0.125)).toBe("12.5%");
+    expect(formatAggregate("avg", "http.response_content_length", 512)).toBe("512");
+    expect(formatAggregate("count", "span.duration", undefined)).toBe("—");
   });
 
   test("every column set has exactly one flex column that never sheds", () => {

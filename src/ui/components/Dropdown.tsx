@@ -46,6 +46,12 @@ export interface DropdownProps {
    */
   filterable?: boolean;
   /**
+   * Cap on how wide the list may grow, for one whose labels are the org's
+   * doing. A span has a few hundred attributes and the longest of them is
+   * forty cells, which would otherwise set the width of every row.
+   */
+  maxWidth?: number;
+  /**
    * Row to show in place of the list while it has nothing selectable — a
    * pending fetch, a failed one, or a genuinely empty set. Without it an
    * item-less dropdown opens as a bare box, which reads as broken rather than
@@ -99,6 +105,7 @@ export function Dropdown({
   anchorTop,
   showAll = true,
   filterable = false,
+  maxWidth,
   placeholder,
   onSelect,
   onClose,
@@ -242,7 +249,7 @@ export function Dropdown({
     ...allItems.map((i) => i.label.length + rowChrome),
     placeholderRow ? placeholderRow.length + rowChrome : 0,
   );
-  const dropdownWidth = Math.min(maxLabelWidth, termWidth - 2);
+  const dropdownWidth = Math.min(maxLabelWidth, maxWidth ?? Infinity, termWidth - 2);
   const visibleRows = Math.max(
     1,
     Math.min(rowCount, MAX_VISIBLE, termHeight - anchorTop - 3 - filterRows),

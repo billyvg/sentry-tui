@@ -16,6 +16,7 @@
 
 import { rowNumber, rowString } from "~/api/discover";
 import type { ExploreEvent } from "~/api/exploreEvents";
+import { parseAggregateExpression } from "~/core/exploreQuery";
 import { theme } from "~/core/theme";
 import type { ScreenId } from "~/core/screens";
 import { formatCount, proportionalBar } from "~/lib/sparkline";
@@ -196,6 +197,142 @@ export function formatDuration(ms: number): string {
   const minutes = seconds / 60;
   if (minutes < 60) return `${minutes.toFixed(1)}m`;
   return `${(minutes / 60).toFixed(1)}h`;
+}
+
+// ---------------------------------------------------------------------------
+// Aggregates
+// ---------------------------------------------------------------------------
+
+/**
+ * Cells the aggregate column takes: a value, and a bar in whatever is left.
+ *
+ * Twenty, because `count(span.duration)` is twenty and the header is the only
+ * place the query's aggregate is spelled out beside its numbers.
+ */
+const AGGREGATE_WIDTH = 20;
+/** Fixed part of that column, holding the formatted number. */
+const AGGREGATE_VALUE_WIDTH = 8;
+
+/**
+ * Columns for a grouped query: one per group by, then the aggregate.
+ *
+ * Built rather than declared, because the user chose them — the group bys are
+ * whatever the builder is set to, and each one gets an equal share of the
+ * width, since nothing here knows which of two attributes the reader came for.
+ *
+ * The aggregate keeps a proportional bar, for the same reason the duration
+ * column has one: a column of forty numbers is read one number at a time, and
+ * a column of forty bars is read at a glance.
+ */
+export function aggregateColumns(
+  groupBys: readonly string[],
+  yAxis: string,
+  maxValue: number,
+): ReadonlyArray<Column<ExploreEvent>> {
+  const { aggregate, argument } = parseAggregateExpression(yAxis);
+  return [
+    ...groupBys.map((key, index): Column<ExploreEvent> => ({
+      key,
+      label: key,
+      width: "flex",
+      // The leading group by is the one the rows are read by; the rest shed
+      // from the right when the pane is too narrow for all of them.
+      priority: index === 0 ? undefined : groupBys.length - index,
+      render: (event, _selected, width) => (
+        <text fg={index === 0 ? theme.text : theme.subText}>
+          {padText(field(event, key) || "(none)", width)}
+        </text>
+      ),
+    })),
+    {
+      key: yAxis,
+      label: yAxis,
+      width: AGGREGATE_WIDTH,
+      align: "right",
+      render: (event, _selected, width) => (
+        <AggregateCell
+          value={rowNumber(event.row, yAxis)}
+          maxValue={maxValue}
+          text={formatAggregate(aggregate, argument, rowNumber(event.row, yAxis))}
+          width={width}
+        />
+      ),
+    },
+  ];
+}
+
+/** An aggregate as a proportional bar plus its number. */
+function AggregateCell({
+  value,
+  maxValue,
+  text,
+  width,
+}: {
+  value: number | undefined;
+  maxValue: number;
+  text: string;
+  width: number;
+}) {
+  const valueWidth = Math.min(AGGREGATE_VALUE_WIDTH, width);
+  const barWidth = Math.max(0, width - valueWidth - 1);
+
+  if (value === undefined) {
+    return <text fg={theme.subText}>{padText("—", width, "right")}</text>;
+  }
+
+  const fraction = maxValue > 0 ? value / maxValue : 0;
+  return (
+    <>
+      {barWidth > 0 ? (
+        <>
+          <text fg={theme.accent}>{proportionalBar(fraction, barWidth)}</text>
+          <text> </text>
+        </>
+      ) : null}
+      <text fg={theme.text}>{padText(text, valueWidth, "right")}</text>
+    </>
+  );
+}
+
+/** Aggregates whose result is a count of things, not a measurement. */
+const COUNTING_AGGREGATES = new Set(["count", "count_unique", "failure_count"]);
+/** Aggregates whose result is a ratio between 0 and 1. */
+const RATIO_AGGREGATES = new Set(["failure_rate", "performance_score", "opportunity_score"]);
+
+/**
+ * An aggregate's value, in the unit its function and argument imply.
+ *
+ * Read off the expression rather than the response: `events/` reports units in
+ * a `meta` block the Discover client does not keep, and the two facts that
+ * decide the format — is this a count, and is its argument a duration — are
+ * both already in the yAxis the query asked for. A number formatted as a plain
+ * number is the fallback, which is what an unrecognised attribute gets.
+ */
+export function formatAggregate(
+  aggregate: string,
+  argument: string,
+  value: number | undefined,
+): string {
+  if (value === undefined) return "—";
+  if (COUNTING_AGGREGATES.has(aggregate)) return formatCount(value);
+  if (RATIO_AGGREGATES.has(aggregate)) return `${(value * 100).toFixed(1)}%`;
+  if (isDurationField(argument)) return formatDuration(value);
+  return Math.abs(value) >= 1000 ? formatCount(value) : String(Number(value.toFixed(2)));
+}
+
+/**
+ * Whether an attribute holds a duration in milliseconds.
+ *
+ * Sentry's span durations are the two `ALLOWED_EXPLORE_VISUALIZE_FIELDS`, and
+ * SDKs spell their own the same two ways.
+ */
+function isDurationField(field: string): boolean {
+  return (
+    field === "span.duration" ||
+    field === "span.self_time" ||
+    field.endsWith(".duration") ||
+    field.endsWith("_time")
+  );
 }
 
 // ---------------------------------------------------------------------------

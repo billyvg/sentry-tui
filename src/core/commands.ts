@@ -251,6 +251,44 @@ export const COMMANDS: readonly Command[] = [
     description: "Open the date range selector",
     palette: "stream",
   },
+  // explore query builder — the toolbar beside the web's Traces table
+  {
+    id: "sentry.explore.visualize",
+    title: "Visualize",
+    category: "view",
+    defaultKeys: ["V"],
+    description: "Choose the aggregate to plot",
+  },
+  {
+    id: "sentry.explore.visualizeField",
+    title: "Visualize field",
+    category: "view",
+    defaultKeys: ["F"],
+    description: "Choose what the aggregate reads",
+  },
+  {
+    // `G` is already the bottom of a list, so grouping takes the other letter
+    // in the phrase it is named after.
+    id: "sentry.explore.groupBy",
+    title: "Group by",
+    category: "view",
+    defaultKeys: ["B"],
+    description: "Group results by an attribute",
+  },
+  {
+    id: "sentry.explore.sortField",
+    title: "Sort by",
+    category: "view",
+    defaultKeys: ["S"],
+    description: "Choose the column results sort on",
+  },
+  {
+    id: "sentry.explore.sortDirection",
+    title: "Sort direction",
+    category: "view",
+    defaultKeys: ["O"],
+    description: "Flip between ascending and descending",
+  },
   {
     // Every section is bound at once rather than one command per section: the
     // number is printed in the section's own header, so the binding is read off

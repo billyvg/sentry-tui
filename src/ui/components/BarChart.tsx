@@ -33,9 +33,12 @@ const MIN_LIST_ROWS = 5;
  *
  * A short terminal has to choose, and the rows are what the screen is for: a
  * chart with no list under it is a chart nobody asked for.
+ *
+ * @param extraChrome Rows this screen spends above its table that the count
+ *   above doesn't cover — Explore's query builder row, say.
  */
-export function fitsChart(height: number): boolean {
-  return height >= CHART_ROWS + CHROME_ROWS + MIN_LIST_ROWS;
+export function fitsChart(height: number, extraChrome = 0): boolean {
+  return height >= CHART_ROWS + CHROME_ROWS + extraChrome + MIN_LIST_ROWS;
 }
 
 /** Y-axis label gutter width (e.g. "100K "). */
@@ -54,8 +57,14 @@ export interface BarChartProps {
   height: number;
   /** The aggregate being plotted, drawn top left, e.g. `count(logs)`. */
   title: string;
-  /** What a bucket counts, for the total drawn top right: `1.2m logs`. */
-  noun: string;
+  /**
+   * What a bucket counts, for the total drawn top right: `1.2m logs`.
+   *
+   * Omit it for an aggregate that doesn't add up across buckets — the sum of
+   * twelve `p95`s is not a p95 of anything, and a number nobody can use is
+   * worse than the space it takes.
+   */
+  noun?: string;
 }
 
 /**
@@ -172,7 +181,7 @@ export function BarChart({ buckets, width, height, title, noun }: BarChartProps)
 
   // Account for the border (1 cell each side) and padding (1 cell left).
   const innerWidth = width - 2 - 1;
-  const totalLabel = `${formatCount(total)} ${noun}`;
+  const totalLabel = noun === undefined ? "" : `${formatCount(total)} ${noun}`;
 
   return (
     <box
