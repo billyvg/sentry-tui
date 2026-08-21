@@ -180,6 +180,23 @@ describe("release commands", () => {
 
     expect(scripted.sort()).toEqual(Object.keys(COMMANDS).sort());
   });
+
+  test("cut annotates the tag and pushes it by name", async () => {
+    const source = await read("scripts/release.ts");
+
+    // The tag is the only thing that starts a release, and `--follow-tags`
+    // pushes annotated tags only. A lightweight `git tag` therefore rode along
+    // with the branch and never reached origin — no run, no publish, and `cut`
+    // reporting success either way. Both halves are the fix: annotate the tag,
+    // and push it as its own refspec so failing to reach origin is an error.
+    expect(source).toContain(
+      'await run(["git", "tag", "-a", `v${version}`, "-m", `v${version}`]);',
+    );
+    expect(source).toContain('await run(["git", "push", "origin", `v${version}`]);');
+    // The argv form specifically — the comment above the fix names the flag in
+    // prose, and that mention is the point rather than a regression.
+    expect(source).not.toContain('"--follow-tags"');
+  });
 });
 
 describe("repository manifest", () => {

@@ -1,6 +1,6 @@
 name: Release
 
-# Tag-driven: `git tag v0.1.0 && git push origin v0.1.0`. The tag must match
+# Tag-driven: `git tag -a v0.1.0 -m v0.1.0 && git push origin v0.1.0`. The tag must match
 # `version` in package.json — the first job fails the run otherwise.
 #
 # Run it by hand first (workflow_dispatch, dry_run: true) to build and package
