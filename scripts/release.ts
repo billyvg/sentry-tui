@@ -192,12 +192,11 @@ async function preflight(): Promise<void> {
 
   // The registry is the authority on whether these names are still ours to take.
   for (const name of [ALIAS_PACKAGE, LAUNCHER_PACKAGE]) {
-    const view = await capture(["npm", "view", name, "version", "--json", "--registry", REGISTRY]);
-    if (view.code !== 0) {
+    const published = await publishedVersion(name);
+    if (!published) {
       ok(`${name}: unpublished, name is free`);
       continue;
     }
-    const published = view.out.replaceAll('"', "");
     if (published === version) {
       bad(`${name}@${version} is already published — bump the version first`);
       blocking++;
@@ -343,17 +342,31 @@ async function cut(): Promise<void> {
 // publish
 // ---------------------------------------------------------------------------
 
-/** Whether this exact version is already on the registry. */
-async function isPublished(name: string, version: string): Promise<boolean> {
+/**
+ * Ask the registry what version of `spec` exists, revalidating rather than
+ * trusting the local cache.
+ *
+ * `--prefer-online` is the whole point: npm caches 404s too, so a name checked
+ * before it was published keeps reading as unpublished for minutes afterwards.
+ * That made `release:verify` contradict a publish that had in fact succeeded.
+ */
+async function publishedVersion(spec: string): Promise<string | undefined> {
   const view = await capture([
     "npm",
     "view",
-    `${name}@${version}`,
+    spec,
     "version",
     "--registry",
     REGISTRY,
+    "--prefer-online",
   ]);
-  return view.code === 0 && view.out.trim() === version;
+  if (view.code !== 0) return undefined;
+  return view.out.trim().replaceAll('"', "") || undefined;
+}
+
+/** Whether this exact version is already on the registry. */
+async function isPublished(name: string, version: string): Promise<boolean> {
+  return (await publishedVersion(`${name}@${version}`)) === version;
 }
 
 /**
@@ -440,9 +453,8 @@ async function verify(): Promise<void> {
 
   step(`Registry, expecting ${version}`);
   for (const name of PUBLISH_ORDER) {
-    const view = await capture(["npm", "view", name, "version", "--json", "--registry", REGISTRY]);
-    const published = view.out.replaceAll('"', "");
-    if (view.code !== 0) bad(`${name}: not published`);
+    const published = await publishedVersion(name);
+    if (!published) bad(`${name}: not published`);
     else if (published === version) ok(`${name}@${published}`);
     else warn(`${name}@${published}, expected ${version}`);
   }
