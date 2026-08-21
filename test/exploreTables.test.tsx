@@ -359,6 +359,34 @@ describe("Explore › Traces", () => {
     }
   });
 
+  test("a short series is stretched across the chart rather than left in a corner", async () => {
+    // The fixture is twelve buckets and the chart is far wider than twelve
+    // cells. Drawn one bucket per cell they huddle against the y-axis and the
+    // chart reads as empty, which is the bug this stretch fixes.
+    const h = await renderApp(stubClient());
+    try {
+      await navigateTo(h, "Traces");
+      await h.waitForFrame((f) => f.includes("count(span.duration)"));
+
+      // The longest unbroken run of block glyphs on any row, which isolates a
+      // chart row from the duration bars scattered down the table's own column.
+      const widestRun = Math.max(
+        ...h
+          .frame()
+          .split("\n")
+          .map((line) =>
+            Math.max(0, ...(line.match(/[▁▂▃▄▅▆▇█]+/g) ?? []).map((run) => run.length)),
+          ),
+      );
+
+      // The chart's bar area is about a hundred cells wide here. Twelve
+      // buckets drawn one per cell would leave nine tenths of it blank.
+      expect(widestRun).toBeGreaterThan(80);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
   test("the status bar counts the rows", async () => {
     const h = await renderApp(stubClient());
     try {

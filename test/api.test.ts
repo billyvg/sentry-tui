@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { createTokenAuthProvider, MissingTokenError } from "~/api/auth";
 import { ApiError, parseLinkHeader, SentryClient } from "~/api/client";
+import { queryDiscoverTimeseries } from "~/api/discover";
 import { fetchIssueStats, listIssues, updateIssue } from "~/api/issues";
 import { groupsFixture } from "./fixtures";
 
@@ -227,5 +228,32 @@ describe("SentryClient", () => {
     await listIssues(client, { org: "acme" });
 
     expect(performance.now() - started).toBeGreaterThanOrEqual(100);
+  });
+});
+
+describe("queryDiscoverTimeseries", () => {
+  /** The `events-stats/` URL a single call produced, as URLSearchParams. */
+  async function paramsFor(statsPeriod: string | undefined, interval?: string) {
+    const { impl, calls } = stubFetch(() => json({ data: [] }));
+    const client = new SentryClient({ auth, fetchImpl: impl });
+    await queryDiscoverTimeseries(client, { org: "acme", dataset: "logs", statsPeriod, interval });
+    return new URL(calls[0]!.url).searchParams;
+  }
+
+  test("asks for the finest bucket the window allows, as Explore does", async () => {
+    // Without this the endpoint picks its own coarse default — 15m for an
+    // hour — and the chart has four bars in it.
+    expect((await paramsFor("1h")).get("interval")).toBe("1m");
+    expect((await paramsFor("24h")).get("interval")).toBe("5m");
+    expect((await paramsFor("14d")).get("interval")).toBe("1h");
+    expect((await paramsFor("90d")).get("interval")).toBe("3h");
+  });
+
+  test("lets a caller name its own interval", async () => {
+    expect((await paramsFor("24h", "1h")).get("interval")).toBe("1h");
+  });
+
+  test("omits the param when the period isn't one it can read", async () => {
+    expect((await paramsFor(undefined)).has("interval")).toBe(false);
   });
 });

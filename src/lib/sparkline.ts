@@ -140,6 +140,28 @@ export function proportionalBar(fraction: number, width: number): string {
   return ("█".repeat(full) + partial).padEnd(width);
 }
 
+/**
+ * Repeat each entry until the series fills `width` cells.
+ *
+ * The companion to `downsample`: that one shrinks a series too long for its
+ * chart, this one widens one too short. Nearest-neighbour rather than
+ * interpolated — the buckets are what the endpoint measured, and drawing a
+ * value between two of them would be inventing one.
+ *
+ * Generic over the entry so callers can stretch bare counts, `SeriesPoint`s,
+ * or raw API buckets and keep whatever the entry carries alongside its value.
+ *
+ * Returns a copy unchanged when the series already fills the width, so it is
+ * safe to call unconditionally.
+ */
+export function stretch<T>(points: readonly T[], width: number): T[] {
+  if (points.length === 0 || points.length >= width) return [...points];
+  return Array.from(
+    { length: width },
+    (_, cell) => points[Math.min(points.length - 1, Math.floor((cell * points.length) / width))]!,
+  );
+}
+
 function downsample(values: number[], width: number): number[] {
   if (values.length <= width) return values;
 

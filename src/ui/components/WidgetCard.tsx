@@ -22,7 +22,7 @@ import type { DiscoverRow } from "~/api/discover";
 import { errorOf, isLoading, valueOf, type AsyncStatus } from "~/core/async";
 import { theme } from "~/core/theme";
 import { bigDigitLines, splitBigValue } from "~/lib/bigDigits";
-import { formatCount, sparklineBlock, type SeriesPoint } from "~/lib/sparkline";
+import { formatCount, sparklineBlock, stretch, type SeriesPoint } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { BOLD, DIM } from "~/ui/lib/attributes";
 import { layoutColumns } from "~/ui/lib/tableLayout";
@@ -294,20 +294,6 @@ function SeriesBody({
         </text>
       </box>
     </box>
-  );
-}
-
-/**
- * Repeat each bucket until the series fills the chart.
- *
- * Nearest-neighbour rather than interpolated: the buckets are what the endpoint
- * measured, and drawing a value between two of them would be inventing one.
- */
-function stretch(points: readonly SeriesPoint[], width: number): SeriesPoint[] {
-  if (points.length === 0 || points.length >= width) return [...points];
-  return Array.from(
-    { length: width },
-    (_, cell) => points[Math.min(points.length - 1, Math.floor((cell * points.length) / width))]!,
   );
 }
 

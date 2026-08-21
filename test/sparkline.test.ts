@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { countLabel, sparkline, sparklineBlock } from "~/lib/sparkline";
+import { countLabel, sparkline, sparklineBlock, stretch } from "~/lib/sparkline";
 
 /** `[unixSeconds, count]` pairs, as `group.stats` returns them. */
 function series(...counts: number[]): Array<[number, number]> {
@@ -75,5 +75,40 @@ describe("sparklineBlock", () => {
 
   test("a series still in flight fills every row with the pending glyph", () => {
     expect(sparklineBlock(undefined, 3, 2)).toEqual(["╌╌╌", "╌╌╌"]);
+  });
+});
+
+describe("stretch", () => {
+  test("widens a short series to fill the chart", () => {
+    expect(stretch([1, 2, 3], 6)).toEqual([1, 1, 2, 2, 3, 3]);
+  });
+
+  test("keeps the first and last entry at the two edges", () => {
+    const wide = stretch([1, 2, 3], 70);
+    expect(wide).toHaveLength(70);
+    expect(wide[0]).toBe(1);
+    expect(wide[69]).toBe(3);
+  });
+
+  test("repeats rather than interpolates, so no invented values appear", () => {
+    expect(new Set(stretch([4, 9], 8))).toEqual(new Set([4, 9]));
+  });
+
+  test("leaves a series that already fills the width alone", () => {
+    expect(stretch([1, 2, 3], 3)).toEqual([1, 2, 3]);
+    expect(stretch([1, 2, 3, 4], 3)).toEqual([1, 2, 3, 4]);
+  });
+
+  test("carries whatever the entry holds, not just a count", () => {
+    expect(stretch([[10, 1] as const, [20, 2] as const], 4)).toEqual([
+      [10, 1],
+      [10, 1],
+      [20, 2],
+      [20, 2],
+    ]);
+  });
+
+  test("an empty series stays empty rather than becoming a row of holes", () => {
+    expect(stretch([], 5)).toEqual([]);
   });
 });
