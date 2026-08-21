@@ -5,28 +5,35 @@
  * it, so lighting up a group's sidebar is a change to this file alone. The
  * switch is the shape: one arm per group, so several can land independently.
  *
- * Filled in so far: **Explore's feature badges**, which are static — the web
- * hard-codes three of them (`exploreSecondaryNavigation.tsx:62`, `:74`,
- * `:149`), so that arm is a constant and needs no client.
+ * Filled in so far:
  *
- * Still to come, both of them fetches:
+ * - **Explore's feature badges**, which are static — the web hard-codes three
+ *   of them (`exploreSecondaryNavigation.tsx:62`, `:74`, `:149`).
+ * - **Dashboards › Starred Dashboards** — `GET /organizations/{org}/dashboards/starred/`
+ *   (`dashboardsApiOptions.tsx:8-17`, `dashboardsSecondaryNavigation.tsx:79-83`).
+ *
+ * Still to come:
  *
  * - **Explore › Starred Queries** — `GET /organizations/{org}/explore/saved/`
  *   with `starred: true`, capped at `MAX_STARRED_SAVED_QUERIES_IN_NAV`
- *   (`exploreSecondaryNavigation.tsx:169`). Each item targets
- *   `{group: "explore", item: "All Queries"}` or the table that runs it. It
- *   shares this arm with the badges: a section and a badge map come back
- *   together, so whichever lands second keeps both rather than replacing one.
- * - **Dashboards › Starred Dashboards** — `GET /organizations/{org}/dashboards/starred/`
- *   (`dashboardsApiOptions.tsx:10`, `dashboardsSecondaryNavigation.tsx:79`).
+ *   (`exploreSecondaryNavigation.tsx:169`). It supplies `sections` to
+ *   `exploreNavExtras`; see the warning on that function.
+ *
+ * **Adding a group's section is additive.** Fetch it with a hook called
+ * unconditionally and gated by an `enabled` flag — the sidebar is mounted for
+ * the whole session, so an ungated fetch would run on app start — then add one
+ * arm to the switch. Each group owns its own arm; nothing here is shared.
  *
  * Whatever fetches land here must respect the app's manual-refresh rule: take
  * `reloadToken` as an effect dependency, and never poll.
  */
 
+import { useMemo } from "react";
+
 import type { SentryClient } from "~/api/client";
 import { EXPLORE_NAV_BADGES } from "~/core/exploreNav";
 import type { NavGroupId } from "~/core/nav";
+import { useStarredDashboards } from "~/ui/hooks/useDashboards";
 import { NO_NAV_EXTRAS, type NavSectionSpec, type SecondaryNavExtras } from "~/ui/lib/navSections";
 
 /**
@@ -38,9 +45,8 @@ import { NO_NAV_EXTRAS, type NavSectionSpec, type SecondaryNavExtras } from "~/u
  * has not run yet must still leave the badges on. Building the return value
  * through this function is what makes that structural rather than a thing to
  * remember. A section builder that returns `NO_NAV_EXTRAS` on its empty path —
- * which is the natural way to write one, and how the starred-queries work on
- * `feat/saved-queries` does write it — would otherwise silently take all three
- * badges with it for any org that has starred nothing.
+ * which is the natural way to write one — would otherwise silently take all
+ * three badges with it for any org that has starred nothing.
  *
  * So when the Starred Queries fetch lands here, it supplies `sections`; it
  * must not construct the `SecondaryNavExtras` itself.
@@ -53,21 +59,53 @@ function exploreNavExtras(sections: readonly NavSectionSpec[] = []): SecondaryNa
 }
 
 /**
+ * A starred dashboard has no screen of its own, so its item points at the list
+ * that contains it. Carrying the selected dashboard through to the detail view
+ * would need a way to hand a row id to a nav destination, which the shell does
+ * not have — see `docs/plans/002-screen-contract.md` §7.
+ */
+const STARRED_DASHBOARD_TARGET = { group: "dashboards", item: "All Dashboards" } as const;
+
+/**
  * @param client Authenticated API client, or null before sign-in.
  * @param org The open organization — dynamic sections are org-scoped.
  * @param group The group whose sidebar is open.
  * @param reloadToken Bump to refetch; the app's global refresh.
  */
 export function useSecondaryNavExtras(
-  _client: SentryClient | null,
-  _org: string,
+  client: SentryClient | null,
+  org: string,
   group: NavGroupId,
-  _reloadToken: number,
+  reloadToken: number,
 ): SecondaryNavExtras {
-  switch (group) {
-    case "explore":
-      return exploreNavExtras();
-    default:
-      return NO_NAV_EXTRAS;
-  }
+  const starredDashboards = useStarredDashboards(client, {
+    org,
+    enabled: group === "dashboards",
+    reloadToken,
+  });
+
+  return useMemo(() => {
+    switch (group) {
+      case "explore":
+        return exploreNavExtras();
+      case "dashboards":
+        // The web hides the section when nothing is starred rather than
+        // showing an empty heading; so do we.
+        if (starredDashboards.length === 0) return NO_NAV_EXTRAS;
+        return {
+          sections: [
+            {
+              title: "Starred Dashboards",
+              items: starredDashboards.map((dashboard) => ({
+                label: dashboard.title,
+                target: STARRED_DASHBOARD_TARGET,
+              })),
+            },
+          ],
+          badges: {},
+        };
+      default:
+        return NO_NAV_EXTRAS;
+    }
+  }, [group, starredDashboards]);
 }

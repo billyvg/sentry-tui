@@ -190,8 +190,8 @@ export const SCREENS: readonly ScreenDef[] = [
   exploreTable("explore.conversations", "Conversations"),
   s("explore.all-queries", "explore", "All Queries", "stub"),
 
-  s("dashboards.all", "dashboards", "All Dashboards", "stub", DASHBOARD_LIST),
-  s("dashboards.sentry-built", "dashboards", "Sentry Built", "stub", DASHBOARD_LIST),
+  s("dashboards.all", "dashboards", "All Dashboards", "table", DASHBOARD_LIST),
+  s("dashboards.sentry-built", "dashboards", "Sentry Built", "table", DASHBOARD_LIST),
 
   // Monitors — six of the seven are one detector table with a different
   // `type:` filter, so the user's own filters follow them across.
