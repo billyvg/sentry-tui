@@ -156,7 +156,9 @@ export const COMMANDS: readonly Command[] = [
     title: "Search",
     category: "nav",
     defaultKeys: ["/"],
-    description: "Focus the issue search query",
+    // One key for "search what is in front of you": the stream's query box,
+    // or the filter box inside an open picker.
+    description: "Focus the search box for this list",
     palette: "stream",
   },
 

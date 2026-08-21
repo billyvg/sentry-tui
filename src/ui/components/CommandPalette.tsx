@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { KeyEvent } from "@opentui/core";
+import { useEffect, useMemo, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import { matchesCommand } from "~/core/commands";
@@ -14,8 +13,14 @@ import {
 } from "~/core/palette";
 import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
+import { HighlightedLabel } from "~/ui/components/HighlightedLabel";
 import { ModalFrame } from "~/ui/components/ModalFrame";
-import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
+import {
+  consumeKey,
+  isTypingSafeDown,
+  isTypingSafeUp,
+  routeKeyOwnership,
+} from "~/ui/lib/keyRouting";
 import { listWindowStart, resolveModalGeometry } from "~/ui/lib/modalGeometry";
 
 export const PALETTE_WIDTH = 68;
@@ -87,11 +92,11 @@ export function CommandPalette({ actions, onRun, onClose }: CommandPaletteProps)
             return "mine";
           }
           // Arrows and the readline chords only — `j` and `k` are text here.
-          if (isDown(key)) {
+          if (isTypingSafeDown(key)) {
             setCursor((c) => Math.min(c + 1, results.length - 1));
             return "mine";
           }
-          if (isUp(key)) {
+          if (isTypingSafeUp(key)) {
             setCursor((c) => Math.max(c - 1, 0));
             return "mine";
           }
@@ -215,60 +220,4 @@ function PaletteRowView({
       {detail ? <text fg={theme.subText}>{detail}</text> : null}
     </box>
   );
-}
-
-/**
- * Draw a label with its matched characters picked out in the accent colour.
- *
- * Positions are code-unit indices from `fuzzyMatch`, and truncation only ever
- * cuts a suffix, so indices still line up with the fitted string; anything the
- * ellipsis swallowed simply stops being highlighted.
- */
-function HighlightedLabel({
-  text,
-  positions,
-  width,
-  fg,
-}: {
-  text: string;
-  positions: readonly number[];
-  width: number;
-  fg: string;
-}) {
-  const fitted = fitText(text, width);
-  const visible = fitted === text ? fitted.length : Math.max(0, fitted.length - 1);
-  const matched = new Set(positions);
-
-  const spans: ReactNode[] = [];
-  let buffer = "";
-  let bufferMatched = false;
-  const flush = () => {
-    if (!buffer) return;
-    spans.push(
-      <span key={spans.length} fg={bufferMatched ? theme.accent : fg}>
-        {buffer}
-      </span>,
-    );
-    buffer = "";
-  };
-
-  for (let i = 0; i < fitted.length; i++) {
-    const isMatch = i < visible && matched.has(i);
-    if (isMatch !== bufferMatched) {
-      flush();
-      bufferMatched = isMatch;
-    }
-    buffer += fitted[i];
-  }
-  flush();
-
-  return <text>{spans}</text>;
-}
-
-function isDown(key: KeyEvent): boolean {
-  return key.name === "down" || (key.name === "n" && Boolean(key.ctrl));
-}
-
-function isUp(key: KeyEvent): boolean {
-  return key.name === "up" || (key.name === "p" && Boolean(key.ctrl));
 }
