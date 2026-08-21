@@ -137,6 +137,7 @@ contents land as `bundle/release`, `bundle/npm`, and `bundle/homebrew`.
 bun run release:publish              # newest release-workflow run
 bun run release:publish 12345678     # a specific run
 bun run release:publish --npm-dry-run
+bun run release:publish --otp 123456 # npm account with 2FA on writes
 ```
 
 You cannot build a full release on one machine — each target needs its own
@@ -144,6 +145,20 @@ runner — so this still starts from a CI build. It downloads the four binary
 artifacts into `dist/bin`, re-runs `build:npm --strict`, shows you what it is
 about to publish, and then publishes in dependency order: platform packages,
 launcher, alias. `--skip-download` reuses whatever is already in `dist/bin`.
+
+Anything already on the registry at this version is skipped rather than
+retried, so a run interrupted halfway — a dropped connection, an OTP that
+expired between two 24MB uploads — is fixed by running the command again.
+
+With 2FA on writes, pass `--otp`. Six uploads can outlive one 30-second code
+though, so an **automation token** is the calmer route — automation-class
+tokens bypass 2FA entirely. Set `NPM_TOKEN` and the command authenticates with
+it, writing a 0600 npmrc to a temp dir and deleting it afterwards, exactly as CI
+does:
+
+```bash
+NPM_TOKEN=npm_xxx bun run release:publish
+```
 
 Regenerating with `build:npm` is not busywork: **artifact downloads do not
 preserve the executable bit**, and `npm publish` ships whatever mode the file has
