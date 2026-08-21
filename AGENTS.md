@@ -191,12 +191,15 @@ After finishing your changes:
 
 1. Run `bun run check` to verify everything passes.
 2. Stage and commit with a conventional commit message.
-3. Push and open a **draft** pull request:
+3. Push and open a pull request:
 
 ```bash
 git push -u origin <branch-name>
-gh pr create --draft --fill
+gh pr create --fill
 ```
+
+Open it ready for review, not as a draft — this project overrides a
+draft-first default carried in from elsewhere.
 
 ## issues
 
