@@ -213,7 +213,7 @@ export const SCREENS: readonly ScreenDef[] = [
   s("monitors.cron", "monitors", "Cron", "table", MONITOR_DETECTORS),
   s("monitors.uptime", "monitors", "Uptime", "table", MONITOR_DETECTORS),
   s("monitors.mobile-build", "monitors", "Mobile Build", "table", MONITOR_DETECTORS),
-  s("monitors.alerts", "monitors", "Alerts", "stub"),
+  s("monitors.alerts", "monitors", "Alerts", "table"),
 
   s("seer.ask", "seer", "Ask Seer", "chat"),
 
