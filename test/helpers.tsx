@@ -24,6 +24,14 @@ export interface Harness extends TestRendererSetup {
    * resulting state update reaches the renderer before the next capture.
    */
   click: (x: number, y: number) => Promise<void>;
+  /**
+   * Let real time pass, settling whatever it releases — a debounce, a poll.
+   *
+   * In the same `act()` envelope `press` uses: a timer that fires outside one
+   * updates React after the assertion has already read the frame, and says so
+   * on stderr.
+   */
+  wait: (ms: number) => Promise<void>;
   frame: () => string;
   /**
    * The rendered span containing `needle`, with its real color and attribute
@@ -75,6 +83,12 @@ export async function renderHarness(
     click: async (x: number, y: number) => {
       await act(async () => {
         await setup.mockMouse.click(x, y);
+      });
+      await setup.flush();
+    },
+    wait: async (ms: number) => {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, ms));
       });
       await setup.flush();
     },
