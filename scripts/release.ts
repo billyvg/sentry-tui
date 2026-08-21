@@ -12,6 +12,8 @@
  * `docs/releasing.md` explains what each one is doing and why.
  */
 import { $ } from "bun";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -57,13 +59,25 @@ const flags = {
   skipDownload: process.argv.includes("--skip-download"),
 };
 
-/** Positional arguments after the subcommand. */
-const positionals = process.argv.slice(3).filter((arg) => !arg.startsWith("-"));
-
 function die(message: string): never {
   console.error(`\n${red("error")} ${message}`);
   process.exit(1);
 }
+
+/** Read `--name value` from argv. */
+function readOption(name: string): string | undefined {
+  const index = process.argv.indexOf(name);
+  if (index === -1) return undefined;
+  const value = process.argv[index + 1];
+  if (value === undefined || value.startsWith("-")) die(`${name} needs a value`);
+  return value;
+}
+
+/** `--otp 123456`, for an npm account with two-factor auth on writes. */
+const otp = readOption("--otp");
+
+/** Positional arguments after the subcommand, minus any option values. */
+const positionals = process.argv.slice(3).filter((arg) => !arg.startsWith("-") && arg !== otp);
 
 /** Ask before anything outward-facing or hard to undo. */
 function check(question: string): void {
@@ -78,10 +92,34 @@ async function capture(command: string[]): Promise<{ code: number; out: string }
 }
 
 /** Run a command with its output attached to the terminal; throw on failure. */
-async function run(command: string[]): Promise<void> {
+async function run(command: string[], env?: Record<string, string>): Promise<void> {
   console.log(dim(`  $ ${command.join(" ")}`));
-  const result = await $`${command}`.cwd(ROOT).nothrow();
+  const shell = env ? $`${command}`.env({ ...process.env, ...env }) : $`${command}`;
+  const result = await shell.cwd(ROOT).nothrow();
   if (result.exitCode !== 0) die(`\`${command.join(" ")}\` exited ${result.exitCode}`);
+}
+
+/**
+ * An npmrc holding `NPM_TOKEN`, when one is set.
+ *
+ * An automation token is the calm way through a first publish: it authenticates
+ * six uploads without a 2FA prompt between them, and it is the same token CI
+ * uses. Written 0600 into a temp dir and deleted afterwards, so the credential
+ * never lands in the repo or in shell history.
+ */
+function npmrcFromToken(): { env: Record<string, string>; cleanup: () => void } | undefined {
+  const token = process.env.NPM_TOKEN;
+  if (!token) return undefined;
+
+  const dir = mkdtempSync(join(tmpdir(), "sentry-tui-npm-"));
+  const path = join(dir, "npmrc");
+  writeFileSync(path, `//registry.npmjs.org/:_authToken=${token}\n`);
+  chmodSync(path, 0o600);
+
+  return {
+    env: { NPM_CONFIG_USERCONFIG: path },
+    cleanup: () => rmSync(dir, { recursive: true, force: true }),
+  };
 }
 
 async function packageVersion(): Promise<string> {
@@ -305,6 +343,19 @@ async function cut(): Promise<void> {
 // publish
 // ---------------------------------------------------------------------------
 
+/** Whether this exact version is already on the registry. */
+async function isPublished(name: string, version: string): Promise<boolean> {
+  const view = await capture([
+    "npm",
+    "view",
+    `${name}@${version}`,
+    "version",
+    "--registry",
+    REGISTRY,
+  ]);
+  return view.code === 0 && view.out.trim() === version;
+}
+
 /**
  * Publish by hand from a CI run's binaries.
  *
@@ -352,11 +403,28 @@ async function publish(): Promise<void> {
   if (flags.npmDryRun) warn("--npm-dry-run: nothing will be uploaded");
   else check(`\nPublish to npm? Unpublishing is only possible for 72 hours.`);
 
-  for (const name of PUBLISH_ORDER) {
-    const dir = `dist/npm/${name.replace("@", "").replace("/", "-")}`;
-    const command = ["npm", "publish", dir, "--access", "public", "--registry", REGISTRY];
-    if (flags.npmDryRun) command.push("--dry-run");
-    await run(command);
+  const auth = npmrcFromToken();
+  if (auth) ok("authenticating with NPM_TOKEN from the environment");
+
+  try {
+    for (const name of PUBLISH_ORDER) {
+      // Six uploads of ~24MB each: one can fail on a flaky connection or an
+      // OTP that expired mid-run. Skipping what already landed lets a re-run
+      // finish the job rather than die on "cannot publish over the previously
+      // published version".
+      if (!flags.npmDryRun && (await isPublished(name, version))) {
+        ok(`${name}@${version} is already published — skipping`);
+        continue;
+      }
+
+      const dir = `dist/npm/${name.replace("@", "").replace("/", "-")}`;
+      const command = ["npm", "publish", dir, "--access", "public", "--registry", REGISTRY];
+      if (flags.npmDryRun) command.push("--dry-run");
+      if (otp) command.push("--otp", otp);
+      await run(command, auth?.env);
+    }
+  } finally {
+    auth?.cleanup();
   }
 
   console.log(`\n${green("Published.")} Check it with:\n  ${bold("bun run release:verify")}`);
