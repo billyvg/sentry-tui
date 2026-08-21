@@ -13,7 +13,7 @@ import {
   type ChipSpec,
 } from "~/ui/components/Chip";
 import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
-import { useProjects } from "~/ui/hooks/useProjects";
+import { useProjectSearch } from "~/ui/hooks/useProjects";
 
 /**
  * Rows the search box occupies: its input line plus the border above and
@@ -89,11 +89,20 @@ export function FilterBar({
   onDropdownClose,
   onDropdownOpen,
 }: FilterBarProps) {
-  const projects = useProjects(client, org);
+  // What has been typed into the project picker, held here rather than inside
+  // the dropdown because the search that answers it goes to the API.
+  const [projectQuery, setProjectQuery] = useState("");
+  const { projects, loading: projectsLoading } = useProjectSearch(client, org, projectQuery);
   const [environments, setEnvironments] = useState<Environment[]>([]);
 
-  // Fetch environments once when the client is available; projects come from
-  // the shared hook, which the saved-views screen reads too.
+  // A closed picker holds no query, so reopening it starts on the full list
+  // rather than on whatever the last visit narrowed it to.
+  useEffect(() => {
+    if (openDropdown !== "project") setProjectQuery("");
+  }, [openDropdown]);
+
+  // Fetch environments once when the client is available. Short enough that
+  // one request holds them all, unlike the projects above.
   useEffect(() => {
     if (!client) return;
     const controller = new AbortController();
@@ -109,15 +118,23 @@ export function FilterBar({
   // project is picked, what the API takes, and what a filter query is typed
   // against — a second name for the same row only makes the list harder to
   // scan.
-  const projectItems: DropdownItem[] = useMemo(
-    () =>
-      projects.map((p) => ({
-        label: p.slug,
-        value: p.slug,
-        platform: p.platform ?? null,
-      })),
-    [projects],
-  );
+  // A selected project always has a row, even when the search that is showing
+  // has nothing to do with it: the picker opens on the selection, and one
+  // outside the fetched set would otherwise lose both its dot and the cursor.
+  const projectItems: DropdownItem[] = useMemo(() => {
+    const items = projects.map((p) => ({
+      label: p.slug,
+      value: p.slug,
+      platform: p.platform ?? null,
+    }));
+    const listed = new Set(items.map((item) => item.value));
+    const missing = projectQuery.trim()
+      ? []
+      : selectedProjects
+          .filter((slug) => !listed.has(slug))
+          .map((slug) => ({ label: slug, value: slug, platform: null }));
+    return [...missing, ...items];
+  }, [projects, selectedProjects, projectQuery]);
 
   const envItems: DropdownItem[] = useMemo(
     () => environments.map((e) => ({ label: e.name, value: e.name })),
@@ -227,10 +244,15 @@ export function FilterBar({
           selected={selectedProjects}
           anchorLeft={projectAnchorLeft}
           anchorTop={dropdownTop}
-          // An org's project list runs to hundreds of rows; the environment
-          // and date lists are a handful each, so only this one is worth a row
-          // of filter box.
+          // An org's project list runs to hundreds of rows — more than one
+          // page holds, so this box searches the API rather than only what
+          // came back. The environment and date lists are a handful each, so
+          // neither is worth a row of filter box.
           filterable
+          remoteFilter
+          loading={projectsLoading}
+          onQueryChange={setProjectQuery}
+          placeholder="No projects"
           onSelect={handleProjectSelect}
           onClose={onDropdownClose}
         />
