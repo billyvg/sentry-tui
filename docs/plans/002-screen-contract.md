@@ -40,8 +40,9 @@ screen state and the component map.
 | **settings**   | `settings.organization` · `settings.projects` · `settings.teams`                                                                                                                                              |
 
 Built today: the eight query-backed `issues.*` ids (one issue stream each, under the query
-`src/core/issueViews.ts` gives it), `issues.all-views` (the saved-search list), and
-`explore.logs`. Everything else is `kind: "stub"` and renders the placeholder pane.
+`src/core/issueViews.ts` gives it), `issues.all-views` (the saved-search list), `explore.logs`,
+and the two saved-query lists `explore.all-queries` and `explore.discover`. Everything else is
+`kind: "stub"` and renders the placeholder pane.
 
 ### `ScreenDef`
 
@@ -375,14 +376,16 @@ Rules that matter:
 
 `stateKey` groups screens onto one slice. What's shared today:
 
-| Key                  | Screens                                                          | Why                                                         |
-| -------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------- |
-| `explore.discover`   | traces, logs, metrics, errors, discover, profiles, conversations | Same `events/` call — filters should follow you across them |
-| `monitors.detectors` | all, mine, error, metric, cron, uptime, mobile-build             | One detector table with a different `type:` filter          |
-| `dashboards.list`    | all, sentry-built                                                | One list with a different filter                            |
+| Key                  | Screens                                                | Why                                                         |
+| -------------------- | ------------------------------------------------------ | ----------------------------------------------------------- |
+| `explore.discover`   | traces, logs, metrics, errors, profiles, conversations | Same `events/` call — filters should follow you across them |
+| `monitors.detectors` | all, mine, error, metric, cron, uptime, mobile-build   | One detector table with a different `type:` filter          |
+| `dashboards.list`    | all, sentry-built                                      | One list with a different filter                            |
 
 The `issues.*` screens deliberately do **not** share: each is a different query, so one slice
-would collapse them all into whichever was opened last.
+would collapse them all into whichever was opened last. `explore.discover` left the shared key
+for the same reason once it was built — it is a list of _saved queries_, not a Discover query,
+and its search box filters query names rather than spans.
 
 Two consequences to plan around:
 
@@ -492,8 +495,10 @@ polls, and neither should you.
 ## 7. Dynamic nav sections and badges
 
 `useSecondaryNavExtras(client, org, group, reloadToken)` returns what the sidebar draws beyond
-the static IA. It is wired end to end and returns nothing — filling it in is a change to that
-one file.
+the static IA. Filling in a group is a change to that one file: one hook call with an
+`enabled` flag, and one arm of the switch. Explore's **Starred Queries** is the worked
+example — read it before adding a group, and keep your addition to those two lines so
+several groups can land independently.
 
 ```ts
 interface NavItemSpec {

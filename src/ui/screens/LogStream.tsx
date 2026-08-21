@@ -8,9 +8,7 @@
  * to `DataTable`.
  */
 
-import { useCallback, useEffect, useRef } from "react";
-
-import { RenderableEvents, type InputRenderable } from "@opentui/core";
+import { useCallback, useEffect } from "react";
 
 import type { LogEntry, LogSeverity } from "~/api/logs";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
@@ -20,6 +18,7 @@ import { clockTime } from "~/lib/time";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { SearchInput } from "~/ui/components/SearchInput";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useLogs, useLogTimeseries } from "~/ui/hooks/useLogs";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -110,24 +109,6 @@ export function LogStream({
 }: ScreenProps) {
   const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
     state;
-  const inputRef = useRef<InputRenderable>(null);
-
-  // Sync native focus/blur (e.g. mouse clicks) back to the app's search state.
-  const inputRefCallback = useCallback(
-    (node: InputRenderable | null) => {
-      const previous = inputRef.current;
-      if (previous) {
-        previous.removeAllListeners(RenderableEvents.FOCUSED);
-        previous.removeAllListeners(RenderableEvents.BLURRED);
-      }
-      inputRef.current = node;
-      if (node) {
-        node.on(RenderableEvents.FOCUSED, () => focusSearch());
-        node.on(RenderableEvents.BLURRED, () => handleSearchBlur());
-      }
-    },
-    [focusSearch, handleSearchBlur],
-  );
 
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
@@ -204,39 +185,15 @@ export function LogStream({
   return (
     <box style={{ flexDirection: "column", width, height }}>
       {/* Search bar, matching the issue stream's bordered input. */}
-      <box
-        style={{
-          flexDirection: "row",
-          width,
-          flexShrink: 0,
-          height: 3,
-          border: true,
-          borderStyle: "rounded",
-          borderColor: state.searchFocused ? theme.accent : theme.border,
-          backgroundColor: theme.panel,
-          paddingLeft: 1,
-          paddingRight: 1,
-        }}
-      >
-        <text fg={theme.subText}>{"("}</text>
-        <text fg={state.searchFocused ? theme.accent : theme.text}>{"/"}</text>
-        <text fg={theme.subText}>{")"} </text>
-        <input
-          ref={inputRefCallback}
-          value={state.searchQuery}
-          placeholder="Search logs…"
-          focused={state.searchFocused}
-          onInput={state.setSearchQuery}
-          style={{
-            flexGrow: 1,
-            textColor: theme.text,
-            backgroundColor: theme.panel,
-            focusedTextColor: theme.text,
-            focusedBackgroundColor: theme.panel,
-            placeholderColor: theme.subText,
-          }}
-        />
-      </box>
+      <SearchInput
+        value={state.searchQuery}
+        placeholder="Search logs…"
+        focused={state.searchFocused}
+        width={width}
+        onInput={state.setSearchQuery}
+        onFocus={focusSearch}
+        onBlur={handleSearchBlur}
+      />
 
       {/* Filter row: project / environment / period selectors. */}
       <FilterBar
