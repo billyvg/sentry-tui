@@ -233,11 +233,38 @@ export async function listOrganizationMembers(
   return page.data;
 }
 
+/** The endpoint's documented maximum, and what every caller here asks for. */
+export const PROJECTS_PER_PAGE = 100;
+
+export interface ListProjectsOptions {
+  org: string;
+  /**
+   * Search text, matched by the server as a substring of a project's slug *or*
+   * its name. A row can therefore come back for a reason its slug does not
+   * show, and a non-contiguous query (`mios` for `mobile-ios`) matches
+   * nothing — the picker fuzzy-matches what it already holds alongside this.
+   */
+  query?: string;
+  perPage?: number;
+  signal?: AbortSignal;
+}
+
+/**
+ * One page of the organization's projects — the first, unless a `query` picks
+ * out others.
+ *
+ * An org can have more projects than a page holds, and there is no cursor
+ * followed here: a caller that needs a project outside the first page asks for
+ * it by name.
+ */
 export async function listProjects(
   client: SentryClient,
-  { org, signal }: { org: string; signal?: AbortSignal },
+  { org, query, perPage = PROJECTS_PER_PAGE, signal }: ListProjectsOptions,
 ): Promise<Project[]> {
-  const page = await client.request<Project[]>(`/organizations/${org}/projects/`, { signal });
+  const page = await client.request<Project[]>(`/organizations/${org}/projects/`, {
+    query: { query: query?.trim() || undefined, per_page: perPage },
+    signal,
+  });
   return page.data;
 }
 

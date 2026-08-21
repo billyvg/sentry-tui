@@ -42,3 +42,6 @@ credentials.json
 
 # Local agent tooling
 .pi
+
+# Demo recording: rendered audio and video.
+demos/build
