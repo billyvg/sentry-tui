@@ -196,9 +196,14 @@ matter:
   (`en-US-Harper:MAI-Voice-2`); passing OpenAI's `alloy` gets a 400.
 
 There is no `instructions` field in OpenRouter's schema, so delivery can't be
-steered there — `DEMO_TTS_SPEED` is the only pacing control. MAI-Voice-2 reads at
-roughly 115 wpm unaided, which is slower than the script assumes; **1.15× lands
-near 145 wpm** and sounds natural.
+steered there — speed is the only pacing control.
+
+**Leave `DEMO_TTS_SPEED` unset.** An early measurement suggested 1.15×, taken
+from a single short line; across the whole script MAI-Voice-2 reads at ~146 wpm
+at the default 1.0, which is already where you want it. Pushing to 1.15 makes the
+un-overridden beats rushed and _widens_ the audio gaps, because the actions they
+play over don't get any shorter. The beats that need adjusting carry their own
+`**Speed:**` instead.
 
 Voice choice changes every beat's length, so it is part of the cache key —
 switching providers re-renders the script rather than reusing stale timings.
@@ -239,40 +244,6 @@ The block lasts whichever is longer — the beat's audio or its own sleeps — s
 line that outruns its actions still holds to the end, and actions that outrun the
 line still finish. Almost every beat in `demo.tape` is a `Meanwhile`; `Wait` is
 left for the outro, where a still frame is the point.
-
-## Keeping the audio gapless
-
-A beat's block runs for `max(line, actions)`, so any beat whose keystrokes take
-longer than its narration ends in silence. Three things keep that down, and
-`demos/` is tuned so the only deliberate silence is the install frame:
-
-**Put the sleeps inside a beat.** A top-level `Sleep` between two `Meanwhile`
-blocks is silence by construction — nothing is speaking. Fold the navigation into
-the beat it belongs to and the line plays over it. `Settle` works inside a block
-too, so even waiting on the agent happens under narration.
-
-**Slow the beats whose actions outrun them**, with `**Speed:**` rather than
-globally. `DEMO_TTS_SPEED` would drag the whole script to ~120 wpm to fix two
-beats; per-beat overrides leave the rest alone. B07–B09 carry 0.85–0.9 for
-exactly this reason — and because lengthening them widens the window Seer has to
-answer in.
-
-**Trim the dwells.** Most action gaps are a `Sleep` that was generous when it was
-written. Shortening them tightens the cut and closes the gap from the other side.
-
-To see where you stand:
-
-```bash
-bun run demo:tts    # per-beat wpm, and the overall rate
-```
-
-### The synthesizer is not deterministic
-
-The same text at the same speed varies a lot between renders — one beat measured
-3.0s on one pass and 2.7s on the next, another 4.2s then 6.4s. The tape re-times
-itself from `durations.json` every run, so the video always matches whatever the
-audio turned out to be; what moves is the size of the gaps. Tune to roughly
-right, not exactly right, and re-check after a re-render.
 
 ## Keeping the audio gapless
 
