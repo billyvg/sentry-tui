@@ -206,13 +206,13 @@ export const SCREENS: readonly ScreenDef[] = [
 
   // Monitors — six of the seven are one detector table with a different
   // `type:` filter, so the user's own filters follow them across.
-  s("monitors.all", "monitors", "All Monitors", "stub", MONITOR_DETECTORS),
-  s("monitors.mine", "monitors", "My Monitors", "stub", MONITOR_DETECTORS),
-  s("monitors.error", "monitors", "Error", "stub", MONITOR_DETECTORS),
-  s("monitors.metric", "monitors", "Metric", "stub", MONITOR_DETECTORS),
-  s("monitors.cron", "monitors", "Cron", "stub", MONITOR_DETECTORS),
-  s("monitors.uptime", "monitors", "Uptime", "stub", MONITOR_DETECTORS),
-  s("monitors.mobile-build", "monitors", "Mobile Build", "stub", MONITOR_DETECTORS),
+  s("monitors.all", "monitors", "All Monitors", "table", MONITOR_DETECTORS),
+  s("monitors.mine", "monitors", "My Monitors", "table", MONITOR_DETECTORS),
+  s("monitors.error", "monitors", "Error", "table", MONITOR_DETECTORS),
+  s("monitors.metric", "monitors", "Metric", "table", MONITOR_DETECTORS),
+  s("monitors.cron", "monitors", "Cron", "table", MONITOR_DETECTORS),
+  s("monitors.uptime", "monitors", "Uptime", "table", MONITOR_DETECTORS),
+  s("monitors.mobile-build", "monitors", "Mobile Build", "table", MONITOR_DETECTORS),
   s("monitors.alerts", "monitors", "Alerts", "stub"),
 
   s("seer.ask", "seer", "Ask Seer", "chat"),
