@@ -35,4 +35,11 @@ with `act()` integration, escape key handling, and cleanup. Always use
 - Wrap key inputs in `harness.press()` (not raw `mockInput`) for proper React flushing
 - Always call `harness.cleanup()` in a `finally` block or use `afterEach`
 - Use `harness.frame()` (shorthand for `captureCharFrame()`) for text assertions
-- For loading states, `ManualClock` from OpenTUI makes timers deterministic
+- Loading states have no clock to fake. `await act(…)` does not settle until
+  React's act queue is observed empty, and a test holding a fetch in flight
+  holds every `setInterval` in the tree alive with it — so a screen that ticks
+  while loading hangs the test rather than rendering a frame. OpenTUI's
+  `ManualClock` does not help: it drives the renderer, not React's timers. The
+  rule instead is that only a leaf may tick, and `scripts/source-boundaries.test.ts`
+  ("animation clocks") enforces it — anything needing to re-render mid-request
+  rides the status bar's spinner.
