@@ -125,6 +125,14 @@ with and without them.
 If you add a beat, add its `Wait @BNN` to the tape. `demo:mux` fails loudly if
 the tape waits on a beat with no audio, rather than quietly leaving a gap.
 
+### Seer holds the keyboard
+
+The Seer composer takes focus the moment you arrive, which is what lets the tape
+type a question straight away — but it also means every other key goes into the
+text box. `n` does not open goto mode there, it types an "n". The tape presses
+escape to drop into the transcript before anything else, and any step you add
+after Act 12 has to do the same.
+
 ## Known sharp edge
 
 Kitty's `send-key` reports success even when nothing was delivered — it can't
