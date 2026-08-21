@@ -12,6 +12,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { runBunProgram } from "../test/childProgram.ts";
 import {
   acquireUpdateLock,
   bestLocal,
@@ -493,5 +494,81 @@ describe("when the launcher looks", () => {
         env: { SENTRY_TUI_NO_UPDATE: "1" },
       }),
     ).toBe(false);
+  });
+});
+
+/**
+ * The restart itself, from a subprocess: on the path that matters this call
+ * replaces the process, so a test running in-process would be replacing the
+ * test runner.
+ */
+describe("restartInto", () => {
+  const MODULE = join(import.meta.dirname, "..", "src", "app", "selfUpdate.ts");
+
+  /** Run `body` as a Bun program with `restartInto` and `say` in scope. */
+  function runChild(body: string, env: Record<string, string> = {}, args: string[] = []) {
+    return runBunProgram(
+      `import { writeSync } from "node:fs";\n` +
+        `import { restartInto } from ${JSON.stringify(MODULE)};\n` +
+        `const say = (line: string) => writeSync(1, line + "\\n");\n` +
+        body,
+      env,
+      args,
+    );
+  }
+
+  test("the new build takes over this process rather than running under it", () => {
+    // #101: `spawnSync` left every restart's parent suspended underneath the
+    // app, so a session that accepted three updates ended up three deep.
+    const { stdout } = runChild(
+      `say("before " + process.pid);\n` +
+        `restartInto("/bin/sh", ["-c", 'echo "after $$"; ps -o ppid= -p $$']);\n`,
+    );
+
+    const before = stdout.match(/before (\d+)/)?.[1];
+    expect(before).toBeDefined();
+    expect(stdout.match(/after (\d+)/)?.[1]).toBe(before);
+
+    // And nothing of ours is left waiting above it: the new image's parent is
+    // this test runner, exactly as it was for the Bun process it replaced.
+    expect(stdout.match(/\s*(\d+)\s*$/)?.[1]).toBe(String(process.pid));
+  });
+
+  test("it forwards this process's own arguments by default", () => {
+    // A restart has to land the user back where they were, which means the new
+    // build gets the flags the old one was started with.
+    const { stdout } = runChild(`restartInto("/bin/sh");\n`, {}, [
+      "-c",
+      'echo "$@"',
+      "sh",
+      "--org",
+      "acme",
+    ]);
+
+    expect(stdout.trim()).toBe("--org acme");
+  });
+
+  test("when the process cannot be replaced it still runs the new build", () => {
+    // The fallback is the old behaviour, kept because a restart that works and
+    // costs a stacked process beats one that does not happen at all.
+    const { stdout, exitCode } = runChild(
+      `say("before " + process.pid);\n` +
+        `restartInto("/bin/sh", ["-c", 'echo "after $$"; exit 3'], () => false);\n`,
+    );
+
+    const before = stdout.match(/before (\d+)/)?.[1];
+    expect(before).toBeDefined();
+    expect(stdout.match(/after (\d+)/)?.[1]).not.toBe(before);
+    expect(exitCode).toBe(3);
+  });
+
+  test("the fallback re-raises the signal the new build died from", () => {
+    // Ctrl-C has to look to the shell the way it would have without a restart
+    // in between, which means dying from the signal rather than reporting it.
+    const { signalCode } = runChild(
+      `restartInto("/bin/sh", ["-c", "kill -TERM $$"], () => false);\n`,
+    );
+
+    expect(signalCode).toBe("SIGTERM");
   });
 });
