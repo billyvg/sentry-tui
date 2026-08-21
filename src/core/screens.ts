@@ -111,7 +111,23 @@ export const REPLAY_DETAIL_STATE_KEY = "explore.replay-detail";
 /** Both Dashboards destinations are the same list with a different filter. */
 const DASHBOARD_LIST = "dashboards.list";
 
-/** Filters the Discover-backed Explore tables start on. */
+/**
+ * Filters the Discover-backed Explore tables start on.
+ *
+ * One period for all seven, deliberately. The web pins Conversations to 24h
+ * "to avoid slow loads"
+ * (`views/navigation/secondary/sections/explore/exploreSecondaryNavigation.tsx:143`)
+ * — a *narrowing* of Sentry's 14d default, not a widening — and 1h is narrower
+ * still, so the shared value already satisfies the constraint that pin exists
+ * to enforce. Since the seven share a slice, the default only applies to the
+ * first Explore screen opened in a session; after that the period follows the
+ * user across them, which is what the web's pin is trying to approximate.
+ *
+ * A per-screen period would mean dropping that screen out of the shared key
+ * (`nav-coverage.test.ts` requires screens on one key to declare identical
+ * defaults), and losing filter continuity across Explore is a worse trade than
+ * a first paint that may need `D` to widen.
+ */
 const DISCOVER_DEFAULTS: ScreenDefaults = { query: "", statsPeriod: DEFAULT_LOG_PERIOD };
 
 /**
@@ -161,24 +177,17 @@ export const SCREENS: readonly ScreenDef[] = [
 
   // Explore — the Discover-backed tables share filters; the three that hit
   // their own endpoints keep their own.
-  s("explore.traces", "explore", "Traces", "stub", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
+  exploreTable("explore.traces", "Traces"),
   logsScreen(),
-  s("explore.metrics", "explore", "Metrics", "stub", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
-  s("explore.errors", "explore", "Errors", "stub", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
+  exploreTable("explore.metrics", "Metrics"),
+  exploreTable("explore.errors", "Errors"),
   s("explore.discover", "explore", "Discover", "stub", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
   profilesScreen(),
-  s(
-    "explore.conversations",
-    "explore",
-    "Conversations",
-    "stub",
-    EXPLORE_DISCOVER,
-    DISCOVER_DEFAULTS,
-  ),
   releasesScreen(),
   // Replays has its own endpoint and its own columns, so it keeps its own
   // slice rather than joining the Discover screens' shared one.
   s("explore.replays", "explore", "Replays", "table", undefined, REPLAY_DEFAULTS),
+  exploreTable("explore.conversations", "Conversations"),
   s("explore.all-queries", "explore", "All Queries", "stub"),
 
   s("dashboards.all", "dashboards", "All Dashboards", "stub", DASHBOARD_LIST),
@@ -232,6 +241,18 @@ function releasesScreen(): ScreenDef {
       statsPeriod: DEFAULT_RELEASE_PERIOD,
     }),
     openLabel: "expand",
+/**
+ * One of the four Discover-backed Explore tables.
+ *
+ * The query each one runs lives in `core/exploreTables.ts`, keyed by the id
+ * given here; only the things the *registry* owns are set. Enter opens an
+ * inline panel of the row's fields, as it does on Logs, so they take its label
+ * too — none of them has a detail view to push.
+ */
+function exploreTable(id: ScreenId, item: string): ScreenDef {
+  return {
+    ...s(id, "explore", item, "table", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
+    openLabel: "details",
   };
 }
 

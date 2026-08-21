@@ -21,9 +21,15 @@
  * `reloadToken` as an effect dependency, and never poll.
  */
 
+import { useMemo } from "react";
+
 import type { SentryClient } from "~/api/client";
+import { EXPLORE_NAV_BADGES } from "~/core/exploreTables";
 import type { NavGroupId } from "~/core/nav";
 import { NO_NAV_EXTRAS, type SecondaryNavExtras } from "~/ui/lib/navSections";
+
+/** Explore's feature badges, which need no fetch — they are what the web ships. */
+const EXPLORE_EXTRAS: SecondaryNavExtras = { sections: [], badges: EXPLORE_NAV_BADGES };
 
 /**
  * @param client Authenticated API client, or null before sign-in.
@@ -34,8 +40,8 @@ import { NO_NAV_EXTRAS, type SecondaryNavExtras } from "~/ui/lib/navSections";
 export function useSecondaryNavExtras(
   _client: SentryClient | null,
   _org: string,
-  _group: NavGroupId,
+  group: NavGroupId,
   _reloadToken: number,
 ): SecondaryNavExtras {
-  return NO_NAV_EXTRAS;
+  return useMemo(() => (group === "explore" ? EXPLORE_EXTRAS : NO_NAV_EXTRAS), [group]);
 }

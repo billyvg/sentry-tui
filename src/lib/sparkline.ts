@@ -5,6 +5,11 @@
 export type SeriesPoint = readonly [number, number];
 
 const BLOCKS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"] as const;
+/**
+ * The same eight levels lying down: one eighth of a cell filled from the left,
+ * up to a full block. `BLOCKS` grows a bar upwards, these grow one rightwards.
+ */
+const HORIZONTAL_BLOCKS = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"] as const;
 /** Shown while stats are still in flight, so the column doesn't reflow. */
 export const SPARKLINE_PENDING = "╌";
 
@@ -105,6 +110,34 @@ export function sparklineBlock(
 
     return pad + glyphs;
   });
+}
+
+/**
+ * A horizontal bar `width` cells wide, filled to `fraction` of its length.
+ *
+ * Sub-cell precision is what makes this worth drawing: at eight levels per
+ * cell a six-cell bar resolves forty-eight steps, so two spans a few
+ * milliseconds apart are visibly different rather than both "three blocks".
+ *
+ * Always returns exactly `width` cells, so it can be concatenated into a
+ * fixed-width table cell without measuring.
+ *
+ * @param fraction Share of the bar to fill, clamped to 0…1. A non-finite
+ *   value draws an empty bar rather than throwing off the row.
+ */
+export function proportionalBar(fraction: number, width: number): string {
+  if (width <= 0) return "";
+  const clamped = Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : 0;
+  const eighths = Math.round(clamped * width * 8);
+  if (eighths === 0) {
+    // A real but tiny value still gets a mark: rounding it away would read as
+    // "no value", which is a different thing from "the smallest value here".
+    return (clamped > 0 ? HORIZONTAL_BLOCKS[0]! : " ").padEnd(width);
+  }
+  const full = Math.min(width, Math.floor(eighths / 8));
+  const rest = eighths % 8;
+  const partial = rest > 0 && full < width ? HORIZONTAL_BLOCKS[rest - 1]! : "";
+  return ("█".repeat(full) + partial).padEnd(width);
 }
 
 function downsample(values: number[], width: number): number[] {
