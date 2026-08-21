@@ -1,4 +1,5 @@
 import type { AuthProvider } from "~/api/auth";
+import { beginRequest, log, reportError } from "~/telemetry/index";
 
 export const DEFAULT_BASE_URL = "https://sentry.io/api/0";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -135,6 +136,20 @@ export interface SentryClientOptions {
   fetchImpl?: typeof fetch;
 }
 
+/**
+ * What one `request()` call turned out to cost, filled in as it goes.
+ *
+ * Retries and a token refresh happen below the call the caller made, so the
+ * count and the final status have to be carried back up somehow; a mutable
+ * bag threaded down is the smallest way to do it without changing what the
+ * inner methods return.
+ */
+interface Tally {
+  retries: number;
+  /** The last HTTP status seen. 0 means the request never reached a server. */
+  status: number;
+}
+
 export class SentryClient {
   private readonly auth: AuthProvider;
   private readonly baseUrl: string;
@@ -162,24 +177,94 @@ export class SentryClient {
    * tokens), and a failed renewal throws its own, more useful, error.
    */
   async request<T>(path: string, options: RequestOptions = {}): Promise<Page<T>> {
+    const method = options.method ?? "GET";
+    // One span per call rather than per attempt, so it measures the latency
+    // someone actually sat through — retries and token refresh included.
+    const finish = beginRequest({ method, path, query: buildQuery(options.query) });
+    const tally: Tally = { retries: 0, status: 0 };
+
     try {
-      return await this.attemptWithRetries<T>(path, options);
+      const page = await this.withRefresh<T>(path, options, tally);
+      finish({ status: tally.status, retries: tally.retries });
+      return page;
     } catch (error) {
-      if (!(error instanceof ApiError) || error.status !== 401) throw error;
-      if (!this.auth.refresh || !(await this.auth.refresh())) throw error;
-      return await this.attemptWithRetries<T>(path, options);
+      const cancelled = options.signal?.aborted === true;
+      const status = error instanceof ApiError ? error.status : tally.status;
+      finish({ status, retries: tally.retries, cancelled });
+      if (!cancelled) this.report(error, { method, path, retries: tally.retries });
+      throw error;
     }
   }
 
-  private async attemptWithRetries<T>(path: string, options: RequestOptions): Promise<Page<T>> {
+  /**
+   * Say something about a request that failed, at the volume it deserves.
+   *
+   * Most of what fails here is not a bug: an expired token, a slug that no
+   * longer exists, a rate limit. Those are states the UI draws and the user
+   * can act on, so they are logged and left at that — an issue for every
+   * stale token would drown the real ones. A 5xx or a request that never
+   * reached a server is a different thing, and gets reported.
+   */
+  private report(error: unknown, context: { method: string; path: string; retries: number }): void {
+    if (!(error instanceof ApiError)) return;
+
+    const { status } = error;
+    const route = `${context.method} ${context.path}`;
+    const attributes = { route, status, retries: context.retries };
+
+    if (status === 0 || status >= 500) {
+      log("error", `${route} failed`, attributes);
+      reportError(error, {
+        source: "api.request",
+        tags: {
+          "http.status": String(status),
+          "http.kind": status === 0 ? "network" : "server",
+        },
+        extra: context,
+      });
+      return;
+    }
+
+    // Worth knowing about in aggregate — how often people hit the rate limit,
+    // how often tokens go stale — without being anybody's bug to fix.
+    if (status === 429) {
+      log("warn", `${route} rate limited`, {
+        ...attributes,
+        retry_after_s: error.retryAfterSeconds,
+      });
+    } else if (status === 401 || status === 403) {
+      log("warn", `${route} rejected the token`, attributes);
+    }
+  }
+
+  private async withRefresh<T>(
+    path: string,
+    options: RequestOptions,
+    tally: Tally,
+  ): Promise<Page<T>> {
+    try {
+      return await this.attemptWithRetries<T>(path, options, tally);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401) throw error;
+      if (!this.auth.refresh || !(await this.auth.refresh())) throw error;
+      return await this.attemptWithRetries<T>(path, options, tally);
+    }
+  }
+
+  private async attemptWithRetries<T>(
+    path: string,
+    options: RequestOptions,
+    tally: Tally,
+  ): Promise<Page<T>> {
     let lastError: ApiError | undefined;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        return await this.attempt<T>(path, options);
+        return await this.attempt<T>(path, options, tally);
       } catch (error) {
         if (!(error instanceof ApiError) || !error.retryable) throw error;
         lastError = error;
+        tally.retries++;
         if (attempt === this.maxRetries) break;
         // Never blind-retry a 429; honor the server's reset window.
         const backoff =
@@ -195,6 +280,7 @@ export class SentryClient {
   private async attempt<T>(
     path: string,
     { method = "GET", query, body, signal }: RequestOptions,
+    tally: Tally,
   ): Promise<Page<T>> {
     if (this.latencyMs > 0) await sleep(this.latencyMs);
 
@@ -226,6 +312,7 @@ export class SentryClient {
       });
     }
 
+    tally.status = response.status;
     this.rateLimit = parseRateLimit(response.headers);
 
     if (!response.ok) {

@@ -65,7 +65,12 @@ await mkdir(dirname(output), { recursive: true });
 
 console.log(`Building compiled binary${target ? ` for ${target.key}` : ""}…`);
 
-const args = ["bun", "build", "--compile", ENTRY, "--outfile", output];
+// `--sourcemap` is load-bearing, not a debug convenience: without it every
+// frame in a crash report reads `/$bunfs/root/sentry-tui` at some line in the
+// bundle, and the report is useless. With it, Bun embeds the map and stack
+// traces come back with real `src/…` paths and line numbers — which is also
+// why nothing needs uploading at release time. Costs a couple of MB.
+const args = ["bun", "build", "--compile", "--sourcemap", ENTRY, "--outfile", output];
 if (target) {
   args.push("--target", target.bunTarget);
 }

@@ -13,6 +13,9 @@ import { findScreen, getScreen, stateKeyOf, type ScreenId } from "~/core/screens
 import { theme } from "~/core/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
 import { breadcrumbTrail } from "~/lib/breadcrumb";
+// Aliased: `breadcrumb` is taken in this file by the trail rendered in the
+// pane's border title, which is a different thing entirely.
+import { breadcrumb as leaveCrumb, identify, log } from "~/telemetry/index";
 import { CommandPalette } from "~/ui/components/CommandPalette";
 import { DetailBackRow, detailBackWidth } from "~/ui/components/DetailBackRow";
 import { isDropdownMounted } from "~/ui/components/Dropdown";
@@ -27,6 +30,7 @@ import { OrgPicker } from "~/ui/components/OrgPicker";
 import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
+import { useNavigationTrace } from "~/ui/hooks/useNavigationTrace";
 import { SeerChatContext, useSeerChat } from "~/ui/hooks/useSeerChat";
 import { rowsOf, useScreenState, type ScreenStatus } from "~/ui/hooks/useScreenState";
 import { useSecondaryNavExtras } from "~/ui/hooks/useSecondaryNavExtras";
@@ -146,6 +150,8 @@ export function App({
     (screen ? stateKeyOf(screen) : undefined);
   const { active: state, resetOrgScoped, seed } = useScreenState(activeKey);
 
+  useNavigationTrace(activeGroup, activeItem, state.status.loading);
+
   // Seer's conversation outlives its screen: navigating to Issues and back is
   // not a reason to lose the transcript. The hook is inert until the first
   // message, so it costs nothing while the user is anywhere else.
@@ -224,6 +230,11 @@ export function App({
       setViewStack([]);
       resetOrgScoped();
       showNotice({ kind: "info", text: `switched to ${slug}` });
+
+      // Retag, so an error after this points at the org actually on screen.
+      identify({ org: slug });
+      leaveCrumb({ category: "navigation", message: `switched org to ${slug}` });
+      log("info", "switched org", { org: slug });
 
       void writeConfig({ org: slug }).catch(() => {
         // A read-only config dir shouldn't undo a switch that already happened;
