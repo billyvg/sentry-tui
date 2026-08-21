@@ -2,4 +2,4 @@
 // Bin entry for @billyvg/sentry-tui.
 import { main } from "../lib/launch.mjs";
 
-main();
+await main();

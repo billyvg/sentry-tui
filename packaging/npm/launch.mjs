@@ -4,6 +4,8 @@ import { spawnSync } from "node:child_process";
 import { accessSync, chmodSync, constants } from "node:fs";
 import { createRequire } from "node:module";
 
+import { resolveNewestBinary } from "./update.mjs";
+
 /**
  * `${process.platform}-${process.arch}` → the npm package carrying that binary.
  * Generated from `scripts/release-targets.ts`; keep the two in step (there is a
@@ -20,6 +22,25 @@ const INSTALL_HELP = `Or install it another way:
   brew install billyvg/tap/sentry-tui
   curl -fsSL https://raw.githubusercontent.com/billyvg/sentry-tui/main/install.sh | bash
   https://github.com/billyvg/sentry-tui/releases  (binaries, one per platform)`;
+
+/** The platform package this machine needs, or undefined when unsupported. */
+export function platformPackage() {
+  return PLATFORM_PACKAGES[`${process.platform}-${process.arch}`];
+}
+
+/**
+ * The version npm installed, from this package's own manifest.
+ *
+ * Undefined when the manifest cannot be read — running from a checkout, say —
+ * which the updater reads as "anything on the registry is newer".
+ */
+export function bundledVersion() {
+  try {
+    return createRequire(import.meta.url)("../package.json").version;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Absolute path to the compiled binary for this machine.
@@ -62,15 +83,28 @@ export function resolveBinary() {
  * needs for raw mode and for the alternate screen; it also puts the child in
  * this process group, so Ctrl-C reaches it directly.
  */
-export function main(argv = process.argv.slice(2)) {
-  let binary;
+export async function main(argv = process.argv.slice(2)) {
+  let bundled;
   try {
-    binary = resolveBinary();
+    bundled = { version: bundledVersion(), path: resolveBinary() };
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exit(1);
   }
 
+  // Releases land often, so running the newest one is the default rather than
+  // whatever npm installed whenever it was installed. The check is a few
+  // hundred bytes from a CDN and gives up after two seconds; only a genuinely
+  // newer version costs a download. `SENTRY_TUI_NO_UPDATE=1` turns it off.
+  const chosen = await resolveNewestBinary({
+    bundled,
+    packageName: platformPackage(),
+    // stderr, so an update notice cannot contaminate the output of `--help` or
+    // `status` when either is piped into something.
+    log: (message) => process.stderr.write(`${message}\n`),
+  });
+
+  const binary = chosen.path;
   let result = spawnSync(binary, argv, { stdio: "inherit" });
 
   // npm preserves the executable bit, but tarballs unpacked by other tooling
@@ -88,6 +122,15 @@ export function main(argv = process.argv.slice(2)) {
         /* keep the original spawn error */
       }
     }
+  }
+
+  // A freshly downloaded build that will not start is worse than a stale one
+  // that will, so fall back once to whatever npm installed.
+  if (result.error && binary !== bundled.path) {
+    process.stderr.write(
+      `sentry-tui ${chosen.version} did not start, falling back to ${bundled.version}\n`,
+    );
+    result = spawnSync(bundled.path, argv, { stdio: "inherit" });
   }
 
   if (result.error) {
