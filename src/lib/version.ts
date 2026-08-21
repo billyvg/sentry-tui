@@ -7,3 +7,10 @@ import { version } from "../../package.json";
 
 /** The running build's version, e.g. `0.2.0`. */
 export const APP_VERSION: string = version;
+
+/**
+ * The one rendering of the version: `sentry-tui --version`, `sentry-tui
+ * status`, and the command palette's footer all print this, so a version in a
+ * bug report is recognisable as the same string wherever it was copied from.
+ */
+export const VERSION_LABEL = `v${APP_VERSION}`;
