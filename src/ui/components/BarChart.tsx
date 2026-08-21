@@ -8,7 +8,7 @@
 
 import type { TimeseriesBucket } from "~/api/discover";
 import { theme } from "~/core/theme";
-import { formatCount } from "~/lib/sparkline";
+import { formatCount, stretch } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DIM } from "~/ui/lib/attributes";
 
@@ -146,7 +146,11 @@ export function BarChart({ buckets, width, height, title, noun }: BarChartProps)
 
   // Extract counts from the raw bucket format.
   const rawCounts = buckets.map(([, agg]) => agg[0]?.count ?? 0);
-  const values = downsample(rawCounts, chartWidth);
+  // Fit the series to the chart in whichever direction it needs: a long window
+  // has more buckets than cells, a short one fewer. Without the stretch a
+  // six-bucket series draws six bars against the left edge of a seventy-cell
+  // box, which reads as an empty chart rather than a small one.
+  const values = stretch(downsample(rawCounts, chartWidth), chartWidth);
   const max = Math.max(1, ...values);
   const total = rawCounts.reduce((a, b) => a + b, 0);
 

@@ -12,6 +12,7 @@
  */
 
 import type { SentryClient } from "~/api/client";
+import { chartInterval } from "~/lib/interval";
 
 /**
  * Datasets the `events/` endpoint accepts.
@@ -120,6 +121,11 @@ export interface QueryTimeseriesParams {
   yAxis?: string;
   query?: string;
   statsPeriod?: string;
+  /**
+   * Bucket width. Defaults to the finest the window allows, as Explore's chart
+   * does on the web — see `~/lib/interval`.
+   */
+  interval?: string;
   project?: string[];
   environment?: string[];
   referrer?: string;
@@ -140,6 +146,7 @@ export async function queryDiscoverTimeseries(
     yAxis = "count()",
     query = "",
     statsPeriod,
+    interval = chartInterval(statsPeriod),
     project,
     environment,
     referrer,
@@ -154,6 +161,7 @@ export async function queryDiscoverTimeseries(
         yAxis,
         query: query || undefined,
         statsPeriod,
+        interval,
         project,
         environment,
         referrer,
