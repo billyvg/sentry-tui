@@ -1,12 +1,19 @@
 /**
- * Sentry Logs API — structured logging via the Discover `events` endpoint.
+ * Sentry Logs — the `dataset=logs` view of Discover.
  *
- * Logs are queried through `/organizations/{org}/events/` with
- * `dataset=logs`, not a dedicated `/logs/` route. The response shape is the
- * standard Discover tabular format: `{ data: Array<Record<string, unknown>> }`.
+ * Logs are queried through `/organizations/{org}/events/`, not a dedicated
+ * `/logs/` route, so everything here is a thin domain layer over
+ * `queryDiscover`: pick the fields, name the sort, reshape the flat row.
  */
 
 import type { SentryClient } from "~/api/client";
+import {
+  queryDiscover,
+  queryDiscoverTimeseries,
+  rowString,
+  type DiscoverRow,
+  type TimeseriesBucket,
+} from "~/api/discover";
 
 // ---------------------------------------------------------------------------
 // Domain types
@@ -37,26 +44,6 @@ export interface LogEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Wire types (what the API actually returns)
-// ---------------------------------------------------------------------------
-
-/** A single row from `/events/?dataset=logs`. */
-interface RawLogRow {
-  "sentry.item_id"?: string;
-  timestamp?: string;
-  "sentry.severity"?: string;
-  message?: string;
-  trace?: string;
-  project?: string;
-  [key: string]: unknown;
-}
-
-/** The Discover response envelope. */
-interface DiscoverResponse {
-  data: RawLogRow[];
-}
-
-// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -73,6 +60,8 @@ const LOG_FIELDS = [
   "project",
 ] as const;
 
+const LOG_SORT = "-timestamp";
+
 // ---------------------------------------------------------------------------
 // Fetch
 // ---------------------------------------------------------------------------
@@ -88,12 +77,7 @@ export interface ListLogsParams {
   signal?: AbortSignal;
 }
 
-/**
- * Fetch log entries via the Discover `events` endpoint.
- *
- * The web app hits `GET /organizations/{org}/events/?dataset=logs&field=…`,
- * which returns rows in the standard Discover tabular format.
- */
+/** Fetch log entries via the Discover `events` endpoint. */
 export async function listLogs(
   client: SentryClient,
   {
@@ -107,34 +91,32 @@ export async function listLogs(
     signal,
   }: ListLogsParams,
 ): Promise<{ data: LogEntry[]; nextCursor: string | null }> {
-  const page = await client.request<DiscoverResponse>(`/organizations/${org}/events/`, {
-    query: {
-      dataset: "logs",
-      field: [...LOG_FIELDS],
-      sort: "-timestamp",
-      query: query || undefined,
-      statsPeriod,
-      per_page: limit,
-      cursor,
-      project,
-      environment,
-    },
+  const page = await queryDiscover(client, {
+    org,
+    dataset: "logs",
+    fields: LOG_FIELDS,
+    sort: LOG_SORT,
+    query,
+    statsPeriod,
+    project,
+    environment,
+    cursor,
+    limit,
     signal,
   });
 
-  const rows = Array.isArray(page.data) ? page.data : (page.data?.data ?? []);
-  return { data: rows.map(normalise), nextCursor: page.nextCursor };
+  return { data: page.rows.map(normalise), nextCursor: page.nextCursor };
 }
 
 /** Reshape a flat Discover row into the structured `LogEntry` the UI needs. */
-function normalise(row: RawLogRow, index: number): LogEntry {
+function normalise(row: DiscoverRow, index: number): LogEntry {
   return {
-    id: String(row["sentry.item_id"] ?? index),
-    timestamp: String(row.timestamp ?? ""),
+    id: rowString(row, "sentry.item_id") ?? String(index),
+    timestamp: rowString(row, "timestamp") ?? "",
     severityText: parseSeverity(row["sentry.severity"]),
-    body: String(row.message ?? ""),
-    traceId: row.trace ? String(row.trace) : undefined,
-    projectSlug: row.project ? String(row.project) : undefined,
+    body: rowString(row, "message") ?? "",
+    traceId: rowString(row, "trace"),
+    projectSlug: rowString(row, "project"),
   };
 }
 
@@ -149,7 +131,7 @@ function parseSeverity(raw: unknown): LogSeverity {
 // ---------------------------------------------------------------------------
 
 /** A single `[unixSeconds, [{count: N}]]` bucket from the events-stats API. */
-export type LogTimeseriesBucket = [number, Array<{ count: number }>];
+export type LogTimeseriesBucket = TimeseriesBucket;
 
 export interface ListLogTimeseriesParams {
   org: string;
@@ -160,12 +142,7 @@ export interface ListLogTimeseriesParams {
   signal?: AbortSignal;
 }
 
-/**
- * Fetch aggregated log volume over time.
- *
- * Hits `GET /organizations/{org}/events-stats/?dataset=logs&yAxis=count()`
- * which returns `{ data: [[timestamp, [{count: N}]], …] }`.
- */
+/** Fetch aggregated log volume over time, for the bar chart. */
 export async function listLogTimeseries(
   client: SentryClient,
   {
@@ -177,21 +154,15 @@ export async function listLogTimeseries(
     signal,
   }: ListLogTimeseriesParams,
 ): Promise<LogTimeseriesBucket[]> {
-  const page = await client.request<{ data: LogTimeseriesBucket[] }>(
-    `/organizations/${org}/events-stats/`,
-    {
-      query: {
-        dataset: "logs",
-        yAxis: "count()",
-        query: query || undefined,
-        statsPeriod,
-        project,
-        environment,
-        referrer: "sentry-tui.logs-chart",
-      },
-      signal,
-    },
-  );
-
-  return Array.isArray(page.data) ? page.data : (page.data?.data ?? []);
+  return queryDiscoverTimeseries(client, {
+    org,
+    dataset: "logs",
+    yAxis: "count()",
+    query,
+    statsPeriod,
+    project,
+    environment,
+    referrer: "sentry-tui.logs-chart",
+    signal,
+  });
 }

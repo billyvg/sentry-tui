@@ -1,26 +1,29 @@
 /**
- * Explore › Logs screen — a scrollable list of structured log entries.
+ * Explore › Logs — a scrollable table of structured log entries.
  *
- * Mirrors the web app's Logs view: a search bar at top, followed by a table
- * of log rows. Each row shows the timestamp, severity, project, and message
- * body. Selecting a row opens a detail panel showing attributes.
+ * Mirrors the web app's Logs view: a search bar, the shared filter row, a
+ * volume chart, and a table of log rows. It is also the worked example for
+ * every other Discover-backed table: fetch through a hook that goes through
+ * `queryDiscover`, push the rows into screen state, and describe the columns
+ * to `DataTable`.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
-import { RenderableEvents, type InputRenderable, type ScrollBoxRenderable } from "@opentui/core";
+import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
-import type { SentryClient } from "~/api/client";
-import { DEFAULT_LOG_PERIOD, type LogEntry, type LogSeverity } from "~/api/logs";
+import type { LogEntry, LogSeverity } from "~/api/logs";
 import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { fitText, padText } from "~/lib/text";
 import { BarChart } from "~/ui/components/BarChart";
-import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
+import { DataTable, type Column } from "~/ui/components/DataTable";
+import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useLogs, useLogTimeseries } from "~/ui/hooks/useLogs";
-import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
+import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
+import type { ScreenProps } from "~/ui/screens/types";
 
 // ---------------------------------------------------------------------------
 // Severity colors, matching the web's log level palette
@@ -44,131 +47,112 @@ const SEVERITY_LABEL: Record<LogSeverity, string> = {
   fatal: "FATAL",
 };
 
-// ---------------------------------------------------------------------------
-// Column widths
-// ---------------------------------------------------------------------------
-
-const COL_TIME = 10;
-const COL_SEVERITY = 6;
-const COL_PROJECT = 14;
-
 /** Height of the volume bar chart in terminal rows (includes border). */
 const CHART_HEIGHT = 10;
 
-/** A log row is a single line — no rule beneath it, unlike an issue row. */
-const ROW_HEIGHT = 1;
-
-export interface LogStreamProps {
-  client: SentryClient | null;
-  org: string;
-  width: number;
-  height: number;
-  focused: boolean;
-  selectedIndex: number;
-  onLogsChange?: (logs: LogEntry[]) => void;
-  onStatusChange?: (status: { loading: boolean; elapsedMs?: number; error?: string }) => void;
-  /** Which filter dropdown is open (null = none). */
-  openDropdown?: FilterDropdownType;
-  /** Selected project slugs (empty = all). */
-  selectedProjects?: string[];
-  /** Selected environment names (empty = all). */
-  selectedEnvs?: string[];
-  /** Stats period for the query. */
-  statsPeriod?: string;
-  onProjectChange?: (projects: string[]) => void;
-  onEnvChange?: (envs: string[]) => void;
-  onPeriodChange?: (period: string) => void;
-  onDropdownClose?: () => void;
-  onDropdownOpen?: (which: FilterDropdownType) => void;
-  /** The committed query sent to the API for fetching. */
-  query?: string;
-  /** The live input value displayed in the search bar (may differ while editing). */
-  searchValue?: string;
-  /** Called as the user types into the search bar. */
-  onSearchInput?: (value: string) => void;
-  /** Whether the search input is focused. */
-  searchFocused?: boolean;
-  /** Called when the input gains focus (e.g. via mouse click). */
-  onSearchFocus?: () => void;
-  /** Called when the input loses focus. */
-  onSearchBlur?: () => void;
-  /** Bump to refetch the current query — the app's global refresh. */
-  reloadToken?: number;
-  /**
-   * Show the detail panel for the selected row. Owned by the `App` so the
-   * status bar can name the key that closes it again.
-   */
-  detailOpen?: boolean;
-}
+/**
+ * The columns, and the order they are given up in.
+ *
+ * Time and the message survive any width — a log line without either is not a
+ * log line. Project goes first when the pane narrows, then severity, whose
+ * colour still reads off the message beside it.
+ */
+const COLUMNS: ReadonlyArray<Column<LogEntry>> = [
+  {
+    key: "time",
+    label: "Time",
+    width: 10,
+    render: (entry, _selected, width) => (
+      <text fg={theme.muted}>{padText(formatTimestamp(entry.timestamp), width)}</text>
+    ),
+  },
+  {
+    key: "severity",
+    label: "Level",
+    width: 6,
+    priority: 2,
+    render: (entry, _selected, width) => {
+      const severity = entry.severityText;
+      return (
+        <text
+          fg={SEVERITY_COLOR[severity] ?? theme.muted}
+          attributes={severity === "error" || severity === "fatal" ? BOLD : 0}
+        >
+          {padText(SEVERITY_LABEL[severity] ?? severity.toUpperCase(), width)}
+        </text>
+      );
+    },
+  },
+  {
+    key: "project",
+    label: "Project",
+    width: 14,
+    priority: 1,
+    render: (entry, _selected, width) => (
+      <text fg={theme.subText}>{padText(entry.projectSlug ?? "", width)}</text>
+    ),
+  },
+  {
+    key: "message",
+    label: "Message",
+    width: "flex",
+    render: (entry, _selected, width) => <text fg={theme.text}>{padText(entry.body, width)}</text>,
+  },
+];
 
 export function LogStream({
   client,
   org,
+  state,
+  focused,
   width,
   height,
-  focused,
-  selectedIndex,
-  onLogsChange,
-  onStatusChange,
-  openDropdown = null,
-  selectedProjects = [],
-  selectedEnvs = [],
-  statsPeriod: statsPeriodProp,
-  onProjectChange,
-  onEnvChange,
-  onPeriodChange,
-  onDropdownClose,
-  onDropdownOpen,
-  query: queryProp,
-  searchValue,
-  onSearchInput,
-  searchFocused = false,
-  onSearchFocus,
-  onSearchBlur,
   reloadToken,
-  detailOpen = false,
-}: LogStreamProps) {
-  const [localQuery] = useState("");
-  const query = queryProp ?? localQuery;
-  const displayValue = searchValue ?? query;
-  const statsPeriod = statsPeriodProp ?? DEFAULT_LOG_PERIOD;
+  registerActions,
+}: ScreenProps) {
+  const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
+    state;
   const inputRef = useRef<InputRenderable>(null);
-  const listRef = useRef<ScrollBoxRenderable>(null);
 
-  // Sync native focus/blur (e.g. mouse clicks) back to the parent.
+  // Sync native focus/blur (e.g. mouse clicks) back to the app's search state.
   const inputRefCallback = useCallback(
     (node: InputRenderable | null) => {
-      const prev = inputRef.current;
-      if (prev) {
-        prev.removeAllListeners(RenderableEvents.FOCUSED);
-        prev.removeAllListeners(RenderableEvents.BLURRED);
+      const previous = inputRef.current;
+      if (previous) {
+        previous.removeAllListeners(RenderableEvents.FOCUSED);
+        previous.removeAllListeners(RenderableEvents.BLURRED);
       }
       inputRef.current = node;
       if (node) {
-        node.on(RenderableEvents.FOCUSED, () => onSearchFocus?.());
-        node.on(RenderableEvents.BLURRED, () => onSearchBlur?.());
+        node.on(RenderableEvents.FOCUSED, () => focusSearch());
+        node.on(RenderableEvents.BLURRED, () => handleSearchBlur());
       }
     },
-    [onSearchFocus, onSearchBlur],
+    [focusSearch, handleSearchBlur],
   );
+
+  const query = state.committedQuery;
+  const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
+  const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
 
   const { logs } = useLogs(client, {
     org,
     query,
-    statsPeriod,
-    project: selectedProjects.length > 0 ? selectedProjects : undefined,
-    environment: selectedEnvs.length > 0 ? selectedEnvs : undefined,
+    statsPeriod: state.statsPeriod,
+    project,
+    environment,
     reloadToken,
   });
-  const timeseriesStatus = useLogTimeseries(client, {
-    org,
-    query,
-    statsPeriod,
-    project: selectedProjects.length > 0 ? selectedProjects : undefined,
-    environment: selectedEnvs.length > 0 ? selectedEnvs : undefined,
-    reloadToken,
-  });
-  const timeseries = valueOf(timeseriesStatus);
+  const timeseries = valueOf(
+    useLogTimeseries(client, {
+      org,
+      query,
+      statsPeriod: state.statsPeriod,
+      project,
+      environment,
+      reloadToken,
+    }),
+  );
 
   const loading = logs.state === "loading";
   const since = logs.state === "loading" ? logs.since : undefined;
@@ -178,17 +162,35 @@ export function LogStream({
   const error = errorOf(logs);
 
   useEffect(() => {
-    if (entries) onLogsChange?.(entries);
-  }, [entries, onLogsChange]);
+    if (entries) setEntries(entries);
+  }, [entries, setEntries]);
 
   useEffect(() => {
-    onStatusChange?.({
+    setStatus({
       loading,
       elapsedMs: elapsed ?? elapsedMs(logs, Date.now()),
       error: error?.message,
+      noun: "logs",
     });
-  }, [loading, elapsed, error, logs, onStatusChange]);
+  }, [loading, elapsed, error, logs, setStatus]);
 
+  const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
+
+  /**
+   * Enter toggles the detail panel rather than pushing a view: the cursor keys
+   * keep working while it is open, so there is nothing to pop back out of.
+   * Escape closes it, ahead of anything else that would claim the key.
+   */
+  useScreenActions(registerActions, {
+    open: () => setDetailOpen((open) => !open),
+    back: () => {
+      if (!state.detailOpen) return false;
+      setDetailOpen(false);
+      return true;
+    },
+  });
+
+  const hasChart = Boolean(timeseries && timeseries.length > 0);
   const inner = Math.max(20, width - 2);
 
   /**
@@ -198,16 +200,8 @@ export function LogStream({
    * while it is open — a log line is four fields, and freezing the list to
    * read them would cost more than it shows.
    */
-  const selectedEntry = entries?.[selectedIndex] ?? null;
-  const showDetail = detailOpen && selectedEntry !== null;
-
-  // The detail panel shortens the viewport, so it moves the offset too.
-  useRowScrollFollow(listRef, {
-    index: selectedIndex,
-    rowCount: entries?.length ?? 0,
-    rowHeight: ROW_HEIGHT,
-    layout: [height, showDetail],
-  });
+  const selectedEntry = entries?.[state.selected] ?? null;
+  const showDetail = state.detailOpen && selectedEntry !== null;
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
@@ -220,21 +214,21 @@ export function LogStream({
           height: 3,
           border: true,
           borderStyle: "rounded",
-          borderColor: searchFocused ? theme.accent : theme.border,
+          borderColor: state.searchFocused ? theme.accent : theme.border,
           backgroundColor: theme.panel,
           paddingLeft: 1,
           paddingRight: 1,
         }}
       >
         <text fg={theme.subText}>{"("}</text>
-        <text fg={theme.hotkey}>{"/"}</text>
+        <text fg={state.searchFocused ? theme.accent : theme.text}>{"/"}</text>
         <text fg={theme.subText}>{")"} </text>
         <input
           ref={inputRefCallback}
-          value={displayValue}
+          value={state.searchQuery}
           placeholder="Search logs…"
-          focused={searchFocused}
-          onInput={onSearchInput}
+          focused={state.searchFocused}
+          onInput={state.setSearchQuery}
           style={{
             flexGrow: 1,
             textColor: theme.text,
@@ -250,136 +244,54 @@ export function LogStream({
       <FilterBar
         client={client}
         org={org}
-        openDropdown={openDropdown}
-        selectedProjects={selectedProjects}
-        selectedEnvs={selectedEnvs}
-        statsPeriod={statsPeriod}
+        openDropdown={state.openDropdown}
+        selectedProjects={state.selectedProjects}
+        selectedEnvs={state.selectedEnvs}
+        statsPeriod={state.statsPeriod}
         sortLabel={entries ? `${entries.length} logs` : ""}
         anchorTop={SEARCH_ROWS}
-        onProjectChange={onProjectChange ?? (() => {})}
-        onEnvChange={onEnvChange ?? (() => {})}
-        onPeriodChange={onPeriodChange ?? (() => {})}
-        onDropdownClose={onDropdownClose ?? (() => {})}
-        onDropdownOpen={onDropdownOpen}
+        onProjectChange={state.setSelectedProjects}
+        onEnvChange={state.setSelectedEnvs}
+        onPeriodChange={state.setStatsPeriod}
+        onDropdownClose={closeDropdown}
+        onDropdownOpen={state.setOpenDropdown}
       />
 
       {/* Volume chart */}
-      {timeseries && timeseries.length > 0 ? (
+      {hasChart && timeseries ? (
         <BarChart buckets={timeseries} width={inner} height={CHART_HEIGHT} />
       ) : null}
 
-      {/* Column header */}
-      <LogListHeader width={inner} />
-
-      {/*
-       * Log list. `flexBasis: 0` is what makes this box scroll at all: on
-       * `auto` the scrollbox takes its content's height as its base size,
-       * grows past the pane, and ends up with a viewport as tall as the list —
-       * nothing overflows, so there is nothing to scroll.
-       */}
-      <scrollbox
-        ref={listRef}
-        // The list keeps focus while the panel is open: the panel has nothing
-        // of its own to scroll, and taking focus away would stop j/k moving
-        // the cursor the panel is following.
+      <DataTable
+        rows={entries}
+        columns={COLUMNS}
+        width={width}
+        selectedIndex={state.selected}
         focused={focused}
-        // Same scroll rail as the issue stream — see `IssueStream`.
-        verticalScrollbarOptions={{
-          showArrows: false,
-          trackOptions: { backgroundColor: theme.panel, foregroundColor: theme.muted },
+        rowKey={(entry) => entry.id}
+        loading={isInitialLoad(logs)}
+        error={error}
+        errorTitle="Failed to load logs"
+        empty={{
+          title: "No logs found.",
+          lines: [
+            query || undefined,
+            "Try widening the time range or adjusting the query.",
+            "This organization may not have logs enabled.",
+          ],
         }}
-        style={{ flexGrow: 1, flexBasis: 0, width }}
-      >
-        {entries === undefined && isInitialLoad(logs) ? (
-          <LogListSkeleton width={inner} rows={20} />
-        ) : null}
+        // The chart and the detail panel each shorten the viewport, so both
+        // move the scroll offset.
+        layout={[height, hasChart, showDetail]}
+      />
 
-        {entries !== undefined && entries.length === 0 && !loading ? (
-          <LogListEmpty query={query} />
-        ) : null}
-
-        {entries?.map((entry, index) => (
-          <LogRow
-            key={entry.id}
-            entry={entry}
-            selected={focused && index === selectedIndex}
-            width={inner}
-          />
-        ))}
-
-        {error && entries === undefined ? <LogListError error={error} /> : null}
-      </scrollbox>
-
-      {/* Detail panel for selected entry */}
       {showDetail && selectedEntry ? <LogDetail entry={selectedEntry} width={inner} /> : null}
     </box>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Header
-// ---------------------------------------------------------------------------
-
-function LogListHeader({ width }: { width: number }) {
-  const msgWidth = Math.max(10, width - COL_TIME - COL_SEVERITY - COL_PROJECT - 3);
-  return (
-    <box
-      style={{
-        flexDirection: "row",
-        width,
-        border: ["bottom"],
-        borderColor: theme.border,
-        flexShrink: 0,
-      }}
-    >
-      <text fg={theme.muted}>{padText("Time", COL_TIME)}</text>
-      <text fg={theme.muted}> </text>
-      <text fg={theme.muted}>{padText("Level", COL_SEVERITY)}</text>
-      <text fg={theme.muted}> </text>
-      <text fg={theme.muted}>{padText("Project", COL_PROJECT)}</text>
-      <text fg={theme.muted}> </text>
-      <text fg={theme.muted}>{padText("Message", msgWidth)}</text>
-    </box>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Row
-// ---------------------------------------------------------------------------
-
-function LogRow({ entry, selected, width }: { entry: LogEntry; selected: boolean; width: number }) {
-  const bg = selected ? theme.selected : undefined;
-  const msgWidth = Math.max(10, width - COL_TIME - COL_SEVERITY - COL_PROJECT - 3);
-  const severity = entry.severityText;
-  const color = SEVERITY_COLOR[severity] ?? theme.muted;
-  const ts = formatTimestamp(entry.timestamp);
-
-  return (
-    <box
-      style={{
-        flexDirection: "column",
-        width,
-        backgroundColor: bg,
-        flexShrink: 0,
-      }}
-    >
-      <box style={{ flexDirection: "row" }}>
-        <text fg={theme.muted}>{padText(ts, COL_TIME)}</text>
-        <text fg={color}> </text>
-        <text fg={color} attributes={severity === "error" || severity === "fatal" ? BOLD : 0}>
-          {padText(SEVERITY_LABEL[severity] ?? severity.toUpperCase(), COL_SEVERITY)}
-        </text>
-        <text fg={theme.muted}> </text>
-        <text fg={theme.subText}>{padText(entry.projectSlug ?? "", COL_PROJECT)}</text>
-        <text fg={theme.muted}> </text>
-        <text fg={theme.text}>{fitText(entry.body, msgWidth)}</text>
-      </box>
-    </box>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Detail panel for selected log entry
+// Detail panel for the selected log entry
 // ---------------------------------------------------------------------------
 
 function LogDetail({ entry, width }: { entry: LogEntry; width: number }) {
@@ -406,57 +318,9 @@ function LogDetail({ entry, width }: { entry: LogEntry; width: number }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// States
-// ---------------------------------------------------------------------------
-
-function LogListSkeleton({ width, rows }: { width: number; rows: number }) {
-  return (
-    <box style={{ flexDirection: "column", width }}>
-      {Array.from({ length: rows }, (_, i) => {
-        const barWidth = Math.floor(width * (0.3 + ((i * 17) % 50) / 100));
-        return (
-          <box key={i} style={{ flexDirection: "row", width, flexShrink: 0 }}>
-            <text fg={theme.panelAlt}>{padText("──:──:──", COL_TIME)}</text>
-            <text fg={theme.panelAlt}> </text>
-            <text fg={theme.panelAlt}>{padText("·····", COL_SEVERITY)}</text>
-            <text fg={theme.panelAlt}> </text>
-            <text fg={theme.panelAlt}>{"─".repeat(Math.min(barWidth, width))}</text>
-          </box>
-        );
-      })}
-    </box>
-  );
-}
-
-function LogListEmpty({ query }: { query: string }) {
-  return (
-    <box style={{ flexDirection: "column", padding: 1 }}>
-      <text fg={theme.text}>No logs found.</text>
-      {query ? <text fg={theme.muted}>{query}</text> : null}
-      <text fg={theme.muted}>Try widening the time range or adjusting the query.</text>
-    </box>
-  );
-}
-
-function LogListError({ error }: { error: { message: string; retryable: boolean } }) {
-  return (
-    <box style={{ flexDirection: "column", padding: 1 }}>
-      <text fg={theme.danger}>Failed to load logs</text>
-      <text fg={theme.muted}>{error.message}</text>
-      {error.retryable ? <text fg={theme.muted}>R to retry</text> : null}
-    </box>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 /** Extract HH:MM:SS from an ISO timestamp for the compact time column. */
 function formatTimestamp(iso: string): string {
   if (!iso) return "--:--:--";
-  // Try to grab HH:MM:SS from ISO string
   const match = iso.match(/T(\d{2}:\d{2}:\d{2})/);
   return match?.[1] ?? (iso.slice(11, 19) || "--:--:--");
 }

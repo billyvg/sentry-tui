@@ -76,6 +76,21 @@ const MIN_FILTERABLE_WIDTH = 32;
  * more often than it is searched, and a focused box would spend `j`/`k` on
  * text instead of on the cursor.
  */
+/**
+ * How many `Dropdown`s are mounted.
+ *
+ * `App` opens a dropdown by setting state, but only a mounted `Dropdown` can
+ * close one — and a screen with no filter row mounts none, so the state can be
+ * set with nothing on screen to clear it. The router asks this before rescuing
+ * the keyboard, so a real dropdown keeps its own two-stage Escape.
+ */
+let mountedDropdowns = 0;
+
+/** Is any filter dropdown actually on screen? */
+export function isDropdownMounted(): boolean {
+  return mountedDropdowns > 0;
+}
+
 export function Dropdown({
   title,
   items,
@@ -117,6 +132,13 @@ export function Dropdown({
   useEffect(() => {
     setCursor(query.trim() ? 0 : initialIndex);
   }, [initialIndex, query]);
+
+  useEffect(() => {
+    mountedDropdowns += 1;
+    return () => {
+      mountedDropdowns -= 1;
+    };
+  }, []);
 
   const handleSelect = useCallback(
     (index: number) => {

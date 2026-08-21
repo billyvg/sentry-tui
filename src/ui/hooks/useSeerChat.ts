@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, type SentryClient } from "~/api/client";
 import {
@@ -224,3 +224,13 @@ export function useSeerChat(client: SentryClient | null, org: string): SeerChatS
     reset,
   };
 }
+
+/**
+ * The live conversation, provided by `App` rather than by the screen.
+ *
+ * Seer's transcript has to outlive the screen's mount: navigating to Issues and
+ * back is not a reason to lose what Seer just said. `App` holds the hook — it
+ * is inert until the first message, so it costs nothing while the user is
+ * elsewhere — and the screen reads it from here.
+ */
+export const SeerChatContext = createContext<SeerChatState | null>(null);
