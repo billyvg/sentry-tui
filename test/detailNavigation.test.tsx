@@ -13,6 +13,7 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
+import { BreadcrumbBar } from "~/ui/components/BreadcrumbBar";
 import { eventFixture, groupsFixture } from "./fixtures";
 import { renderHarness, type Harness } from "./helpers";
 import { rawExploreSavedQueriesFixture, savedQueryResultRowsFixture } from "./saved-query-fixtures";
@@ -127,7 +128,7 @@ test("choosing a nav item from inside a detail view leaves it behind", async () 
     await h.press((i) => i.pressEnter()); // Explore › Traces
 
     await h.waitForFrame((f) => !f.includes("PUMP-STATION-1"));
-    // The stack is gone with it: no trail, no back row.
+    // The stack is gone with it: no trail, no back control.
     expect(h.frame()).not.toContain("Issues › Feed ›");
     expect(h.frame()).not.toContain("back to");
   } finally {
@@ -185,15 +186,21 @@ test("triage keys stay with the content pane, detail view included", async () =>
 // Saying where you are and how to leave
 // ---------------------------------------------------------------------------
 
-test("a stateful view prints the trail, the back row and the back hint", async () => {
+test("a stateful view prints the trail, the back control and the back hint", async () => {
   const h = await openSavedQueryResults();
   try {
     const frame = h.frame();
-    // Border title: the whole path, not just the leaf.
-    expect(frame).toContain("Explore › All Queries › Slow checkout spans");
-    // The row under it names what Escape costs.
-    expect(frame).toContain("(esc)");
-    expect(frame).toContain("back to All Queries");
+    const bar = frame.split("\n").find((line) => line.includes("All Queries ›")) ?? "";
+
+    // One bar: the whole path on the left, not just the leaf…
+    expect(bar).toContain("Explore › All Queries › Slow checkout spans");
+    // …and what Escape costs, pushed to the right end of the same line.
+    expect(bar).toContain("back to All Queries (esc)");
+    expect(bar.indexOf("Explore ›")).toBeLessThan(bar.indexOf("back to"));
+    // The control is flush against the pane's right border, with the gap
+    // between it and the trail.
+    expect(bar.replace(/[│ ]+$/, "")).toEndWith("(esc)");
+
     // …and the status bar agrees, which it used not to for a view like this.
     expect(frame).toContain("back");
   } finally {
@@ -201,7 +208,26 @@ test("a stateful view prints the trail, the back row and the back hint", async (
   }
 });
 
-test("a screen at the top level has no trail and no back row", async () => {
+test("the back control drops its destination before the trail loses its leaf", async () => {
+  // Rendered directly: a pane this narrow only happens in a terminal too small
+  // for the app to be worth driving through, but the bar still has to degrade
+  // in the right order — the leaf says *which* view this is, "to Feed" doesn't.
+  const h = await renderHarness(
+    <BreadcrumbBar segments={["Issues", "Feed", "PUMP-STATION-1"]} parent="Feed" width={28} />,
+    { width: 28, height: 1 },
+  );
+  try {
+    const bar = h.frame().split("\n")[0] ?? "";
+    expect(bar).toContain("PUMP-STATION-1");
+    expect(bar).toContain("back (esc)");
+    expect(bar).not.toContain("back to");
+    expect(bar.length).toBeLessThanOrEqual(28);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a screen at the top level has no trail and no back control", async () => {
   const h = await renderApp();
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
