@@ -3,7 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SentryClient } from "~/api/client";
 import { listEnvironments, type Environment } from "~/api/issues";
 import { theme } from "~/core/theme";
-import { ChipRow, CHIP_HEIGHT, chipOffsets, type ChipSpec } from "~/ui/components/Chip";
+import { measureTextWidth } from "~/lib/text";
+import {
+  ChipRow,
+  CHIP_GAP,
+  CHIP_HEIGHT,
+  chipOffsets,
+  chipWidth,
+  type ChipSpec,
+} from "~/ui/components/Chip";
 import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
 import { useProjects } from "~/ui/hooks/useProjects";
 
@@ -46,6 +54,11 @@ export interface FilterBarProps {
   statsPeriod: string;
   sortLabel: string;
   /**
+   * Cells the row has. Given one, the sort label is dropped when the chips
+   * leave no room for it; without one the label is clipped instead.
+   */
+  width?: number;
+  /**
    * Row offset from the top of the terminal where the filter bar area starts.
    * The component adds its own leading gap when placing dropdowns.
    */
@@ -71,6 +84,7 @@ export function FilterBar({
   selectedEnvs,
   statsPeriod,
   sortLabel,
+  width,
   anchorTop,
   onProjectChange,
   onEnvChange,
@@ -133,7 +147,21 @@ export function FilterBar({
     { command: "sentry.view.filterEnv", label: envLabel, caret: true },
     { command: "sentry.view.filterDate", label: statsPeriod, caret: true },
   ];
-  const [projectAnchorLeft = 0, envAnchorLeft = 0, dateAnchorLeft = 0] = chipOffsets(chips);
+  const offsets = chipOffsets(chips);
+  const [projectAnchorLeft = 0, envAnchorLeft = 0, dateAnchorLeft = 0] = offsets;
+
+  /**
+   * The sort label, or nothing when the chips already fill the row.
+   *
+   * Below about 90 columns the two together are wider than the pane. The label
+   * is the half worth losing — it restates a count the status bar also carries
+   * — and dropping it beats a truncated fragment of one.
+   */
+  const sortText = `Sort: ${sortLabel}`;
+  const chipsWidth = (offsets.at(-1) ?? 0) + chipWidth(chips.at(-1)!);
+  const showSort =
+    sortLabel.length > 0 &&
+    (width === undefined || chipsWidth + CHIP_GAP + measureTextWidth(sortText) <= width);
   // A dropdown hangs off the bottom edge of its chip, so it clears the gap
   // above the row *and* the chip's own height, border included.
   const dropdownTop = anchorTop + ROW_GAP + CHIP_HEIGHT;
@@ -164,10 +192,20 @@ export function FilterBar({
 
   return (
     <>
+      {/*
+       * Pinned to one line and clipped. Below about 90 columns the chips and
+       * the sort label together are wider than the pane, and a `<text>` that
+       * doesn't fit wraps — which turned the filter row into an eight-line
+       * column of one-word fragments that pushed the list off screen. The
+       * label is the half worth losing: it restates a count the status bar
+       * also carries.
+       */}
       <box
         style={{
           flexDirection: "row",
           flexShrink: 0,
+          height: CHIP_HEIGHT,
+          overflow: "hidden",
           marginTop: ROW_GAP,
           marginBottom: ROW_GAP,
         }}
@@ -178,7 +216,7 @@ export function FilterBar({
           onPress={(_chip, index) => onDropdownOpen?.(CHIP_ORDER[index] ?? null)}
         />
         <box style={{ flexGrow: 1 }} />
-        <text fg={theme.muted}>{`Sort: ${sortLabel}`}</text>
+        {showSort ? <text fg={theme.muted}>{sortText}</text> : null}
       </box>
 
       {openDropdown === "project" ? (

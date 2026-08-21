@@ -13,6 +13,7 @@
 
 import { DEFAULT_STATS_PERIOD, type SortOption } from "~/api/issues";
 import { DEFAULT_LOG_PERIOD } from "~/api/logs";
+import { DEFAULT_RELEASE_PERIOD } from "~/api/releases";
 import { ALL_VIEWS_LABEL, ISSUE_VIEWS } from "~/core/issueViews";
 import { NAV_GROUPS, type NavGroupId } from "~/core/nav";
 
@@ -165,7 +166,7 @@ export const SCREENS: readonly ScreenDef[] = [
     DISCOVER_DEFAULTS,
   ),
   s("explore.replays", "explore", "Replays", "stub"),
-  s("explore.releases", "explore", "Releases", "stub"),
+  releasesScreen(),
   s("explore.all-queries", "explore", "All Queries", "stub"),
 
   s("dashboards.all", "dashboards", "All Dashboards", "stub", DASHBOARD_LIST),
@@ -194,6 +195,23 @@ function logsScreen(): ScreenDef {
   return {
     ...s("explore.logs", "explore", "Logs", "table", EXPLORE_DISCOVER, DISCOVER_DEFAULTS),
     openLabel: "details",
+  };
+}
+
+/**
+ * Releases is the one Explore screen that isn't a table, and the one whose
+ * period must be long: `statsPeriod` filters the list by release date, so the
+ * hour the Discover screens share would hide every release but this morning's.
+ * That is why it keeps its own slice rather than joining `explore.discover`.
+ * Enter expands the card under the cursor to its remaining projects.
+ */
+function releasesScreen(): ScreenDef {
+  return {
+    ...s("explore.releases", "explore", "Releases", "cards", undefined, {
+      query: "",
+      statsPeriod: DEFAULT_RELEASE_PERIOD,
+    }),
+    openLabel: "expand",
   };
 }
 
