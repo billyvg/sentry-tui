@@ -69,6 +69,29 @@ export interface FilterBarProps {
 }
 
 /**
+ * How many `FilterBar`s are mounted.
+ *
+ * `P` / `E` / `D` are in the command table for every screen, but only a screen
+ * that renders a filter row can answer them — it is the thing that mounts the
+ * `Dropdown`. Opening one on a screen without a filter row used to leave
+ * `openDropdown` set with nothing on screen to clear it, and because the
+ * router hands every key to the focused widget while a dropdown is open, the
+ * app stopped answering the keyboard at all.
+ *
+ * The router asks this before setting the state, so those keys are a no-op on
+ * a screen with no filter row rather than a mode with no exit. Checking the
+ * mount rather than the state is what makes it race-free: a filter row is part
+ * of its screen's render and is already there when the key arrives, unlike the
+ * `Dropdown` the key itself is what mounts.
+ */
+let mountedFilterBars = 0;
+
+/** Is a filter row on screen to answer the filter keys? */
+export function isFilterBarMounted(): boolean {
+  return mountedFilterBars > 0;
+}
+
+/**
  * The filter row below the search bar: project / environment / date selectors,
  * plus the sort indicator. When a dropdown is active, it renders as an
  * absolutely-positioned overlay.
@@ -94,6 +117,15 @@ export function FilterBar({
   const [projectQuery, setProjectQuery] = useState("");
   const { projects, loading: projectsLoading } = useProjectSearch(client, org, projectQuery);
   const [environments, setEnvironments] = useState<Environment[]>([]);
+
+  // Counted here so the router can ask whether a filter row is on screen
+  // before it opens one of these dropdowns.
+  useEffect(() => {
+    mountedFilterBars += 1;
+    return () => {
+      mountedFilterBars -= 1;
+    };
+  }, []);
 
   // A closed picker holds no query, so reopening it starts on the full list
   // rather than on whatever the last visit narrowed it to.
