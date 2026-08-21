@@ -44,8 +44,8 @@ stop-recording control in.
 - **Screen Recording** permission for the terminal you run this from
   (System Settings › Privacy & Security › Screen Recording). This is the only
   permission needed.
-- `OPENAI_API_KEY`, for the narration. Put it in `demos/.env` (gitignored); Bun
-  loads that automatically.
+- A TTS key for the narration — `OPENAI_API_KEY` **or** `OPENROUTER_API_KEY`.
+  Put it in `demos/.env` (gitignored); Bun loads that automatically.
 
 **Run all of this from a plain terminal window**, not inside Herdr or tmux. The
 recorded kitty inherits the environment, and `HERDR_ENV`/`TMUX`/`STY` in it would
@@ -100,6 +100,45 @@ skips it. `SENTRY_ORG` still overrides for a single run.
 
 The org matters for the rest of the demo too — one with no matching issues records
 an honest but very dull "No issues match this search."
+
+## Narration voices
+
+`demo:tts` takes whichever key it finds, OpenAI first:
+
+| Key                  | Default model           | Default voice              | `instructions`? |
+| -------------------- | ----------------------- | -------------------------- | --------------- |
+| `OPENAI_API_KEY`     | `gpt-4o-mini-tts`       | `ash`                      | yes             |
+| `OPENROUTER_API_KEY` | `microsoft/mai-voice-2` | `en-US-Harper:MAI-Voice-2` | no              |
+
+Test a key for a fraction of a cent instead of rendering the whole script:
+
+```bash
+bun run demo:tts --check          # one phrase → build/tts-check.mp3
+afplay demos/build/tts-check.mp3
+```
+
+Override any of it with `DEMO_TTS_MODEL`, `DEMO_TTS_VOICE`, `DEMO_TTS_SPEED` and
+(OpenAI only) `DEMO_TTS_INSTRUCTIONS`.
+
+### On OpenRouter
+
+OpenRouter exposes an OpenAI-shaped `/audio/speech`, with two differences that
+matter:
+
+- **The OpenAI TTS models usually aren't available.** `openai/gpt-4o-mini-tts`
+  and its dated variants answer `Model … does not exist` on a plain account, so
+  the default here is `microsoft/mai-voice-2`, which works. `fish-audio/s2.1-pro`
+  also works if you want a second option.
+- **Voices are provider-specific.** Azure wants its own names
+  (`en-US-Harper:MAI-Voice-2`); passing OpenAI's `alloy` gets a 400.
+
+There is no `instructions` field in OpenRouter's schema, so delivery can't be
+steered there — `DEMO_TTS_SPEED` is the only pacing control. MAI-Voice-2 reads at
+roughly 115 wpm unaided, which is slower than the script assumes; **1.15× lands
+near 145 wpm** and sounds natural.
+
+Voice choice changes every beat's length, so it is part of the cache key —
+switching providers re-renders the script rather than reusing stale timings.
 
 ## How the timing works
 
