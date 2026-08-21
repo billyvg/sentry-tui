@@ -229,6 +229,18 @@ describe("release commands", () => {
 });
 
 describe("repository manifest", () => {
+  test("the dev bin entry is executable on its own", async () => {
+    const manifest = (await Bun.file(join(ROOT, "package.json")).json()) as {
+      bin: Record<string, string>;
+    };
+    expect(manifest.bin["sentry-tui"]).toBe("src/main.tsx");
+
+    // `npx sentry-tui` inside a checkout resolves to this package and execs the
+    // file directly. Without the shebang the shell parses TSX as shell script.
+    const source = await read("src/main.tsx");
+    expect(source.startsWith("#!/usr/bin/env bun\n")).toBe(true);
+  });
+
   test("stays private, so only generated packages can be published", async () => {
     const manifest = (await Bun.file(join(ROOT, "package.json")).json()) as Record<string, unknown>;
     expect(manifest.private).toBe(true);

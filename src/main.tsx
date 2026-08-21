@@ -1,3 +1,9 @@
+#!/usr/bin/env bun
+// The shebang is load-bearing for the `bin` entry this package declares. Run
+// `npx sentry-tui` from inside a checkout and npm resolves the name to this
+// package rather than the published one, then execs this file directly — with
+// no shebang the shell parses TSX and reports `import: command not found`.
+// Released binaries never take this path; the compiled build has its own entry.
 import { runLogin, runLogout, runStatus } from "~/app/login";
 import { bootstrap, HELP_TEXT, migrateLegacyCredentials, parseArgs } from "~/app/startup";
 import { runApp } from "~/ui/runApp";
