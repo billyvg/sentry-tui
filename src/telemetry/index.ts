@@ -77,6 +77,10 @@ export async function initTelemetry(
         // `processSessionIntegration` would file every `sentry-tui status` as
         // a session and quietly inflate the crash-free rate.
       ],
+      // Structured logs, which unlike breadcrumbs are queryable without an
+      // error to hang off — the record of what the app did, not just what it
+      // did before something broke.
+      enableLogs: true,
       beforeSend: (event) => scrubEvent(event),
       beforeSendTransaction: (event) => scrubEvent(event),
     });
@@ -156,6 +160,29 @@ export function breadcrumb(crumb: Crumb): void {
   });
 }
 
+/** Values worth attaching to a log: small, structured, never free-form user text. */
+export type LogAttributes = Record<string, string | number | boolean | undefined>;
+
+/**
+ * Write a structured log.
+ *
+ * Distinct from a breadcrumb, which only surfaces if something later fails.
+ * A log stands on its own and stays queryable, so this is where the things
+ * worth knowing about a healthy session go — which screens got opened, how
+ * long they took, which requests the server turned down.
+ *
+ * Kept deliberately sparse. A terminal session should produce tens of these,
+ * not thousands, and nothing here may ever reach the actual terminal.
+ */
+export function log(
+  level: "info" | "warn" | "error",
+  message: string,
+  attributes?: LogAttributes,
+): void {
+  if (!sentry) return;
+  sentry.logger[level](message, attributes);
+}
+
 // --- Tracing -------------------------------------------------------------
 //
 // Bun's fetch is native, so none of the SDK's automatic HTTP instrumentation
@@ -170,6 +197,8 @@ let navigationSpan: Span | undefined;
 /** The screen `navigationSpan` belongs to, so a late close can't hit the wrong one. */
 let navigationName: string | undefined;
 let navigationTimer: ReturnType<typeof setTimeout> | undefined;
+/** When the current screen was opened, for the duration it gets logged with. */
+let navigationStartedAt = 0;
 /** Request spans still open under the current screen. */
 let requestsUnderNavigation = 0;
 /** The screen settled while requests were still running; close when they stop. */
@@ -220,6 +249,7 @@ export function beginNavigation(name: string): void {
   closeNavigation();
   navigationSpan = sentry.startInactiveSpan({ name, op: "navigation" });
   navigationName = name;
+  navigationStartedAt = Date.now();
   navigationTimer = setTimeout(() => {
     navigationSpan?.setStatus({ code: 2, message: "deadline_exceeded" });
     closeNavigation();
@@ -251,7 +281,7 @@ export function endNavigation(name: string, settledAt?: number): void {
     closePending = true;
     return;
   }
-  closeNavigation(settledAt);
+  closeNavigation(settledAt, true);
 }
 
 /** Leaving a screen. Close its span now, whatever is still in flight. */
@@ -260,7 +290,18 @@ export function abandonNavigation(name: string): void {
   closeNavigation();
 }
 
-function closeNavigation(endAt?: number): void {
+/**
+ * @param endAt Epoch ms the screen was ready, when that differs from now.
+ * @param settled Whether it finished loading, as opposed to being left or
+ *   timing out. Only a screen that settled is worth logging a duration for.
+ */
+function closeNavigation(endAt?: number, settled = false): void {
+  if (settled && navigationName) {
+    log("info", `opened ${navigationName}`, {
+      screen: navigationName,
+      duration_ms: (endAt ?? Date.now()) - navigationStartedAt,
+    });
+  }
   if (navigationTimer) clearTimeout(navigationTimer);
   navigationTimer = undefined;
   navigationSpan?.end(endAt);
@@ -334,7 +375,8 @@ export function beginRequest(spec: RequestSpec): FinishRequest {
   const release = () => {
     if (!holdsNavigation) return;
     requestsUnderNavigation--;
-    if (requestsUnderNavigation === 0 && closePending) closeNavigation();
+    // The screen settled a moment ago and was only waiting on this.
+    if (requestsUnderNavigation === 0 && closePending) closeNavigation(undefined, true);
   };
 
   return ({ status, retries, cancelled }) => {
@@ -396,6 +438,9 @@ export function installCrashHandlers(): void {
   const fatal = (error: unknown, source: "uncaughtException" | "unhandledRejection") => {
     restoreTerminal?.();
     restoreTerminal = null;
+    log("error", `crashed: ${source}`, {
+      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    });
     reportError(error, { source, handled: false });
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
     void shutdownTelemetry().finally(() => {

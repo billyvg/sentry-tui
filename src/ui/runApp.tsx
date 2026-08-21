@@ -3,7 +3,7 @@ import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 
 import type { AppContext } from "~/app/startup";
-import { finishStartup, setTerminalRestore, shutdownTelemetry } from "~/telemetry/index";
+import { finishStartup, log, setTerminalRestore, shutdownTelemetry } from "~/telemetry/index";
 import { App } from "~/ui/App";
 import { ErrorBoundary } from "~/ui/components/ErrorBoundary";
 
@@ -19,11 +19,21 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
     targetFps: 30,
   });
 
+  const openedAt = Date.now();
+  log("info", "session started", {
+    org,
+    // Terminal shape decides what the app can draw, so it is the first thing
+    // worth knowing when a screen looks wrong for someone and not for us.
+    columns: renderer.terminalWidth,
+    rows: renderer.terminalHeight,
+  });
+
   let shuttingDown = false;
   const shutdown = async () => {
     if (shuttingDown) return;
     shuttingDown = true;
     renderer.destroy();
+    log("info", "session ended", { duration_ms: Date.now() - openedAt });
     // Only after the terminal is its own again: closing the session waits on
     // the network, capped, and must never happen behind the alternate screen.
     await shutdownTelemetry();

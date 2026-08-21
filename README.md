@@ -56,10 +56,12 @@ Supported: macOS and Linux, on arm64 and x64. Windows and musl-based Linux
 
 sentry-tui reports **its own** crashes to Sentry, which is how bugs that only
 happen on someone else's terminal ever get fixed. What goes: the error and its
-stack, the screen you were on, the Sentry API calls leading up to it, your OS
-and terminal details, and — so a report can be followed up — the account and
-organization you're signed in to. What never goes: your auth token, anything
-you typed into a search box, and the contents of your issues.
+stack, the screen you were on, the Sentry API calls leading up to it, how long
+they took, your OS and terminal details, and — so a report can be followed up —
+the account and organization you're signed in to. It also logs what the app
+did along the way: which screens were opened and how quickly, and which
+requests the server refused. What never goes: your auth token, anything you
+typed into a search box, and the contents of your issues.
 
 Set `SENTRY_TUI_NO_TELEMETRY=1` to turn it off. It is also off automatically
 when `CI` is set, and when running from source.

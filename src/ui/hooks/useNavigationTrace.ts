@@ -1,7 +1,13 @@
 import { useEffect, useMemo } from "react";
 
 import { getNavGroup, type NavGroupId } from "~/core/nav";
-import { abandonNavigation, beginNavigation, breadcrumb, endNavigation } from "~/telemetry/index";
+import {
+  abandonNavigation,
+  beginNavigation,
+  breadcrumb,
+  endNavigation,
+  isTelemetryEnabled,
+} from "~/telemetry/index";
 
 /**
  * How long to wait before believing a screen is done loading.
@@ -22,27 +28,34 @@ const SETTLE_DEBOUNCE_MS = 250;
 export function useNavigationTrace(group: NavGroupId, item: string, loading: boolean): void {
   const name = `${getNavGroup(group).label} › ${item}`;
 
+  // The functions below are all no-ops with reporting off, but the timer this
+  // hook schedules would not be: it would outlive the render that started it
+  // in every test and every source run, for nothing. Reporting off means this
+  // hook does nothing at all.
+  const on = isTelemetryEnabled();
+
   // Opened during render, not in an effect, and that is not an accident:
   // React runs child effects before parent ones, so a screen's first fetch —
   // the one the whole span exists to measure — starts before any effect here
   // could have opened a parent for it, and lands as its own orphan trace.
   // Rendering is the only point that reliably precedes the children.
   useMemo(() => {
+    if (!on) return;
     beginNavigation(name);
     breadcrumb({ category: "navigation", message: name });
-  }, [name]);
+  }, [name, on]);
 
   // Navigating away mid-load ends the span where the user abandoned it. The
   // name is passed because this cleanup runs *after* the next screen's render
   // has already opened its span — unguarded, it would close that one instead.
-  useEffect(() => () => abandonNavigation(name), [name]);
+  useEffect(() => (on ? () => abandonNavigation(name) : undefined), [name, on]);
 
   useEffect(() => {
-    if (loading) return;
+    if (!on || loading) return;
     // Record when it settled, not when the debounce agreed it had. A screen
     // with nothing to fetch settles at mount, and reads as the instant it is.
     const settledAt = Date.now();
     const settle = setTimeout(() => endNavigation(name, settledAt), SETTLE_DEBOUNCE_MS);
     return () => clearTimeout(settle);
-  }, [name, loading]);
+  }, [name, loading, on]);
 }

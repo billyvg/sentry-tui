@@ -13,7 +13,9 @@ import { findScreen, getScreen, stateKeyOf, type ScreenId } from "~/core/screens
 import { theme } from "~/core/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
 import { breadcrumbTrail } from "~/lib/breadcrumb";
-import { breadcrumb, identify } from "~/telemetry/index";
+// Aliased: `breadcrumb` is taken in this file by the trail rendered in the
+// pane's border title, which is a different thing entirely.
+import { breadcrumb as leaveCrumb, identify, log } from "~/telemetry/index";
 import { CommandPalette } from "~/ui/components/CommandPalette";
 import { DetailBackRow, detailBackWidth } from "~/ui/components/DetailBackRow";
 import { isDropdownMounted } from "~/ui/components/Dropdown";
@@ -231,7 +233,8 @@ export function App({
 
       // Retag, so an error after this points at the org actually on screen.
       identify({ org: slug });
-      breadcrumb({ category: "navigation", message: `switched org to ${slug}` });
+      leaveCrumb({ category: "navigation", message: `switched org to ${slug}` });
+      log("info", "switched org", { org: slug });
 
       void writeConfig({ org: slug }).catch(() => {
         // A read-only config dir shouldn't undo a switch that already happened;

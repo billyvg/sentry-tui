@@ -1,5 +1,5 @@
 import type { AuthProvider } from "~/api/auth";
-import { beginRequest, reportError } from "~/telemetry/index";
+import { beginRequest, log, reportError } from "~/telemetry/index";
 
 export const DEFAULT_BASE_URL = "https://sentry.io/api/0";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -197,24 +197,44 @@ export class SentryClient {
   }
 
   /**
-   * Report a request failure worth someone's attention.
+   * Say something about a request that failed, at the volume it deserves.
    *
    * Most of what fails here is not a bug: an expired token, a slug that no
    * longer exists, a rate limit. Those are states the UI draws and the user
-   * can act on. A 5xx or a request that never reached the server is neither,
-   * so those are the ones that travel.
+   * can act on, so they are logged and left at that — an issue for every
+   * stale token would drown the real ones. A 5xx or a request that never
+   * reached a server is a different thing, and gets reported.
    */
   private report(error: unknown, context: { method: string; path: string; retries: number }): void {
     if (!(error instanceof ApiError)) return;
-    if (error.status !== 0 && error.status < 500) return;
-    reportError(error, {
-      source: "api.request",
-      tags: {
-        "http.status": String(error.status),
-        "http.kind": error.status === 0 ? "network" : "server",
-      },
-      extra: context,
-    });
+
+    const { status } = error;
+    const route = `${context.method} ${context.path}`;
+    const attributes = { route, status, retries: context.retries };
+
+    if (status === 0 || status >= 500) {
+      log("error", `${route} failed`, attributes);
+      reportError(error, {
+        source: "api.request",
+        tags: {
+          "http.status": String(status),
+          "http.kind": status === 0 ? "network" : "server",
+        },
+        extra: context,
+      });
+      return;
+    }
+
+    // Worth knowing about in aggregate — how often people hit the rate limit,
+    // how often tokens go stale — without being anybody's bug to fix.
+    if (status === 429) {
+      log("warn", `${route} rate limited`, {
+        ...attributes,
+        retry_after_s: error.retryAfterSeconds,
+      });
+    } else if (status === 401 || status === 403) {
+      log("warn", `${route} rejected the token`, attributes);
+    }
   }
 
   private async withRefresh<T>(
