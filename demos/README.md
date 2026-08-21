@@ -117,8 +117,45 @@ bun run demo:tts --check          # one phrase → build/tts-check.mp3
 afplay demos/build/tts-check.mp3
 ```
 
+No key at all? See [Recording the narration yourself](#recording-the-narration-yourself).
+
 Override any of it with `DEMO_TTS_MODEL`, `DEMO_TTS_VOICE`, `DEMO_TTS_SPEED` and
 (OpenAI only) `DEMO_TTS_INSTRUCTIONS`.
+
+### Recording the narration yourself
+
+The best-sounding option, and the pipeline takes it directly. Record one file per
+beat into `build/audio/`, named after the beat — `B01.mp3`, `B02.mp3`, … — then:
+
+```bash
+bun run demo:tts --measure-only
+```
+
+That needs no API key and synthesizes nothing. It measures each file, writes
+`durations.json`, and lists any beat still missing audio (exiting non-zero, since
+a gap would leave `demo:mux` refusing to run and `demo:record` holding a fallback
+pause instead of your line).
+
+`.m4a`, `.wav`, `.aiff`, `.caf` and `.flac` are accepted as well as `.mp3` — a Mac
+records `.m4a` from QuickTime and Voice Memos — and anything that isn't already an
+mp3 is converted for you.
+
+**Your audio is never overwritten.** Once a beat has been measured from a file you
+supplied, a later `bun run demo:tts` re-measures it and moves on, so you can
+record the beats you care about and let a provider fill in the rest:
+
+```
+B01 2.5s — yours — lynx renders sentry.io
+B02 4.0s — yours (converted from .m4a) — out of lynx
+B03 3.1s — the app launches
+```
+
+To hand a beat back to the synthesizer, delete its mp3 and its entry in
+`build/tts-cache.json`.
+
+A useful order: render everything with a provider first to settle the pacing,
+then re-record the beats you want in your own voice and run `--measure-only`
+again. The tape re-times itself around whatever the files actually are.
 
 ### On OpenRouter
 

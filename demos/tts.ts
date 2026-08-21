@@ -10,8 +10,9 @@
  * because settling the pacing takes several passes and each one otherwise costs
  * the whole script.
  *
- *   bun run demo:tts            # render every beat
- *   bun run demo:tts --check    # synthesize one short phrase and stop
+ *   bun run demo:tts                  # render every beat
+ *   bun run demo:tts --check          # synthesize one short phrase and stop
+ *   bun run demo:tts --measure-only   # measure audio you recorded yourself
  */
 
 import { file, write } from "bun";
@@ -103,10 +104,14 @@ const INSTRUCTIONS =
   "Confident and conversational, like a developer demoing something they built and like. " +
     "Measured pace, dry rather than enthusiastic. Do not rush the ends of sentences.";
 
-const backend = resolveBackend();
+const measureOnly = Bun.argv.includes("--measure-only");
+// Resolved lazily: measuring audio you recorded needs no provider, and
+// `resolveBackend` exits when it can't find a key.
+const backend = measureOnly ? null : resolveBackend();
 
 /** One request. Returns the mp3 bytes, or throws with the provider's own words. */
 async function synthesize(text: string): Promise<ArrayBuffer> {
+  if (!backend) throw new Error("No TTS backend resolved.");
   const response = await fetch(backend.url, {
     method: "POST",
     headers: { Authorization: `Bearer ${backend.apiKey}`, "Content-Type": "application/json" },
@@ -129,10 +134,12 @@ async function synthesize(text: string): Promise<ArrayBuffer> {
   return response.arrayBuffer();
 }
 
-console.log(
-  `${backend.label}: ${backend.model} / ${backend.voice}` +
-    (backend.speed === 1 ? "" : ` at ${backend.speed}×`),
-);
+if (backend) {
+  console.log(
+    `${backend.label}: ${backend.model} / ${backend.voice}` +
+      (backend.speed === 1 ? "" : ` at ${backend.speed}×`),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // --check: one phrase, so a key or a model id can be tested for a fraction of
@@ -156,6 +163,26 @@ if (Bun.argv.includes("--check")) {
 interface CacheEntry {
   hash: string;
   seconds: number;
+  /**
+   * Where the file came from. Audio marked `external` is never re-synthesized
+   * or overwritten — a recording of your own voice is not something the script
+   * gets to decide is stale.
+   */
+  source?: "synth" | "external";
+}
+
+/** Formats a Mac records into, all of which ffmpeg can turn into mp3. */
+const IMPORTABLE = [".mp3", ".m4a", ".wav", ".aiff", ".aif", ".caf", ".flac"];
+
+/** Convert a recording to the mp3 `demo:mux` expects. */
+async function toMp3(from: string, to: string): Promise<void> {
+  const proc = Bun.spawn(
+    ["ffmpeg", "-v", "error", "-i", from, "-c:a", "libmp3lame", "-q:a", "2", "-y", to],
+    { stdout: "ignore", stderr: "pipe" },
+  );
+  if ((await proc.exited) !== 0) {
+    throw new Error(`Could not convert ${from}: ${await new Response(proc.stderr).text()}`);
+  }
 }
 
 const beats = parseNarration(await file(NARRATION_PATH).text());
@@ -173,16 +200,55 @@ const cache: Record<string, CacheEntry> = (await cacheFile.exists())
 // different recording, and a different length.
 const hashOf = (text: string) =>
   new Bun.CryptoHasher("sha256")
-    .update(`${backend.url} ${backend.model} ${backend.voice} ${backend.speed} ${text}`)
+    .update(`${backend?.url} ${backend?.model} ${backend?.voice} ${backend?.speed} ${text}`)
     .digest("hex");
+
+/**
+ * Audio you supplied for this beat, if any.
+ *
+ * Anything in `build/audio` that isn't an mp3 gets converted to one, because
+ * `demo:mux` reads `BNN.mp3` and a Mac records `.m4a` — QuickTime, Voice Memos
+ * and `afrecord` all do.
+ */
+async function importExternal(beatId: string): Promise<string | null> {
+  const mp3 = `${AUDIO_DIR}/${beatId}.mp3`;
+  for (const extension of IMPORTABLE) {
+    const candidate = `${AUDIO_DIR}/${beatId}${extension}`;
+    if (!(await file(candidate).exists())) continue;
+    if (extension !== ".mp3") await toMp3(candidate, mp3);
+    return extension;
+  }
+  return null;
+}
 
 const durations: Record<string, number> = {};
 let rendered = 0;
+const missing: string[] = [];
 
 for (const beat of beats) {
   const path = `${AUDIO_DIR}/${beat.id}.mp3`;
   const hash = hashOf(beat.text);
   const cached = cache[beat.id];
+
+  // Audio you recorded wins over anything this script could produce, and it is
+  // never overwritten — only re-measured, in case you replaced the take.
+  const external = await importExternal(beat.id);
+  const isYours = cached?.source === "external" || (measureOnly && external !== null);
+
+  if (isYours && external !== null) {
+    const seconds = await probeDuration(path);
+    durations[beat.id] = seconds;
+    cache[beat.id] = { hash: "external", seconds, source: "external" };
+    const note = external === ".mp3" ? "" : ` (converted from ${external})`;
+    console.log(`  ${beat.id} ${seconds.toFixed(1)}s — yours${note} — ${beat.title}`);
+    continue;
+  }
+
+  if (measureOnly) {
+    missing.push(beat.id);
+    console.log(`  ${beat.id} — MISSING — ${beat.title}`);
+    continue;
+  }
 
   if (cached?.hash === hash && (await file(path).exists())) {
     durations[beat.id] = cached.seconds;
@@ -193,7 +259,7 @@ for (const beat of beats) {
   await write(path, await synthesize(beat.text));
   const seconds = await probeDuration(path);
   durations[beat.id] = seconds;
-  cache[beat.id] = { hash, seconds };
+  cache[beat.id] = { hash, seconds, source: "synth" };
   rendered++;
   console.log(`  ${beat.id} ${seconds.toFixed(1)}s — ${beat.title}`);
 }
@@ -205,11 +271,29 @@ const total = Object.values(durations).reduce((sum, seconds) => sum + seconds, 0
 const optional = beats.filter((beat) => beat.optional);
 const withoutOptional = total - optional.reduce((sum, beat) => sum + (durations[beat.id] ?? 0), 0);
 
-console.log(`\n${beats.length} beats, ${rendered} newly rendered.`);
+const measured = Object.keys(durations).length;
+console.log(
+  measureOnly
+    ? `\n${measured} of ${beats.length} beats measured.`
+    : `\n${beats.length} beats, ${rendered} newly rendered.`,
+);
 console.log(
   `Narration runs ${formatMinutes(total)} — ${formatMinutes(withoutOptional)} without the ${optional.length} [CUT] beats.`,
 );
 console.log(`Wrote ${DURATIONS_PATH}`);
+
+if (missing.length > 0) {
+  // A beat with no audio is not a warning: `demo:mux` refuses to run, and
+  // `demo:record` would hold it for the fallback instead of the real line.
+  console.error(
+    `\n${missing.length} beat${missing.length === 1 ? "" : "s"} have no audio:\n` +
+      `  ${missing.join(", ")}\n\n` +
+      `Drop a recording per beat into ${AUDIO_DIR} named after it — B07.mp3, B07.m4a,\n` +
+      `.wav, .aiff and .caf all work, and anything that isn't mp3 gets converted.\n` +
+      `Or render the rest with a provider: bun run demo:tts`,
+  );
+  process.exit(1);
+}
 
 function formatMinutes(seconds: number): string {
   const whole = Math.round(seconds);
