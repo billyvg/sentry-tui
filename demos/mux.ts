@@ -11,7 +11,14 @@
 import { file, write } from "bun";
 
 import { probeDuration } from "./lib/capture.ts";
-import { AUDIO_DIR, BUILD_DIR, DURATIONS_PATH, TAPE_PATH, TIMELINE_PATH } from "./lib/paths.ts";
+import {
+  AUDIO_DIR,
+  BUILD_DIR,
+  DURATIONS_PATH,
+  PACED_DIR,
+  TAPE_PATH,
+  TIMELINE_PATH,
+} from "./lib/paths.ts";
 import { parseTape, timeline } from "./lib/tape.ts";
 
 const tape = parseTape(await file(TAPE_PATH).text());
@@ -53,14 +60,29 @@ if (actual.size === 0) {
   );
 }
 
+/**
+ * The pace-corrected take, falling back to the raw one.
+ *
+ * `durations.json` is measured on whichever of these the pipeline last wrote,
+ * and the tape held for exactly that long — so laying down the other file would
+ * put every beat at the right offset and the wrong length.
+ */
+async function audioFor(beat: string): Promise<string> {
+  const paced = `${PACED_DIR}/${beat}.mp3`;
+  if (await file(paced).exists()) return paced;
+  const raw = `${AUDIO_DIR}/${beat}.mp3`;
+  if (await file(raw).exists()) return raw;
+  throw new Error(`Tape waits on @${beat} but there is no audio for it. Re-run demo:tts.`);
+}
+
 const placements: Array<{ beat: string; path: string; atMs: number }> = [];
 for (const { step, atMs } of timeline(tape, durations)) {
   if (step.kind !== "wait" && step.kind !== "meanwhile") continue;
-  const path = `${AUDIO_DIR}/${step.beat}.mp3`;
-  if (!(await file(path).exists())) {
-    throw new Error(`Tape waits on @${step.beat} but ${path} does not exist. Re-run demo:tts.`);
-  }
-  placements.push({ beat: step.beat, path, atMs: actual.get(step.beat) ?? atMs });
+  placements.push({
+    beat: step.beat,
+    path: await audioFor(step.beat),
+    atMs: actual.get(step.beat) ?? atMs,
+  });
 }
 
 if (placements.length === 0)
@@ -74,7 +96,49 @@ const filters = placements
   .map(({ atMs }, i) => `[${i + 1}:a]adelay=${atMs}|${atMs}[a${i}]`)
   .join(";");
 const mixInputs = placements.map((_, i) => `[a${i}]`).join("");
-const filterComplex = `${filters};${mixInputs}amix=inputs=${placements.length}:normalize=0[out]`;
+
+/** Constant frame rate for the finished cut. */
+const FPS = 30;
+
+/**
+ * The picture has to be re-encoded, not copied.
+ *
+ * `screencapture` writes a variable frame rate stream and only emits a frame
+ * when the screen changes — sensible for a terminal, and fine on its own. What
+ * isn't fine is that it leaves the timestamps in a state ffmpeg can't reason
+ * about: they arrive out of order, and at least one stray packet lands tens of
+ * seconds past the end of the recording. Copied straight through, that packet
+ * becomes the file's duration — the last cut claimed 97 seconds for 73 seconds
+ * of picture, and `-t` computed against those timestamps trimmed to the wrong
+ * place. `fps` re-times the stream onto a constant grid, holding the last frame
+ * across the stretches where nothing moved, which is also what makes the trim
+ * below land where it says it does.
+ */
+const filterComplex =
+  `[0:v]fps=${FPS}[v];${filters};` +
+  `${mixInputs}amix=inputs=${placements.length}:normalize=0[out]`;
+
+/**
+ * Where the demo ends, as opposed to where the recorder gave up.
+ *
+ * The capture budget has to allow for every `Settle` running its full maximum
+ * (see `demo:record`), so a take that waited less than that — which is every
+ * take — ends with a stretch of the last frame. The tape says how long that
+ * frame is meant to hold: whatever it does after the final beat. Cutting there
+ * keeps the file honest about the demo's length instead of shipping half a
+ * minute of a still prompt.
+ */
+const planned = timeline(tape, durations);
+const lastBeatAt = planned.findLastIndex(
+  ({ step }) => step.kind === "wait" || step.kind === "meanwhile",
+);
+const trailingMs = planned.slice(lastBeatAt + 1).reduce((sum, entry) => sum + entry.holdMs, 0);
+const endsAtMs =
+  placements[placements.length - 1]!.atMs +
+  (durations[placements[placements.length - 1]!.beat] ?? 0) * 1000 +
+  trailingMs;
+/** A moment of air, so the cut doesn't land on the frame the last line ends in. */
+const TAIL_PAD_MS = 500;
 
 const args = [
   "ffmpeg",
@@ -87,16 +151,25 @@ const args = [
   "-filter_complex",
   filterComplex,
   "-map",
-  "0:v",
+  "[v]",
   "-map",
   "[out]",
-  // The picture is already encoded and correct; only the audio is new.
   "-c:v",
-  "copy",
+  "libx264",
+  "-preset",
+  "veryfast",
+  // Terminal text is unforgiving of a soft encode, and the picture is mostly
+  // static, so a low crf costs little.
+  "-crf",
+  "18",
+  "-pix_fmt",
+  "yuv420p",
   "-c:a",
   "aac",
   "-b:a",
   "192k",
+  "-t",
+  ((endsAtMs + TAIL_PAD_MS) / 1000).toFixed(3),
   "-y",
   output,
 ];
@@ -107,18 +180,24 @@ if ((await proc.exited) !== 0) {
   throw new Error(`ffmpeg failed:\n${await new Response(proc.stderr).text()}`);
 }
 
-const videoSeconds = await probeDuration(video);
+const videoSeconds = await probeDuration(output);
+const capturedSeconds = await probeDuration(video);
 const lastBeat = placements[placements.length - 1]!;
 const narrationEnd = (lastBeat.atMs + (durations[lastBeat.beat] ?? 0) * 1000) / 1000;
 
 console.log(`\nWrote ${output}`);
 console.log(`  video     ${videoSeconds.toFixed(1)}s`);
 console.log(`  narration ends at ${narrationEnd.toFixed(1)}s`);
+if (capturedSeconds > videoSeconds + 0.5) {
+  console.log(
+    `  trimmed   ${(capturedSeconds - videoSeconds).toFixed(1)}s of tail off the capture`,
+  );
+}
 
-if (narrationEnd > videoSeconds + 0.5) {
+if (narrationEnd > capturedSeconds + 0.5) {
   console.warn(
-    `\nThe narration runs past the end of the picture by ${(narrationEnd - videoSeconds).toFixed(1)}s.\n` +
-      `The capture was probably cut short — re-record, or add a trailing Sleep to the tape.`,
+    `\nThe narration runs past the end of the picture by ${(narrationEnd - capturedSeconds).toFixed(1)}s.\n` +
+      `The capture was cut short — re-record, or add a trailing Sleep to the tape.`,
   );
 }
 

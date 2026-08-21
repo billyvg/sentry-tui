@@ -84,9 +84,9 @@ Meanwhile @B06
   Type ` API`
   Sleep 900ms
   Key enter
-  # The refetch takes a couple of seconds; opening the palette any sooner
-  # covers a list that is still empty, and the search never visibly lands.
-  Sleep 3s
+  # Wait for the refetch rather than guessing at it: opening the palette any
+  # sooner covers a list that is still empty, and the search never visibly lands.
+  Settle 6s
   # The palette is also how we reach Seer — goto's item key leaks into the
   # composer, which takes focus on arrival, so the question would come out as
   # "aWhich project…".
@@ -113,9 +113,12 @@ Meanwhile @B07
   Key f
   Sleep 1600ms
   Key enter
-  Sleep 2200ms
+  # The detail view fetches the event, its stacktrace and its tags. Two seconds
+  # was a picture of it loading; `Settle` waits for the real thing and then
+  # leaves it up long enough to look at.
+  Settle 6s
   Key r
-  Sleep 1600ms
+  Sleep 1800ms
   Key escape
 End
 
@@ -131,40 +134,48 @@ Meanwhile @B08
   Key a
   Sleep 1200ms
   Key enter
-  Sleep 2200ms
+  # Every widget fetches its own series. Scrolling before they land is a tour of
+  # skeletons, which is the opposite of the point being made.
+  Settle 8s
   Key j 3
-  Sleep 1500ms
+  Sleep 1800ms
   Key j 3
-  Sleep 1500ms
-  Key j 3
-  Sleep 1200ms
+  Sleep 1800ms
   Key k 4
+  Sleep 1500ms
 End
 
+# Four screens, each of which fetches. A fixed sleep per screen recorded them
+# mid-load — the earlier cut spent this whole montage on loading skeletons and
+# "loading replays…" in the status bar, which reads as an app that is slow
+# rather than one that is complete. `Settle` holds until the rows are actually
+# there and then keeps them up for its stability window, so each screen lands,
+# fills, and gets a beat to be looked at before the next one.
 Meanwhile @B09
   Key n
-  Sleep 300ms
+  Sleep 250ms
   Key e
-  Sleep 300ms
+  Sleep 250ms
   Key l
-  Sleep 1300ms
+  Settle 6s
   Key n
   Sleep 250ms
   Key e
   Sleep 250ms
   Key y
-  Sleep 1300ms
+  Settle 6s
   Key n
   Sleep 250ms
   Key e
   Sleep 250ms
   Key b
-  Sleep 1200ms
+  Settle 6s
   Key n
   Sleep 250ms
   Key e
   Sleep 250ms
   Key p
+  Settle 6s
 End
 
 # Back to Seer through the palette, inside the beat so the line plays over the
@@ -184,8 +195,10 @@ Meanwhile @B10
   # guarantee, and inside the block the narration plays over it.
   Settle 30s
   Key j 4
-  Sleep 1800ms
+  Sleep 2000ms
   Key j 4
+  # The last thing on screen before the outro, so let it be read.
+  Sleep 2500ms
 End
 
 # ---------------------------------------------------------------------------

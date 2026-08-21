@@ -74,7 +74,8 @@ but check the icons in the first frames if you do.
 
 ```bash
 bun run demo:seer-prep   # pick the org, prove Seer answers for it
-bun run demo:tts         # synthesize narration, measure each beat
+bun run demo:tts         # synthesize narration, pace it, measure each beat
+bun run demo:pace        # re-pace existing audio — no API key, no synthesis
 bun run demo:record      # replay the tape into kitty → build/video.mov
 bun run demo:mux         # lay the audio on → build/demo.mp4
 
@@ -157,27 +158,53 @@ A useful order: render everything with a provider first to settle the pacing,
 then re-record the beats you want in your own voice and run `--measure-only`
 again. The tape re-times itself around whatever the files actually are.
 
-### Slowing down one beat
+### Pace: every beat reads at the same speed
 
-`DEMO_TTS_SPEED` moves the whole script. For a single line — a punchline that
-needs air, a dense sentence that needs room — add a `**Speed:**` stage direction
-to the beat:
+A synthesizer's `speed` is a request, not a rate. Asking one model for the same
+speed across this script produced a cold open at 3.5 syllables a second and the
+line after it at 4.3, then a 5.3 in the middle — heard back to back, that sounds
+like a slow, laggy first sentence followed by a different, faster narrator. Per
+beat `Speed:` overrides made it worse: fixing one line moved the discontinuity to
+its neighbour.
+
+So pace is measured and corrected instead, as the last stage of `demo:tts`:
+
+1. Count the syllables the line should take to say.
+2. Measure the seconds of _voice_ in the take — total length minus its pauses,
+   because a pause is punctuation and not pace.
+3. `atempo` the clip until every beat sits at the same syllables per second, and
+   write the corrected copy to `build/audio/paced/BNN.mp3`.
+
+`durations.json` is measured on the corrected files, so the tape holds for what
+you will actually hear. Words per minute is deliberately _not_ the target: some
+lines are built of long words and some of short ones, so equalising wpm would
+make the polysyllabic lines articulate half again as fast as the rest.
+
+```
+B01 3.7s  3.48 → 4.35 syl/s @1.25×  177wpm — lynx renders sentry.io
+B05 6.2s  5.27 → 4.35 syl/s @0.83×  136wpm — goto mode
+B09 4.7s  3.14 → 4.35 syl/s @1.38×  116wpm — the rest of Explore
+```
+
+`bun run demo:pace` runs the stage on its own — no key, no synthesis, reading
+whatever is in `build/audio`, so it works on your own recordings too.
+`--dry-run` reports the rates and writes nothing; `--target 4.6` moves the whole
+script. Correction is capped at 0.7–1.55×: past that the resampling is audible,
+and the real fix is a re-render or a shorter line. A clamped beat says so.
+
+**One beat that should sit apart** — a punchline that needs air — takes an
+`**Emphasis:**` stage direction, relative to the corrected rate:
 
 ```markdown
 ### B11 · install
 
 **Screen:** a bare prompt with `npx sentry-tui` typed and not run.
-**Speed:** 0.85
+**Emphasis:** 0.9
 
 > This is the next generation of user interfaces. Go see for yourself.
 ```
 
-It's a stage direction, so it is never spoken, and it joins the cache key — only
-that beat re-renders when you change it.
-
-The rate is **not** linear in this model, so measure rather than predict. For the
-sign-off above: `1.0` → 6.3s / 199 wpm, `0.92` → 7.5s / 168, `0.85` → 7.9s / 159,
-`0.82` → 10.3s / 122. `demo:tts` prints the wpm and marks the beat `@0.85×`.
+Use it sparingly. It is the thing that made the old cut sound spliced.
 
 Remember a slower beat is a longer video. That's free at the end of the cut —
 the install frame just holds longer — but a beat inside the Seer cover window
@@ -196,14 +223,13 @@ matter:
   (`en-US-Harper:MAI-Voice-2`); passing OpenAI's `alloy` gets a 400.
 
 There is no `instructions` field in OpenRouter's schema, so delivery can't be
-steered there — speed is the only pacing control.
+steered there.
 
-**Leave `DEMO_TTS_SPEED` unset.** An early measurement suggested 1.15×, taken
-from a single short line; across the whole script MAI-Voice-2 reads at ~146 wpm
-at the default 1.0, which is already where you want it. Pushing to 1.15 makes the
-un-overridden beats rushed and _widens_ the audio gaps, because the actions they
-play over don't get any shorter. The beats that need adjusting carry their own
-`**Speed:**` instead.
+**Leave `DEMO_TTS_SPEED` unset.** Pace is corrected after synthesis (see
+[Pace](#pace-every-beat-reads-at-the-same-speed)), so the provider only has to
+produce a clean read — and a request that lands 20% off the target is corrected
+back, while a request that lands 40% off is a beat the correction has to clamp.
+The default 1.0 is closest to the target for both backends here.
 
 Voice choice changes every beat's length, so it is part of the cache key —
 switching providers re-renders the script rather than reusing stale timings.
@@ -212,10 +238,11 @@ switching providers re-renders the script rather than reusing stale timings.
 
 The video is cut to the voice rather than the other way round:
 
-1. `demo:tts` renders each beat's blockquote to `build/audio/BNN.mp3` and
-   `ffprobe`s it into `build/durations.json`.
-2. `Wait @BNN` in the tape holds for exactly that long.
-3. `demo:mux` walks the same timeline and places each beat's audio at the offset
+1. `demo:tts` renders each beat's blockquote to `build/audio/BNN.mp3`.
+2. The pace stage corrects each one onto a single speaking rate, writes
+   `build/audio/paced/BNN.mp3`, and `ffprobe`s those into `build/durations.json`.
+3. `Wait @BNN` in the tape holds for exactly that long.
+4. `demo:mux` walks the same timeline and places each beat's audio at the offset
    its action actually happens at — so a `Sleep` between two `Wait`s becomes
    silence, and nothing downstream slides.
 
@@ -245,6 +272,36 @@ line that outruns its actions still holds to the end, and actions that outrun th
 line still finish. Almost every beat in `demo.tape` is a `Meanwhile`; `Wait` is
 left for the outro, where a still frame is the point.
 
+## Letting a screen land
+
+Every screen in the app fetches. A fixed `Sleep` after a navigation is a bet on
+how long that takes, and it is a bet the recording loses in the worst possible
+way: the Explore montage in an earlier cut visited Logs, Replays, Releases and
+Profiles on 1.3-second sleeps and captured four loading skeletons and a status
+bar reading "loading replays…". Nothing was broken. It just looked like a slow
+app rather than a complete one.
+
+`Settle` is the fix, and it works inside a `Meanwhile` so the line keeps playing
+over the wait:
+
+```
+  Key l
+  Settle 6s
+```
+
+It polls the screen and returns once it has been unchanged for a moment, so the
+hold is "until the rows are actually there", plus that stability window as
+dwell — the marinating time a viewer needs to register what they are looking at.
+The argument is only the cap for a screen that never settles.
+
+Two costs, both handled. A `Settle` can't be predicted, so `demo:record` budgets
+the recorder for every one of them running to its maximum — the recorder's limit
+has to be set before the first keystroke, and a limit that assumed nothing ever
+waits would cut the take off part way through. That leaves a stretch of still
+frame at the end of the capture, which `demo:mux` trims: it cuts at the end of
+the last beat plus whatever the tape holds for afterwards, so the file is as long
+as the demo rather than as long as the budget.
+
 ## Keeping the audio gapless
 
 A beat's block runs for `max(line, actions)`, so any beat whose keystrokes take
@@ -256,11 +313,11 @@ blocks is silence by construction — nothing is speaking over it. Fold the
 navigation into the beat it belongs to and the line plays across it. `Settle`
 works inside a block too, so even waiting on the agent happens under narration.
 
-**Slow the beats whose actions outrun them**, with `**Speed:**` rather than
-globally. `DEMO_TTS_SPEED` would drag the whole script to ~120 wpm to fix two
-beats; a per-beat override leaves the rest alone. B07–B09 carry 0.85–0.9 for
-exactly this reason — and because lengthening them widens the window Seer has to
-answer in.
+**Don't close a gap by slowing the line.** That was what the old per-beat
+`Speed:` overrides did, and an inconsistent read is far more noticeable than a
+second of quiet — especially between two beats that play back to back. Close it
+from the picture instead, or leave it: a montage that holds each screen long
+enough to be read is worth the silence at the end of the beat.
 
 **Trim the dwells.** Most action gaps are a `Sleep` that was generous when it was
 written. Shortening them tightens the cut and closes the gap from the other side.
@@ -274,10 +331,11 @@ about fifteen seconds so people can copy it, and that is the point of it.
 ### The synthesizer is not deterministic
 
 The same text at the same speed varies a lot between renders — one beat measured
-3.0s on one pass and 2.7s on the next, another 4.2s then 6.4s. The tape re-times
-itself from `durations.json` every run, so the video always matches whatever the
-audio turned out to be; what moves is the size of the gaps. Tune to roughly
-right, not exactly right, and re-check after a re-render.
+3.0s on one pass and 2.7s on the next, another 4.2s then 6.4s. Pacing removes
+most of that: the correction is computed from the take in hand, so a slow render
+and a fast one land on the same rate and within a few percent of the same length.
+The tape re-times itself from `durations.json` every run regardless, so the video
+always matches whatever the audio turned out to be.
 
 ## Editing the script
 

@@ -57,9 +57,32 @@ const output = `${BUILD_DIR}/${tape.settings.output.replace(/^build\//, "").repl
 
 const plan = timeline(tape, durations);
 const tapeMs = plan.reduce((sum, entry) => sum + entry.holdMs, 0);
+
+/**
+ * Every `Settle` in the tape, at its worst case.
+ *
+ * `timeline` counts a settle as zero, because how long it takes is only known
+ * while it happens — but the recorder's limit is set before a single key is
+ * sent, and a limit that assumed nothing ever waits would stop the capture part
+ * way through a take that waited. Budgeting the maximum costs a few idle
+ * seconds of a still frame at the end, which `demo:mux` trims off; getting it
+ * wrong costs the take.
+ */
+const settleAllowanceMs = (function allowance(steps: TapeStep[]): number {
+  return steps.reduce(
+    (sum, step) =>
+      sum +
+      (step.kind === "settle" ? step.maxMs : step.kind === "meanwhile" ? allowance(step.steps) : 0),
+    0,
+  );
+})(tape.steps);
+
 // The recorder stops itself, so the limit has to cover the whole take.
-const captureSeconds = (LEAD_IN_MS + tapeMs + TAIL_MS) / 1000;
-console.log(`Recording ${plan.length} steps, about ${(tapeMs / 1000).toFixed(1)}s of screen time.`);
+const captureSeconds = (LEAD_IN_MS + tapeMs + settleAllowanceMs + TAIL_MS) / 1000;
+console.log(
+  `Recording ${plan.length} steps, about ${(tapeMs / 1000).toFixed(1)}s of screen time ` +
+    `plus up to ${(settleAllowanceMs / 1000).toFixed(0)}s of waiting for the app.`,
+);
 
 await writeShim();
 

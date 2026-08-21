@@ -18,23 +18,28 @@ export interface Beat {
   /** Beats tagged `[CUT]` are optional — the first things to drop for length. */
   optional: boolean;
   /**
-   * Playback rate for this beat alone, from a `**Speed:** 0.85` line.
+   * A deliberate departure from the script's uniform pace, from an
+   * `**Emphasis:** 0.9` line: 0.9 reads this beat 10% slower than every other
+   * one, 1.1 pushes it 10% faster.
    *
-   * The synthesizer's pace varies with the sentence, not just the setting, so a
-   * punchline can come out rushed in a script that reads fine overall. A global
-   * speed can't fix one beat without moving all of them.
+   * Pace itself is not set here. `lib/pace.ts` measures what the synthesizer
+   * actually produced and corrects every beat onto one rate, because asking for
+   * a rate does not get you one — the same `speed` yields a raced short line
+   * and a draggy list. This is the knob for when a line should genuinely sit
+   * apart from the rest, and it is relative to that corrected rate, so using it
+   * on one beat leaves the others where they were.
    */
-  speed?: number;
+  emphasis?: number;
 }
 
 const HEADING = /^###\s+(B\d+)\s*[·.\-–]?\s*(.*)$/;
 /**
- * `**Speed:** 0.85` — a stage direction, so it is never spoken.
+ * `**Emphasis:** 0.9` — a stage direction, so it is never spoken.
  *
  * Matches the label loosely and validates the value, so a typo is an error
  * rather than a line that looks like it set something and didn't.
  */
-const SPEED = /^\*\*Speed:\*\*\s*(.*)$/;
+const EMPHASIS = /^\*\*Emphasis:\*\*\s*(.*)$/;
 
 /**
  * Parse every beat in a narration document, in document order.
@@ -47,7 +52,7 @@ export function parseNarration(source: string): Beat[] {
   const beats: Beat[] = [];
   const lines = source.split("\n");
 
-  let current: { id: string; title: string; quote: string[]; speed?: number } | null = null;
+  let current: { id: string; title: string; quote: string[]; emphasis?: number } | null = null;
 
   const flush = () => {
     if (!current) return;
@@ -58,7 +63,7 @@ export function parseNarration(source: string): Beat[] {
       title: current.title.replace(/\s*`?\[CUT\]`?\s*$/, "").trim(),
       text,
       optional: /\[CUT\]/.test(current.title),
-      ...(current.speed === undefined ? {} : { speed: current.speed }),
+      ...(current.emphasis === undefined ? {} : { emphasis: current.emphasis }),
     });
     current = null;
   };
@@ -76,13 +81,13 @@ export function parseNarration(source: string): Beat[] {
       flush();
       continue;
     }
-    const speed = current && SPEED.exec(line.trim());
-    if (speed) {
-      const value = Number(speed[1]);
+    const emphasis = current && EMPHASIS.exec(line.trim());
+    if (emphasis) {
+      const value = Number(emphasis[1]);
       if (!(value > 0)) {
-        throw new Error(`Beat ${current!.id} has an unusable Speed: "${speed[1]}"`);
+        throw new Error(`Beat ${current!.id} has an unusable Emphasis: "${emphasis[1]}"`);
       }
-      current!.speed = value;
+      current!.emphasis = value;
       continue;
     }
     if (current && line.trimStart().startsWith(">")) {

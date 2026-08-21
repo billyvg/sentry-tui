@@ -44,6 +44,7 @@
     "release:verify": "bun run ./scripts/release.ts verify",
     "demo:seer-prep": "bun run ./demos/seer-prep.ts",
     "demo:tts": "bun run ./demos/tts.ts",
+    "demo:pace": "bun run ./demos/pace.ts",
     "demo:record": "bun run ./demos/record.ts",
     "demo:mux": "bun run ./demos/mux.ts",
     "demo": "bun run demo:tts && bun run demo:record && bun run demo:mux",

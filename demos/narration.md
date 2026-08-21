@@ -5,8 +5,9 @@ narration mapped to one on-screen action.
 
 The beat is the unit the whole pipeline runs on:
 
-1. `bun run demo:tts` synthesizes each beat's `>` blockquote to `build/audio/BNN.mp3`
-   and measures it with `ffprobe`, writing `build/durations.json`.
+1. `bun run demo:tts` synthesizes each beat's `>` blockquote, corrects it onto the
+   script's one speaking rate (`build/audio/paced/BNN.mp3`), and measures that,
+   writing `build/durations.json`.
 2. `demo.tape` says `Wait @BNN` where the action should hold for that beat.
 3. `bun run demo:record` replays the tape into a real Kitty window and captures it.
 4. `bun run demo:mux` lays each beat's audio at its exact offset on the timeline.
@@ -14,9 +15,16 @@ The beat is the unit the whole pipeline runs on:
 So the video is cut to the voice, not the other way round. Re-record one line and
 only that beat's timing moves.
 
-**Runtime: ~83 seconds**, of which the last 10 are a still frame of the install
-command so viewers can copy it. The hard cap is three minutes; this is built to
-land well inside it, which is why it sells the thing rather than explaining it.
+**Runtime: about 95 seconds** — 64 of narration, the rest spent letting screens
+finish loading and holding them long enough to be read, and the last 10 a still
+frame of the install command so viewers can copy it. The hard cap is three
+minutes; this is built to land well inside it, which is why it sells the thing
+rather than explaining it.
+
+Every beat is read at the same pace, and that is enforced rather than requested —
+see [Pace](README.md#pace-every-beat-reads-at-the-same-speed). Don't reach for a
+`**Emphasis:**` override to fill a gap in the picture; an inconsistent read is
+the most audible thing in a demo.
 
 ## What this is and isn't
 
@@ -38,7 +46,6 @@ which only answers for orgs where the Explorer agent is enabled.
 ### B01 · lynx renders sentry.io
 
 **Screen:** full-screen `lynx https://sentry.io`, mid-page.
-**Speed:** 0.7
 
 > Back in the day, we browsed the web through a terminal.
 
@@ -85,7 +92,6 @@ the composer and the question comes out as `aWhich project…`.
 ### B07 · triage
 
 **Screen:** back to the feed, Enter into an issue, `r` to resolve, Escape.
-**Speed:** 0.88
 
 > Then triage without breaking stride. Resolve, archive, bookmark — instant, and
 > it rolls back if the server disagrees.
@@ -97,22 +103,22 @@ the composer and the question comes out as `aWhich project…`.
 ### B08 · dashboards
 
 **Screen:** `n`, `d`, `a`, Enter — the starred dashboard, scrolling its widgets.
-**Speed:** 0.9
 
 > Dashboards are here too. Real widgets, real series, no eCharts, drawn in the terminal at
 > whatever size your window happens to be.
 
 ### B09 · the rest of Explore
 
-**Screen:** fast montage — Logs, Replays, Releases, Profiles.
-**Speed:** 0.85
+**Screen:** Logs, Replays, Releases, Profiles — each one waited for and held.
+**Note:** the line is shorter than the montage on purpose. Four screens that have
+actually loaded take longer to show than one sentence takes to say, and skeletons
+on screen would undercut the claim the sentence is making.
 
 > Logs, replays, releases, profiles. The whole Explore section, ported.
 
 ### B10 · Seer answered
 
 **Screen:** back to Seer via the palette; the finished conversation, scrolled.
-**Speed:** 0.8
 
 > Talk to Seer, just like in the web app, but in your terminal.
 
@@ -124,7 +130,6 @@ the composer and the question comes out as `aWhich project…`.
 
 **Screen:** back to a bare prompt with `npx sentry-tui` typed and not
 run. Holds for ten seconds so viewers can copy it.
-**Speed:** 0.85
 
 > This is the next generation of user interfaces. Go see for yourself. And no, it doesn't run on Windows, sorry Bruno.
 
@@ -159,7 +164,7 @@ command in step with the README. It is one `Type` line at the end of `demo.tape`
 - **"Two seconds to open"** — measured: chrome paints at 0.8s, real rows with
   sparklines and counts by 2.0s.
 - **"The whole Explore section"** — every item now has a real screen; the
-  montage visits four of them.
+  montage visits four of them, and waits for each to fill before moving on.
 - **lynx needs 5–8 seconds** to render sentry.io, and it varies. B01 waits with
   a `Settle` rather than a fixed `Sleep`, because every key after it goes into
   the page: if the load isn't finished, the quit never happens and `sentry-tui`

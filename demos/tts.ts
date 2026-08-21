@@ -2,8 +2,12 @@
 /**
  * `bun run demo:tts` — synthesize each narration beat and measure it.
  *
- * Output is one mp3 per beat plus `build/durations.json`, which is what lets the
- * tape hold each action for exactly as long as its line takes to say.
+ * Output is one mp3 per beat, a pace-corrected copy of each in
+ * `build/audio/paced`, and `build/durations.json` — which is what lets the tape
+ * hold each action for exactly as long as its line takes to say.
+ *
+ * The correction is the last stage and it is not optional: see `lib/pace.ts`
+ * for why a synthesizer's idea of `speed` is not a speaking rate.
  *
  * Synthesis is cached on a hash of the text, model and voice, so re-running
  * after an edit only re-renders the beats that actually changed — which matters,
@@ -20,7 +24,8 @@ import { mkdir } from "node:fs/promises";
 
 import { probeDuration } from "./lib/capture.ts";
 import { parseNarration, type Beat } from "./lib/narration.ts";
-import { AUDIO_DIR, BUILD_DIR, DURATIONS_PATH, NARRATION_PATH } from "./lib/paths.ts";
+import { formatPacingReport, paceAll, TARGET_SYLLABLES_PER_SECOND } from "./lib/pace.ts";
+import { AUDIO_DIR, BUILD_DIR, DURATIONS_PATH, NARRATION_PATH, PACED_DIR } from "./lib/paths.ts";
 
 interface Backend {
   label: string;
@@ -205,8 +210,7 @@ const cache: Record<string, CacheEntry> = (await cacheFile.exists())
 const hashOf = (beat: Beat) =>
   new Bun.CryptoHasher("sha256")
     .update(
-      `${backend?.url} ${backend?.model} ${backend?.voice} ` +
-        `${beat.speed ?? backend?.speed} ${beat.text}`,
+      `${backend?.url} ${backend?.model} ${backend?.voice} ` + `${backend?.speed} ${beat.text}`,
     )
     .digest("hex");
 
@@ -270,28 +274,59 @@ for (const beat of beats) {
   if (cached?.hash === hash && (await file(path).exists())) {
     durations[beat.id] = cached.seconds;
     console.log(
-      `  ${beat.id} ${cached.seconds.toFixed(1)}s ${pace(beat.text, cached.seconds)} (cached) — ${beat.title}`,
+      `  ${beat.id} ${cached.seconds.toFixed(1)}s ${wordRate(beat.text, cached.seconds)} (cached) — ${beat.title}`,
     );
     continue;
   }
 
-  await write(path, await synthesize(beat.text, beat.speed));
+  await write(path, await synthesize(beat.text));
   const seconds = await probeDuration(path);
   durations[beat.id] = seconds;
   cache[beat.id] = { hash, seconds, source: "synth" };
   rendered++;
-  const rate = beat.speed === undefined ? "" : ` @${beat.speed}×`;
   console.log(
-    `  ${beat.id} ${seconds.toFixed(1)}s ${pace(beat.text, seconds)}${rate} — ${beat.title}`,
+    `  ${beat.id} ${seconds.toFixed(1)}s ${wordRate(beat.text, seconds)} — ${beat.title}`,
   );
 }
 
-await write(DURATIONS_PATH, `${JSON.stringify(durations, null, 2)}\n`);
 await write(cachePath, `${JSON.stringify(cache, null, 2)}\n`);
+
+// ---------------------------------------------------------------------------
+// Pace: one speaking rate across the script.
+//
+// The lengths above are what the provider felt like producing — the same
+// setting reads one line at 3.1 syllables a second and the next at 5.3, which
+// is heard as two different narrators rather than as one changing tempo. What
+// the tape holds for, and what `demo:mux` lays down, is the corrected audio, so
+// `durations.json` is written from that and not from the take.
+// ---------------------------------------------------------------------------
+
+const paced =
+  missing.length > 0 ? [] : await paceAll(beats, { audioDir: AUDIO_DIR, pacedDir: PACED_DIR });
+for (const beat of paced) durations[beat.id] = beat.seconds;
+
+await write(DURATIONS_PATH, `${JSON.stringify(durations, null, 2)}\n`);
 
 const total = Object.values(durations).reduce((sum, seconds) => sum + seconds, 0);
 const optional = beats.filter((beat) => beat.optional);
 const withoutOptional = total - optional.reduce((sum, beat) => sum + (durations[beat.id] ?? 0), 0);
+
+if (paced.length > 0) {
+  const rates = paced.map((beat) => beat.pacedRate);
+  console.log(
+    `\nPaced onto ${TARGET_SYLLABLES_PER_SECOND.toFixed(2)} syllables per second ` +
+      `(${Math.min(...rates).toFixed(2)}–${Math.max(...rates).toFixed(2)} after correction):\n`,
+  );
+  console.log(formatPacingReport(paced));
+  const clamped = paced.filter((beat) => beat.clamped);
+  if (clamped.length > 0) {
+    console.warn(
+      `\n${clamped.map((beat) => beat.id).join(", ")} could not be corrected the whole way — ` +
+        `the source is too far off the target to resample without it showing.\n` +
+        `Re-render those lines, or shorten them.`,
+    );
+  }
+}
 
 const measured = Object.keys(durations).length;
 console.log(
@@ -304,20 +339,17 @@ console.log(
 );
 console.log(`Wrote ${DURATIONS_PATH}`);
 
-// Per-beat flags above are informative on their own; this only fires when the
-// script *as a whole* is out of band, because that is the one problem a single
-// setting fixes. A couple of quick short lines among slow long ones is normal.
+// Individual beats are allowed to sit outside the word-rate band — a line of
+// short words says more of them per minute at the same speaking rate — so this
+// only judges the script as a whole. After pacing it is a report rather than a
+// problem to fix: the lever is the target rate, not a provider setting.
 const overall = Math.round(wpm(beats.map((beat) => beat.text).join(" "), total));
-if (overall > WPM_MAX || overall < WPM_MIN) {
-  const suggestion = Math.max(0.5, Math.min(2, (backend?.speed ?? 1) * (150 / overall)));
-  console.warn(
-    `\nThe whole script reads at ${overall} wpm, outside the comfortable ${WPM_MIN}–${WPM_MAX} band.\n` +
-      `It will feel ${overall > WPM_MAX ? "rushed and run short" : "draggy and run long"}. Re-render with:\n` +
-      `  DEMO_TTS_SPEED=${suggestion.toFixed(2)} bun run demo:tts`,
-  );
-} else {
-  console.log(`Reads at ${overall} wpm overall.`);
-}
+console.log(
+  overall > WPM_MAX || overall < WPM_MIN
+    ? `Reads at ${overall} wpm overall, outside the usual ${WPM_MIN}–${WPM_MAX} band.\n` +
+        `Re-pace the script with:  bun run demo:pace --target ${(TARGET_SYLLABLES_PER_SECOND * (150 / overall)).toFixed(2)}`
+    : `Reads at ${overall} wpm overall.`,
+);
 
 if (missing.length > 0) {
   // A beat with no audio is not a warning: `demo:mux` refuses to run, and
@@ -333,7 +365,7 @@ if (missing.length > 0) {
 }
 
 /** `152wpm`, flagged when the read is outside a comfortable band. */
-function pace(text: string, seconds: number): string {
+function wordRate(text: string, seconds: number): string {
   const rate = Math.round(wpm(text, seconds));
   const flag = rate > WPM_MAX ? " ⚡fast" : rate < WPM_MIN ? " 🐢slow" : "";
   return `${rate}wpm${flag}`;

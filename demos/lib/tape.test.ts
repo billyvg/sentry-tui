@@ -183,25 +183,25 @@ Intro prose.
     expect(second?.title).toBe("second beat");
   });
 
-  test("reads a per-beat Speed override, and never speaks it", () => {
+  test("reads a per-beat Emphasis override, and never speaks it", () => {
     const [beat] = parseNarration(
-      "### B01 · sign-off\n\n**Screen:** a prompt.\n**Speed:** 0.85\n\n> The punchline.\n",
+      "### B01 · sign-off\n\n**Screen:** a prompt.\n**Emphasis:** 0.9\n\n> The punchline.\n",
     );
-    expect(beat?.speed).toBe(0.85);
+    expect(beat?.emphasis).toBe(0.9);
     expect(beat?.text).toBe("The punchline.");
   });
 
-  test("a beat with no Speed leaves it unset, so the backend decides", () => {
+  test("a beat with no Emphasis reads at the same pace as the rest", () => {
     const [beat] = parseNarration("### B01 · plain\n\n> Just a line.\n");
-    expect(beat?.speed).toBeUndefined();
+    expect(beat?.emphasis).toBeUndefined();
   });
 
-  test("an unusable Speed is an error rather than a silent default", () => {
-    expect(() => parseNarration("### B01 · x\n\n**Speed:** nope\n\n> Line.\n")).toThrow(
-      "unusable Speed",
+  test("an unusable Emphasis is an error rather than a silent default", () => {
+    expect(() => parseNarration("### B01 · x\n\n**Emphasis:** nope\n\n> Line.\n")).toThrow(
+      "unusable Emphasis",
     );
-    expect(() => parseNarration("### B01 · x\n\n**Speed:** 0\n\n> Line.\n")).toThrow(
-      "unusable Speed",
+    expect(() => parseNarration("### B01 · x\n\n**Emphasis:** 0\n\n> Line.\n")).toThrow(
+      "unusable Emphasis",
     );
   });
 
