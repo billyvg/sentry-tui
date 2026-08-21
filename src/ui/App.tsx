@@ -171,8 +171,23 @@ export function App({
   // itself. Held in a ref because the key router reads it during a keystroke,
   // not during a render.
   const screenActions = useRef<ScreenActions | null>(null);
+  /**
+   * Whether the mounted screen has told us what Enter does.
+   *
+   * The ref above is what the *router* reads, during a keystroke rather than
+   * during a render. The status bar is drawn from state, so it needs this
+   * mirror: without it the bar printed `(enter) open` for every screen, having
+   * never checked that anything was listening — which was a lie on the stub
+   * screens and on any list that had not registered an action yet.
+   *
+   * `useScreenActions` re-registers on every render and clears on unmount, so
+   * this flips within a commit rather than across renders, and React collapses
+   * the pair into no re-render when the answer has not changed.
+   */
+  const [canOpen, setCanOpen] = useState(false);
   const registerActions = useCallback((actions: ScreenActions | null) => {
     screenActions.current = actions;
+    setCanOpen(Boolean(actions?.open));
   }, []);
 
   const pushView = useCallback(
@@ -885,12 +900,19 @@ export function App({
     const list = detailView
       ? []
       : [
-          {
-            command: "sentry.nav.open",
-            // Enter toggles a panel on some screens, so the one hint carries
-            // both directions.
-            label: state.detailOpen ? "close" : (screen?.openLabel ?? "open"),
-          },
+          // Only when the screen has said what Enter does. A hint for a key
+          // that does nothing is worse than no hint: it reads as the app
+          // ignoring you.
+          ...(canOpen
+            ? [
+                {
+                  command: "sentry.nav.open",
+                  // Enter toggles a panel on some screens, so the one hint
+                  // carries both directions.
+                  label: state.detailOpen ? "close" : (screen?.openLabel ?? "open"),
+                },
+              ]
+            : []),
           { command: "sentry.nav.search", label: "search" },
         ];
 
@@ -905,7 +927,15 @@ export function App({
       // hint worth spending the cells on once there is somewhere to go back to.
       ...(topView ? [] : [{ command: "sentry.app.quit", label: "quit" }]),
     ];
-  }, [gotoMode, state.searchFocused, state.detailOpen, topView, detailView, screen?.openLabel]);
+  }, [
+    gotoMode,
+    state.searchFocused,
+    state.detailOpen,
+    topView,
+    detailView,
+    screen?.openLabel,
+    canOpen,
+  ]);
 
   /**
    * What the content pane hands whatever it draws. A screen and a pushed view
