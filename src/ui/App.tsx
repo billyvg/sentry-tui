@@ -535,7 +535,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
           // Let the focused input renderable handle all other keystrokes.
           return "focused";
         },
-        // 2b. Goto mode. Sits under the search handler so `g` is still a letter
+        // 2b. Goto mode. Sits under the search handler so `n` is still a letter
         // while a query is being typed, and over everything else so the mode
         // owns the keyboard for exactly as long as it is open — a printed key
         // that sometimes resolved an issue instead would be worse than none.
@@ -552,7 +552,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
             key.meta ||
             key.shift
           ) {
-            // `g` and Escape close the mode; a modifier means the user has
+            // `n` and Escape close the mode; a modifier means the user has
             // moved on to some other chord and this one was a false start.
             setGotoMode(false);
             return "mine";
@@ -1001,6 +1001,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
                     { command: "sentry.nav.back", label: "back" },
                     { command: "sentry.issue.resolve", label: "resolve" },
                     { command: "sentry.issue.archive", label: "archive" },
+                    { command: "sentry.nav.goto", label: "nav" },
                     { command: "sentry.app.commandPalette", label: "commands" },
                     { command: "sentry.app.help", label: "help" },
                   ]
@@ -1009,6 +1010,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
                       // Enter toggles, so the one hint carries both directions.
                       { command: "sentry.nav.open", label: logDetailOpen ? "close" : "details" },
                       { command: "sentry.nav.search", label: "search" },
+                      { command: "sentry.nav.goto", label: "nav" },
                       { command: "sentry.app.commandPalette", label: "commands" },
                       { command: "sentry.app.help", label: "help" },
                       { command: "sentry.app.quit", label: "quit" },
@@ -1016,6 +1018,7 @@ export function App({ onQuit, client = null, org: initialOrg = "" }: AppProps) {
                   : [
                       { command: "sentry.nav.open", label: "open" },
                       { command: "sentry.nav.search", label: "search" },
+                      { command: "sentry.nav.goto", label: "nav" },
                       { command: "sentry.app.commandPalette", label: "commands" },
                       { command: "sentry.app.help", label: "help" },
                       { command: "sentry.app.quit", label: "quit" },

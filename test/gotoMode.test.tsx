@@ -7,13 +7,22 @@ import { renderHarness } from "./helpers";
 const renderApp = (opts?: { width?: number; height?: number }) =>
   renderHarness(<App onQuit={() => {}} />, opts);
 
-test("g opens both nav panes with a key printed in every label", async () => {
+test("the status bar advertises the mode's key", async () => {
+  const h = await renderApp();
+  try {
+    expect(h.frame()).toContain("(n) nav");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("n opens both nav panes with a key printed in every label", async () => {
   const h = await renderApp();
   try {
     // The secondary pane is hidden until something opens it.
     expect(h.frame()).not.toContain("Inbox");
 
-    await h.press((i) => i.pressKey("g"));
+    await h.press((i) => i.pressKey("n"));
 
     const frame = h.frame();
     // Primary rail: each group answers to its own initial, lower-cased.
@@ -22,8 +31,9 @@ test("g opens both nav panes with a key printed in every label", async () => {
     expect(frame).toContain("(d)ashboards");
     // Secondary pane, opened by the mode rather than by Enter.
     expect(frame).toContain("(f)eed");
-    // "Inbox" wants `i`, which Issues holds, so it falls to its next character.
-    expect(frame).toContain("I(n)box");
+    // "Inbox" wants `i`, which Issues holds, and `n`, which the mode keeps for
+    // itself — so it reaches past both to the next character it owns.
+    expect(frame).toContain("In(b)ox");
     // The bar says what the app is waiting for.
     expect(frame).toContain("go to…");
   } finally {
@@ -34,7 +44,7 @@ test("g opens both nav panes with a key printed in every label", async () => {
 test("the printed key wears the app's keystroke pink", async () => {
   const h = await renderApp();
   try {
-    await h.press((i) => i.pressKey("g"));
+    await h.press((i) => i.pressKey("n"));
 
     // `frame()` flattens color away, so spans are the only proof the key is
     // findable by sweeping for pink rather than by reading every label. Each
@@ -56,9 +66,10 @@ test("the printed key wears the app's keystroke pink", async () => {
 test("a secondary key navigates and closes the mode", async () => {
   const h = await renderApp();
   try {
-    await h.press((i) => i.pressKey("g"));
-    // Issues › All Views.
-    await h.press((i) => i.pressKey("a"));
+    await h.press((i) => i.pressKey("n"));
+    // Issues › All Views: `a` is gone by then, so the key is the second word's.
+    expect(h.frame()).toContain("All (v)iews");
+    await h.press((i) => i.pressKey("v"));
 
     const frame = h.frame();
     expect(frame).toContain("All Views"); // the content pane's own header
@@ -72,7 +83,7 @@ test("a secondary key navigates and closes the mode", async () => {
 test("a group key repoints the secondary pane without leaving the mode", async () => {
   const h = await renderApp();
   try {
-    await h.press((i) => i.pressKey("g"));
+    await h.press((i) => i.pressKey("n"));
     await h.press((i) => i.pressKey("e"));
 
     const afterGroup = h.frame();
@@ -93,7 +104,7 @@ test("a group key repoints the secondary pane without leaving the mode", async (
 test("escape leaves the mode and puts the panes back", async () => {
   const h = await renderApp();
   try {
-    await h.press((i) => i.pressKey("g"));
+    await h.press((i) => i.pressKey("n"));
     expect(h.frame()).toContain("(f)eed");
 
     await h.pressEscape();
@@ -107,11 +118,11 @@ test("escape leaves the mode and puts the panes back", async () => {
   }
 });
 
-test("a second g leaves the mode, so the keys can't get stuck on", async () => {
+test("a second n leaves the mode, so the keys can't get stuck on", async () => {
   const h = await renderApp();
   try {
-    await h.press((i) => i.pressKey("g"));
-    await h.press((i) => i.pressKey("g"));
+    await h.press((i) => i.pressKey("n"));
+    await h.press((i) => i.pressKey("n"));
     expect(h.frame()).not.toContain("(i)ssues");
   } finally {
     await h.cleanup();
@@ -121,7 +132,7 @@ test("a second g leaves the mode, so the keys can't get stuck on", async () => {
 test("an unassigned key leaves the mode without acting on the issue", async () => {
   const h = await renderApp();
   try {
-    await h.press((i) => i.pressKey("g"));
+    await h.press((i) => i.pressKey("n"));
     // `q` is quit and belongs to no destination here; in the mode it is a miss,
     // and a miss must not fall through to the command it usually runs.
     await h.press((i) => i.pressKey("q"));
@@ -135,7 +146,7 @@ test("an unassigned key leaves the mode without acting on the issue", async () =
 test("the org key still opens the picker while the mode is up", async () => {
   const h = await renderApp();
   try {
-    await h.press((i) => i.pressKey("g"));
+    await h.press((i) => i.pressKey("n"));
     // The rail prints `(o)` beside the slug throughout, so no nav item may
     // claim it — "Errors & Outages" reaches past its `O` to the next character.
     expect(h.frame()).toContain("E(r)rors & Outages");
@@ -149,11 +160,21 @@ test("the org key still opens the picker while the mode is up", async () => {
   }
 });
 
-test("g is a letter, not a mode, while the search box has focus", async () => {
+test("g still jumps to the top of the list rather than opening the mode", async () => {
+  const h = await renderApp();
+  try {
+    await h.press((i) => i.pressKey("g"));
+    expect(h.frame()).not.toContain("go to…");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("n is a letter, not a mode, while the search box has focus", async () => {
   const h = await renderApp();
   try {
     await h.press((i) => i.pressKey("/"));
-    await h.press((i) => i.pressKey("g"));
+    await h.press((i) => i.pressKey("n"));
 
     expect(h.frame()).not.toContain("go to…");
   } finally {

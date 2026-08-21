@@ -105,12 +105,10 @@ export const COMMANDS: readonly Command[] = [
     defaultKeys: ["k", "up"],
   },
   {
-    // `g` belongs to goto mode now, so the list keeps `home` alone. Two
-    // commands answering to one chord is what `commands.test.ts` forbids.
     id: "sentry.nav.top",
     title: "Jump to top",
     category: "nav",
-    defaultKeys: ["home"],
+    defaultKeys: ["g", "home"],
   },
   {
     id: "sentry.nav.bottom",
@@ -145,10 +143,12 @@ export const COMMANDS: readonly Command[] = [
     defaultKeys: ["escape"],
   },
   {
+    // `n` for navigation. Not `g`: that is the list's jump-to-top, and one
+    // chord may only have one claimant — see `commands.test.ts`.
     id: "sentry.nav.goto",
-    title: "Go to…",
+    title: "Navigate",
     category: "nav",
-    defaultKeys: ["g"],
+    defaultKeys: ["n"],
     description: "Jump to a nav item by its printed key",
   },
   {

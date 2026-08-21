@@ -144,7 +144,7 @@ test("the log list scrolls to follow the cursor past the bottom of the viewport"
     await h.waitForFrame((f) => f.includes("GET /api/v2/users"));
     expect(h.frame()).not.toContain("card declined"); // the top scrolled away
 
-    await h.press((i) => i.pressKey("HOME"));
+    await h.press((i) => i.pressKey("g"));
     await h.waitForFrame((f) => f.includes("card declined"));
     expect(h.frame()).not.toContain("GET /api/v2/users");
   } finally {
@@ -195,7 +195,7 @@ test("log stream shows severity colors", async () => {
   }
 });
 
-test("G and home jump to bottom and top of log list", async () => {
+test("G and g jump to bottom and top of log list", async () => {
   const h = await renderApp();
   try {
     await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
@@ -206,7 +206,7 @@ test("G and home jump to bottom and top of log list", async () => {
     // Jump to bottom.
     await h.press((i) => i.pressKey("G", { shift: true }));
     // Jump back to top.
-    await h.press((i) => i.pressKey("HOME"));
+    await h.press((i) => i.pressKey("g"));
 
     // Still showing logs, no crash.
     const frame = h.frame();

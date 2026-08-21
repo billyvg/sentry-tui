@@ -247,7 +247,7 @@ test("a row click is inert while the command palette is open", async () => {
   }
 });
 
-test("G and home jump to the last and first rows", async () => {
+test("G and g jump to the last and first rows", async () => {
   const h = await renderApp();
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
@@ -258,7 +258,7 @@ test("G and home jump to the last and first rows", async () => {
     const lastRow = bottom.split("\n").findIndex((line) => line.includes("Slow database query"));
     expect(bottom.split("\n")[lastRow]).toContain("▸");
 
-    await h.press((i) => i.pressKey("HOME"));
+    await h.press((i) => i.pressKey("g"));
     const top = h.frame();
     const firstRow = top.split("\n").findIndex((line) => line.includes("TypeError"));
     expect(top.split("\n")[firstRow]).toContain("▸");
@@ -291,7 +291,7 @@ test("the list scrolls to follow the cursor past the bottom of the viewport", as
     expect(bottom).not.toContain("RowError0"); // the top scrolled away
 
     // And back up: the cursor pulls the viewport with it in both directions.
-    await h.press((i) => i.pressKey("HOME"));
+    await h.press((i) => i.pressKey("g"));
     await h.waitForFrame((f) => f.includes("RowError0"));
     expect(h.frame()).not.toContain("RowError23");
   } finally {
