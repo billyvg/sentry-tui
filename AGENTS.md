@@ -79,18 +79,28 @@ artifact feeds both channels: npm (a launcher package plus `os`/`cpu`-gated
 optional dependencies) and the GitHub Release, for downloading by hand.
 
 The npm launcher self-updates: it runs the newest build in
-`~/.cache/sentry-tui/versions` (or the bundled one) straight away, then spawns
-`packaging/npm/background-update.mjs` detached to fetch anything newer. The
-worker must never write to stdout or stderr — a TUI owns the screen — so
-failures go to `update.log` in that cache. `SENTRY_TUI_NO_UPDATE=1` disables
-it, as does `CI`.
+`~/.cache/sentry-tui/versions` (or the bundled one) straight away, then, once
+that child has exited, spawns `packaging/npm/background-update.mjs` detached to
+fetch anything newer. The worker must never write to stdout or stderr — a TUI
+owns the screen — so failures go to `update.log` in that cache.
+`SENTRY_TUI_NO_UPDATE=1` disables it, as does `CI`.
+
+Whoever is running decides when to check, and a launch costs exactly one check.
+`src/app/selfUpdate.ts` states that rule in full and is where to change it: the
+app looks `UPDATE_FIRST_CHECK_MS` after start and hourly after that, so the
+launcher stands down for any child that was up that long, covering only what
+never starts the app (`--help`, `--version`, `login`, `logout`, `status`) and
+sessions too short to have looked. It decides that from how long the child ran,
+never by reading argv, so a new command needs nothing added there.
+`APP_FIRST_CHECK_MS` in `launch.mjs` restates that one number because plain JS
+cannot import the TypeScript, and `scripts/packaging.test.ts` fails if the two
+drift.
 
 The running app closes the loop rather than making you relaunch. `src/app/
 selfUpdate.ts` reuses the launcher's own modules — never restate the cache
-layout or the lock — and `useUpdateCheck` reads the cache on mount, then polls
-hourly. A build only ever surfaces once its bytes are on disk, as a bold pink
-`Update` in the status bar's left corner; clicking it or pressing `U` tears the
-renderer down and execs the cached binary.
+layout or the lock. A build only ever surfaces once its bytes are on disk, as a
+bold pink `Update` in the status bar's left corner; clicking it or pressing `U`
+tears the renderer down and execs the cached binary.
 
 That offer is gated on `SENTRY_TUI_MANAGED=1`, which only the launcher sets.
 A binary run straight off the releases page would revert on its next cold

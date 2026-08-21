@@ -22,7 +22,19 @@ import {
   updatesDisabled,
   verifyIntegrity,
 } from "../packaging/npm/update.mjs";
-import { canSelfUpdate, readyUpdate } from "../src/app/selfUpdate.ts";
+import {
+  APP_FIRST_CHECK_MS,
+  shouldCheckAfterRun,
+  startBackgroundUpdate,
+} from "../packaging/npm/launch.mjs";
+import {
+  canSelfUpdate,
+  type ReadyUpdate,
+  readyUpdate,
+  UPDATE_FIRST_CHECK_MS,
+  UPDATE_POLL_MS,
+  watchForUpdate,
+} from "../src/app/selfUpdate.ts";
 import { APP_VERSION } from "../src/lib/version.ts";
 
 /** A cache directory holding the given versions, each with a stub binary. */
@@ -318,5 +330,168 @@ describe("canSelfUpdate", () => {
   test("the same opt-outs the launcher honours close it too", () => {
     expect(canSelfUpdate({ ...managed, SENTRY_TUI_NO_UPDATE: "1" })).toBe(false);
     expect(canSelfUpdate({ ...managed, CI: "true" })).toBe(false);
+  });
+});
+
+describe("when the app looks", () => {
+  const managed = (env: Record<string, string>) => ({ ...env, SENTRY_TUI_MANAGED: "1" });
+
+  /** Wait out a compressed schedule without pinning an exact tick count. */
+  const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  test("the cache is read straight away, before any check is due", () => {
+    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    try {
+      const seen: (ReadyUpdate | undefined)[] = [];
+      // Nothing may reach the network to produce this first answer: the build
+      // is already on disk, so the pill has to appear without asking anyone.
+      const stop = watchForUpdate((update) => seen.push(update), {
+        env: managed(env),
+        firstCheckMs: 60_000,
+        check: async () => {
+          throw new Error("checked the registry when the answer was on disk");
+        },
+      });
+
+      expect(seen.length).toBe(1);
+      expect(seen[0]?.version).toBe(bumped(APP_VERSION));
+      stop();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a real check follows shortly after, then repeats on the poll", async () => {
+    const { env, dir } = cacheWith([]);
+    try {
+      let checks = 0;
+      const stop = watchForUpdate(() => {}, {
+        env: managed(env),
+        firstCheckMs: 5,
+        pollMs: 10,
+        check: async () => {
+          checks++;
+          return undefined;
+        },
+      });
+
+      await settle(60);
+      stop();
+      // One at the first tick and several on the poll; the exact number is
+      // timer scheduling, the point is that neither waited an hour.
+      expect(checks).toBeGreaterThan(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the schedule it actually ships with checks long before the poll", () => {
+    // The tests above compress the numbers, so this is what ties them to the
+    // real thing: a session has to be offered a new release without sitting
+    // through an hour of it.
+    expect(UPDATE_FIRST_CHECK_MS).toBeGreaterThan(0);
+    expect(UPDATE_FIRST_CHECK_MS).toBeLessThan(UPDATE_POLL_MS / 10);
+  });
+
+  test("stopping the watch stops the checks", async () => {
+    const { env, dir } = cacheWith([]);
+    try {
+      let checks = 0;
+      const stop = watchForUpdate(() => {}, {
+        env: managed(env),
+        firstCheckMs: 1,
+        pollMs: 2,
+        check: async () => {
+          checks++;
+          return undefined;
+        },
+      });
+
+      await settle(20);
+      stop();
+      const atStop = checks;
+      await settle(20);
+      expect(checks).toBe(atStop);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a later answer of nothing withdraws the offer", async () => {
+    // `pruneCache` can delete the build under us, and an offer to restart into
+    // a path that no longer exists is worse than no offer.
+    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    try {
+      const seen: (ReadyUpdate | undefined)[] = [];
+      const stop = watchForUpdate((update) => seen.push(update), {
+        env: managed(env),
+        firstCheckMs: 1,
+        pollMs: 10_000,
+        check: async () => undefined,
+      });
+
+      await settle(20);
+      stop();
+      expect(seen[0]?.version).toBe(bumped(APP_VERSION));
+      expect(seen.at(-1)).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("nothing happens at all when the launcher did not start us", async () => {
+    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    try {
+      let checks = 0;
+      const seen: (ReadyUpdate | undefined)[] = [];
+      const stop = watchForUpdate((update) => seen.push(update), {
+        env, // no SENTRY_TUI_MANAGED
+        firstCheckMs: 1,
+        pollMs: 2,
+        check: async () => {
+          checks++;
+          return undefined;
+        },
+      });
+
+      await settle(20);
+      stop();
+      expect(seen).toEqual([]);
+      expect(checks).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("when the launcher looks", () => {
+  test("only for a child that went before the app could have checked", () => {
+    // Every command that never starts the app is over in well under a second,
+    // so this covers `--help`, `--version`, `login`, `logout` and `status`
+    // without the launcher being told what any of them are.
+    expect(shouldCheckAfterRun(0)).toBe(true);
+    expect(shouldCheckAfterRun(300)).toBe(true);
+    expect(shouldCheckAfterRun(APP_FIRST_CHECK_MS - 1)).toBe(true);
+
+    // And a session that was up long enough owned the check itself. Drop this
+    // and every interactive session checks twice, which is the half of #103
+    // that moving the call alone did not fix.
+    expect(shouldCheckAfterRun(APP_FIRST_CHECK_MS)).toBe(false);
+    expect(shouldCheckAfterRun(60 * 60 * 1000)).toBe(false);
+  });
+
+  test("it stands down rather than spawning a worker that would do nothing", () => {
+    // The launcher's own check is the other half of the cadence, and these are
+    // the cases where starting a process at all is wasted work.
+    expect(startBackgroundUpdate({ packageName: undefined, env: {} })).toBe(false);
+    expect(
+      startBackgroundUpdate({ packageName: "@billyvg/sentry-tui-darwin-arm64", env: { CI: "1" } }),
+    ).toBe(false);
+    expect(
+      startBackgroundUpdate({
+        packageName: "@billyvg/sentry-tui-darwin-arm64",
+        env: { SENTRY_TUI_NO_UPDATE: "1" },
+      }),
+    ).toBe(false);
   });
 });

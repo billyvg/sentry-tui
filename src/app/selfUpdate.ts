@@ -1,12 +1,25 @@
 /**
- * The in-app half of the self-updater.
+ * The in-app half of the self-updater, and the one statement of when we check.
  *
  * `packaging/npm/update.mjs` already knows how to ask the registry what is
- * newest, verify a tarball, and land it in `~/.cache/sentry-tui/versions`. The
- * launcher runs that in a detached worker at startup and picks the result up
- * on the *next* launch — which, for anyone who leaves the TUI open all day, is
- * close to never. This is what lets the running app notice and offer to
- * restart into it.
+ * newest, verify a tarball, and land it in `~/.cache/sentry-tui/versions`.
+ * What was missing was a single answer to *when* to run it, since two things
+ * can: the npm launcher, and the app the launcher starts.
+ *
+ * The rule, and the whole of it: **whoever is running decides**. From the
+ * moment the app is up it looks for itself — `UPDATE_FIRST_CHECK_MS` after
+ * start, then hourly — so a release landing mid-session is offered in that
+ * session rather than silently waiting for a relaunch. The launcher checks
+ * once its child has exited, and only when that child went before it could
+ * have looked: every command that never starts the app (`--help`,
+ * `--version`, `login`, `logout`, `status`), a session too short to have
+ * checked, and a binary that would not start at all.
+ *
+ * So a launch costs exactly one check, in one place or the other, never both
+ * — and the `mkdir` lock in `update.mjs` is left guarding what it was written
+ * for, several terminals launching at once, rather than our own two schedules.
+ * The launcher decides that with a clock, not by reading the arguments it was
+ * handed, so a command added to the app needs nothing added there.
  *
  * The imports reach outside `src/` on purpose. Those two modules are shipped
  * runtime code, not build scripts, and they are the only definition of the
@@ -31,7 +44,18 @@ export interface ReadyUpdate {
   path: string;
 }
 
-/** How often the app looks for something newer while it is open. */
+/**
+ * How long after start the app makes its first real check.
+ *
+ * Not zero, and not an hour. The first seconds of a launch are the renderer
+ * coming up and the issue stream loading, and an update has no deadline, so it
+ * waits for that to be over — starting the app never waits on the network.
+ * Long before the poll below, though: the common case is a release that landed
+ * since the last launch, and nobody should have to sit for an hour to be told.
+ */
+export const UPDATE_FIRST_CHECK_MS = 10 * 1000;
+
+/** How often the app looks again after that, for as long as it is open. */
 export const UPDATE_POLL_MS = 60 * 60 * 1000;
 
 /**
@@ -85,6 +109,62 @@ export async function checkForUpdate(
     // the launcher's worker may have landed a build while this call failed.
   }
   return readyUpdate(env);
+}
+
+/** Seams for the tests; the defaults are the cadence the app actually runs. */
+export interface UpdateWatchOptions {
+  env?: NodeJS.ProcessEnv;
+  firstCheckMs?: number;
+  pollMs?: number;
+  check?: (env?: NodeJS.ProcessEnv) => Promise<ReadyUpdate | undefined>;
+}
+
+/**
+ * Watch for a newer build for as long as the app is up, and report each answer.
+ *
+ * The schedule described at the top of this file, in one place: the cache read
+ * now, then a real check at `UPDATE_FIRST_CHECK_MS`, then every
+ * `UPDATE_POLL_MS`. `onUpdate` is called with `undefined` when a later check
+ * finds nothing, so a cached build that gets pruned out from under us stops
+ * being offered.
+ *
+ * @returns a function that stops the watch; safe to call more than once.
+ */
+export function watchForUpdate(
+  onUpdate: (update: ReadyUpdate | undefined) => void,
+  {
+    env = process.env,
+    firstCheckMs = UPDATE_FIRST_CHECK_MS,
+    pollMs = UPDATE_POLL_MS,
+    check = checkForUpdate,
+  }: UpdateWatchOptions = {},
+): () => void {
+  if (!canSelfUpdate(env)) return () => {};
+
+  // Disk first, and synchronously: reading a directory costs nothing, and the
+  // previous session may have left a build sitting there ready to run.
+  onUpdate(readyUpdate(env));
+
+  let live = true;
+  let poll: ReturnType<typeof setInterval> | undefined;
+
+  const look = () => {
+    void check(env).then((found) => {
+      // A watch stopped mid-download would otherwise report into a dead tree.
+      if (live) onUpdate(found);
+    });
+  };
+
+  const first = setTimeout(() => {
+    look();
+    poll = setInterval(look, pollMs);
+  }, firstCheckMs);
+
+  return () => {
+    live = false;
+    clearTimeout(first);
+    if (poll) clearInterval(poll);
+  };
 }
 
 /**

@@ -88,20 +88,46 @@ function childEnv() {
 }
 
 /**
- * Run the compiled binary with this process's arguments, then exit with
- * whatever it exited with.
+ * How long a child has to run before the app inside it has checked for itself.
  *
- * `stdio: "inherit"` hands the real TTY straight to the child, which the TUI
- * needs for raw mode and for the alternate screen; it also puts the child in
- * this process group, so Ctrl-C reaches it directly.
+ * A restatement of `UPDATE_FIRST_CHECK_MS` in `src/app/selfUpdate.ts`, which
+ * this file cannot import: it is plain JS shipped to npm, and that is
+ * TypeScript compiled into the binary. `scripts/packaging.test.ts` imports
+ * both and fails if they drift.
  */
+export const APP_FIRST_CHECK_MS = 10 * 1000;
+
+/**
+ * Whether the launcher should check, given how long its child ran.
+ *
+ * The app checks for itself once it has been up `APP_FIRST_CHECK_MS`, so the
+ * only window left is a child that exited before then: every command that
+ * never starts the app — `--help`, `--version`, `login`, `logout`, `status` —
+ * plus a session too short to have looked, and a binary that would not start
+ * at all, which is when a new build is worth the most.
+ *
+ * Asking how long the child ran, rather than reading the arguments it was
+ * given, is what keeps this from needing to know the command list. A command
+ * added to the app is covered here the day it is added.
+ *
+ * @param {number} elapsedMs how long the child was up
+ * @returns {boolean}
+ */
+export function shouldCheckAfterRun(elapsedMs) {
+  return elapsedMs < APP_FIRST_CHECK_MS;
+}
+
 /**
  * Kick off an update in a process of our own, and return immediately.
  *
- * Detached with stdio ignored, so it outlives this launch and cannot write over
- * a TUI that owns the screen. The new build lands in the cache and the next
- * launch runs it — nobody waits on a 24MB download to read `--help`.
+ * Detached with stdio ignored, so it outlives this process and cannot write
+ * over a terminal it no longer owns. The new build lands in the cache and the
+ * next launch runs it — nobody waits on a 24MB download to read `--help`.
  *
+ * @param {object} [options]
+ * @param {string} [options.packageName] platform package to look for
+ * @param {string} [options.localVersion] newest version already on disk
+ * @param {Record<string, string | undefined>} [options.env]
  * @returns {boolean} whether a worker was started
  */
 export function startBackgroundUpdate({ packageName, localVersion, env = process.env } = {}) {
@@ -121,6 +147,14 @@ export function startBackgroundUpdate({ packageName, localVersion, env = process
   }
 }
 
+/**
+ * Run the compiled binary with this process's arguments, then exit with
+ * whatever it exited with.
+ *
+ * `stdio: "inherit"` hands the real TTY straight to the child, which the TUI
+ * needs for raw mode and for the alternate screen; it also puts the child in
+ * this process group, so Ctrl-C reaches it directly.
+ */
 export function main(argv = process.argv.slice(2)) {
   let bundled;
   try {
@@ -134,12 +168,8 @@ export function main(argv = process.argv.slice(2)) {
   // earlier launch fetched. Starting the app never waits on the network.
   const local = bestLocal(bundled);
 
-  // Then look for something newer, in a process of our own. Releases land
-  // often, and this is what keeps people current without ever asking them to
-  // reinstall. `SENTRY_TUI_NO_UPDATE=1` switches it off.
-  startBackgroundUpdate({ packageName: platformPackage(), localVersion: local.version });
-
   const binary = local.path;
+  const startedAt = Date.now();
   let result = spawnSync(binary, argv, { stdio: "inherit", env: childEnv() });
 
   // npm preserves the executable bit, but tarballs unpacked by other tooling
@@ -166,6 +196,24 @@ export function main(argv = process.argv.slice(2)) {
       `sentry-tui ${local.version} did not start, falling back to ${bundled.version}\n`,
     );
     result = spawnSync(bundled.path, argv, { stdio: "inherit", env: childEnv() });
+  }
+
+  // Nothing of ours is running now, so this is the launcher's turn — if the
+  // app did not already take it. Whoever is running decides when to check, and
+  // a child that was up long enough checked for itself; `src/app/selfUpdate.ts`
+  // states that schedule in full. So exactly one check happens per launch,
+  // here or in there, never both. Detached, so the shell prompt is already
+  // back by the time a download starts, and the next launch runs whatever it
+  // leaves behind. `SENTRY_TUI_NO_UPDATE=1` and `CI` switch off both halves.
+  //
+  // `bestLocal` again rather than `local`: a session that took the update
+  // offer downloaded a newer build than the one we started, and asking for it
+  // twice would cost 24MB for nothing.
+  if (shouldCheckAfterRun(Date.now() - startedAt)) {
+    startBackgroundUpdate({
+      packageName: platformPackage(),
+      localVersion: bestLocal(bundled).version,
+    });
   }
 
   if (result.error) {
