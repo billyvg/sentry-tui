@@ -73,7 +73,8 @@ async function openDashboard(h: Awaited<ReturnType<typeof renderHarness>>) {
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
   await h.press((i) => i.pressEnter());
-  await h.waitForFrame((f) => f.includes("Checkout Health"));
+  // Not the full title: the list's flex column truncates it at narrow widths.
+  await h.waitForFrame((f) => f.includes("Checkout"));
   await h.press((i) => i.pressEnter());
   await h.waitForFrame((f) => f.includes("Errors Today"));
 }

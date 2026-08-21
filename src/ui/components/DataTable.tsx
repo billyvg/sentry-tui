@@ -122,13 +122,12 @@ export function DataTable<T>({
   empty,
   errorTitle = "Failed to load",
   gap = 1,
-  minFlex,
   gutter = DEFAULT_GUTTER,
   layout = [],
 }: DataTableProps<T>) {
   const listRef = useRef<ScrollBoxRenderable>(null);
   const rowWidth = Math.max(1, width - gutter);
-  const resolved = layoutColumns(columns, rowWidth, { gap, minFlex });
+  const resolved = layoutColumns(columns, rowWidth, { gap });
   const rowHeight = rowHeightOf({ renderDetail, separator });
 
   useRowScrollFollow(listRef, {

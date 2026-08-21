@@ -9,6 +9,17 @@
  *
  * - **Explore's feature badges**, which are static — the web hard-codes three
  *   of them (`exploreSecondaryNavigation.tsx:62`, `:74`, `:149`).
+ * **One group, two lines.** A group's section is fetched by a hook of its own,
+ * called unconditionally with an `enabled` flag — hooks cannot be conditional,
+ * and the flag is what stops a sidebar nobody has opened from fetching — and
+ * then returned by one `case` in the switch. Groups share nothing here, so two
+ * people lighting up two sections touch two adjacent lines each.
+ *
+ * Known to be needed:
+ *
+ * - **Explore › Starred Queries** — `GET /organizations/{org}/explore/saved/`
+ *   with `starred: true`, capped at `MAX_STARRED_SAVED_QUERIES_IN_NAV`
+ *   (`exploreSecondaryNavigation.tsx:169`).
  * - **Dashboards › Starred Dashboards** — `GET /organizations/{org}/dashboards/starred/`
  *   (`dashboardsApiOptions.tsx:8-17`, `dashboardsSecondaryNavigation.tsx:79-83`).
  *
@@ -27,8 +38,6 @@
  * Whatever fetches land here must respect the app's manual-refresh rule: take
  * `reloadToken` as an effect dependency, and never poll.
  */
-
-import { useMemo } from "react";
 
 import type { SentryClient } from "~/api/client";
 import { EXPLORE_NAV_BADGES } from "~/core/exploreNav";
@@ -65,6 +74,8 @@ function exploreNavExtras(sections: readonly NavSectionSpec[] = []): SecondaryNa
  * not have — see `docs/plans/002-screen-contract.md` §7.
  */
 const STARRED_DASHBOARD_TARGET = { group: "dashboards", item: "All Dashboards" } as const;
+import { useDashboardsNavExtras } from "~/ui/hooks/useDashboards";
+import { NO_NAV_EXTRAS, type SecondaryNavExtras } from "~/ui/lib/navSections";
 
 /**
  * @param client Authenticated API client, or null before sign-in.
@@ -78,11 +89,7 @@ export function useSecondaryNavExtras(
   group: NavGroupId,
   reloadToken: number,
 ): SecondaryNavExtras {
-  const starredDashboards = useStarredDashboards(client, {
-    org,
-    enabled: group === "dashboards",
-    reloadToken,
-  });
+  const dashboards = useDashboardsNavExtras(client, org, group === "dashboards", reloadToken);
 
   return useMemo(() => {
     switch (group) {
@@ -108,4 +115,10 @@ export function useSecondaryNavExtras(
         return NO_NAV_EXTRAS;
     }
   }, [group, starredDashboards]);
+  switch (group) {
+    case "dashboards":
+      return dashboards;
+    default:
+      return NO_NAV_EXTRAS;
+  }
 }

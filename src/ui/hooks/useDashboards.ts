@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -16,6 +16,7 @@ import {
   toAsyncError,
   type AsyncStatus,
 } from "~/core/async";
+import { NO_NAV_EXTRAS, type SecondaryNavExtras } from "~/ui/lib/navSections";
 
 export interface DashboardsQuery {
   org: string;
@@ -81,7 +82,8 @@ export function useDashboards(
  * use surfaces its own failures.
  *
  * @param enabled Only fetch while the Dashboards sidebar is the one open —
- *   the section is invisible otherwise, and the request would be wasted.
+ *   the section is invisible otherwise, and the nav is mounted all session, so
+ *   an ungated fetch would run on app start.
  */
 export function useStarredDashboards(
   client: SentryClient | null,
@@ -113,4 +115,43 @@ export function useStarredDashboards(
   }, [client, org, enabled, reloadToken]);
 
   return dashboards;
+}
+
+/**
+ * The Dashboards group's contribution to the sidebar: a Starred Dashboards
+ * section, or nothing.
+ *
+ * One hook per nav group, called unconditionally from
+ * `useSecondaryNavExtras` with an `enabled` flag — see that file.
+ *
+ * A starred dashboard has no screen of its own, so its item targets the list
+ * that contains it. Landing the user on the dashboard itself needs a way to
+ * carry the row through a nav destination; that mechanism is being built
+ * generically elsewhere, and this is the interim.
+ */
+export function useDashboardsNavExtras(
+  client: SentryClient | null,
+  org: string,
+  enabled: boolean,
+  reloadToken: number,
+): SecondaryNavExtras {
+  const starred = useStarredDashboards(client, { org, enabled, reloadToken });
+
+  return useMemo(() => {
+    // The web hides the section when nothing is starred rather than showing an
+    // empty heading; so do we.
+    if (starred.length === 0) return NO_NAV_EXTRAS;
+    return {
+      sections: [
+        {
+          title: "Starred Dashboards",
+          items: starred.map((dashboard) => ({
+            label: dashboard.title,
+            target: { group: "dashboards" as const, item: "All Dashboards" },
+          })),
+        },
+      ],
+      badges: {},
+    };
+  }, [starred]);
 }

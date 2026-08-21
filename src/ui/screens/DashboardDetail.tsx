@@ -206,6 +206,14 @@ export function DashboardWidgetGrid({
         </text>
       </box>
 
+      {/*
+        Below roughly 90 columns the chip row plus the sort label overflows and
+        wraps into a vertical column of fragments that pushes the widget stack
+        off screen. `FilterBar` grows an optional `width` on another branch that
+        pins the row to one line; add `width={width}` here when it merges. An
+        empty `sortLabel` does not avoid it — the chips alone are wider than the
+        pane at 80.
+      */}
       <FilterBar
         client={client}
         org={org}

@@ -12,7 +12,9 @@
  * here can change it.
  */
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
+
+import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
 import type { DashboardListItem } from "~/api/dashboards";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
@@ -21,20 +23,13 @@ import { theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
-import { SearchInput } from "~/ui/components/SearchInput";
+import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { useDashboards } from "~/ui/hooks/useDashboards";
 import { rowsOf } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
 import { dashboardDetailView } from "~/ui/screens/DashboardDetail";
 import type { ScreenProps } from "~/ui/screens/types";
-
-/**
- * Narrowest a dashboard title may be squeezed to before the table gives up a
- * column instead. Titles are the only thing that identifies a row, so they
- * outrank every piece of metadata beside them.
- */
-const MIN_TITLE_WIDTH = 24;
 
 /** Header row plus the two lines of screen heading above the table. */
 const HEADING_ROWS = 2;
@@ -93,7 +88,7 @@ const STANDARD_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
   {
     key: "owner",
     label: "Owner",
-    width: 18,
+    width: 16,
     priority: 3,
     render: (row, _selected, width) => (
       <text fg={theme.muted}>{padText(ownerLabel(row), width)}</text>
@@ -111,7 +106,7 @@ const STANDARD_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
   {
     key: "created",
     label: "Created",
-    width: 10,
+    width: 9,
     priority: 2,
     render: (row, _selected, width) => (
       <text fg={theme.subText}>
@@ -197,7 +192,7 @@ export function DashboardList(props: ScreenProps) {
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
-      <SearchInput
+      <SearchBox
         value={state.searchQuery}
         placeholder={config.searchPlaceholder}
         focused={state.searchFocused}
@@ -221,7 +216,6 @@ export function DashboardList(props: ScreenProps) {
         rows={rows}
         columns={columns}
         width={width}
-        minFlex={MIN_TITLE_WIDTH}
         selectedIndex={state.selected}
         focused={focused}
         rowKey={(row) => row.id}
@@ -268,4 +262,88 @@ function accessLabel(row: DashboardListItem): string {
   if (!permissions || permissions.isEditableByEveryone) return "All";
   const teams = permissions.teamsWithEditAccess?.length ?? 0;
   return teams > 0 ? `Creator +${teams}` : "Creator";
+}
+
+/**
+ * The screen's search box — a local placeholder, deliberately.
+ *
+ * `SearchInput` is being extracted as a shared component on another branch,
+ * along with the log stream's migration onto it. Rather than land a second
+ * component at the same path, this stays inside the one screen that needs it
+ * and is deleted in favour of the shared one when that branch merges.
+ *
+ * The focus listeners are the part that can't be trimmed: the app's key router
+ * decides where keystrokes go from `state.searchFocused`, so a click into or
+ * out of the input has to tell it, or the two disagree about who has the caret.
+ */
+function SearchBox({
+  value,
+  placeholder,
+  focused,
+  width,
+  onInput,
+  onFocus,
+  onBlur,
+}: {
+  value: string;
+  placeholder: string;
+  focused: boolean;
+  width: number;
+  onInput: (next: string) => void;
+  onFocus: () => void;
+  onBlur: () => void;
+}) {
+  const inputRef = useRef<InputRenderable | null>(null);
+
+  const attach = useCallback(
+    (node: InputRenderable | null) => {
+      const previous = inputRef.current;
+      if (previous) {
+        previous.removeAllListeners(RenderableEvents.FOCUSED);
+        previous.removeAllListeners(RenderableEvents.BLURRED);
+      }
+      inputRef.current = node;
+      if (node) {
+        node.on(RenderableEvents.FOCUSED, onFocus);
+        node.on(RenderableEvents.BLURRED, onBlur);
+      }
+    },
+    [onFocus, onBlur],
+  );
+
+  return (
+    <box
+      style={{
+        flexDirection: "row",
+        width,
+        flexShrink: 0,
+        height: SEARCH_ROWS,
+        border: true,
+        borderStyle: "rounded",
+        borderColor: focused ? theme.accent : theme.border,
+        backgroundColor: theme.panel,
+        paddingLeft: 1,
+        paddingRight: 1,
+      }}
+    >
+      <text fg={theme.subText}>{"("}</text>
+      <text fg={focused ? theme.accent : theme.text}>{"/"}</text>
+      <text fg={theme.subText}>{")"} </text>
+      <input
+        ref={attach}
+        value={value}
+        placeholder={placeholder}
+        focused={focused}
+        onInput={onInput}
+        style={{
+          flexGrow: 1,
+          textColor: theme.text,
+          backgroundColor: theme.panel,
+          focusedTextColor: theme.text,
+          focusedBackgroundColor: theme.panel,
+          placeholderColor: theme.subText,
+        }}
+      />
+    </box>
+  );
 }
