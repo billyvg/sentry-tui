@@ -70,31 +70,64 @@ x64 — smoke-tests each with `--help` on its own runner, then publishes.
 
 ### Rehearsing without publishing
 
-Actions → Release → Run workflow, with `dry_run` checked. It builds and packages
-everything, publishes nothing, and uploads `dist/release`, `dist/npm`, and
-`dist/homebrew` as an artifact you can inspect.
+Actions → Release → Run workflow, with `dry_run` checked — or from the terminal:
+
+```bash
+gh workflow run release.yml -f dry_run=true
+gh run watch                                   # pick the run, follow it
+```
+
+It builds and packages everything and publishes nothing. Alongside the four
+per-target binary artifacts it uploads `release-bundle`, holding the release
+assets, the npm package trees, and the formula:
+
+```bash
+gh run download <run-id> -n release-bundle --dir bundle
+find bundle -maxdepth 2
+```
+
+`gh run download` extracts as it goes, so there is nothing to unzip. The bundle's
+root is the least common ancestor of the uploaded paths — `dist/` — so its
+contents land as `bundle/release`, `bundle/npm`, and `bundle/homebrew`.
 
 ### Publishing by hand
 
 You cannot build a full release on one machine — each target needs its own
 runner — so a manual publish still starts from a CI build. Run the workflow with
-`dry_run` checked, download the `release-bundle` artifact, and publish the
-package trees inside it:
+`dry_run` checked, then pull down the four binary artifacts and re-assemble the
+packages locally:
 
 ```bash
-unzip release-bundle.zip -d bundle    # gives bundle/dist/npm/…
-cd bundle/dist
+gh run list --workflow release.yml --limit 5      # find the run id
+
+gh run download <run-id> --dir dist/bin \
+  -n darwin-arm64 -n darwin-x64 -n linux-x64 -n linux-arm64
+
+bun run build:npm --strict
 
 # Platform packages first, then the launcher, then the alias: each depends on
 # the ones before it.
-for pkg in npm/billyvg-sentry-tui-*; do npm publish "$pkg" --access public; done
-npm publish npm/billyvg-sentry-tui --access public
-npm publish npm/sentry-tui --access public
+for pkg in dist/npm/billyvg-sentry-tui-*; do npm publish "$pkg" --access public; done
+npm publish dist/npm/billyvg-sentry-tui --access public
+npm publish dist/npm/sentry-tui --access public
 ```
 
-Add `--dry-run` to any of those to see the file list and computed tarball
-without uploading. Manual publishes have no provenance attestation — CI
-publishes do.
+Each artifact extracts into a directory named after itself, which is exactly the
+`dist/bin/<target>/sentry-tui` layout `build:npm` reads.
+
+Regenerating with `build:npm` is not busywork: **artifact downloads do not
+preserve the executable bit**, and `npm publish` ships whatever mode the file
+has on disk. `build-npm.ts` chmods each binary to 0755 as it copies. Publishing
+straight from the `release-bundle` artifact instead would ship a 0644 binary —
+the launcher's chmod-and-retry saves the user, but only where the install
+directory is writable. If you do publish from that bundle, chmod first:
+
+```bash
+chmod 755 npm/billyvg-sentry-tui-*/bin/sentry-tui
+```
+
+Add `--dry-run` to any publish to see the file list and computed tarball without
+uploading. Manual publishes have no provenance attestation — CI publishes do.
 
 Publishing only the platform package you can build locally is a trap worth
 naming: the other platforms' optional dependencies simply won't resolve, and
