@@ -1,0 +1,447 @@
+/**
+ * One monitor, in full — pushed onto the view stack by Enter on a detector row.
+ *
+ * The same object as the issue detail, and built from the same chrome
+ * (`ui/components/DetailSections.tsx`): a scrollbox of numbered sections, each
+ * foldable by the digit in its own header. What differs is the content —
+ * configuration, check-in timeline, open periods, connected alerts, details.
+ *
+ * The configuration section is the row's second line with room to breathe, and
+ * it comes from the same place: `core/detectors.ts` formats a detector's
+ * type-dependent fields once, compactly for the row and labelled for here.
+ *
+ * Read-only. The web offers enable/disable and edit from this page; this
+ * client offers neither, so no chip pretends to.
+ */
+
+import { useMemo } from "react";
+
+import type { SentryClient } from "~/api/client";
+import type { Detector, DetectorOpenPeriod } from "~/api/detectors";
+import { actionTypeLabel, workflowActionTypes, type Workflow } from "~/api/workflows";
+import { errorOf, valueOf, type AsyncStatus } from "~/core/async";
+import {
+  detectorAssigneeLabel,
+  detectorConfigFields,
+  detectorEnvironment,
+  detectorTypeLabel,
+} from "~/core/detectors";
+import { theme } from "~/core/theme";
+import { timeAgo } from "~/lib/sparkline";
+import { fitText } from "~/lib/text";
+import { dateTimeText, elapsedText } from "~/lib/time";
+import {
+  BODY_INDENT,
+  Divider,
+  Empty,
+  Field,
+  Section,
+  useSectionFolds,
+} from "~/ui/components/DetailSections";
+import { useDetectorOpenPeriods, useDetectorWorkflows } from "~/ui/hooks/useDetectorDetail";
+import { BOLD } from "~/ui/lib/attributes";
+import { DetectorTimelineSection, hasDetectorTimeline } from "~/ui/screens/monitorTimelineSlot";
+import type { DetailContext, ViewStackEntry } from "~/ui/screens/types";
+
+/** The sections, in the order their headers appear. */
+type SectionKey = "config" | "timeline" | "periods" | "alerts" | "details";
+
+const SECTION_TITLES: Record<SectionKey, string> = {
+  config: "Configuration",
+  timeline: "Check-ins",
+  periods: "Open Periods",
+  alerts: "Connected Alerts",
+  details: "Details",
+};
+
+/**
+ * A monitor's detail, ready to push.
+ *
+ * No `stateKey`: this is a static detail pane, not a screen — it has no cursor
+ * of its own and no filters, so Escape pops it and the list underneath is
+ * exactly where it was, cursor included.
+ *
+ * @param detector The row Enter was pressed on. Complete as it stands — the
+ *   list endpoint returns the same serializer the detail endpoint does — so
+ *   the pane paints immediately and only fetches what a row never carried.
+ * @param projectSlug Its project, already resolved from `projectId` by the
+ *   list, which has the mapping loaded.
+ */
+export function monitorDetailView(detector: Detector, projectSlug?: string): ViewStackEntry {
+  return {
+    id: `monitor:${detector.id}`,
+    label: detector.name,
+    render: (ctx) => <MonitorDetail {...ctx} detector={detector} projectSlug={projectSlug} />,
+  };
+}
+
+interface MonitorDetailProps extends DetailContext {
+  detector: Detector;
+  projectSlug?: string;
+}
+
+export function MonitorDetail({
+  client,
+  org,
+  detector,
+  projectSlug,
+  width,
+  height,
+  focused,
+  reloadToken,
+}: MonitorDetailProps) {
+  const periods = useDetectorOpenPeriods(client, {
+    org,
+    detectorId: detector.id,
+    reloadToken,
+  });
+  const workflows = useDetectorWorkflows(client, { org, detectorId: detector.id, reloadToken });
+
+  const inner = Math.max(20, width - 2);
+
+  // Whether there is a check-in timeline to show is the slot's answer, and it
+  // has to be known before the sections are numbered — see
+  // `monitorTimelineSlot.tsx`.
+  const showTimeline = hasDetectorTimeline(detector);
+
+  const order = useMemo(
+    (): SectionKey[] => [
+      "config",
+      ...(showTimeline ? (["timeline"] as const) : []),
+      "periods",
+      "alerts",
+      "details",
+    ],
+    [showTimeline],
+  );
+  const { collapsed, toggle } = useSectionFolds(order, focused);
+
+  const periodRows = valueOf(periods);
+  const workflowRows = valueOf(workflows);
+
+  const counts: Partial<Record<SectionKey, number | undefined>> = {
+    config: undefined,
+    periods: periodRows?.length,
+    alerts: workflowRows?.length,
+  };
+
+  return (
+    /*
+     * No `flexDirection`: a scrollbox lays its own root out as a row, and
+     * setting `column` here stacks the scrollbar under the viewport — see the
+     * same comment in `IssueDetail`.
+     */
+    <scrollbox
+      focused={focused}
+      verticalScrollbarOptions={{
+        showArrows: false,
+        trackOptions: { backgroundColor: theme.panel, foregroundColor: theme.muted },
+      }}
+      style={{ width, height, paddingLeft: 1 }}
+    >
+      <MonitorHeader detector={detector} projectSlug={projectSlug} width={inner} />
+
+      {order.map((key, index) => (
+        <Section
+          key={key}
+          index={index + 1}
+          title={SECTION_TITLES[key]}
+          count={counts[key]}
+          collapsed={collapsed.has(key)}
+          width={inner}
+          onToggle={() => toggle(key)}
+        >
+          <SectionBody
+            sectionKey={key}
+            detector={detector}
+            width={inner}
+            client={client}
+            org={org}
+            reloadToken={reloadToken}
+            periods={periods}
+            workflows={workflows}
+          />
+        </Section>
+      ))}
+    </scrollbox>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+
+function MonitorHeader({
+  detector,
+  projectSlug,
+  width,
+}: {
+  detector: Detector;
+  projectSlug?: string;
+  width: number;
+}) {
+  // The bar carries the enabled state in color, the way the issue header's
+  // carries the level — so the word beneath it is a label, not the only signal.
+  const bar = detector.enabled ? theme.accent : theme.muted;
+  const titleWidth = Math.max(12, width - 2);
+
+  return (
+    <box style={{ flexDirection: "column", width }}>
+      <box style={{ flexDirection: "row", width }}>
+        <text fg={bar}>{"┃ "}</text>
+        <text fg={theme.text} attributes={BOLD}>
+          {fitText(detector.name, titleWidth)}
+        </text>
+      </box>
+
+      <box style={{ flexDirection: "row", width }}>
+        <text fg={bar}>{"┃ "}</text>
+        <text fg={theme.muted}>
+          {fitText(detector.description || "(no description)", titleWidth)}
+        </text>
+      </box>
+
+      {/* What the monitor currently *is*. Never pressable — nothing here writes. */}
+      <box style={{ flexDirection: "row", width, paddingTop: 1 }}>
+        <text>{BODY_INDENT}</text>
+        <text fg={detector.enabled ? theme.success : theme.muted}>
+          {detector.enabled ? "enabled" : "disabled"}
+        </text>
+        <Divider />
+        <text fg={theme.muted}>{detectorTypeLabel(detector.type)}</text>
+        {projectSlug ? (
+          <>
+            <Divider />
+            <text fg={theme.muted}>{projectSlug}</text>
+          </>
+        ) : null}
+        <Divider />
+        <text fg={theme.muted}>
+          {detector.owner ? detectorAssigneeLabel(detector.owner) : "unassigned"}
+        </text>
+        <Divider />
+        <text fg={theme.muted}>{lastTriggeredLabel(detector)}</text>
+      </box>
+
+      <text fg={theme.border}>{"─".repeat(width)}</text>
+    </box>
+  );
+}
+
+/**
+ * When this monitor last did something.
+ *
+ * `lastTriggered` is not on the wire for a *list* row — the serializer omits
+ * the key entirely, verified against real cron monitors that fire hourly — and
+ * a list row is what this pane is opened from. So the latest issue's
+ * `lastSeen` is the fallback, and "never triggered" is claimed only when
+ * neither exists: a pane that says "never triggered" above a section listing
+ * twenty open periods is worse than one that says nothing.
+ */
+function lastTriggeredLabel(detector: Detector): string {
+  const triggered = detector.lastTriggered ? timeAgo(detector.lastTriggered) : "";
+  if (triggered) return `last triggered ${triggered} ago`;
+  const fired = timeAgo(detector.latestGroup?.lastSeen);
+  return fired ? `last issue ${fired} ago` : "never triggered";
+}
+
+// ---------------------------------------------------------------------------
+// Sections
+// ---------------------------------------------------------------------------
+
+function SectionBody({
+  sectionKey,
+  detector,
+  width,
+  client,
+  org,
+  reloadToken,
+  periods,
+  workflows,
+}: {
+  sectionKey: SectionKey;
+  detector: Detector;
+  width: number;
+  client: SentryClient | null;
+  org: string;
+  reloadToken: number;
+  periods: AsyncStatus<DetectorOpenPeriod[]>;
+  workflows: AsyncStatus<Workflow[]>;
+}) {
+  switch (sectionKey) {
+    case "config": {
+      const fields = detectorConfigFields(detector);
+      if (fields.length === 0) {
+        return detector.type === "error" ? (
+          <Empty>
+            An error monitor has no settings — every error in its project opens an issue.
+          </Empty>
+        ) : (
+          <Empty>No configuration was returned for this monitor.</Empty>
+        );
+      }
+      return (
+        <box style={{ flexDirection: "column", width }}>
+          {fields.map((field) => (
+            <Field key={field.label} name={field.label} value={field.value} width={width} />
+          ))}
+        </box>
+      );
+    }
+
+    case "timeline":
+      return (
+        <DetectorTimelineSection
+          detector={detector}
+          width={width}
+          client={client}
+          org={org}
+          reloadToken={reloadToken}
+        />
+      );
+
+    case "periods":
+      return <OpenPeriods status={periods} width={width} />;
+
+    case "alerts":
+      return <ConnectedAlerts status={workflows} width={width} />;
+
+    case "details":
+      return <Details detector={detector} width={width} />;
+  }
+}
+
+/**
+ * When the monitor's issue was open, most recent first.
+ *
+ * The endpoint answers for the detector's *latest* issue, so an empty list
+ * means the monitor has never fired rather than that a filter excluded
+ * everything — which is why the empty copy says so.
+ */
+function OpenPeriods({
+  status,
+  width,
+}: {
+  status: AsyncStatus<DetectorOpenPeriod[]>;
+  width: number;
+}) {
+  const rows = valueOf(status);
+  const error = errorOf(status);
+
+  if (error) return <Empty>{`Failed to load open periods: ${error.message}`}</Empty>;
+  if (!rows) return <Empty>Loading open periods…</Empty>;
+  if (rows.length === 0) return <Empty>No open periods — this monitor has not fired.</Empty>;
+
+  return (
+    <box style={{ flexDirection: "column", width }}>
+      {rows.map((period) => (
+        <OpenPeriodRow key={period.id} period={period} width={width} />
+      ))}
+    </box>
+  );
+}
+
+/** `#142  2026-08-20 09:00 → ongoing   4h`, in UTC like every other timestamp. */
+function OpenPeriodRow({ period, width }: { period: DetectorOpenPeriod; width: number }) {
+  const open = period.isOpen || !period.end;
+  return (
+    <box style={{ flexDirection: "row", width }}>
+      <text fg={theme.subText}>{`${BODY_INDENT}#${period.id}  `}</text>
+      <text fg={theme.text}>{dateTimeText(period.start)}</text>
+      <text fg={theme.subText}>{" → "}</text>
+      <text fg={open ? theme.warning : theme.text}>
+        {open ? "ongoing" : dateTimeText(period.end)}
+      </text>
+      <text fg={theme.muted}>{`  ${elapsedText(period.start, period.end)}`}</text>
+    </box>
+  );
+}
+
+/**
+ * The alerts wired to this monitor.
+ *
+ * Sentry calls them automations now and the sidebar calls them Alerts; this
+ * says Alerts, matching the nav item they are listed under.
+ */
+function ConnectedAlerts({ status, width }: { status: AsyncStatus<Workflow[]>; width: number }) {
+  const rows = valueOf(status);
+  const error = errorOf(status);
+
+  if (error) return <Empty>{`Failed to load alerts: ${error.message}`}</Empty>;
+  if (!rows) return <Empty>Loading alerts…</Empty>;
+  if (rows.length === 0) return <Empty>No alerts are connected to this monitor.</Empty>;
+
+  return (
+    <box style={{ flexDirection: "column", width }}>
+      {rows.map((workflow) => (
+        <AlertRow key={workflow.id} workflow={workflow} width={width} />
+      ))}
+    </box>
+  );
+}
+
+function AlertRow({ workflow, width }: { workflow: Workflow; width: number }) {
+  const actions = workflowActionTypes(workflow).map(actionTypeLabel).join(", ");
+  const triggered = workflow.lastTriggered ? `${timeAgo(workflow.lastTriggered)} ago` : "never";
+  const enabled = workflow.enabled !== false;
+
+  return (
+    <box style={{ flexDirection: "column", width }}>
+      <box style={{ flexDirection: "row", width }}>
+        <text fg={enabled ? theme.text : theme.muted}>
+          {`${BODY_INDENT}${fitText(workflow.name || `Alert ${workflow.id}`, Math.max(8, width - 4))}`}
+        </text>
+      </box>
+      <box style={{ flexDirection: "row", width }}>
+        <text fg={theme.subText}>{`${BODY_INDENT}  `}</text>
+        <text fg={enabled ? theme.muted : theme.subText}>{enabled ? "enabled" : "disabled"}</text>
+        {actions ? (
+          <>
+            <Divider />
+            <text fg={theme.muted}>{actions}</text>
+          </>
+        ) : null}
+        <Divider />
+        <text fg={theme.muted}>{`last fired ${triggered}`}</text>
+      </box>
+    </box>
+  );
+}
+
+/** The facts that are true of every monitor whatever its type. */
+function Details({ detector, width }: { detector: Detector; width: number }) {
+  const environment = detectorEnvironment(detector);
+  const group = detector.latestGroup;
+
+  return (
+    <box style={{ flexDirection: "column", width }}>
+      <Field name="Monitor ID" value={detector.id} width={width} />
+      {environment ? <Field name="Environment" value={environment} width={width} /> : null}
+      {group ? (
+        <Field
+          name="Last issue"
+          value={lastIssueValue(group.title, group.shortId, group.lastSeen)}
+          width={width}
+        />
+      ) : null}
+      <Field name="Created" value={dateTimeText(detector.dateCreated)} width={width} />
+      {/*
+       * `createdBy` is a bare user id and there is no cheap way to name it, so
+       * only the case that needs no lookup is shown: null means Sentry made it
+       * (`extraDetails.tsx:64`).
+       */}
+      {detector.createdBy ? null : <Field name="Created by" value="Sentry" width={width} />}
+      <Field name="Last modified" value={dateTimeText(detector.dateUpdated)} width={width} />
+    </box>
+  );
+}
+
+/** `SENTRY-5T5Y · TypeError: … · 4h ago`, as much of it as the row can hold. */
+function lastIssueValue(
+  title: string | undefined,
+  shortId: string | undefined,
+  lastSeen: string | undefined,
+): string {
+  const age = timeAgo(lastSeen);
+  return [shortId, title, age ? `${age} ago` : undefined].filter(Boolean).join(" · ");
+}

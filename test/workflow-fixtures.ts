@@ -6,7 +6,8 @@
  * adding one such file each.
  */
 
-import type { Workflow, WorkflowDetector } from "~/api/workflows";
+import type { Detector } from "~/api/detectors";
+import type { Workflow } from "~/api/workflows";
 import type { Project } from "~/api/types";
 
 /**
@@ -75,10 +76,16 @@ export const workflowsFixture: Workflow[] = [
  * Projects column resolves. `900` is the org-wide detector, whose null
  * `projectId` is what "All Projects" is read from.
  */
-export const workflowDetectorsFixture: WorkflowDetector[] = [
-  { id: "501", name: "Checkout error rate", projectId: "42" },
-  { id: "502", name: "Checkout latency", projectId: "43" },
-  { id: "900", name: "Issue Stream: All Projects", projectId: null },
+export const workflowDetectorsFixture: Detector[] = [
+  { id: "501", name: "Checkout error rate", type: "error", enabled: true, projectId: "42" },
+  { id: "502", name: "Checkout latency", type: "metric_issue", enabled: true, projectId: "43" },
+  {
+    id: "900",
+    name: "Issue Stream: All Projects",
+    type: "issue_stream",
+    enabled: true,
+    projectId: null,
+  },
 ];
 
 /** `GET /organizations/{org}/projects/` — the id → slug mapping. */

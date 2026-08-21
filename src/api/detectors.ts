@@ -225,14 +225,25 @@ export interface Detector {
   type: DetectorType;
   /** A disabled detector still lists; the whole row renders muted. */
   enabled: boolean;
-  /** Null for the org-wide issue-stream detector, which we never show. */
-  projectId?: string | null;
+  /**
+   * The detector's project, or `null` for the org-wide issue-stream detector
+   * (`types/workflowEngine/detectors.tsx:178-180`). Always on the wire, and
+   * required here because `null` is load-bearing: it is what makes a workflow
+   * connected to that detector read as "All Projects".
+   */
+  projectId: string | null;
   description?: string | null;
   owner?: DetectorActor | null;
   /** Ids of the automations ("alerts") wired to this detector. */
   workflowIds?: string[];
   /** The last issue it opened, for the Last Issue column. */
   latestGroup?: DetectorGroup | null;
+  /**
+   * When it last fired. The web's `BaseDetector` types this as required, but
+   * the *list* serializer omits the key altogether — checked against cron
+   * monitors that fire hourly — so anything opened from a list row has to fall
+   * back to `latestGroup.lastSeen`.
+   */
   lastTriggered?: string | null;
   dateCreated?: string;
   dateUpdated?: string;
@@ -263,6 +274,14 @@ export const DETECTORS_PAGE_SIZE = 50;
  * recently first, which is the order that makes the list worth reading.
  */
 export const DEFAULT_DETECTOR_SORT = "-latestGroup";
+
+/**
+ * Ids per request when resolving detectors by id, matching
+ * `MAX_DETECTORS_PER_REQUEST` (`useAutomationListDetectors.ts:14`). A longer
+ * list is split across requests rather than sent as one URL the server
+ * rejects.
+ */
+export const MAX_DETECTORS_PER_REQUEST = 100;
 
 export interface ListDetectorsParams {
   org: string;
@@ -300,4 +319,123 @@ export async function listDetectors(
     },
     signal,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Open periods
+// ---------------------------------------------------------------------------
+
+/**
+ * One step inside an open period — `GroupOpenPeriodActivityResponse`
+ * (`workflow_engine/endpoints/serializers/group_open_period_serializer.py`).
+ */
+export interface OpenPeriodActivity {
+  id: string;
+  /** `opened`, `status_change`, or `closed`. */
+  type: string;
+  /** The priority the period moved to, for a `status_change`. */
+  value?: string | null;
+  dateCreated: string;
+  eventId?: string | null;
+}
+
+/**
+ * A stretch of time a detector's issue was open.
+ *
+ * The serializer answers `id`, `start`, `end`, `isOpen` and `activities` — the
+ * `duration` and `lastChecked` in the web's `GroupOpenPeriod` type are not on
+ * the wire, so a duration is computed from the two timestamps.
+ */
+export interface DetectorOpenPeriod {
+  id: string;
+  start: string;
+  /** Absent while the period is still open. */
+  end?: string | null;
+  isOpen: boolean;
+  activities?: OpenPeriodActivity[];
+}
+
+/** Open periods fetched for a detector's detail view. */
+export const OPEN_PERIODS_LIMIT = 20;
+
+export interface ListOpenPeriodsParams {
+  org: string;
+  /** The detector whose latest issue's periods to list. */
+  detectorId: string;
+  statsPeriod?: string;
+  limit?: number;
+  cursor?: string;
+  signal?: AbortSignal;
+}
+
+/**
+ * List a detector's open periods.
+ *
+ * `GET /organizations/{org}/open-periods/?detectorId=…`
+ * (`workflow_engine/endpoints/organization_open_periods.py`). The endpoint
+ * resolves the detector's *most recent* issue and answers that issue's
+ * periods, so an empty list means "this monitor has not fired", not "no data".
+ */
+export async function listDetectorOpenPeriods(
+  client: SentryClient,
+  {
+    org,
+    detectorId,
+    statsPeriod,
+    limit = OPEN_PERIODS_LIMIT,
+    cursor,
+    signal,
+  }: ListOpenPeriodsParams,
+): Promise<Page<DetectorOpenPeriod[]>> {
+  return client.request<DetectorOpenPeriod[]>(`/organizations/${org}/open-periods/`, {
+    query: { detectorId, statsPeriod, per_page: limit, cursor },
+    signal,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Resolving detectors by id
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch specific detectors by id.
+ *
+ * The workflows list carries `detectorIds` and nothing else, so its Projects
+ * column resolves them here — the same call `useAutomationListDetectors`
+ * makes. It lives with the rest of `detectors/` rather than beside its caller:
+ * one module owns this endpoint.
+ *
+ * No `query` is sent. The ids *are* the filter, and the web's shared helper
+ * only appends `!type:issue_stream` because every other caller wants that
+ * default — whereas the detector behind an org-wide workflow is exactly an
+ * issue-stream one.
+ *
+ * A failed chunk yields no detectors rather than throwing: this backs a column
+ * of metadata beside a row, and losing it should not cost the list.
+ */
+export async function listDetectorsByIds(
+  client: SentryClient,
+  { org, ids, signal }: { org: string; ids: readonly string[]; signal?: AbortSignal },
+): Promise<Detector[]> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return [];
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += MAX_DETECTORS_PER_REQUEST) {
+    chunks.push(unique.slice(i, i + MAX_DETECTORS_PER_REQUEST));
+  }
+
+  const pages = await Promise.all(
+    chunks.map((chunk) =>
+      client
+        .request<Detector[]>(`/organizations/${org}/detectors/`, {
+          query: { id: chunk, per_page: MAX_DETECTORS_PER_REQUEST },
+          signal,
+        })
+        .then((page) => (Array.isArray(page.data) ? page.data : []))
+        .catch(() => [] as Detector[]),
+    ),
+  );
+
+  return pages.flat();
 }

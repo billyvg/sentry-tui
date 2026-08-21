@@ -11,7 +11,8 @@
  *
  * A workflow says *when* to act and *what* action to take; the detectors it is
  * connected to say what it watches. Those come back as bare ids, so the
- * Projects column needs a second call — see `listWorkflowDetectors`.
+ * Projects column needs a second call — `listDetectorsByIds` in
+ * `api/detectors.ts`, which is the one module that talks to that endpoint.
  *
  * Read-only: nothing here enables, disables, or deletes a workflow.
  */
@@ -115,6 +116,13 @@ export const WORKFLOWS_PAGE_SIZE = 50;
 
 export interface ListWorkflowsParams {
   org: string;
+  /**
+   * Only workflows connected to these detectors — the `detector` query param,
+   * repeated. This is what a monitor's detail view asks for, where the web
+   * sends `automationsApiOptions(org, {detector: [detectorId]})`
+   * (`details/common/automations.tsx:74`).
+   */
+  detector?: string[];
   /** Free text, or `name:` / `action:` / `created_by:` — the endpoint's
    * `workflow_search_config` allows those three keys and free text on name. */
   query?: string;
@@ -129,6 +137,7 @@ export async function listWorkflows(
   client: SentryClient,
   {
     org,
+    detector,
     query,
     sortBy = DEFAULT_WORKFLOW_SORT,
     limit = WORKFLOWS_PAGE_SIZE,
@@ -138,6 +147,7 @@ export async function listWorkflows(
 ): Promise<Page<Workflow[]>> {
   return client.request<Workflow[]>(`/organizations/${org}/workflows/`, {
     query: {
+      detector,
       query: query || undefined,
       sortBy,
       per_page: limit,
@@ -195,68 +205,4 @@ export function workflowActionTypes(workflow: Workflow): WorkflowActionType[] {
     }
   }
   return [...seen];
-}
-
-// ---------------------------------------------------------------------------
-// Connected detectors
-// ---------------------------------------------------------------------------
-
-/**
- * The part of a detector this list needs.
- *
- * `projectId` is `null` on the org-wide `AllProjectsDetector`
- * (`types/workflowEngine/detectors.tsx:178-180`), which is what makes a
- * workflow read as "All Projects" rather than as a list of slugs.
- */
-export interface WorkflowDetector {
-  id: string;
-  name: string;
-  projectId: string | null;
-}
-
-/**
- * Ids per request to `detectors/`, matching `MAX_DETECTORS_PER_REQUEST`
- * (`useAutomationListDetectors.ts:14`). Longer id lists are split across
- * requests rather than sent as one URL the server will reject.
- */
-export const MAX_DETECTORS_PER_REQUEST = 100;
-
-/**
- * Resolve connected detector ids to the detectors themselves.
- *
- * The workflows response carries `detectorIds` and nothing else, so the
- * Projects column needs this second call — the same one
- * `useAutomationListDetectors` makes. No `query` is sent: the ids *are* the
- * filter, and the web's shared helper only appends `!type:issue_stream`
- * because every other caller wants that default, whereas the detector behind
- * an org-wide workflow is exactly an issue-stream one.
- *
- * A failed chunk yields no detectors rather than throwing: the Projects column
- * is metadata beside the row, and losing it should not cost the list.
- */
-export async function listWorkflowDetectors(
-  client: SentryClient,
-  { org, ids, signal }: { org: string; ids: readonly string[]; signal?: AbortSignal },
-): Promise<WorkflowDetector[]> {
-  const unique = [...new Set(ids)];
-  if (unique.length === 0) return [];
-
-  const chunks: string[][] = [];
-  for (let i = 0; i < unique.length; i += MAX_DETECTORS_PER_REQUEST) {
-    chunks.push(unique.slice(i, i + MAX_DETECTORS_PER_REQUEST));
-  }
-
-  const pages = await Promise.all(
-    chunks.map((chunk) =>
-      client
-        .request<WorkflowDetector[]>(`/organizations/${org}/detectors/`, {
-          query: { id: chunk, per_page: MAX_DETECTORS_PER_REQUEST },
-          signal,
-        })
-        .then((page) => (Array.isArray(page.data) ? page.data : []))
-        .catch(() => [] as WorkflowDetector[]),
-    ),
-  );
-
-  return pages.flat();
 }

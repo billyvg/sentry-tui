@@ -20,12 +20,8 @@
 
 import { useEffect, useMemo } from "react";
 
-import {
-  actionTypeLabel,
-  workflowActionTypes,
-  type Workflow,
-  type WorkflowDetector,
-} from "~/api/workflows";
+import type { Detector } from "~/api/detectors";
+import { actionTypeLabel, workflowActionTypes, type Workflow } from "~/api/workflows";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
@@ -269,7 +265,7 @@ function nameColor(row: WorkflowRow, selected: boolean): string {
 /** Resolve one workflow into the strings its row draws. */
 function toRow(
   workflow: Workflow,
-  detectorsById: ReadonlyMap<string, WorkflowDetector>,
+  detectorsById: ReadonlyMap<string, Detector>,
   detectorsLoading: boolean,
   slugById: ReadonlyMap<string, string>,
 ): WorkflowRow {
@@ -309,7 +305,7 @@ function actionsLabel(workflow: Workflow): string {
  */
 function projectsLabel(
   detectorIds: readonly string[],
-  detectorsById: ReadonlyMap<string, WorkflowDetector>,
+  detectorsById: ReadonlyMap<string, Detector>,
   detectorsLoading: boolean,
   slugById: ReadonlyMap<string, string>,
 ): string {
@@ -330,7 +326,7 @@ function projectsLabel(
   return slugs.join(", ");
 }
 
-function isDetector(detector: WorkflowDetector | undefined): detector is WorkflowDetector {
+function isDetector(detector: Detector | undefined): detector is Detector {
   return detector !== undefined;
 }
 
