@@ -76,6 +76,10 @@ export class KittySession {
       "enable_audio_bell=no",
       "-o",
       "shell_integration=disabled",
+      // No title bar: it is where macOS parks the stop-recording control during
+      // a window capture, and a terminal demo has no use for window chrome.
+      "-o",
+      "hide_window_decorations=yes",
       ...Object.entries(env).flatMap(([key, value]) => ["-o", `env=${key}=${value}`]),
       "/bin/zsh",
       "-f",

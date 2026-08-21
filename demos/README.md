@@ -12,18 +12,38 @@ VHS renders its own headless terminal, which doesn't advertise kitty graphics.
 before the app draws a single `<image>`, so under VHS the nav icons, org avatar,
 platform icons and assignee avatars all silently fall back to text. That's a
 visible chunk of the app's polish, so the harness drives a real Kitty window over
-its remote-control socket instead and captures the screen with ffmpeg.
+its remote-control socket instead, and records that window.
 
 The tape syntax is still VHS's, because it reads well and it's familiar.
+
+## Why it records a window, not the screen
+
+`screencapture -v -l<windowid>` records one window. The obvious alternative —
+`ffmpeg -f avfoundation` plus a crop rect — is worse in three separate ways, all
+of which were tried first:
+
+- It records what the **compositor** draws, so anything overlapping the window
+  ends up in the video. The crop is a fixed rect, so an occluded window yields a
+  perfectly framed recording of whatever was on top of it. That looks exactly
+  like a coordinate bug and isn't one.
+- It needs the window's position, and the obvious way to get that (System Events)
+  needs Accessibility permission granted to **`osascript`** — not to your
+  terminal — so it fails with "osascript is not allowed assistive access" no
+  matter what you tick in System Settings.
+- The position isn't stable between runs anyway, so it can't be cached.
+
+Recording by window id needs none of it: no crop, no coordinate space, no
+Accessibility, and nothing can obscure the picture. The window is opened with
+`hide_window_decorations=yes`, which also removes the title bar macOS parks the
+stop-recording control in.
 
 ## Prerequisites
 
 - **kitty** (`brew install kitty`) — the renderer.
-- **ffmpeg** (`brew install ffmpeg`) — capture and mux.
+- **ffmpeg** (`brew install ffmpeg`) — muxing and probing.
 - **Screen Recording** permission for the terminal you run this from
-  (System Settings › Privacy & Security › Screen Recording).
-- **Accessibility** permission for the same terminal, so the window can be framed
-  precisely. Optional — without it the whole screen is recorded instead.
+  (System Settings › Privacy & Security › Screen Recording). This is the only
+  permission needed.
 - `OPENAI_API_KEY`, for the narration. Put it in `demos/.env` (gitignored); Bun
   loads that automatically.
 
@@ -53,13 +73,16 @@ the binary learns to embed its assets, this shim can go.
 ## Recording
 
 ```bash
-bun run demo:calibrate   # once per machine / display — writes geometry.json
-bun run demo:tts         # synthesize narration, measure each beat
-bun run demo:record      # replay the tape into kitty, capture to build/video.mp4
-bun run demo:mux         # lay the audio on → build/demo.mp4
+bun run demo:tts      # synthesize narration, measure each beat
+bun run demo:record   # replay the tape into kitty → build/video.mov
+bun run demo:mux      # lay the audio on → build/demo.mp4
 
-bun run demo             # tts + record + mux
+bun run demo          # all three
 ```
+
+Set the org you want on camera before recording — the demo opens on whatever
+`sentry-tui` is configured for, and an org with no matching issues records an
+honest but dull "No issues match this search."
 
 ## How the timing works
 

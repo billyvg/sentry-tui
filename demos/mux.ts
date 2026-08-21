@@ -22,7 +22,7 @@ if (!(await durationsFile.exists())) {
 }
 const durations = (await durationsFile.json()) as Record<string, number>;
 
-const video = `${BUILD_DIR}/${tape.settings.output.replace(/^build\//, "")}`;
+const video = `${BUILD_DIR}/${tape.settings.output.replace(/^build\//, "").replace(/\.\w+$/, "")}.mov`;
 if (!(await file(video).exists())) {
   throw new Error(`No ${video} — run \`bun run demo:record\` first.`);
 }

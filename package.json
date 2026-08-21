@@ -42,7 +42,6 @@
     "release:cut": "bun run ./scripts/release.ts cut",
     "release:publish": "bun run ./scripts/release.ts publish",
     "release:verify": "bun run ./scripts/release.ts verify",
-    "demo:calibrate": "bun run ./demos/calibrate.ts",
     "demo:tts": "bun run ./demos/tts.ts",
     "demo:record": "bun run ./demos/record.ts",
     "demo:mux": "bun run ./demos/mux.ts",

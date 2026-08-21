@@ -10,7 +10,7 @@
 import { file } from "bun";
 import { mkdir } from "node:fs/promises";
 
-import { readGeometry, ScreenRecording } from "./lib/capture.ts";
+import { probeSize, WindowRecording } from "./lib/capture.ts";
 import { KittySession } from "./lib/kitty.ts";
 import {
   assertNotMultiplexed,
@@ -18,21 +18,22 @@ import {
   DURATIONS_PATH,
   REPO_ROOT,
   shellEnv,
-  writeShim,
   SOCKET,
   TAPE_PATH,
+  writeShim,
 } from "./lib/paths.ts";
 import { parseTape, timeline } from "./lib/tape.ts";
 
 /** Give the window time to open and the shell to draw its prompt. */
 const WARMUP_MS = 1500;
+/** Let the recorder get going before the first keystroke lands. */
+const LEAD_IN_MS = 800;
 /** Trailing pad so the final frame isn't the recorder shutting down. */
-const TAIL_MS = 1200;
+const TAIL_MS = 1500;
 
 assertNotMultiplexed();
 
 const tape = parseTape(await file(TAPE_PATH).text());
-const geometry = await readGeometry();
 
 const durationsFile = file(DURATIONS_PATH);
 const durations = (await durationsFile.exists())
@@ -47,13 +48,14 @@ if (Object.keys(durations).length === 0) {
 }
 
 await mkdir(BUILD_DIR, { recursive: true });
-const output = `${BUILD_DIR}/${tape.settings.output.replace(/^build\//, "")}`;
+// screencapture writes QuickTime; `demo:mux` copies the stream into an mp4.
+const output = `${BUILD_DIR}/${tape.settings.output.replace(/^build\//, "").replace(/\.\w+$/, "")}.mov`;
 
 const plan = timeline(tape, durations);
-const totalMs = plan.reduce((sum, entry) => sum + entry.holdMs, 0);
-console.log(
-  `Recording ${plan.length} steps, about ${(totalMs / 1000).toFixed(1)}s of screen time.`,
-);
+const tapeMs = plan.reduce((sum, entry) => sum + entry.holdMs, 0);
+// The recorder stops itself, so the limit has to cover the whole take.
+const captureSeconds = (LEAD_IN_MS + tapeMs + TAIL_MS) / 1000;
+console.log(`Recording ${plan.length} steps, about ${(tapeMs / 1000).toFixed(1)}s of screen time.`);
 
 await writeShim();
 
@@ -66,7 +68,7 @@ const kitty = await KittySession.launch({
   env: shellEnv(tape.env),
 });
 
-let recording: ScreenRecording | undefined;
+let recording: WindowRecording | undefined;
 try {
   await Bun.sleep(WARMUP_MS);
   // Wipe the login banner before anything is captured, so the tape never has to
@@ -74,10 +76,13 @@ try {
   await kitty.clearScreen();
   await Bun.sleep(500);
 
-  recording = ScreenRecording.start(geometry, output);
-  // ffmpeg needs a moment to open the device; starting the tape into a capture
-  // that hasn't begun loses the opening beat.
-  await Bun.sleep(800);
+  const windowId = await kitty.platformWindowId();
+  if (windowId === null) throw new Error("kitty did not report a window id to record.");
+
+  // One window, by id — nothing on top of it can get into the picture, and
+  // there is no rectangle to get wrong.
+  recording = WindowRecording.start(windowId, captureSeconds, output);
+  await Bun.sleep(LEAD_IN_MS);
 
   for (const { step, holdMs } of plan) {
     switch (step.kind) {
@@ -97,11 +102,11 @@ try {
     if (holdMs > 0) await Bun.sleep(holdMs);
   }
 
-  await Bun.sleep(TAIL_MS);
+  await recording.finish();
 } finally {
-  await recording?.stop();
   await kitty.close();
 }
 
-console.log(`\nWrote ${output}`);
+const size = await probeSize(output);
+console.log(`\nWrote ${output} (${size.width}×${size.height})`);
 console.log("Watch it before muxing — kitty's send-key cannot report a dropped keystroke.");
