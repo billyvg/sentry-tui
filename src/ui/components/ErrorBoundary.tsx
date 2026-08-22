@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     reportError(error, {
-      source: "react.render",
+      source: "ui.render.crashed",
       handled: false,
       // The React tree that led here, which no JS stack trace records.
       extra: { componentStack: info.componentStack },

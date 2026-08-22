@@ -21,7 +21,7 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
   });
 
   const openedAt = Date.now();
-  log("info", "session started", {
+  log("info", "app.session.started", {
     org,
     // Terminal shape decides what the app can draw, so it is the first thing
     // worth knowing when a screen looks wrong for someone and not for us.
@@ -34,7 +34,7 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     renderer.destroy();
-    log("info", "session ended", { duration_ms: Date.now() - openedAt });
+    log("info", "app.session.ended", { duration_ms: Date.now() - openedAt });
     // Only after the terminal is its own again: closing the session waits on
     // the network, capped, and must never happen behind the alternate screen.
     await shutdownTelemetry();
@@ -57,7 +57,7 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     renderer.destroy();
-    log("info", "session ended", { duration_ms: Date.now() - openedAt, reason: "update" });
+    log("info", "app.session.ended", { duration_ms: Date.now() - openedAt, reason: "update" });
     await shutdownTelemetry();
     process.stderr.write("sentry-tui: restarting into the new version…\n");
     restartInto(binaryPath);
