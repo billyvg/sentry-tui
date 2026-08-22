@@ -176,7 +176,8 @@ bun install
 ```
 
 Choose a short, descriptive branch name (e.g. `fix/sparkline-overflow`,
-`feat/replay-tab`). Clean up when the PR is merged:
+`feat/replay-tab`). Once the PR is merged, remove the worktree yourself —
+right after merging, without asking first:
 
 ```bash
 git worktree remove ../sentry-tui-<branch-name>
