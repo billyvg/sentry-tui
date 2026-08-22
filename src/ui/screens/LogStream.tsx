@@ -202,6 +202,7 @@ export function LogStream({
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
         sortLabel={entries ? `${entries.length} logs` : ""}
+        width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={state.setSelectedProjects}
         onEnvChange={state.setSelectedEnvs}

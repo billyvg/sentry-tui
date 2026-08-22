@@ -130,6 +130,7 @@ function SavedQueryResults({
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
         sortLabel={rows ? `${rows.length} results` : ""}
+        width={width}
         anchorTop={SEARCH_ROWS + 1}
         onProjectChange={state.setSelectedProjects}
         onEnvChange={state.setSelectedEnvs}
