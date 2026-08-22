@@ -63,17 +63,36 @@ run a step yourself. `--yes` skips confirmations; `--npm-dry-run` makes
    `scripts/release.ts` pins the public registry for the same reason; only
    hand-typed commands are exposed. `release:preflight` reports which registry is
    configured.
-2. **Trusted publishing, once per package.** CI authenticates to npm over
+2. **`production` deployment environment, once per repo.** The workflow's
+   `publish` job — the one that actually pushes to npm and cuts the GitHub
+   Release — runs against a GitHub Environment named `production`. Create it
+   under Settings → Environments → New environment, named exactly
+   `production`. This is what makes each release show up as a deployment in
+   the repo's Environments tab with a link to the release it produced, and
+   it's where to add protection rules later — required reviewers, a wait
+   timer, or restricting it to the `v*` tag pattern — without touching the
+   workflow file. Nothing here is required for a release to work; skipping it
+   just means the environment is created implicitly with no protection rules
+   the first time the workflow references it.
+
+3. **Trusted publishing, once per package.** CI authenticates to npm over
    OIDC rather than with a token. On npmjs.com, for each of the six published
    packages: Settings → Trusted publishing → GitHub Actions, then
 
-   | Field             | Value           |
-   | ----------------- | --------------- |
-   | Organization/user | `billyvg`       |
-   | Repository        | `sentry-tui`    |
-   | Workflow filename | `release.yml`   |
-   | Environment       | _(leave empty)_ |
-   | Allowed actions   | `npm publish`   |
+   | Field             | Value         |
+   | ----------------- | ------------- |
+   | Organization/user | `billyvg`     |
+   | Repository        | `sentry-tui`  |
+   | Workflow filename | `release.yml` |
+   | Environment       | `production`  |
+   | Allowed actions   | `npm publish` |
+
+   The `Environment` field has to match because the `publish` job runs under
+   a GitHub Environment: that changes the `sub` claim on the OIDC token GitHub
+   issues (`...:environment:production` instead of a bare ref), and npm
+   checks that claim against what's configured here. Leaving it empty — fine
+   for a job with no `environment:` key — makes npm reject this workflow's
+   token instead.
 
    The fields are case-sensitive, npm does not validate them on save, and a
    mismatch surfaces at publish time as a 404 about a package that plainly
@@ -136,6 +155,10 @@ CI takes over from the tag: the tag must match the version, then the suite runs,
 then four binaries — macOS and Linux, arm64 and x64 — each smoke-tested with
 `--help` on its own runner, then npm and the GitHub Release. Nothing
 is built until the tests pass, and nothing is published until the builds do.
+The publish step runs against the `production` environment (see
+[One-time setup](#one-time-setup)); if that environment has required
+reviewers configured, the run pauses there until someone approves it in the
+Actions UI.
 
 Doing it by hand is the same four steps:
 

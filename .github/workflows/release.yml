@@ -128,15 +128,11 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  release:
-    name: Package and publish
+  package:
+    name: Package release
     needs: [verify, test, build]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # create the GitHub Release
-      id-token: write # npm trusted publishing (OIDC), and provenance
     env:
-      VERSION: ${{ needs.verify.outputs.version }}
       DRY_RUN: ${{ needs.verify.outputs.dry_run }}
     steps:
       - name: Check out repository
@@ -161,15 +157,53 @@ jobs:
       - name: Assemble npm packages
         run: bun run build:npm --strict
 
+      # A dry run has no publish job to hand this to, so it gets the longer
+      # retention — this artifact is the whole point of running one. A real
+      # release only needs it to survive long enough to reach the publish job.
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-bundle
+          path: |
+            dist/release
+            dist/npm
+          retention-days: ${{ env.DRY_RUN == 'true' && 7 || 1 }}
+
+  # Split from `package` so only this job — the one that actually ships
+  # something — runs against the `production` environment. That's what makes
+  # the deploy show up under the repo's Environments/Deployments UI, and what
+  # lets required reviewers or a wait timer be configured on it without
+  # slowing down a dry run.
+  publish:
+    name: Publish
+    needs: [verify, package]
+    if: needs.verify.outputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.verify.outputs.version }}
+    permissions:
+      contents: write # create the GitHub Release
+      id-token: write # npm trusted publishing (OIDC), and provenance
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Download release bundle
+        uses: actions/download-artifact@v7
+        with:
+          name: release-bundle
+          path: dist
+
       # Trusted publishing needs npm 11.5.1+, and the runner image's npm is
       # whatever it happens to be. Pinning the upgrade here rather than
       # trusting the image keeps a release from turning on that lottery.
       - name: Upgrade npm for trusted publishing
-        if: env.DRY_RUN != 'true'
         run: npm install -g npm@latest
 
       - name: Publish to npm
-        if: env.DRY_RUN != 'true'
         env:
           # Fallback only. Where a package has a trusted publisher configured,
           # npm authenticates over OIDC and never reads this — which is the
@@ -178,7 +212,6 @@ jobs:
         run: .github/scripts/publish-npm.sh
 
       - name: Create GitHub Release
-        if: env.DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -187,13 +220,3 @@ jobs:
             --title "v${VERSION}" \
             --generate-notes \
             dist/release/*
-
-      - name: Upload release bundle (dry run)
-        if: env.DRY_RUN == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-bundle
-          path: |
-            dist/release
-            dist/npm
-          retention-days: 7
