@@ -22,7 +22,9 @@ export type PaletteScope =
   /** Only on the issue or log stream — search and the filter selectors. */
   | "stream"
   /** Only with an issue selected or open — the triage actions. */
-  | "issue";
+  | "issue"
+  /** Only with a newer build downloaded and waiting — restarting into it. */
+  | "update";
 
 export interface Command {
   id: string;
@@ -69,6 +71,20 @@ export const COMMANDS: readonly Command[] = [
     defaultKeys: ["ctrl+r", "R"],
     description: "Reload the current view from the API",
     palette: "always",
+  },
+  {
+    // Always bound, even with nothing to install: the help overlay prints every
+    // command that has a key, and a row that appears and disappears with the
+    // state of a download is worse than one that answers "you're on the latest
+    // version" when you press it.
+    id: "sentry.app.update",
+    title: "Restart into the update",
+    category: "app",
+    defaultKeys: ["U"],
+    description: "Restart into the downloaded update",
+    // The palette, unlike the help overlay, lists only what you can act on
+    // now — so this one appears there exactly when there is a build waiting.
+    palette: "update",
   },
   {
     id: "sentry.app.switchOrg",

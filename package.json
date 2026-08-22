@@ -1,6 +1,6 @@
 {
   "name": "sentry-tui",
-  "version": "0.2.0",
+  "version": "0.4.3",
   "private": true,
   "description": "sentry.io in your terminal — a TUI client for Sentry",
   "homepage": "https://github.com/billyvg/sentry-tui#readme",
@@ -26,7 +26,8 @@
     "format:check": "oxfmt --check .",
     "lint": "oxlint . --deny-warnings",
     "lint:fix": "oxlint . --fix",
-    "test": "bun test ./src ./test",
+    "test": "bun test ./src ./test ./demos",
+    "test:shard": "bun run ./scripts/test-shard.ts",
     "test:theme-contrast": "bun test scripts/check-theme-contrast.test.ts",
     "test:boundaries": "bun test scripts/source-boundaries.test.ts",
     "deps:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known",
@@ -41,12 +42,18 @@
     "release:cut": "bun run ./scripts/release.ts cut",
     "release:publish": "bun run ./scripts/release.ts publish",
     "release:verify": "bun run ./scripts/release.ts verify",
+    "demo:seer-prep": "bun run ./demos/seer-prep.ts",
+    "demo:tts": "bun run ./demos/tts.ts",
+    "demo:record": "bun run ./demos/record.ts",
+    "demo:mux": "bun run ./demos/mux.ts",
+    "demo": "bun run demo:tts && bun run demo:record && bun run demo:mux",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run deps:check && bun test",
     "prepare": "simple-git-hooks"
   },
   "dependencies": {
     "@opentui/core": "0.5.4",
     "@opentui/react": "0.5.4",
+    "@sentry/bun": "^10.70.0",
     "react": "^19.2.0",
     "string-width": "^8.2.2",
     "zod": "^4.4.3"

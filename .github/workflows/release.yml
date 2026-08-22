@@ -1,6 +1,6 @@
 name: Release
 
-# Tag-driven: `git tag v0.1.0 && git push origin v0.1.0`. The tag must match
+# Tag-driven: `git tag -a v0.1.0 -m v0.1.0 && git push origin v0.1.0`. The tag must match
 # `version` in package.json — the first job fails the run otherwise.
 #
 # Run it by hand first (workflow_dispatch, dry_run: true) to build and package
@@ -128,18 +128,12 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  release:
-    name: Package and publish
+  package:
+    name: Package release
     needs: [verify, test, build]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # create the GitHub Release
-      id-token: write # npm provenance
     env:
-      VERSION: ${{ needs.verify.outputs.version }}
       DRY_RUN: ${{ needs.verify.outputs.dry_run }}
-      # `secrets` is not readable from a step-level `if`, so fold it into env here.
-      HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -163,19 +157,61 @@ jobs:
       - name: Assemble npm packages
         run: bun run build:npm --strict
 
-      - name: Generate Homebrew formula
-        run: bun run build:formula
+      # A dry run has no publish job to hand this to, so it gets the longer
+      # retention — this artifact is the whole point of running one. A real
+      # release only needs it to survive long enough to reach the publish job.
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-bundle
+          path: |
+            dist/release
+            dist/npm
+          retention-days: ${{ env.DRY_RUN == 'true' && 7 || 1 }}
 
-      # Uses the npm that ships with the runner image; provenance needs the
-      # id-token permission granted above, not a particular Node version.
+  # Split from `package` so only this job — the one that actually ships
+  # something — runs against the `production` environment. That's what makes
+  # the deploy show up under the repo's Environments/Deployments UI, and what
+  # lets required reviewers or a wait timer be configured on it without
+  # slowing down a dry run.
+  publish:
+    name: Publish
+    needs: [verify, package]
+    if: needs.verify.outputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.verify.outputs.version }}
+    permissions:
+      contents: write # create the GitHub Release
+      id-token: write # npm trusted publishing (OIDC), and provenance
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Download release bundle
+        uses: actions/download-artifact@v7
+        with:
+          name: release-bundle
+          path: dist
+
+      # Trusted publishing needs npm 11.5.1+, and the runner image's npm is
+      # whatever it happens to be. Pinning the upgrade here rather than
+      # trusting the image keeps a release from turning on that lottery.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
       - name: Publish to npm
-        if: env.DRY_RUN != 'true'
         env:
+          # Fallback only. Where a package has a trusted publisher configured,
+          # npm authenticates over OIDC and never reads this — which is the
+          # whole point, since a token guarded by 2FA answers CI with EOTP.
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: .github/scripts/publish-npm.sh
 
       - name: Create GitHub Release
-        if: env.DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -184,20 +220,3 @@ jobs:
             --title "v${VERSION}" \
             --generate-notes \
             dist/release/*
-
-      - name: Update Homebrew tap
-        if: env.DRY_RUN != 'true' && env.HAS_TAP_TOKEN == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: .github/scripts/update-homebrew-tap.sh
-
-      - name: Upload release bundle (dry run)
-        if: env.DRY_RUN == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-bundle
-          path: |
-            dist/release
-            dist/npm
-            dist/homebrew
-          retention-days: 7

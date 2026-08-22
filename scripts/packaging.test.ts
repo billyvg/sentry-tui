@@ -1,25 +1,20 @@
 /**
  * Guards the distribution chain against drift.
  *
- * The platform list lives in `release-targets.ts`, but four other files repeat
+ * The platform list lives in `release-targets.ts`, but two other files repeat
  * it in their own syntax: the launcher's lookup table (plain JS, shipped to
- * npm), the release workflow's build matrix (YAML), the installer (bash), and
- * the Homebrew formula (Ruby). Nothing but these tests connects them, so a
- * target added in one place and forgotten elsewhere fails here rather than in
- * a release.
+ * npm) and the release workflow's build matrix (YAML). Nothing but these tests
+ * connects them, so a target added in one place and forgotten elsewhere fails
+ * here rather than in a release.
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
+import { APP_FIRST_CHECK_MS } from "../packaging/npm/launch.mjs";
+import { UPDATE_FIRST_CHECK_MS } from "../src/app/selfUpdate.ts";
 import { aliasManifest, launcherManifest, packageDirName, platformManifest } from "./build-npm.ts";
-import { parseChecksums, renderFormula } from "./build-formula.ts";
 import { COMMANDS } from "./release.ts";
-import {
-  ALIAS_PACKAGE,
-  ARCHIVE_EXT,
-  LAUNCHER_PACKAGE,
-  RELEASE_TARGETS,
-} from "./release-targets.ts";
+import { ALIAS_PACKAGE, LAUNCHER_PACKAGE, RELEASE_TARGETS } from "./release-targets.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -68,6 +63,47 @@ describe("npm launcher", () => {
     // show up as updates silently never happening.
     expect(buildScript).toContain('join(launcherDir, "lib/background-update.mjs")');
     expect(launcherManifest("1.2.3").files).toContain("lib");
+  });
+
+  test("it marks the process it launches, which is what unlocks the in-app update", async () => {
+    // The app offers a restart into a cached build only when it sees this, and
+    // nothing else sets it. Drop the marker and the pill silently never
+    // appears — no test in src/ would notice, because none of them run the
+    // launcher.
+    const source = await read("packaging/npm/launch.mjs");
+
+    expect(source).toContain('SENTRY_TUI_MANAGED: "1"');
+    // Every spawn of the binary, not just the happy path: the chmod retry and
+    // the fall-back-to-bundled path hand over the same terminal.
+    const spawns = [
+      ...source.matchAll(/spawnSync\((?:binary|bundled\.path), argv, (\{[^}]*\})\)/g),
+    ];
+    expect(spawns.length).toBe(3);
+    for (const [, options] of spawns) expect(options).toContain("env: childEnv()");
+  });
+
+  test("it looks for an update only once nothing of ours is running", async () => {
+    // The cadence lives in `src/app/selfUpdate.ts`; the launcher's share of it
+    // is this single call, after the child has exited. Move it back above the
+    // spawn and every launch checks twice — once here and once from inside
+    // the app — which is the arrangement #103 was filed about.
+    const source = await read("packaging/npm/launch.mjs");
+
+    const calls = [...source.matchAll(/(?<!function )startBackgroundUpdate\(/g)];
+    expect(calls.length).toBe(1);
+
+    const handover = source.indexOf("spawnSync(binary, argv");
+    expect(handover).toBeGreaterThan(-1);
+    expect(calls[0]!.index).toBeGreaterThan(handover);
+  });
+
+  test("it hands the check to the app whenever the app was up long enough", () => {
+    // The launcher cannot import the TypeScript the binary is compiled from,
+    // so it restates this one number, and gates its own check on it. Drift is
+    // silent either way: too low here and a session that quit before its first
+    // check gets no check at all, too high and both halves run. This is the
+    // only thing holding the two sides of the cadence together.
+    expect(APP_FIRST_CHECK_MS).toBe(UPDATE_FIRST_CHECK_MS);
   });
 
   test("the bin entries point at the launcher module", async () => {
@@ -143,91 +179,53 @@ describe("release workflow", () => {
     expect(workflow).toMatch(/needs: \[verify, test, build\]/);
   });
 
+  test("npm is authenticated over OIDC, not by a required token", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+    const script = await read(".github/scripts/publish-npm.sh");
+
+    // An account with 2FA on writes answers a token publish with EOTP, and no
+    // unattended job can produce a one-time password. OIDC is not subject to
+    // it, but only with `id-token: write` and npm 11.5.1+ — miss either and
+    // the failure names neither OIDC nor the missing piece.
+    expect(workflow).toContain("id-token: write");
+    expect(workflow).toContain("npm install -g npm@latest");
+
+    // A token may remain as a fallback, but requiring one puts the release
+    // back on the path that cannot work unattended.
+    expect(script).not.toContain('"${NPM_TOKEN:?');
+  });
+
+  test("a partly-published release can be re-run", async () => {
+    const script = await read(".github/scripts/publish-npm.sh");
+
+    // Six uploads, and a failure partway leaves some of them on the registry.
+    // Without this the retry dies on "cannot publish over the previously
+    // published version" and the release can never be completed.
+    expect(script).toContain("already published — skipping");
+  });
+
   test("publishing is skipped on a dry run", async () => {
     const workflow = await read(".github/workflows/release.yml");
-    const publishSteps = workflow
+
+    // Both steps that ship something live in the `publish` job, which is
+    // gated as a whole rather than step-by-step, so a dry run never enters it.
+    const publishJob = workflow.split(/^  publish:/m)[1];
+    expect(publishJob).toBeDefined();
+    expect(publishJob).toContain("if: needs.verify.outputs.dry_run != 'true'");
+
+    const publishSteps = publishJob!
       .split("      - name: ")
-      .filter((step) => /run: .*(publish-npm|gh release create|update-homebrew-tap)/s.test(step));
-
-    expect(publishSteps.length).toBe(3);
-    for (const step of publishSteps) expect(step).toContain("env.DRY_RUN != 'true'");
-  });
-});
-
-describe("install.sh", () => {
-  test("it can name every POSIX target it claims to serve", async () => {
-    const script = await read("install.sh");
-
-    for (const target of RELEASE_TARGETS) {
-      // The script builds the asset name from `${os}-${arch}`, so check the
-      // halves it maps `uname` output onto.
-      expect(script).toContain(`os="${target.os}"`);
-      expect(script).toContain(`arch="${target.cpu}"`);
-    }
-
-    expect(script).toContain("sentry-tui-${target}.tar.gz");
-    expect(script).toContain("checksums.txt");
+      .filter((step) => /run: .*(publish-npm|gh release create)/s.test(step));
+    expect(publishSteps.length).toBe(2);
   });
 
-  test("it resolves the target for the machine it runs on", () => {
-    // Sourcing it rather than running it — the guard exists for exactly this.
-    const result = Bun.spawnSync(
-      ["bash", "-c", "SENTRY_TUI_INSTALL_SH_NO_RUN=1 source install.sh; detect_target"],
-      { cwd: ROOT },
-    );
+  test("publishing runs against the production deployment environment", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+    const publishJob = workflow.split(/^  publish:/m)[1];
+    expect(publishJob).toBeDefined();
 
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout.toString()).toBe(`${process.platform}-${process.arch}`);
-  });
-
-  test("it verifies the checksum before installing", async () => {
-    const script = await read("install.sh");
-    const verifyAt = script.indexOf("checksum mismatch");
-    const installAt = script.indexOf('mv "${INSTALL_DIR}/.sentry-tui.new"');
-
-    expect(verifyAt).toBeGreaterThan(-1);
-    expect(installAt).toBeGreaterThan(verifyAt);
-  });
-});
-
-describe("homebrew formula", () => {
-  const checksums = new Map(
-    RELEASE_TARGETS.map((target, index) => [
-      `${target.asset}.${ARCHIVE_EXT}`,
-      String(index + 1).repeat(64),
-    ]),
-  );
-
-  test("it covers every target with its own url and sha", () => {
-    const formula = renderFormula("1.2.3", checksums);
-
-    for (const target of RELEASE_TARGETS) {
-      expect(formula).toContain(`${target.asset}.${ARCHIVE_EXT}`);
-      expect(formula).toContain(checksums.get(`${target.asset}.${ARCHIVE_EXT}`)!);
-    }
-
-    expect(formula).toContain('version "1.2.3"');
-    expect(formula).toContain("/download/v1.2.3/");
-    expect(formula).toContain('bin.install "sentry-tui"');
-  });
-
-  test("a missing checksum fails the build rather than shipping a blank one", () => {
-    const incomplete = new Map(checksums);
-    incomplete.delete("sentry-tui-linux-x64.tar.gz");
-
-    expect(() => renderFormula("1.2.3", incomplete)).toThrow(/sentry-tui-linux-x64/);
-  });
-
-  test("checksum parsing accepts sha256sum output", () => {
-    const parsed = parseChecksums(
-      `${"a".repeat(64)}  sentry-tui-darwin-arm64.tar.gz\n` +
-        `${"B".repeat(64)} *sentry-tui-linux-arm64.tar.gz\n` +
-        `not a checksum line\n`,
-    );
-
-    expect(parsed.get("sentry-tui-darwin-arm64.tar.gz")).toBe("a".repeat(64));
-    expect(parsed.get("sentry-tui-linux-arm64.tar.gz")).toBe("b".repeat(64));
-    expect(parsed.size).toBe(2);
+    expect(publishJob).toContain("environment:");
+    expect(publishJob).toContain("name: production");
   });
 });
 
@@ -246,6 +244,23 @@ describe("release commands", () => {
       });
 
     expect(scripted.sort()).toEqual(Object.keys(COMMANDS).sort());
+  });
+
+  test("cut annotates the tag and pushes it by name", async () => {
+    const source = await read("scripts/release.ts");
+
+    // The tag is the only thing that starts a release, and `--follow-tags`
+    // pushes annotated tags only. A lightweight `git tag` therefore rode along
+    // with the branch and never reached origin — no run, no publish, and `cut`
+    // reporting success either way. Both halves are the fix: annotate the tag,
+    // and push it as its own refspec so failing to reach origin is an error.
+    expect(source).toContain(
+      'await run(["git", "tag", "-a", `v${version}`, "-m", `v${version}`]);',
+    );
+    expect(source).toContain('await run(["git", "push", "origin", `v${version}`]);');
+    // The argv form specifically — the comment above the fix names the flag in
+    // prose, and that mention is the point rather than a regression.
+    expect(source).not.toContain('"--follow-tags"');
   });
 });
 

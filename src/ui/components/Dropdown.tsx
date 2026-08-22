@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import { matchesCommand } from "~/core/commands";
@@ -12,7 +12,7 @@ import {
   isTypingSafeUp,
   routeKeyOwnership,
 } from "~/ui/lib/keyRouting";
-import { filterByLabel } from "~/ui/lib/listFilter";
+import { filterByLabel, highlightByLabel } from "~/ui/lib/listFilter";
 import { listWindowStart } from "~/ui/lib/modalGeometry";
 
 export interface DropdownItem {
@@ -38,6 +38,8 @@ export interface DropdownProps {
   anchorTop: number;
   /** Whether "All" is a valid meta-option at the top. */
   showAll?: boolean;
+  /** Toggle values without closing the list after each selection. */
+  multiple?: boolean;
   /**
    * Give the list a filter box, focused with the search key. Worth it for a
    * list whose length is the org's doing — projects, organizations — and not
@@ -45,6 +47,23 @@ export interface DropdownProps {
    * nothing.
    */
   filterable?: boolean;
+  /**
+   * Mirror the filter box's text out as it is typed, for a parent that
+   * narrows `items` itself. Pair it with `remoteFilter`.
+   */
+  onQueryChange?: (query: string) => void;
+  /**
+   * `items` already answers the query — the box only highlights, and never
+   * drops a row. For a list narrowed somewhere that can see more of it than
+   * this component holds, i.e. by a search against the API: dropping what the
+   * local fuzzy pass disagrees with would throw the found rows away again.
+   */
+  remoteFilter?: boolean;
+  /**
+   * A fetch for the current query is out. Says so in place of the list while
+   * there is nothing to show yet, rather than calling it a miss too early.
+   */
+  loading?: boolean;
   /**
    * Cap on how wide the list may grow, for one whose labels are the org's
    * doing. A span has a few hundred attributes and the longest of them is
@@ -74,8 +93,9 @@ const MIN_FILTERABLE_WIDTH = 32;
  * A single-column dropdown list anchored at a given terminal position.
  *
  * Consumes nav keys while open so the parent list doesn't scroll. Selecting an
- * item calls `onSelect` with the new value and closes the dropdown. Escape or
- * clicking outside closes without changing the selection.
+ * item calls `onSelect` with the new value. A single-select dropdown closes;
+ * a multi-select dropdown stays open so more values can be toggled. Escape or
+ * clicking outside closes without changing the selection further.
  *
  * A `filterable` list adds a query box, which the search key focuses. It is
  * behind a key rather than focused on open because the list is navigated far
@@ -104,7 +124,11 @@ export function Dropdown({
   anchorLeft,
   anchorTop,
   showAll = true,
+  multiple = false,
   filterable = false,
+  onQueryChange,
+  remoteFilter = false,
+  loading = false,
   maxWidth,
   placeholder,
   onSelect,
@@ -113,17 +137,36 @@ export function Dropdown({
   const { width: termWidth, height: termHeight } = useTerminalDimensions();
   const platformIconWidth = usePlatformIconWidth();
   const [query, setQuery] = useState("");
+  const updateQuery = useCallback(
+    (next: string) => {
+      setQuery(next);
+      onQueryChange?.(next);
+    },
+    [onQueryChange],
+  );
   const [filterFocused, setFilterFocused] = useState(false);
+  // In a multi-select list, a controlled selection update must not move the
+  // cursor back to the first selected row after every toggle.
+  const hasSelected = useRef(false);
 
-  // Build the full option list: "All" + items.
+  // Build the full option list: "All" + items. A remote query drops the "All"
+  // row for as long as it is typed, the way filtering it locally would: the
+  // cursor resets to the top on every keystroke, so leaving it there would put
+  // "clear the filter" under the Enter that was meant to take a match.
   const allItems: DropdownItem[] = useMemo(
-    () => (showAll ? [{ label: "All", value: "__all__" }, ...items] : [...items]),
-    [showAll, items],
+    () =>
+      showAll && !(remoteFilter && query.trim())
+        ? [{ label: "All", value: "__all__" }, ...items]
+        : [...items],
+    [showAll, items, remoteFilter, query],
   );
 
   // Matched rows keep the positions the query hit, so the list can show *why*
-  // each survivor is there.
-  const visibleItems = useMemo(() => filterByLabel(allItems, query), [allItems, query]);
+  // each survivor is there. Rows narrowed elsewhere are all survivors already.
+  const visibleItems = useMemo(
+    () => (remoteFilter ? highlightByLabel(allItems, query) : filterByLabel(allItems, query)),
+    [allItems, query, remoteFilter],
+  );
 
   // Find the cursor start: the first selected item, or "All".
   const initialIndex = useMemo(() => {
@@ -137,8 +180,12 @@ export function Dropdown({
   // Reset the cursor when the rows underneath it change — an async load, or a
   // query that reranked everything so the old position means nothing.
   useEffect(() => {
-    setCursor(query.trim() ? 0 : initialIndex);
-  }, [initialIndex, query]);
+    if (query.trim()) {
+      setCursor(0);
+    } else if (!multiple || !hasSelected.current) {
+      setCursor(initialIndex);
+    }
+  }, [initialIndex, multiple, query]);
 
   useEffect(() => {
     mountedDropdowns += 1;
@@ -151,14 +198,21 @@ export function Dropdown({
     (index: number) => {
       const item = visibleItems[index]?.item;
       if (!item) return;
+      hasSelected.current = true;
       if (item.value === "__all__") {
         onSelect([]);
+      } else if (multiple) {
+        onSelect(
+          selected.includes(item.value)
+            ? selected.filter((value) => value !== item.value)
+            : [...selected, item.value],
+        );
       } else {
         onSelect([item.value]);
       }
-      onClose();
+      if (!multiple) onClose();
     },
-    [visibleItems, onSelect, onClose],
+    [visibleItems, multiple, selected, onSelect, onClose],
   );
 
   useKeyboard((key) => {
@@ -184,7 +238,7 @@ export function Dropdown({
             // Escape backs out of the filter before it backs out of the list:
             // one key to undo the search, a second to close.
             if (matchesCommand("sentry.nav.back", key)) {
-              setQuery("");
+              updateQuery("");
               setFilterFocused(false);
               return "mine";
             }
@@ -235,9 +289,11 @@ export function Dropdown({
   const placeholderRow =
     visibleItems.length > 0
       ? undefined
-      : allItems.length > 0
-        ? `No match for "${query.trim()}"`
-        : placeholder;
+      : loading
+        ? "Searching…"
+        : allItems.length > 0 || (remoteFilter && query.trim())
+          ? `No match for "${query.trim()}"`
+          : placeholder;
   const rowCount = placeholderRow ? 1 : visibleItems.length;
 
   // Geometry: the dropdown drops below the anchor, clamped to the terminal.
@@ -304,7 +360,7 @@ export function Dropdown({
               value={query}
               placeholder="filter…"
               focused={filterFocused}
-              onInput={setQuery}
+              onInput={updateQuery}
               style={{
                 flexGrow: 1,
                 textColor: theme.text,

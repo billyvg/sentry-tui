@@ -12,6 +12,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { runBunProgram } from "../test/childProgram.ts";
 import {
   acquireUpdateLock,
   bestLocal,
@@ -22,6 +23,20 @@ import {
   updatesDisabled,
   verifyIntegrity,
 } from "../packaging/npm/update.mjs";
+import {
+  APP_FIRST_CHECK_MS,
+  shouldCheckAfterRun,
+  startBackgroundUpdate,
+} from "../packaging/npm/launch.mjs";
+import {
+  canSelfUpdate,
+  type ReadyUpdate,
+  readyUpdate,
+  UPDATE_FIRST_CHECK_MS,
+  UPDATE_POLL_MS,
+  watchForUpdate,
+} from "../src/app/selfUpdate.ts";
+import { APP_VERSION } from "../src/lib/version.ts";
 
 /** A cache directory holding the given versions, each with a stub binary. */
 function cacheWith(versions: string[]): { env: Record<string, string>; dir: string } {
@@ -31,6 +46,12 @@ function cacheWith(versions: string[]): { env: Record<string, string>; dir: stri
     writeFileSync(join(dir, version, "sentry-tui"), "#!/bin/sh\nexit 0\n");
   }
   return { env: { SENTRY_TUI_CACHE_DIR: dir }, dir };
+}
+
+/** The version one patch above `version` — always an update, whatever we cut. */
+function bumped(version: string): string {
+  const [major = "0", minor = "0", patch = "0"] = version.split("-", 1)[0]!.split(".");
+  return `${major}.${minor}.${Number.parseInt(patch, 10) + 1}`;
 }
 
 /** A fetch that answers the metadata request and nothing else. */
@@ -264,5 +285,290 @@ describe("updatesDisabled", () => {
     expect(updatesDisabled({ SENTRY_TUI_NO_UPDATE: "1" })).toBe(true);
     expect(updatesDisabled({ CI: "true" })).toBe(true);
     expect(updatesDisabled({})).toBe(false);
+  });
+});
+
+describe("what the running app is offered", () => {
+  test("a cached build newer than the running one is offered, with its path", () => {
+    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    try {
+      const ready = readyUpdate(env);
+      expect(ready?.version).toBe(bumped(APP_VERSION));
+      expect(ready?.path).toBe(join(dir, bumped(APP_VERSION), "sentry-tui"));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the running version, and anything below it, is not an update", () => {
+    // The launcher leaves the build it started us on in the cache, so the
+    // common case is a cache whose newest entry is exactly what is running.
+    const { env, dir } = cacheWith(["0.0.1", APP_VERSION]);
+    try {
+      expect(readyUpdate(env)).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("an empty cache offers nothing rather than throwing", () => {
+    expect(
+      readyUpdate({ SENTRY_TUI_CACHE_DIR: join(tmpdir(), "sentry-tui-not-a-directory") }),
+    ).toBeUndefined();
+  });
+});
+
+describe("canSelfUpdate", () => {
+  const managed = { SENTRY_TUI_MANAGED: "1" };
+
+  test("only inside a process the npm launcher started", () => {
+    // Without the marker the binary was run some other way — off the releases
+    // page, say — where a restart into the cache reverts on the next launch.
+    expect(canSelfUpdate({})).toBe(false);
+    expect(canSelfUpdate(managed)).toBe(true);
+  });
+
+  test("the same opt-outs the launcher honours close it too", () => {
+    expect(canSelfUpdate({ ...managed, SENTRY_TUI_NO_UPDATE: "1" })).toBe(false);
+    expect(canSelfUpdate({ ...managed, CI: "true" })).toBe(false);
+  });
+});
+
+describe("when the app looks", () => {
+  const managed = (env: Record<string, string>) => ({ ...env, SENTRY_TUI_MANAGED: "1" });
+
+  /** Wait out a compressed schedule without pinning an exact tick count. */
+  const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  test("the cache is read straight away, before any check is due", () => {
+    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    try {
+      const seen: (ReadyUpdate | undefined)[] = [];
+      // Nothing may reach the network to produce this first answer: the build
+      // is already on disk, so the pill has to appear without asking anyone.
+      const stop = watchForUpdate((update) => seen.push(update), {
+        env: managed(env),
+        firstCheckMs: 60_000,
+        check: async () => {
+          throw new Error("checked the registry when the answer was on disk");
+        },
+      });
+
+      expect(seen.length).toBe(1);
+      expect(seen[0]?.version).toBe(bumped(APP_VERSION));
+      stop();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a real check follows shortly after, then repeats on the poll", async () => {
+    const { env, dir } = cacheWith([]);
+    try {
+      let checks = 0;
+      const stop = watchForUpdate(() => {}, {
+        env: managed(env),
+        firstCheckMs: 5,
+        pollMs: 10,
+        check: async () => {
+          checks++;
+          return undefined;
+        },
+      });
+
+      await settle(60);
+      stop();
+      // One at the first tick and several on the poll; the exact number is
+      // timer scheduling, the point is that neither waited for the real poll.
+      expect(checks).toBeGreaterThan(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the schedule it actually ships with checks long before the poll", () => {
+    // The tests above compress the numbers, so this is what ties them to the
+    // real thing: a session has to be offered a new release without sitting
+    // through a whole poll interval of it.
+    expect(UPDATE_FIRST_CHECK_MS).toBeGreaterThan(0);
+    expect(UPDATE_FIRST_CHECK_MS).toBeLessThan(UPDATE_POLL_MS / 10);
+  });
+
+  test("stopping the watch stops the checks", async () => {
+    const { env, dir } = cacheWith([]);
+    try {
+      let checks = 0;
+      const stop = watchForUpdate(() => {}, {
+        env: managed(env),
+        firstCheckMs: 1,
+        pollMs: 2,
+        check: async () => {
+          checks++;
+          return undefined;
+        },
+      });
+
+      await settle(20);
+      stop();
+      const atStop = checks;
+      await settle(20);
+      expect(checks).toBe(atStop);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a later answer of nothing withdraws the offer", async () => {
+    // `pruneCache` can delete the build under us, and an offer to restart into
+    // a path that no longer exists is worse than no offer.
+    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    try {
+      const seen: (ReadyUpdate | undefined)[] = [];
+      const stop = watchForUpdate((update) => seen.push(update), {
+        env: managed(env),
+        firstCheckMs: 1,
+        pollMs: 10_000,
+        check: async () => undefined,
+      });
+
+      await settle(20);
+      stop();
+      expect(seen[0]?.version).toBe(bumped(APP_VERSION));
+      expect(seen.at(-1)).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("nothing happens at all when the launcher did not start us", async () => {
+    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    try {
+      let checks = 0;
+      const seen: (ReadyUpdate | undefined)[] = [];
+      const stop = watchForUpdate((update) => seen.push(update), {
+        env, // no SENTRY_TUI_MANAGED
+        firstCheckMs: 1,
+        pollMs: 2,
+        check: async () => {
+          checks++;
+          return undefined;
+        },
+      });
+
+      await settle(20);
+      stop();
+      expect(seen).toEqual([]);
+      expect(checks).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("when the launcher looks", () => {
+  test("only for a child that went before the app could have checked", () => {
+    // Every command that never starts the app is over in well under a second,
+    // so this covers `--help`, `--version`, `login`, `logout` and `status`
+    // without the launcher being told what any of them are.
+    expect(shouldCheckAfterRun(0)).toBe(true);
+    expect(shouldCheckAfterRun(300)).toBe(true);
+    expect(shouldCheckAfterRun(APP_FIRST_CHECK_MS - 1)).toBe(true);
+
+    // And a session that was up long enough owned the check itself. Drop this
+    // and every interactive session checks twice, which is the half of #103
+    // that moving the call alone did not fix.
+    expect(shouldCheckAfterRun(APP_FIRST_CHECK_MS)).toBe(false);
+    expect(shouldCheckAfterRun(60 * 60 * 1000)).toBe(false);
+  });
+
+  test("it stands down rather than spawning a worker that would do nothing", () => {
+    // The launcher's own check is the other half of the cadence, and these are
+    // the cases where starting a process at all is wasted work.
+    expect(startBackgroundUpdate({ packageName: undefined, env: {} })).toBe(false);
+    expect(
+      startBackgroundUpdate({ packageName: "@billyvg/sentry-tui-darwin-arm64", env: { CI: "1" } }),
+    ).toBe(false);
+    expect(
+      startBackgroundUpdate({
+        packageName: "@billyvg/sentry-tui-darwin-arm64",
+        env: { SENTRY_TUI_NO_UPDATE: "1" },
+      }),
+    ).toBe(false);
+  });
+});
+
+/**
+ * The restart itself, from a subprocess: on the path that matters this call
+ * replaces the process, so a test running in-process would be replacing the
+ * test runner.
+ */
+describe("restartInto", () => {
+  const MODULE = join(import.meta.dirname, "..", "src", "app", "selfUpdate.ts");
+
+  /** Run `body` as a Bun program with `restartInto` and `say` in scope. */
+  function runChild(body: string, env: Record<string, string> = {}, args: string[] = []) {
+    return runBunProgram(
+      `import { writeSync } from "node:fs";\n` +
+        `import { restartInto } from ${JSON.stringify(MODULE)};\n` +
+        `const say = (line: string) => writeSync(1, line + "\\n");\n` +
+        body,
+      env,
+      args,
+    );
+  }
+
+  test("the new build takes over this process rather than running under it", () => {
+    // #101: `spawnSync` left every restart's parent suspended underneath the
+    // app, so a session that accepted three updates ended up three deep.
+    const { stdout } = runChild(
+      `say("before " + process.pid);\n` +
+        `restartInto("/bin/sh", ["-c", 'echo "after $$"; ps -o ppid= -p $$']);\n`,
+    );
+
+    const before = stdout.match(/before (\d+)/)?.[1];
+    expect(before).toBeDefined();
+    expect(stdout.match(/after (\d+)/)?.[1]).toBe(before);
+
+    // And nothing of ours is left waiting above it: the new image's parent is
+    // this test runner, exactly as it was for the Bun process it replaced.
+    expect(stdout.match(/\s*(\d+)\s*$/)?.[1]).toBe(String(process.pid));
+  });
+
+  test("it forwards this process's own arguments by default", () => {
+    // A restart has to land the user back where they were, which means the new
+    // build gets the flags the old one was started with.
+    const { stdout } = runChild(`restartInto("/bin/sh");\n`, {}, [
+      "-c",
+      'echo "$@"',
+      "sh",
+      "--org",
+      "acme",
+    ]);
+
+    expect(stdout.trim()).toBe("--org acme");
+  });
+
+  test("when the process cannot be replaced it still runs the new build", () => {
+    // The fallback is the old behaviour, kept because a restart that works and
+    // costs a stacked process beats one that does not happen at all.
+    const { stdout, exitCode } = runChild(
+      `say("before " + process.pid);\n` +
+        `restartInto("/bin/sh", ["-c", 'echo "after $$"; exit 3'], () => false);\n`,
+    );
+
+    const before = stdout.match(/before (\d+)/)?.[1];
+    expect(before).toBeDefined();
+    expect(stdout.match(/after (\d+)/)?.[1]).not.toBe(before);
+    expect(exitCode).toBe(3);
+  });
+
+  test("the fallback re-raises the signal the new build died from", () => {
+    // Ctrl-C has to look to the shell the way it would have without a restart
+    // in between, which means dying from the signal rather than reporting it.
+    const { signalCode } = runChild(
+      `restartInto("/bin/sh", ["-c", "kill -TERM $$"], () => false);\n`,
+    );
+
+    expect(signalCode).toBe("SIGTERM");
   });
 });

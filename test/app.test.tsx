@@ -203,3 +203,34 @@ test("does not overflow a narrow terminal", async () => {
     await h.cleanup();
   }
 });
+
+/**
+ * The status bar used to print `(enter) open` for every screen, having never
+ * checked that anything was listening: `App` fell back to
+ * `screen.openLabel ?? "open"` whatever the mounted screen had registered. On
+ * a stub screen, and on any list that registers no action, Enter did nothing —
+ * which reads as the app ignoring you rather than as a key that isn't bound.
+ */
+test("the status bar offers Enter only where a screen has said what it does", async () => {
+  const stub = await renderHarness(<App onQuit={() => {}} initialScreen="settings.organization" />);
+  try {
+    const frame = stub.frame();
+    // The pane is a placeholder — nothing there can be opened.
+    expect(frame).not.toContain("(enter) open");
+    // The hints that *are* true are untouched.
+    expect(frame).toContain("nav");
+    expect(frame).toContain("help");
+  } finally {
+    await stub.cleanup();
+  }
+});
+
+test("a screen that registers an open action still advertises it", async () => {
+  const h = await renderHarness(<App onQuit={() => {}} initialScreen="issues.feed" />);
+  try {
+    await h.waitForFrame((f) => f.includes("(enter) open"));
+    expect(h.frame()).toContain("(enter) open");
+  } finally {
+    await h.cleanup();
+  }
+});

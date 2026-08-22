@@ -3,7 +3,7 @@
  *
  * This table is the single source of truth for the whole distribution chain:
  * the CI build matrix, the per-platform npm packages, the launcher's lookup
- * table, the release assets, and the Homebrew formula all derive from it.
+ * table, and the release assets all derive from it.
  * `scripts/packaging.test.ts` fails if any of those drift out of step.
  */
 
@@ -16,14 +16,11 @@ export const LAUNCHER_PACKAGE = `${NPM_SCOPE}/sentry-tui`;
 /** Unscoped alias, so `npx sentry-tui` keeps working. */
 export const ALIAS_PACKAGE = "sentry-tui";
 
-/** Owner/repo the release assets and Homebrew formula point at. */
+/** Owner/repo the release assets are published under. */
 export const REPOSITORY = "billyvg/sentry-tui";
 
 /** Binary name inside every package, archive, and install directory. */
 export const BINARY_NAME = "sentry-tui";
-
-/** Archive format for the GitHub Release assets. */
-export const ARCHIVE_EXT = "tar.gz";
 
 export interface ReleaseTarget {
   /** `${process.platform}-${process.arch}` — what the launcher looks itself up by. */

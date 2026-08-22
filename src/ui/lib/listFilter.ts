@@ -46,3 +46,25 @@ export function filterByLabel<T extends LabeledItem>(
   scored.sort((a, b) => b.score - a.score);
   return scored.map(({ item, positions }) => ({ item, positions }));
 }
+
+/**
+ * Mark where `query` hit each label, keeping every item and its order.
+ *
+ * For a list somebody else has already narrowed — a picker whose rows came
+ * back from a server search. The rows are all matches by definition, so
+ * dropping the ones this fuzzy pass disagrees with would throw away the very
+ * results the search went out for; a row the server matched on a field the
+ * label doesn't show simply highlights nothing.
+ */
+export function highlightByLabel<T extends LabeledItem>(
+  items: readonly T[],
+  query: string,
+): FilteredItem<T>[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return items.map((item) => ({ item, positions: [] }));
+
+  return items.map((item) => ({
+    item,
+    positions: fuzzyMatch(item.label, needle)?.positions ?? [],
+  }));
+}

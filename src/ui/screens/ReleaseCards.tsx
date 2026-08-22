@@ -25,14 +25,13 @@ import {
   type ReleaseHealthIndex,
   type ReleaseProject,
 } from "~/api/releases";
-import { elapsedMs, errorOf, valueOf } from "~/core/async";
+import { errorOf, loadingSince, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { formatCount, timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import type { Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { useCardScrollFollow } from "~/ui/hooks/useCardScrollFollow";
-import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useReleaseHealth, useReleases } from "~/ui/hooks/useReleases";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD, ITALIC } from "~/ui/lib/attributes";
@@ -197,8 +196,7 @@ export function ReleaseCards({
   const healthPending = health === undefined && healthStatus.state === "loading";
 
   const loading = releasesStatus.state === "loading";
-  const since = releasesStatus.state === "loading" ? releasesStatus.since : undefined;
-  const elapsed = useElapsed(loading, since);
+  const since = loadingSince(releasesStatus);
 
   useEffect(() => {
     if (releases) setEntries(releases);
@@ -207,14 +205,14 @@ export function ReleaseCards({
   useEffect(() => {
     setStatus({
       loading,
-      elapsedMs: elapsed ?? elapsedMs(releasesStatus, Date.now()),
+      since,
       // A failed health request is worth saying out loud: the cards render
       // fine without it, so the only other signal would be three columns of
       // em-dashes that look like absent data rather than a failed fetch.
       error: listError?.message ?? (healthError ? `health: ${healthError.message}` : undefined),
       noun: "releases",
     });
-  }, [loading, elapsed, listError, healthError, releasesStatus, setStatus]);
+  }, [loading, since, listError, healthError, releasesStatus, setStatus]);
 
   const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
 

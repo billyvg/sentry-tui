@@ -13,8 +13,8 @@ import {
 } from "~/core/palette";
 import { findTriageAction } from "~/core/triage";
 
-const EVERYTHING: PaletteContext = { streamView: true, hasIssue: true };
-const BARE: PaletteContext = { streamView: false, hasIssue: false };
+const EVERYTHING: PaletteContext = { streamView: true, hasIssue: true, updateReady: true };
+const BARE: PaletteContext = { streamView: false, hasIssue: false, updateReady: false };
 
 const labels = (context: PaletteContext) => buildPaletteActions(context).map((a) => a.label);
 
@@ -43,9 +43,16 @@ describe("buildPaletteActions", () => {
     // Triage needs an issue; search and the filters need a stream on screen.
     expect(labels(BARE)).not.toContain("Resolve");
     expect(labels(BARE)).not.toContain("Search");
-    expect(labels({ streamView: true, hasIssue: false })).toContain("Search");
-    expect(labels({ streamView: true, hasIssue: false })).not.toContain("Resolve");
-    expect(labels({ streamView: false, hasIssue: true })).toContain("Resolve");
+    expect(labels({ ...BARE, streamView: true })).toContain("Search");
+    expect(labels({ ...BARE, streamView: true })).not.toContain("Resolve");
+    expect(labels({ ...BARE, hasIssue: true })).toContain("Resolve");
+  });
+
+  test("the update command is offered only once a build is waiting", () => {
+    // Nothing downloaded means restarting would do nothing, and the palette
+    // lists only what you can act on now.
+    expect(labels(BARE)).not.toContain("Restart into the update");
+    expect(labels({ ...BARE, updateReady: true })).toContain("Restart into the update");
   });
 
   test("unscoped commands are never offered", () => {

@@ -707,11 +707,9 @@ function slowMetricsClient() {
 }
 
 describe("sibling isolation", () => {
-  // Hangs on CI, passes locally every time — see issue #66. Skipped rather
-  // than deleted: this is the test that caught four Explore screens sharing a
-  // component and slot, so Metrics painted Traces' rows until its own fetch
-  // landed.
-  test.skipIf(Boolean(process.env.CI))(
+  // This is the test that caught four Explore screens sharing a component and
+  // slot, so Metrics painted Traces' rows until its own fetch landed.
+  test(
     "a sibling screen never shows the previous one's rows or chart",
     async () => {
       const h = await renderTable(slowMetricsClient(), "Traces");
@@ -752,18 +750,20 @@ describe("sibling isolation", () => {
 // ---------------------------------------------------------------------------
 
 describe("narrow terminals", () => {
-  // `FilterBar` wraps its row into a column of one-word fragments below about
-  // 90 columns unless it is given a width — the fix came from
-  // `feat/releases-profiles` verbatim, and this is the caller-side half.
+  // `FilterBar` needs the pane width to fit its labels before rendering; this
+  // is the caller-side proof that a narrow app still supplies the right one.
   test.each([80, 100])("the filter row stays one line at %i columns", async (width) => {
     const h = await renderTable(stubClient(), "Traces", width, 32);
     try {
-      await h.waitForFrame((f) => f.includes("all projects"));
+      await h.waitForFrame((f) => f.includes("Sort: 6 spans"));
 
       const lines = h.frame().split("\n");
-      const chipRow = lines.findIndex((line) => line.includes("all projects"));
+      const chipRow = lines.findIndex((line) => line.includes("(P)"));
       expect(chipRow).toBeGreaterThan(-1);
-      expect(lines[chipRow]).toContain("all envs");
+      expect(lines[chipRow]).toContain("(E)");
+      expect(lines[chipRow]).toContain("(D)");
+      expect(lines[chipRow]).toContain("Sort: 6 spans");
+      if (width === 80) expect(lines[chipRow]!.match(/…/g)).toHaveLength(2);
 
       // The symptom of the wrap is what this pins: the sort label spilling one
       // fragment per line down the pane. Read from the chip's own column so

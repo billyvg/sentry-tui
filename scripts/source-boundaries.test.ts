@@ -6,6 +6,7 @@
  * - src/lib/ files importing from anywhere else in src/
  * - circular re-exports between api/ and core/
  * - UI components importing store internals directly
+ * - a second animation clock appearing anywhere in the UI
  */
 import { test, expect, describe } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
@@ -49,25 +50,35 @@ function importsFrom(importPath: string, srcDir: string): boolean {
   return importPath.startsWith(`~/${srcDir}/`) || importPath.startsWith(`~/${srcDir}`);
 }
 
+/**
+ * Every `~/` import out of `dir` that doesn't land in one of `allowed`.
+ *
+ * Shared by the two leaf tiers: `lib` may reach nowhere in `src/`, `telemetry`
+ * may reach `lib` and nothing else.
+ */
+async function leafViolations(dir: string, allowed: string[], known = new Set<string>()) {
+  const violations: string[] = [];
+
+  for await (const file of walkTs(join(SRC, dir))) {
+    const source = await readFile(file, "utf8");
+    for (const imp of extractImports(source)) {
+      if (!imp.startsWith("~/")) continue;
+      if (allowed.some((tier) => importsFrom(imp, tier))) continue;
+      const violation = `${relative(SRC, file)}: imports ${imp}`;
+      if (!known.has(violation)) violations.push(violation);
+    }
+  }
+
+  return violations;
+}
+
 describe("source boundaries", () => {
   test("src/lib/ does not import from other src/ directories", async () => {
-    const violations: string[] = [];
-    const libDir = join(SRC, "lib");
+    expect(await leafViolations("lib", ["lib"], KNOWN_LIB_VIOLATIONS)).toEqual([]);
+  });
 
-    for await (const file of walkTs(libDir)) {
-      const source = await readFile(file, "utf8");
-      const imports = extractImports(source);
-      for (const imp of imports) {
-        if (imp.startsWith("~/") && !importsFrom(imp, "lib")) {
-          const v = `${relative(SRC, file)}: imports ${imp}`;
-          if (!KNOWN_LIB_VIOLATIONS.has(v)) {
-            violations.push(v);
-          }
-        }
-      }
-    }
-
-    expect(violations).toEqual([]);
+  test("src/telemetry/ imports nothing above src/lib/", async () => {
+    expect(await leafViolations("telemetry", ["telemetry", "lib"])).toEqual([]);
   });
 
   test("src/api/ does not import from core/ or ui/", async () => {
@@ -102,5 +113,41 @@ describe("source boundaries", () => {
     }
 
     expect(violations).toEqual([]);
+  });
+});
+
+describe("animation clocks", () => {
+  /**
+   * The status bar is the only thing in the app allowed to animate.
+   *
+   * A `setInterval` in a screen re-renders that screen — table and all — on
+   * every tick, which is how a loading Replays list came to redraw twenty
+   * skeleton rows ten times a second. It also stops React's `act()` from ever
+   * settling in tests, because a flush pass that costs more than the interval
+   * always finds fresh work waiting: #98 and #66 were both that.
+   *
+   * Anything that needs to re-render while a request is in flight belongs in
+   * the status bar, riding the spinner's tick.
+   */
+  /**
+   * Intervals that are not render clocks: they tick on a timescale where the
+   * cost of a re-render does not arise, and add one to the list only for
+   * another of those.
+   */
+  const NOT_A_RENDER_CLOCK = new Set([
+    // Every `UPDATE_POLL_MS`, and inert unless the npm launcher started us.
+    join("ui", "hooks", "useUpdateCheck.ts"),
+  ]);
+
+  test("only the spinner drives one", async () => {
+    const offenders: string[] = [];
+    for await (const file of walkTs(join(SRC, "ui"))) {
+      const path = relative(SRC, file);
+      if (path === join("ui", "components", "Spinner.tsx")) continue;
+      if (NOT_A_RENDER_CLOCK.has(path)) continue;
+      if (/\bsetInterval\s*\(/.test(await readFile(file, "utf8"))) offenders.push(path);
+    }
+
+    expect(offenders).toEqual([]);
   });
 });

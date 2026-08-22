@@ -20,17 +20,10 @@ Next: command palette, org/project switcher, and the remaining nav sections.
 
 ## Install
 
-Every route below installs the same self-contained binary — no Bun, Node, or
-npm needed at runtime.
+npm installs a self-contained binary — no Bun or Node needed at runtime.
 
 ```bash
-# Homebrew
-brew install billyvg/tap/sentry-tui
-
-# Shell installer → ~/.local/bin (set SENTRY_TUI_INSTALL_DIR to change that)
-curl -fsSL https://raw.githubusercontent.com/billyvg/sentry-tui/main/install.sh | bash
-
-# npm — one-off, or installed globally
+# one-off, or installed globally
 npx sentry-tui
 npm install -g sentry-tui
 ```
@@ -42,15 +35,37 @@ than four. Binaries are also attached to every
 
 The npm install **keeps itself current**. Launching starts the app
 immediately on the build you already have, and a background process fetches
-anything newer for next time — so a release reaches you without `npm i -g`
-again, and without ever making you wait on a 24MB download. Nothing about
-starting the app touches the network. Set `SENTRY_TUI_NO_UPDATE=1` to pin
-whatever you have; `CI` is treated the same way. Homebrew and the shell
-installer do not self-update — `brew upgrade` and re-running `install.sh` are
-their update paths.
+anything newer — so a release reaches you without `npm i -g` again, and
+without ever making you wait on a 24MB download. Nothing about starting the
+app touches the network.
+
+When a new build has finished downloading, a bold pink **Update** appears in
+the bottom-left corner. Click it or press `U` and the app restarts into it on
+the spot; ignore it and you get the new version next launch either way. The
+app looks again every 15 minutes while it is open, and only ever offers a build
+it
+has already downloaded.
+
+Set `SENTRY_TUI_NO_UPDATE=1` to pin whatever you have; `CI` is treated the same
+way. A binary downloaded by hand from the releases page never updates itself,
+and says so by not offering — replace it the same way you got it.
 
 Supported: macOS and Linux, on arm64 and x64. Windows and musl-based Linux
 (Alpine) aren't built — run from source there.
+
+### Crash reporting
+
+sentry-tui reports **its own** crashes to Sentry, which is how bugs that only
+happen on someone else's terminal ever get fixed. What goes: the error and its
+stack, the screen you were on, the Sentry API calls leading up to it, how long
+they took, your OS and terminal details, and — so a report can be followed up —
+the account and organization you're signed in to. It also logs what the app
+did along the way: which screens were opened and how quickly, and which
+requests the server refused. What never goes: your auth token, anything you
+typed into a search box, and the contents of your issues.
+
+Set `SENTRY_TUI_NO_TELEMETRY=1` to turn it off. It is also off automatically
+when `CI` is set, and when running from source.
 
 ### From source
 

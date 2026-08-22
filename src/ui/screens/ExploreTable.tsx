@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { rowNumber } from "~/api/discover";
 import type { ExploreEvent } from "~/api/exploreEvents";
-import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { matchesCommand } from "~/core/commands";
 import {
   defaultExploreQuery,
@@ -51,7 +51,6 @@ import {
 } from "~/ui/components/ExploreQueryBar";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInput } from "~/ui/components/SearchInput";
-import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useExploreEvents } from "~/ui/hooks/useExploreEvents";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { useTraceItemAttributes } from "~/ui/hooks/useTraceItemAttributes";
@@ -131,8 +130,7 @@ function ExploreTableScreen({
   });
 
   const loading = events.state === "loading";
-  const since = events.state === "loading" ? events.since : undefined;
-  const elapsed = useElapsed(loading, since);
+  const since = loadingSince(events);
 
   const rows = valueOf(events);
   const error = errorOf(events);
@@ -145,11 +143,11 @@ function ExploreTableScreen({
   useEffect(() => {
     setStatus({
       loading,
-      elapsedMs: elapsed ?? elapsedMs(events, Date.now()),
+      since,
       error: error?.message,
       noun: table.noun,
     });
-  }, [loading, elapsed, error, events, setStatus, table.noun]);
+  }, [loading, since, error, events, setStatus, table.noun]);
 
   const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
   const closeQueryDropdown = useCallback(() => setQueryDropdown(null), []);

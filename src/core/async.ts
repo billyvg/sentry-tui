@@ -8,6 +8,7 @@
  */
 
 import { ApiError } from "~/api/client";
+import { reportError } from "~/telemetry/index";
 
 export interface AsyncError {
   message: string;
@@ -22,6 +23,11 @@ export interface AsyncError {
  * An `ApiError` already knows whether it is worth retrying; anything else is a
  * surprise, and surprises are assumed transient so the user gets a retry hint
  * rather than a dead end.
+ *
+ * That second branch is also the one worth reporting. A response the client
+ * accepted but a normalizer choked on is a bug in sentry-tui — invisible
+ * otherwise, since the UI shows one line and moves on. `ApiError`s are left
+ * alone here: the client already decides which of those deserve a report.
  */
 export function toAsyncError(error: unknown): AsyncError {
   if (error instanceof ApiError) {
@@ -31,10 +37,24 @@ export function toAsyncError(error: unknown): AsyncError {
       retryAfterSeconds: error.retryAfterSeconds,
     };
   }
+
+  if (!isAbort(error)) reportError(error, { source: "api.response.unreadable" });
+
   return {
     message: error instanceof Error ? error.message : String(error),
     retryable: true,
   };
+}
+
+/**
+ * A superseded or timed-out request, not a fault.
+ *
+ * Callers guard against these before they get here, but a fetch that a caller
+ * forgot to guard would otherwise report on every keystroke.
+ */
+function isAbort(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === "AbortError" || error.name === "TimeoutError";
 }
 
 export type AsyncStatus<T> =
@@ -94,7 +114,13 @@ export function errorOf<T>(status: AsyncStatus<T> | undefined): AsyncError | und
   return status?.state === "error" ? status.error : undefined;
 }
 
-/** How long the current load has been running, for the status bar. */
-export function elapsedMs<T>(status: AsyncStatus<T> | undefined, now: number): number | undefined {
-  return status?.state === "loading" ? now - status.since : undefined;
+/**
+ * When the current load started, for the status bar to count up from.
+ *
+ * The bar is handed the start time rather than an elapsed duration on purpose:
+ * a duration has to be recomputed on a timer, and a timer in a screen re-renders
+ * the screen. Only the bar itself needs to tick.
+ */
+export function loadingSince<T>(status: AsyncStatus<T> | undefined): number | undefined {
+  return status?.state === "loading" ? status.since : undefined;
 }

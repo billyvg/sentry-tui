@@ -63,7 +63,7 @@ function savedViewStream(row: SavedViewRow): ViewStackEntry {
       query: row.view.query,
       sort: row.view.querySort,
       statsPeriod: row.statsPeriod,
-      selectedProjects: row.projectSlugs,
+      selectedProjects: row.projectIds,
       selectedEnvs: row.view.environments,
     },
     render: (ctx) =>

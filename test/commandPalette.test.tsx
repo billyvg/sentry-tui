@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
+import { APP_VERSION } from "~/lib/version";
 import { App } from "~/ui/App";
 import { groupsFixture } from "./fixtures";
 import { renderHarness, type Harness } from "./helpers";
@@ -109,7 +110,10 @@ test("enter on a filtered destination navigates the content pane", async () => {
 
     const frame = h.frame();
     expect(frame).not.toContain("Command palette");
-    expect(frame).toContain("Monitors › All Monitors");
+    // Monitors › All Monitors is a real screen now, so the pane shows its
+    // heading and its table rather than the placeholder's breadcrumb.
+    expect(frame).toContain("All Monitors");
+    expect(frame).toContain("Last Issue");
   } finally {
     await h.cleanup();
   }
@@ -269,6 +273,36 @@ test("the status bar advertises the palette", async () => {
   const h = await renderApp();
   try {
     expect(h.frame()).toContain("commands");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the palette footer shows the build version", async () => {
+  const h = await renderApp();
+  try {
+    await openPalette(h);
+    const frame = h.frame();
+    expect(frame).toContain(`v${APP_VERSION}`);
+    // Right-cornered: the hint keeps the footer's left edge to itself.
+    expect(frame).toMatch(/esc close\s+v\d+\.\d+\.\d+/);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the palette footer sits on the bottom border, with the gap above it", async () => {
+  const h = await renderApp();
+  try {
+    await openPalette(h);
+    const lines = h.frame().split("\n");
+    const footer = lines.findIndex((line) => line.includes(`v${APP_VERSION}`));
+    expect(footer).toBeGreaterThan(0);
+
+    // Nothing between the footer and the frame's bottom edge.
+    expect(lines[footer + 1]).toContain("└");
+    // The blank line moved above it, between the last result and the footer.
+    expect(lines[footer - 1]).not.toMatch(/Explore|Issues|Insights/);
   } finally {
     await h.cleanup();
   }

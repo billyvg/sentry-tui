@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SentryClient } from "~/api/client";
 import { listEnvironments, type Environment } from "~/api/issues";
 import { theme } from "~/core/theme";
-import { measureTextWidth } from "~/lib/text";
+import { fitText, measureTextWidth } from "~/lib/text";
 import {
   ChipRow,
   CHIP_GAP,
@@ -13,7 +13,7 @@ import {
   type ChipSpec,
 } from "~/ui/components/Chip";
 import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
-import { useProjects } from "~/ui/hooks/useProjects";
+import { useProjectSearch } from "~/ui/hooks/useProjects";
 
 /**
  * Rows the search box occupies: its input line plus the border above and
@@ -38,23 +38,51 @@ const CHIP_ORDER = ["project", "env", "date"] as const satisfies ReadonlyArray<
   Exclude<FilterDropdownType, null>
 >;
 
+/** One ellipsis cell for each dynamic filter label. */
+const MIN_FITTED_LABEL_WIDTH = 1;
+
+/**
+ * Share a cell budget fairly, then give any cells a short label did not need
+ * to the longer one.
+ */
+function filterLabelWidths(
+  projectLabel: string,
+  envLabel: string,
+  budget: number,
+): [project: number, environment: number] {
+  const available = Math.max(0, Math.floor(budget));
+  const projectWanted = measureTextWidth(projectLabel);
+  const envWanted = measureTextWidth(envLabel);
+  let project = Math.min(projectWanted, Math.ceil(available / 2));
+  let environment = Math.min(envWanted, Math.floor(available / 2));
+  const spare = available - project - environment;
+
+  if (project === projectWanted) {
+    environment += Math.min(spare, envWanted - environment);
+  } else if (environment === envWanted) {
+    project += Math.min(spare, projectWanted - project);
+  }
+
+  return [project, environment];
+}
+
 export interface FilterBarProps {
   client: SentryClient | null;
   org: string;
   /** Which dropdown is open (null = none). Owned by the parent for key routing. */
   openDropdown: FilterDropdownType;
-  /** Selected project slugs (empty = all). */
+  /**
+   * Selected project refs, empty for all — a slug from this component's own
+   * dropdown, or a numeric id from a saved view. Resolved to slugs for display.
+   */
   selectedProjects: string[];
   /** Selected environment names (empty = all). */
   selectedEnvs: string[];
   /** Selected stats period. */
   statsPeriod: string;
   sortLabel: string;
-  /**
-   * Cells the row has. Given one, the sort label is dropped when the chips
-   * leave no room for it; without one the label is clipped instead.
-   */
-  width?: number;
+  /** Cells the row has, used to fit its labels without overflowing. */
+  width: number;
   /**
    * Row offset from the top of the terminal where the filter bar area starts.
    * The component adds its own leading gap when placing dropdowns.
@@ -66,6 +94,29 @@ export interface FilterBarProps {
   onDropdownClose: () => void;
   /** Open a dropdown by clicking its chip; the keyboard route lives in `App`. */
   onDropdownOpen?: (which: FilterDropdownType) => void;
+}
+
+/**
+ * How many `FilterBar`s are mounted.
+ *
+ * `P` / `E` / `D` are in the command table for every screen, but only a screen
+ * that renders a filter row can answer them — it is the thing that mounts the
+ * `Dropdown`. Opening one on a screen without a filter row used to leave
+ * `openDropdown` set with nothing on screen to clear it, and because the
+ * router hands every key to the focused widget while a dropdown is open, the
+ * app stopped answering the keyboard at all.
+ *
+ * The router asks this before setting the state, so those keys are a no-op on
+ * a screen with no filter row rather than a mode with no exit. Checking the
+ * mount rather than the state is what makes it race-free: a filter row is part
+ * of its screen's render and is already there when the key arrives, unlike the
+ * `Dropdown` the key itself is what mounts.
+ */
+let mountedFilterBars = 0;
+
+/** Is a filter row on screen to answer the filter keys? */
+export function isFilterBarMounted(): boolean {
+  return mountedFilterBars > 0;
 }
 
 /**
@@ -89,11 +140,29 @@ export function FilterBar({
   onDropdownClose,
   onDropdownOpen,
 }: FilterBarProps) {
-  const projects = useProjects(client, org);
+  // What has been typed into the project picker, held here rather than inside
+  // the dropdown because the search that answers it goes to the API.
+  const [projectQuery, setProjectQuery] = useState("");
+  const { projects, loading: projectsLoading } = useProjectSearch(client, org, projectQuery);
   const [environments, setEnvironments] = useState<Environment[]>([]);
 
-  // Fetch environments once when the client is available; projects come from
-  // the shared hook, which the saved-views screen reads too.
+  // Counted here so the router can ask whether a filter row is on screen
+  // before it opens one of these dropdowns.
+  useEffect(() => {
+    mountedFilterBars += 1;
+    return () => {
+      mountedFilterBars -= 1;
+    };
+  }, []);
+
+  // A closed picker holds no query, so reopening it starts on the full list
+  // rather than on whatever the last visit narrowed it to.
+  useEffect(() => {
+    if (openDropdown !== "project") setProjectQuery("");
+  }, [openDropdown]);
+
+  // Fetch environments once when the client is available. Short enough that
+  // one request holds them all, unlike the projects above.
   useEffect(() => {
     if (!client) return;
     const controller = new AbortController();
@@ -109,56 +178,85 @@ export function FilterBar({
   // project is picked, what the API takes, and what a filter query is typed
   // against — a second name for the same row only makes the list harder to
   // scan.
-  const projectItems: DropdownItem[] = useMemo(
-    () =>
-      projects.map((p) => ({
-        label: p.slug,
-        value: p.slug,
-        platform: p.platform ?? null,
-      })),
-    [projects],
-  );
+  // A selected project always has a row, even when the search that is showing
+  // has nothing to do with it: the picker opens on the selection, and one
+  // outside the fetched set would otherwise lose both its dot and the cursor.
+  const projectItems: DropdownItem[] = useMemo(() => {
+    const items = projects.map((p) => ({
+      label: p.slug,
+      value: p.slug,
+      platform: p.platform ?? null,
+    }));
+    const listed = new Set(items.map((item) => item.value));
+    const missing = projectQuery.trim()
+      ? []
+      : selectedProjects
+          .filter((slug) => !listed.has(slug))
+          .map((slug) => ({ label: slug, value: slug, platform: null }));
+    return [...missing, ...items];
+  }, [projects, selectedProjects, projectQuery]);
 
   const envItems: DropdownItem[] = useMemo(
     () => environments.map((e) => ({ label: e.name, value: e.name })),
     [environments],
   );
 
-  const projectLabel =
-    selectedProjects.length === 0
-      ? "all projects"
-      : selectedProjects.length === 1
-        ? selectedProjects[0]!
-        : `${selectedProjects.length} projects`;
+  // A ref may be an id (a saved view's form) or a slug (the dropdown's), and
+  // only slugs are worth showing or matching a dropdown row against. An id
+  // that resolves to nothing is left as it stands rather than dropped — the
+  // filter *is* applied, so hiding it would be the lie the id form exists to
+  // avoid. Before the project list lands nothing resolves, and the chip
+  // settles on the slug a moment later.
+  const selectedSlugs = useMemo(() => {
+    const slugById = new Map(projects.map((p) => [p.id, p.slug]));
+    return selectedProjects.map((ref) => slugById.get(ref) ?? ref);
+  }, [projects, selectedProjects]);
 
-  const envLabel =
-    selectedEnvs.length === 0
-      ? "all envs"
-      : selectedEnvs.length === 1
-        ? selectedEnvs[0]!
-        : `${selectedEnvs.length} envs`;
+  const fullProjectLabel = selectedSlugs.length === 0 ? "all projects" : selectedSlugs.join(", ");
+  const fullEnvLabel = selectedEnvs.length === 0 ? "all envs" : selectedEnvs.join(", ");
+
+  const projectChip: ChipSpec = {
+    command: "sentry.view.filterProject",
+    label: fullProjectLabel,
+    caret: true,
+  };
+  const envChip: ChipSpec = {
+    command: "sentry.view.filterEnv",
+    label: fullEnvLabel,
+    caret: true,
+  };
+  const dateChip: ChipSpec = {
+    command: "sentry.view.filterDate",
+    label: statsPeriod,
+    caret: true,
+  };
+
+  // The chip frames, keys, gaps and date are fixed. Sort gets the next claim
+  // on the row; the two org-owned labels fairly share what remains.
+  const fixedWidth =
+    chipWidth({ ...projectChip, label: "" }) +
+    chipWidth({ ...envChip, label: "" }) +
+    chipWidth(dateChip) +
+    CHIP_GAP * 2;
+  const sortText = `Sort: ${sortLabel}`;
+  const sortWidth = sortLabel.length > 0 ? CHIP_GAP + measureTextWidth(sortText) : 0;
+  const showSort =
+    sortLabel.length > 0 && width >= fixedWidth + sortWidth + MIN_FITTED_LABEL_WIDTH * 2;
+  const labelBudget = width - fixedWidth - (showSort ? sortWidth : 0);
+  const [projectLabelWidth, envLabelWidth] = filterLabelWidths(
+    fullProjectLabel,
+    fullEnvLabel,
+    labelBudget,
+  );
 
   // The filter row is three chips; each dropdown drops from its own left edge.
   const chips: ChipSpec[] = [
-    { command: "sentry.view.filterProject", label: projectLabel, caret: true },
-    { command: "sentry.view.filterEnv", label: envLabel, caret: true },
-    { command: "sentry.view.filterDate", label: statsPeriod, caret: true },
+    { ...projectChip, label: fitText(fullProjectLabel, projectLabelWidth) },
+    { ...envChip, label: fitText(fullEnvLabel, envLabelWidth) },
+    dateChip,
   ];
   const offsets = chipOffsets(chips);
   const [projectAnchorLeft = 0, envAnchorLeft = 0, dateAnchorLeft = 0] = offsets;
-
-  /**
-   * The sort label, or nothing when the chips already fill the row.
-   *
-   * Below about 90 columns the two together are wider than the pane. The label
-   * is the half worth losing — it restates a count the status bar also carries
-   * — and dropping it beats a truncated fragment of one.
-   */
-  const sortText = `Sort: ${sortLabel}`;
-  const chipsWidth = (offsets.at(-1) ?? 0) + chipWidth(chips.at(-1)!);
-  const showSort =
-    sortLabel.length > 0 &&
-    (width === undefined || chipsWidth + CHIP_GAP + measureTextWidth(sortText) <= width);
   // A dropdown hangs off the bottom edge of its chip. The chip's own height
   // now covers the whole row, sliver edges included, so clearing it clears
   // everything — an overlay pinned any higher would paint over the pill's
@@ -168,17 +266,15 @@ export function FilterBar({
   const handleProjectSelect = useCallback(
     (values: string[]) => {
       onProjectChange(values);
-      onDropdownClose();
     },
-    [onProjectChange, onDropdownClose],
+    [onProjectChange],
   );
 
   const handleEnvSelect = useCallback(
     (values: string[]) => {
       onEnvChange(values);
-      onDropdownClose();
     },
-    [onEnvChange, onDropdownClose],
+    [onEnvChange],
   );
 
   const handleDateSelect = useCallback(
@@ -192,12 +288,9 @@ export function FilterBar({
   return (
     <>
       {/*
-       * Pinned to one line and clipped. Below about 90 columns the chips and
-       * the sort label together are wider than the pane, and a `<text>` that
-       * doesn't fit wraps — which turned the filter row into an eight-line
-       * column of one-word fragments that pushed the list off screen. The
-       * label is the half worth losing: it restates a count the status bar
-       * also carries.
+       * Pinned to one line and clipped. The two org-owned labels are fitted to
+       * the measured row before rendering; on a terminal too narrow for even
+       * their ellipses plus Sort, Sort is the part that yields.
        */}
       <box
         style={{
@@ -224,13 +317,19 @@ export function FilterBar({
         <Dropdown
           title="Project"
           items={projectItems}
-          selected={selectedProjects}
+          selected={selectedSlugs}
           anchorLeft={projectAnchorLeft}
           anchorTop={dropdownTop}
-          // An org's project list runs to hundreds of rows; the environment
-          // and date lists are a handful each, so only this one is worth a row
-          // of filter box.
+          // An org's project list runs to hundreds of rows — more than one
+          // page holds, so this box searches the API rather than only what
+          // came back. The environment and date lists are a handful each, so
+          // neither is worth a row of filter box.
           filterable
+          remoteFilter
+          multiple
+          loading={projectsLoading}
+          onQueryChange={setProjectQuery}
+          placeholder="No projects"
           onSelect={handleProjectSelect}
           onClose={onDropdownClose}
         />
@@ -243,6 +342,7 @@ export function FilterBar({
           selected={selectedEnvs}
           anchorLeft={envAnchorLeft}
           anchorTop={dropdownTop}
+          multiple
           onSelect={handleEnvSelect}
           onClose={onDropdownClose}
         />

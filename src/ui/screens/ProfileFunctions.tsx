@@ -16,13 +16,12 @@ import { useCallback, useEffect, useRef } from "react";
 import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
 import type { ProfileFunction } from "~/api/profileFunctions";
-import { elapsedMs, errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { theme } from "~/core/theme";
 import { formatCount } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
-import { useElapsed } from "~/ui/hooks/useElapsed";
 import { useProfileFunctions } from "~/ui/hooks/useProfileFunctions";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
@@ -165,8 +164,7 @@ export function ProfileFunctions({
   });
 
   const loading = status.state === "loading";
-  const since = status.state === "loading" ? status.since : undefined;
-  const elapsed = useElapsed(loading, since);
+  const since = loadingSince(status);
 
   const functions = valueOf(status);
   const error = errorOf(status);
@@ -178,11 +176,11 @@ export function ProfileFunctions({
   useEffect(() => {
     setStatus({
       loading,
-      elapsedMs: elapsed ?? elapsedMs(status, Date.now()),
+      since,
       error: error?.message,
       noun: "functions",
     });
-  }, [loading, elapsed, error, status, setStatus]);
+  }, [loading, since, error, status, setStatus]);
 
   const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
 

@@ -33,7 +33,6 @@ const WORKFLOW = "release.yml";
  * npmjs is not a mistake you get to take back quietly.
  */
 const REGISTRY = "https://registry.npmjs.org";
-const TAP_REPO = "billyvg/homebrew-tap";
 /** Longest `release:cut` will wait for CI before giving up. */
 const CI_WAIT_TIMEOUT_MS = 20 * 60 * 1000;
 /** Gap between check-run polls: unnoticeable to a human, gentle on the API. */
@@ -163,7 +162,7 @@ async function preflight(): Promise<void> {
 
   const npmUser = await capture(["npm", "whoami", "--registry", REGISTRY]);
   if (npmUser.code !== 0) {
-    // Not blocking: CI publishes with NPM_TOKEN, so a local login only matters
+    // Not blocking: CI publishes over OIDC, so a local login only matters
     // for `release:publish`.
     warn(
       `npm: not logged in to ${REGISTRY} — \`npm login --registry ${REGISTRY}\`, needed only for a manual publish`,
@@ -182,23 +181,18 @@ async function preflight(): Promise<void> {
     ok("gh: authenticated");
   }
 
+  // CI authenticates over OIDC, so a token is a fallback rather than a
+  // requirement. Its absence is the healthy state; its presence is worth a
+  // word, because a token guarded by 2FA is answered with EOTP and there is no
+  // prompt an unattended job can satisfy. npm exposes no way to read a
+  // package's trusted-publisher config, so this cannot be checked from here —
+  // npmjs.com is the only place that knows.
   const secrets = await capture(["gh", "secret", "list", "--repo", REPOSITORY]);
   if (secrets.out.includes("NPM_TOKEN")) {
-    ok("NPM_TOKEN secret is set");
+    warn("NPM_TOKEN secret is set — a fallback, unread wherever a trusted publisher exists");
   } else {
-    bad("NPM_TOKEN secret is missing — CI cannot publish (gh secret set NPM_TOKEN)");
-    blocking++;
+    ok("no NPM_TOKEN secret — CI publishes over OIDC");
   }
-
-  if (secrets.out.includes("HOMEBREW_TAP_TOKEN")) {
-    ok("HOMEBREW_TAP_TOKEN secret is set");
-  } else {
-    warn("HOMEBREW_TAP_TOKEN is missing — the tap step will be skipped");
-  }
-
-  const tap = await capture(["gh", "repo", "view", TAP_REPO, "--json", "name"]);
-  if (tap.code === 0) ok(`Homebrew tap ${TAP_REPO} exists`);
-  else warn(`Homebrew tap ${TAP_REPO} does not exist yet — brew installs will not work`);
 
   // The registry is the authority on whether these names are still ours to take.
   for (const name of [ALIAS_PACKAGE, LAUNCHER_PACKAGE]) {
@@ -485,8 +479,14 @@ async function cut(): Promise<void> {
   }
 
   await run(["git", "commit", "-am", `chore: release v${version}`]);
-  await run(["git", "tag", `v${version}`]);
-  await run(["git", "push", "origin", branch, "--follow-tags"]);
+  // Annotated, and pushed as a refspec of its own. `--follow-tags` carries
+  // annotated tags and silently ignores the rest, so a lightweight `git tag`
+  // stayed home while the branch landed: no tag on origin, no release run, and
+  // this command still printing "Pushed." Naming the ref means a tag that does
+  // not reach origin fails loudly instead.
+  await run(["git", "tag", "-a", `v${version}`, "-m", `v${version}`]);
+  await run(["git", "push", "origin", branch]);
+  await run(["git", "push", "origin", `v${version}`]);
 
   console.log(`\n${green("Pushed.")} Follow the release with:\n  ${bold("gh run watch")}`);
 }
@@ -614,31 +614,25 @@ async function verify(): Promise<void> {
 
   step(`Running npx ${ALIAS_PACKAGE}@${version}`);
   console.log(dim("  downloads the launcher and this platform's binary, ~24 MB"));
+  // `--version` rather than `--help`: it proves everything `--help` would —
+  // the launcher resolved a binary, and that binary runs — and additionally
+  // that the bytes npm just served are the ones cut, since the string is
+  // inlined from package.json at compile time. Help text is identical in
+  // every build ever published, so it cannot tell a stale cache or a
+  // mismatched optional dependency from the real thing.
+  const expected = `sentry-tui v${version}`;
   const npx = await capture([
     "npx",
     "--yes",
     "--registry",
     REGISTRY,
     `${ALIAS_PACKAGE}@${version}`,
-    "--help",
+    "--version",
   ]);
-  if (npx.code === 0 && npx.out.includes("sentry.io in your terminal")) ok("npx runs the CLI");
-  else bad(`npx failed (exit ${npx.code})`);
-
-  const brew = await capture([
-    "brew",
-    "info",
-    "--json=v2",
-    `${TAP_REPO.replace("homebrew-", "")}/sentry-tui`,
-  ]);
-  if (brew.code === 0) {
-    const info = JSON.parse(brew.out) as { formulae?: { versions?: { stable?: string } }[] };
-    const formulaVersion = info.formulae?.[0]?.versions?.stable;
-    if (formulaVersion === version) ok(`Homebrew formula is ${formulaVersion}`);
-    else warn(`Homebrew formula is ${formulaVersion ?? "unknown"}, expected ${version}`);
-  } else {
-    warn("Homebrew tap not installed locally — skipping (brew tap billyvg/tap)");
-  }
+  const printed = npx.out.trim();
+  if (npx.code !== 0) bad(`npx failed (exit ${npx.code})`);
+  else if (printed === expected) ok(`npx runs ${printed}`);
+  else bad(`npx printed ${JSON.stringify(printed)}, expected ${JSON.stringify(expected)}`);
 }
 
 // ---------------------------------------------------------------------------
