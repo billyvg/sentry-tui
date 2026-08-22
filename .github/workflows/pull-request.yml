@@ -30,36 +30,50 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: .github/scripts/detect-code-changes.sh "$BASE_SHA" "$HEAD_SHA"
 
+  # The required-checks ruleset on main names these jobs (and each test
+  # shard) exactly. A job-level `if` would skip the whole job — including its
+  # matrix — for a docs-only PR, so only the unexpanded "Test (shard
+  # ${{ matrix.shard }})" name would ever report, and the four required
+  # "Test (shard N)" contexts would sit pending forever. Gating every step
+  # instead keeps the job (and matrix) running, and reporting under its real
+  # name, while doing no real work.
   validate:
     name: Typecheck + lint
     needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
+        if: needs.changes.outputs.code == 'true'
         uses: actions/checkout@v7
 
       - name: Set up Bun
+        if: needs.changes.outputs.code == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install dependencies
+        if: needs.changes.outputs.code == 'true'
         run: bun install --frozen-lockfile
 
       - name: Format check
+        if: needs.changes.outputs.code == 'true'
         run: bun run format:check
 
       - name: Lint
+        if: needs.changes.outputs.code == 'true'
         run: bun run lint
 
       - name: Typecheck
+        if: needs.changes.outputs.code == 'true'
         run: bun run typecheck
 
       - name: Module boundary check
+        if: needs.changes.outputs.code == 'true'
         run: bun run deps:check
 
       - name: Theme contrast check
+        if: needs.changes.outputs.code == 'true'
         run: bun run test:theme-contrast
 
   # `bun test` has no --shard of its own, so scripts/test-shard.ts splits the
@@ -68,7 +82,6 @@ jobs:
   test:
     name: Test (shard ${{ matrix.shard }})
     needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -76,17 +89,21 @@ jobs:
         shard: [1, 2, 3, 4]
     steps:
       - name: Check out repository
+        if: needs.changes.outputs.code == 'true'
         uses: actions/checkout@v7
 
       - name: Set up Bun
+        if: needs.changes.outputs.code == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install dependencies
+        if: needs.changes.outputs.code == 'true'
         run: bun install --frozen-lockfile
 
       - name: Test suite
+        if: needs.changes.outputs.code == 'true'
         env:
           SHARD: ${{ matrix.shard }}
         run: bun run test:shard "$SHARD" "4"
