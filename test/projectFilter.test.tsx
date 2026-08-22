@@ -1,6 +1,7 @@
 /**
- * Issues › the project selector — slug-only rows, and a filter box that
- * searches the org rather than only the page it was given.
+ * Issues › the project and environment selectors — multi-select filters,
+ * slug-only project rows, and a project filter box that searches the org
+ * rather than only the page it was given.
  */
 
 import { expect, test } from "bun:test";
@@ -35,6 +36,12 @@ const PROJECTS = [
   { id: "901", slug: "checkout", name: "Buy Flow", platform: "ruby" },
 ];
 
+const ENVIRONMENTS = [
+  { id: "1", name: "production" },
+  { id: "2", name: "staging" },
+  { id: "3", name: "development" },
+];
+
 /** Long enough for the box to stop typing, ask, and be answered. */
 const SEARCH_SETTLE_MS = SEARCH_DEBOUNCE_MS + 60;
 
@@ -61,7 +68,7 @@ function stubClient() {
           project.slug.toLowerCase().includes(query) || project.name.toLowerCase().includes(query),
       ).slice(0, perPage);
     } else if (url.includes("/environments/")) {
-      payload = [];
+      payload = ENVIRONMENTS;
     } else if (url.includes("/issues/?")) {
       issueUrls.push(url);
     }
@@ -112,11 +119,26 @@ async function openProjectDropdown(h: Harness) {
   await h.waitForFrame((f) => f.includes(PROJECT_BOX));
 }
 
+/** Open the stream, then the environment dropdown on it. */
+async function openEnvironmentDropdown(h: Harness) {
+  await h.waitForFrame((f) => f.includes("TypeError"));
+  await h.press((i) => i.pressKey("E"));
+  await h.waitForFrame((f) => f.includes("┌─ Environment "));
+}
+
 /** Type into the filter box and wait for the search it sends to come back. */
 async function search(h: Harness, text: string) {
   await h.press((i) => i.pressKey("/"));
   await h.press((i) => i.pressKey(text));
   await h.wait(SEARCH_SETTLE_MS);
+}
+
+/** Clear an active project search, then close its multi-select dropdown. */
+async function closeSearchedProjectDropdown(h: Harness) {
+  await h.pressEscape();
+  await h.waitForFrame((f) => pickerRows(f, "Project")[0] === "(/) filter…");
+  await h.pressEscape();
+  await h.waitForFrame((f) => !f.includes(PROJECT_BOX));
 }
 
 test("the project list is slugs, never display names", async () => {
@@ -132,6 +154,66 @@ test("the project list is slugs, never display names", async () => {
       "  frontend",
       "  mobile-ios",
     ]);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the project selector toggles multiple projects before it closes", async () => {
+  const { client, issueUrls } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await openProjectDropdown(h);
+    issueUrls.length = 0;
+
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    expect(pickerRows(h.frame(), "Project")).toContain("● backend");
+    expect(h.frame()).toContain(PROJECT_BOX);
+
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    expect(pickerRows(h.frame(), "Project")).toContain("● frontend");
+    expect(h.frame()).toContain(PROJECT_BOX);
+
+    await h.pressEscape();
+    await h.waitForFrame((f) => !f.includes(PROJECT_BOX));
+
+    expect(new URL(issueUrls.at(-1)!).searchParams.getAll("project")).toEqual([
+      "backend",
+      "frontend",
+    ]);
+    expect(h.frame()).toContain("backend, frontend ▾");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the environment selector toggles multiple environments before it closes", async () => {
+  const { client, issueUrls } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await openEnvironmentDropdown(h);
+    issueUrls.length = 0;
+
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    expect(pickerRows(h.frame(), "Environment")).toContain("● production");
+    expect(h.frame()).toContain("┌─ Environment ");
+
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    expect(pickerRows(h.frame(), "Environment")).toContain("● staging");
+    expect(h.frame()).toContain("┌─ Environment ");
+
+    await h.pressEscape();
+    await h.waitForFrame((f) => !f.includes("┌─ Environment "));
+
+    expect(new URL(issueUrls.at(-1)!).searchParams.getAll("environment")).toEqual([
+      "production",
+      "staging",
+    ]);
+    expect(h.frame()).toContain("production, staging ▾");
   } finally {
     await h.cleanup();
   }
@@ -168,7 +250,7 @@ test("a fuzzy query still finds the slug, and enter scopes the stream to it", as
 
     issueUrls.length = 0;
     await h.press((i) => i.pressEnter());
-    await h.waitForFrame((f) => !f.includes(PROJECT_BOX));
+    await closeSearchedProjectDropdown(h);
 
     const url = issueUrls.at(-1);
     expect(url).toBeDefined();
@@ -201,7 +283,7 @@ test("a project past the first page is searched for, listed, and selectable", as
 
     issueUrls.length = 0;
     await h.press((i) => i.pressEnter());
-    await h.waitForFrame((f) => !f.includes(PROJECT_BOX));
+    await closeSearchedProjectDropdown(h);
 
     expect(new URL(issueUrls.at(-1)!).searchParams.getAll("project")).toEqual(["zeta-payments"]);
     expect(h.frame()).toContain("zeta-payments ▾");
@@ -233,7 +315,7 @@ test("the chosen project keeps its row when the list it came from is gone", asyn
     await openProjectDropdown(h);
     await search(h, "zeta");
     await h.press((i) => i.pressEnter());
-    await h.waitForFrame((f) => !f.includes(PROJECT_BOX));
+    await closeSearchedProjectDropdown(h);
 
     // Reopened, the picker is back on the first page — which zeta-payments is
     // not on. It leads the list anyway, marked as the selection.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import { matchesCommand } from "~/core/commands";
@@ -38,6 +38,8 @@ export interface DropdownProps {
   anchorTop: number;
   /** Whether "All" is a valid meta-option at the top. */
   showAll?: boolean;
+  /** Toggle values without closing the list after each selection. */
+  multiple?: boolean;
   /**
    * Give the list a filter box, focused with the search key. Worth it for a
    * list whose length is the org's doing — projects, organizations — and not
@@ -91,8 +93,9 @@ const MIN_FILTERABLE_WIDTH = 32;
  * A single-column dropdown list anchored at a given terminal position.
  *
  * Consumes nav keys while open so the parent list doesn't scroll. Selecting an
- * item calls `onSelect` with the new value and closes the dropdown. Escape or
- * clicking outside closes without changing the selection.
+ * item calls `onSelect` with the new value. A single-select dropdown closes;
+ * a multi-select dropdown stays open so more values can be toggled. Escape or
+ * clicking outside closes without changing the selection further.
  *
  * A `filterable` list adds a query box, which the search key focuses. It is
  * behind a key rather than focused on open because the list is navigated far
@@ -121,6 +124,7 @@ export function Dropdown({
   anchorLeft,
   anchorTop,
   showAll = true,
+  multiple = false,
   filterable = false,
   onQueryChange,
   remoteFilter = false,
@@ -141,6 +145,9 @@ export function Dropdown({
     [onQueryChange],
   );
   const [filterFocused, setFilterFocused] = useState(false);
+  // In a multi-select list, a controlled selection update must not move the
+  // cursor back to the first selected row after every toggle.
+  const hasSelected = useRef(false);
 
   // Build the full option list: "All" + items. A remote query drops the "All"
   // row for as long as it is typed, the way filtering it locally would: the
@@ -173,8 +180,12 @@ export function Dropdown({
   // Reset the cursor when the rows underneath it change — an async load, or a
   // query that reranked everything so the old position means nothing.
   useEffect(() => {
-    setCursor(query.trim() ? 0 : initialIndex);
-  }, [initialIndex, query]);
+    if (query.trim()) {
+      setCursor(0);
+    } else if (!multiple || !hasSelected.current) {
+      setCursor(initialIndex);
+    }
+  }, [initialIndex, multiple, query]);
 
   useEffect(() => {
     mountedDropdowns += 1;
@@ -187,14 +198,21 @@ export function Dropdown({
     (index: number) => {
       const item = visibleItems[index]?.item;
       if (!item) return;
+      hasSelected.current = true;
       if (item.value === "__all__") {
         onSelect([]);
+      } else if (multiple) {
+        onSelect(
+          selected.includes(item.value)
+            ? selected.filter((value) => value !== item.value)
+            : [...selected, item.value],
+        );
       } else {
         onSelect([item.value]);
       }
-      onClose();
+      if (!multiple) onClose();
     },
-    [visibleItems, onSelect, onClose],
+    [visibleItems, multiple, selected, onSelect, onClose],
   );
 
   useKeyboard((key) => {

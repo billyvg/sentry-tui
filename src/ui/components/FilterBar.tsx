@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SentryClient } from "~/api/client";
 import { listEnvironments, type Environment } from "~/api/issues";
 import { theme } from "~/core/theme";
-import { measureTextWidth } from "~/lib/text";
+import { fitText, measureTextWidth } from "~/lib/text";
 import {
   ChipRow,
   CHIP_GAP,
@@ -38,6 +38,34 @@ const CHIP_ORDER = ["project", "env", "date"] as const satisfies ReadonlyArray<
   Exclude<FilterDropdownType, null>
 >;
 
+/** One ellipsis cell for each dynamic filter label. */
+const MIN_FITTED_LABEL_WIDTH = 1;
+
+/**
+ * Share a cell budget fairly, then give any cells a short label did not need
+ * to the longer one.
+ */
+function filterLabelWidths(
+  projectLabel: string,
+  envLabel: string,
+  budget: number,
+): [project: number, environment: number] {
+  const available = Math.max(0, Math.floor(budget));
+  const projectWanted = measureTextWidth(projectLabel);
+  const envWanted = measureTextWidth(envLabel);
+  let project = Math.min(projectWanted, Math.ceil(available / 2));
+  let environment = Math.min(envWanted, Math.floor(available / 2));
+  const spare = available - project - environment;
+
+  if (project === projectWanted) {
+    environment += Math.min(spare, envWanted - environment);
+  } else if (environment === envWanted) {
+    project += Math.min(spare, projectWanted - project);
+  }
+
+  return [project, environment];
+}
+
 export interface FilterBarProps {
   client: SentryClient | null;
   org: string;
@@ -53,11 +81,8 @@ export interface FilterBarProps {
   /** Selected stats period. */
   statsPeriod: string;
   sortLabel: string;
-  /**
-   * Cells the row has. Given one, the sort label is dropped when the chips
-   * leave no room for it; without one the label is clipped instead.
-   */
-  width?: number;
+  /** Cells the row has, used to fit its labels without overflowing. */
+  width: number;
   /**
    * Row offset from the top of the terminal where the filter bar area starts.
    * The component adds its own leading gap when placing dropdowns.
@@ -187,41 +212,51 @@ export function FilterBar({
     return selectedProjects.map((ref) => slugById.get(ref) ?? ref);
   }, [projects, selectedProjects]);
 
-  const projectLabel =
-    selectedSlugs.length === 0
-      ? "all projects"
-      : selectedSlugs.length === 1
-        ? selectedSlugs[0]!
-        : `${selectedSlugs.length} projects`;
+  const fullProjectLabel = selectedSlugs.length === 0 ? "all projects" : selectedSlugs.join(", ");
+  const fullEnvLabel = selectedEnvs.length === 0 ? "all envs" : selectedEnvs.join(", ");
 
-  const envLabel =
-    selectedEnvs.length === 0
-      ? "all envs"
-      : selectedEnvs.length === 1
-        ? selectedEnvs[0]!
-        : `${selectedEnvs.length} envs`;
+  const projectChip: ChipSpec = {
+    command: "sentry.view.filterProject",
+    label: fullProjectLabel,
+    caret: true,
+  };
+  const envChip: ChipSpec = {
+    command: "sentry.view.filterEnv",
+    label: fullEnvLabel,
+    caret: true,
+  };
+  const dateChip: ChipSpec = {
+    command: "sentry.view.filterDate",
+    label: statsPeriod,
+    caret: true,
+  };
+
+  // The chip frames, keys, gaps and date are fixed. Sort gets the next claim
+  // on the row; the two org-owned labels fairly share what remains.
+  const fixedWidth =
+    chipWidth({ ...projectChip, label: "" }) +
+    chipWidth({ ...envChip, label: "" }) +
+    chipWidth(dateChip) +
+    CHIP_GAP * 2;
+  const sortText = `Sort: ${sortLabel}`;
+  const sortWidth = sortLabel.length > 0 ? CHIP_GAP + measureTextWidth(sortText) : 0;
+  const showSort =
+    sortLabel.length > 0 && width >= fixedWidth + sortWidth + MIN_FITTED_LABEL_WIDTH * 2;
+  const labelBudget = width - fixedWidth - (showSort ? sortWidth : 0);
+  const [projectLabelWidth, envLabelWidth] = filterLabelWidths(
+    fullProjectLabel,
+    fullEnvLabel,
+    labelBudget,
+  );
 
   // The filter row is three chips; each dropdown drops from its own left edge.
   const chips: ChipSpec[] = [
-    { command: "sentry.view.filterProject", label: projectLabel, caret: true },
-    { command: "sentry.view.filterEnv", label: envLabel, caret: true },
-    { command: "sentry.view.filterDate", label: statsPeriod, caret: true },
+    { ...projectChip, label: fitText(fullProjectLabel, projectLabelWidth) },
+    { ...envChip, label: fitText(fullEnvLabel, envLabelWidth) },
+    dateChip,
   ];
   const offsets = chipOffsets(chips);
   const [projectAnchorLeft = 0, envAnchorLeft = 0, dateAnchorLeft = 0] = offsets;
-
-  /**
-   * The sort label, or nothing when the chips already fill the row.
-   *
-   * Below about 90 columns the two together are wider than the pane. The label
-   * is the half worth losing — it restates a count the status bar also carries
-   * — and dropping it beats a truncated fragment of one.
-   */
-  const sortText = `Sort: ${sortLabel}`;
-  const chipsWidth = (offsets.at(-1) ?? 0) + chipWidth(chips.at(-1)!);
-  const showSort =
-    sortLabel.length > 0 &&
-    (width === undefined || chipsWidth + CHIP_GAP + measureTextWidth(sortText) <= width);
   // A dropdown hangs off the bottom edge of its chip. The chip's own height
   // now covers the whole row, sliver edges included, so clearing it clears
   // everything — an overlay pinned any higher would paint over the pill's
@@ -231,17 +266,15 @@ export function FilterBar({
   const handleProjectSelect = useCallback(
     (values: string[]) => {
       onProjectChange(values);
-      onDropdownClose();
     },
-    [onProjectChange, onDropdownClose],
+    [onProjectChange],
   );
 
   const handleEnvSelect = useCallback(
     (values: string[]) => {
       onEnvChange(values);
-      onDropdownClose();
     },
-    [onEnvChange, onDropdownClose],
+    [onEnvChange],
   );
 
   const handleDateSelect = useCallback(
@@ -255,12 +288,9 @@ export function FilterBar({
   return (
     <>
       {/*
-       * Pinned to one line and clipped. Below about 90 columns the chips and
-       * the sort label together are wider than the pane, and a `<text>` that
-       * doesn't fit wraps — which turned the filter row into an eight-line
-       * column of one-word fragments that pushed the list off screen. The
-       * label is the half worth losing: it restates a count the status bar
-       * also carries.
+       * Pinned to one line and clipped. The two org-owned labels are fitted to
+       * the measured row before rendering; on a terminal too narrow for even
+       * their ellipses plus Sort, Sort is the part that yields.
        */}
       <box
         style={{
@@ -296,6 +326,7 @@ export function FilterBar({
           // neither is worth a row of filter box.
           filterable
           remoteFilter
+          multiple
           loading={projectsLoading}
           onQueryChange={setProjectQuery}
           placeholder="No projects"
@@ -311,6 +342,7 @@ export function FilterBar({
           selected={selectedEnvs}
           anchorLeft={envAnchorLeft}
           anchorTop={dropdownTop}
+          multiple
           onSelect={handleEnvSelect}
           onClose={onDropdownClose}
         />

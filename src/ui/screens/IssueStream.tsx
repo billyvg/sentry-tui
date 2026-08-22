@@ -277,6 +277,7 @@ export function IssueStream({
         selectedEnvs={selectedEnvs}
         statsPeriod={statsPeriod}
         sortLabel={sortLabel}
+        width={width}
         anchorTop={SEARCH_ROWS + (title ? TITLE_ROWS : 0)}
         onProjectChange={onProjectChange ?? (() => {})}
         onEnvChange={onEnvChange ?? (() => {})}
