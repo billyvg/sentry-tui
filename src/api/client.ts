@@ -213,9 +213,9 @@ export class SentryClient {
     const attributes = { route, status, retries: context.retries };
 
     if (status === 0 || status >= 500) {
-      log("error", `${route} failed`, attributes);
+      log("error", "api.request.failed", attributes);
       reportError(error, {
-        source: "api.request",
+        source: "api.request.failed",
         tags: {
           "http.status": String(status),
           "http.kind": status === 0 ? "network" : "server",
@@ -228,12 +228,12 @@ export class SentryClient {
     // Worth knowing about in aggregate — how often people hit the rate limit,
     // how often tokens go stale — without being anybody's bug to fix.
     if (status === 429) {
-      log("warn", `${route} rate limited`, {
+      log("warn", "api.request.rate_limited", {
         ...attributes,
         retry_after_s: error.retryAfterSeconds,
       });
     } else if (status === 401 || status === 403) {
-      log("warn", `${route} rejected the token`, attributes);
+      log("warn", "api.request.unauthorized", attributes);
     }
   }
 

@@ -277,7 +277,7 @@ export function App({
       // Retag, so an error after this points at the org actually on screen.
       identify({ org: slug });
       leaveCrumb({ category: "navigation", message: `switched org to ${slug}` });
-      log("info", "switched org", { org: slug });
+      log("info", "ui.org.switched", { org: slug });
 
       void writeConfig({ org: slug }).catch(() => {
         // A read-only config dir shouldn't undo a switch that already happened;

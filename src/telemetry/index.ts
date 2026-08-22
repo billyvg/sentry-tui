@@ -10,6 +10,10 @@
  * - Nothing in this module may write to stdout or stderr. A TUI owns the
  *   screen, and a stray line from a failed send would corrupt it. The SDK is
  *   silent by default; keep `debug` off and it stays that way.
+ *
+ * Everything named here — logs, metrics, the `source` an error is reported
+ * under — uses one dotted scheme, `<namespace>.<subject>.<event>`. See
+ * `TelemetryName` below, and the table in `AGENTS.md`.
  */
 
 import type { Span } from "@sentry/bun";
@@ -30,6 +34,24 @@ const SESSION_FLUSH_TIMEOUT_MS = 300;
 
 /** A screen that never finishes loading must not hold its span open forever. */
 const NAVIGATION_TIMEOUT_MS = 10_000;
+
+/**
+ * A telemetry name: `<namespace>.<subject>.<event>`, lowercase, `snake_case`
+ * within a segment. Logs, metrics, and the `source` an error is filed under
+ * all draw from the same namespace, so one prefix search narrows from a whole
+ * subsystem (`api.`) to one thing that happens in it (`api.request.failed`)
+ * without knowing in advance which of the three recorded it.
+ *
+ * The type only enforces the three segments — `AGENTS.md` holds the list of
+ * namespaces in use and the rule for adding one. Names are dimensions, so
+ * anything that varies per run (a route, a screen, an org) is an attribute,
+ * never part of the name.
+ *
+ * Span names and ops are the exception: those follow Sentry's own semantic
+ * conventions (`http.client`, `GET /organizations/{org}/issues/`) because the
+ * product reads them, and are not renamed to fit this.
+ */
+export type TelemetryName = `${string}.${string}.${string}`;
 
 export function isTelemetryEnabled(): boolean {
   return sentry !== null;
@@ -122,8 +144,8 @@ export function identify(who: {
 }
 
 export interface ReportContext {
-  /** Where this came from, e.g. `"api.request"` — becomes a searchable tag. */
-  source?: string;
+  /** Where this came from, e.g. `"api.request.failed"` — a searchable tag. */
+  source?: TelemetryName;
   /** False when nothing caught it: an uncaught throw or a rejected promise. */
   handled?: boolean;
   tags?: Record<string, string>;
@@ -167,8 +189,11 @@ export function breadcrumb(crumb: Crumb): void {
   });
 }
 
-/** Values worth attaching to a log: small, structured, never free-form user text. */
-export type LogAttributes = Record<string, string | number | boolean | undefined>;
+/**
+ * Values worth attaching to a log or a metric: small, structured, never
+ * free-form user text.
+ */
+export type TelemetryAttributes = Record<string, string | number | boolean | undefined>;
 
 /**
  * Write a structured log.
@@ -180,14 +205,34 @@ export type LogAttributes = Record<string, string | number | boolean | undefined
  *
  * Kept deliberately sparse. A terminal session should produce tens of these,
  * not thousands, and nothing here may ever reach the actual terminal.
+ *
+ * The message is a `TelemetryName` rather than a sentence so that logs group
+ * and filter the way metrics do. Whatever made this occurrence different from
+ * the last one goes in `attributes`.
  */
 export function log(
   level: "info" | "warn" | "error",
-  message: string,
-  attributes?: LogAttributes,
+  name: TelemetryName,
+  attributes?: TelemetryAttributes,
 ): void {
   if (!sentry) return;
-  sentry.logger[level](message, attributes);
+  sentry.logger[level](name, attributes);
+}
+
+/**
+ * Count something that happened. Not an error — a fact about usage.
+ *
+ * This is where the expected-but-worth-knowing outcomes go: a run that found
+ * no credentials, a rate limit, anything a user can act on and nobody has to
+ * fix. Filing those as errors buries the real ones; a counter still answers
+ * how often they happen.
+ *
+ * Attributes are dimensions to break the count down by, so they must stay
+ * low-cardinality — a boolean, an enum, a status code, never a slug or a path.
+ */
+export function countMetric(name: TelemetryName, attributes?: TelemetryAttributes): void {
+  if (!sentry) return;
+  sentry.metrics.count(name, 1, attributes ? { attributes } : undefined);
 }
 
 // --- Tracing -------------------------------------------------------------
@@ -304,7 +349,7 @@ export function abandonNavigation(name: string): void {
  */
 function closeNavigation(endAt?: number, settled = false): void {
   if (settled && navigationName) {
-    log("info", `opened ${navigationName}`, {
+    log("info", "nav.screen.opened", {
       screen: navigationName,
       duration_ms: (endAt ?? Date.now()) - navigationStartedAt,
     });
@@ -442,16 +487,23 @@ export function setTerminalRestore(restore: () => void): void {
  * print somewhere the user can actually read it.
  */
 export function installCrashHandlers(): void {
-  const fatal = (error: unknown, source: "uncaughtException" | "unhandledRejection") => {
+  const fatal = (error: unknown, event: "uncaughtException" | "unhandledRejection") => {
     restoreTerminal?.();
     restoreTerminal = null;
-    log("error", `crashed: ${source}`, {
+    // The process event name is what the user sees; the telemetry name is what
+    // the two crash sources are told apart by in Sentry.
+    const source =
+      event === "uncaughtException"
+        ? "app.crash.uncaught_exception"
+        : "app.crash.unhandled_rejection";
+    log("error", "app.session.crashed", {
+      source,
       error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
     });
     reportError(error, { source, handled: false });
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
     void shutdownTelemetry().finally(() => {
-      process.stderr.write(`\nsentry-tui crashed (${source}):\n${message}\n`);
+      process.stderr.write(`\nsentry-tui crashed (${event}):\n${message}\n`);
       process.exit(1);
     });
   };

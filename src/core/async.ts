@@ -38,7 +38,7 @@ export function toAsyncError(error: unknown): AsyncError {
     };
   }
 
-  if (!isAbort(error)) reportError(error, { source: "fetch.unexpected" });
+  if (!isAbort(error)) reportError(error, { source: "api.response.unreadable" });
 
   return {
     message: error instanceof Error ? error.message : String(error),
