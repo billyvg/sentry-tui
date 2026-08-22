@@ -201,6 +201,15 @@ gh pr create --fill
 Open it ready for review, not as a draft — this project overrides a
 draft-first default carried in from elsewhere.
 
+When a PR addresses a filed issue, close it with a linking keyword in the PR
+body (`Closes #N`, `Fixes #N`) rather than just mentioning the number. GitHub's
+Development sidebar on the issue then shows which release shipped the fix —
+a `Pre-release` badge once it merges to main, flipping to `Latest` once a
+tagged release contains it — with no workflow or bot involved. This only
+covers PRs tied to an issue; one merged without a linked issue gets no
+release badge anywhere, which is the accepted tradeoff for staying native
+instead of adding a commenting bot.
+
 ## issues
 
 File a GitHub issue for anything you decide not to do. A bug you noticed while
