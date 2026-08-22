@@ -29,36 +29,47 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: .github/scripts/detect-code-changes.sh "$BASE_SHA" "$HEAD_SHA"
 
+  # Gated per-step, not per-job: a job-level `if` would skip a matrix job
+  # (and every shard name it would otherwise expand to) rather than just the
+  # work inside it. See pull-request.yml, where that distinction is load-bearing
+  # for the required-checks ruleset.
   validate:
     name: Typecheck + lint
     needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
+        if: needs.changes.outputs.code == 'true'
         uses: actions/checkout@v7
 
       - name: Set up Bun
+        if: needs.changes.outputs.code == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install dependencies
+        if: needs.changes.outputs.code == 'true'
         run: bun install --frozen-lockfile
 
       - name: Format check
+        if: needs.changes.outputs.code == 'true'
         run: bun run format:check
 
       - name: Lint
+        if: needs.changes.outputs.code == 'true'
         run: bun run lint
 
       - name: Typecheck
+        if: needs.changes.outputs.code == 'true'
         run: bun run typecheck
 
       - name: Module boundary check
+        if: needs.changes.outputs.code == 'true'
         run: bun run deps:check
 
       - name: Theme contrast check
+        if: needs.changes.outputs.code == 'true'
         run: bun run test:theme-contrast
 
   # `bun test` has no --shard of its own, so scripts/test-shard.ts splits the
@@ -67,7 +78,6 @@ jobs:
   test:
     name: Test (shard ${{ matrix.shard }})
     needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -75,17 +85,21 @@ jobs:
         shard: [1, 2, 3, 4]
     steps:
       - name: Check out repository
+        if: needs.changes.outputs.code == 'true'
         uses: actions/checkout@v7
 
       - name: Set up Bun
+        if: needs.changes.outputs.code == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install dependencies
+        if: needs.changes.outputs.code == 'true'
         run: bun install --frozen-lockfile
 
       - name: Test suite
+        if: needs.changes.outputs.code == 'true'
         env:
           SHARD: ${{ matrix.shard }}
         run: bun run test:shard "$SHARD" "4"
