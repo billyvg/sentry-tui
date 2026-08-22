@@ -206,12 +206,26 @@ describe("release workflow", () => {
 
   test("publishing is skipped on a dry run", async () => {
     const workflow = await read(".github/workflows/release.yml");
-    const publishSteps = workflow
+
+    // Both steps that ship something live in the `publish` job, which is
+    // gated as a whole rather than step-by-step, so a dry run never enters it.
+    const publishJob = workflow.split(/^  publish:/m)[1];
+    expect(publishJob).toBeDefined();
+    expect(publishJob).toContain("if: needs.verify.outputs.dry_run != 'true'");
+
+    const publishSteps = publishJob!
       .split("      - name: ")
       .filter((step) => /run: .*(publish-npm|gh release create)/s.test(step));
-
     expect(publishSteps.length).toBe(2);
-    for (const step of publishSteps) expect(step).toContain("env.DRY_RUN != 'true'");
+  });
+
+  test("publishing runs against the production deployment environment", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+    const publishJob = workflow.split(/^  publish:/m)[1];
+    expect(publishJob).toBeDefined();
+
+    expect(publishJob).toContain("environment:");
+    expect(publishJob).toContain("name: production");
   });
 });
 
