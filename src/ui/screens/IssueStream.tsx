@@ -56,6 +56,12 @@ export interface IssueStreamProps {
   /** Which filter dropdown is open (null = none). */
   openDropdown?: FilterDropdownType;
   /** Selected project slugs (empty = all). */
+  /**
+   * Projects the view is filtered to, empty for all. Holds *project refs*:
+   * either a slug (what the filter dropdown writes) or a numeric id (what a
+   * saved view carries). The issues endpoint accepts both, and `FilterBar`
+   * resolves an id to its slug for display once the project list has landed.
+   */
   selectedProjects?: string[];
   /** Selected environment names (empty = all). */
   selectedEnvs?: string[];

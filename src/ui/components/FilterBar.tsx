@@ -43,7 +43,10 @@ export interface FilterBarProps {
   org: string;
   /** Which dropdown is open (null = none). Owned by the parent for key routing. */
   openDropdown: FilterDropdownType;
-  /** Selected project slugs (empty = all). */
+  /**
+   * Selected project refs, empty for all — a slug from this component's own
+   * dropdown, or a numeric id from a saved view. Resolved to slugs for display.
+   */
   selectedProjects: string[];
   /** Selected environment names (empty = all). */
   selectedEnvs: string[];
@@ -173,12 +176,23 @@ export function FilterBar({
     [environments],
   );
 
+  // A ref may be an id (a saved view's form) or a slug (the dropdown's), and
+  // only slugs are worth showing or matching a dropdown row against. An id
+  // that resolves to nothing is left as it stands rather than dropped — the
+  // filter *is* applied, so hiding it would be the lie the id form exists to
+  // avoid. Before the project list lands nothing resolves, and the chip
+  // settles on the slug a moment later.
+  const selectedSlugs = useMemo(() => {
+    const slugById = new Map(projects.map((p) => [p.id, p.slug]));
+    return selectedProjects.map((ref) => slugById.get(ref) ?? ref);
+  }, [projects, selectedProjects]);
+
   const projectLabel =
-    selectedProjects.length === 0
+    selectedSlugs.length === 0
       ? "all projects"
-      : selectedProjects.length === 1
-        ? selectedProjects[0]!
-        : `${selectedProjects.length} projects`;
+      : selectedSlugs.length === 1
+        ? selectedSlugs[0]!
+        : `${selectedSlugs.length} projects`;
 
   const envLabel =
     selectedEnvs.length === 0
@@ -273,7 +287,7 @@ export function FilterBar({
         <Dropdown
           title="Project"
           items={projectItems}
-          selected={selectedProjects}
+          selected={selectedSlugs}
           anchorLeft={projectAnchorLeft}
           anchorTop={dropdownTop}
           // An org's project list runs to hundreds of rows — more than one

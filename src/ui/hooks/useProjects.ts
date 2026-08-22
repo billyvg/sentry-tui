@@ -8,10 +8,11 @@ import { filterByLabel } from "~/ui/lib/listFilter";
 /**
  * The organization's projects, fetched once per client/org.
  *
- * Shared by the filter bar (which lists them) and the saved-views screen
- * (which needs the id → slug mapping), so both read the same list rather than
- * each keeping their own copy. A failure yields an empty list: every caller
- * degrades to "no project filter", which is the right fallback.
+ * Shared by the filter bar (which lists them, and resolves a selected project
+ * id to its slug) and the secondary nav, so both read the same list rather
+ * than each keeping their own copy. A failure yields an empty list: every
+ * caller degrades to showing no project names, never to dropping a filter —
+ * nothing may depend on this list to *apply* one.
  *
  * One page of them, so an org with more projects than that has some missing.
  * The picker covers its own case by searching — see {@link useProjectSearch}.
