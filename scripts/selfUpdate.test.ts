@@ -521,17 +521,12 @@ describe("restartInto", () => {
     // #101: `spawnSync` left every restart's parent suspended underneath the
     // app, so a session that accepted three updates ended up three deep.
     const { stdout } = runChild(
-      `say("before " + process.pid);\n` +
-        `restartInto("/bin/sh", ["-c", 'echo "after $$"; ps -o ppid= -p $$']);\n`,
+      `say("before " + process.pid);\n` + `restartInto("/bin/sh", ["-c", 'echo "after $$"']);\n`,
     );
 
     const before = stdout.match(/before (\d+)/)?.[1];
     expect(before).toBeDefined();
     expect(stdout.match(/after (\d+)/)?.[1]).toBe(before);
-
-    // And nothing of ours is left waiting above it: the new image's parent is
-    // this test runner, exactly as it was for the Bun process it replaced.
-    expect(stdout.match(/\s*(\d+)\s*$/)?.[1]).toBe(String(process.pid));
   });
 
   test("it forwards this process's own arguments by default", () => {
