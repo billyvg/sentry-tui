@@ -38,26 +38,20 @@ const WIDEST_NAV_LABEL = Math.max(...NAV_GROUPS.map((group) => measureTextWidth(
 
 /**
  * Cells the org picker's key takes beside the slug: a separating space plus the
- * parenthesised key itself. Zero when the command is unbound, since `KeyHint`
- * then renders nothing.
+ * key itself. Zero when the command is unbound, since `KeyHint` then renders
+ * nothing.
  */
 const ORG_KEY_HINT_WIDTH = (() => {
   const key = formatKey(primaryKey(ORG_PICKER_COMMAND));
-  return key ? 1 + measureTextWidth(key) + 2 : 0;
+  return key ? 1 + measureTextWidth(key) : 0;
 })();
 
 /**
- * Extra cells a goto key costs a label: the two parens it wears. The key itself
- * replaces one of the label's own characters, so it is free.
- *
- * Budgeted permanently rather than only while goto mode is open — a rail that
- * grew two columns on `g` would shove the whole layout sideways, which is a
- * loud way to answer a keystroke that only means "show me the keys".
+ * A goto key costs a label nothing: it underlines one of the label's own
+ * characters in place rather than wrapping it in punctuation, so a rail that
+ * opens goto mode never grows or shifts.
  */
-const GOTO_KEY_WIDTH = 2;
-
-/** Widest row a nav item can produce: its icon, a gap, and its label. */
-const NAV_ITEM_ROW_WIDTH = NAV_ICON_WIDTH + NAV_ICON_GAP + WIDEST_NAV_LABEL + GOTO_KEY_WIDTH;
+const NAV_ITEM_ROW_WIDTH = NAV_ICON_WIDTH + NAV_ICON_GAP + WIDEST_NAV_LABEL;
 
 /**
  * Widest row the org header can produce: the avatar, a gap, a slug given the

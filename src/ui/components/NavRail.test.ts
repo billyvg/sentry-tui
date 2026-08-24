@@ -12,21 +12,18 @@ const CHROME = 4;
 /** The org avatar's footprint at the top of the rail. */
 const AVATAR_WIDTH = 2;
 
-/** A separating space plus the parenthesised key printed beside the org slug. */
-const ORG_KEY_HINT_WIDTH = 1 + measureTextWidth(formatKey(primaryKey("sentry.app.switchOrg"))) + 2;
-
-/** The parens goto mode wraps around one of a label's own characters. */
-const GOTO_KEY_WIDTH = 2;
+/** A separating space plus the bare key printed beside the org slug. */
+const ORG_KEY_HINT_WIDTH = 1 + measureTextWidth(formatKey(primaryKey("sentry.app.switchOrg")));
 
 const widestLabel = Math.max(...NAV_GROUPS.map((g) => measureTextWidth(g.label)));
 
 describe("NAV_RAIL_WIDTH", () => {
   test("fits every nav label beside its icon without wrapping", () => {
-    // Labels are measured with their goto parens on: the rail is budgeted for
-    // them at all times so pressing `g` can't reflow the layout.
+    // A goto key underlines one of the label's own characters rather than
+    // wrapping it, so it costs the row nothing beyond the label's own width.
     const usable = NAV_RAIL_WIDTH - CHROME - NAV_ICON_WIDTH - 1;
     for (const group of NAV_GROUPS) {
-      expect(measureTextWidth(group.label) + GOTO_KEY_WIDTH).toBeLessThanOrEqual(usable);
+      expect(measureTextWidth(group.label)).toBeLessThanOrEqual(usable);
     }
   });
 
@@ -39,7 +36,7 @@ describe("NAV_RAIL_WIDTH", () => {
   });
 
   test("is no wider than its widest row needs", () => {
-    const navItemRow = NAV_ICON_WIDTH + 1 + widestLabel + GOTO_KEY_WIDTH;
+    const navItemRow = NAV_ICON_WIDTH + 1 + widestLabel;
     const orgHeaderRow = AVATAR_WIDTH + 1 + widestLabel + ORG_KEY_HINT_WIDTH;
     expect(NAV_RAIL_WIDTH).toBe(CHROME + Math.max(navItemRow, orgHeaderRow));
   });

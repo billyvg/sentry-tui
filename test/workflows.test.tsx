@@ -425,7 +425,14 @@ test("the header sits at the same offsets in the skeleton as under real rows", a
  */
 for (const { width, kept, shed } of [
   { width: 80, kept: ["Name", "Projects"], shed: ["Monitors", "Last Triggered", "Actions"] },
-  { width: 100, kept: ["Name", "Projects", "Actions"], shed: ["Monitors", "Last Triggered"] },
+  {
+    width: 100,
+    // The nav rail and its filter chips shed 2 cells apiece when their keys
+    // stopped wearing parens, so 100 columns now has room for one more
+    // column than it used to.
+    kept: ["Name", "Projects", "Actions", "Last Triggered"],
+    shed: ["Monitors"],
+  },
   {
     width: 140,
     kept: ["Name", "Projects", "Actions", "Last Triggered", "Monitors"],
