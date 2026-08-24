@@ -1,8 +1,13 @@
 import type { SyntaxStyle } from "@opentui/core";
 import { useEffect, useState } from "react";
 
+import { registerSyntaxParsers } from "~/assets/syntaxParsers";
 import { getSyntaxStyle } from "~/core/theme";
 import { useTheme } from "~/ui/theme";
+
+// Registration must precede the first CodeRenderable: OpenTUI snapshots its
+// default parsers when the shared Tree-sitter client initializes.
+registerSyntaxParsers();
 
 /**
  * Resolve the shared syntax style.

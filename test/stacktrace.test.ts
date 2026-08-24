@@ -185,6 +185,11 @@ describe("frame helpers", () => {
     expect(filetypeFor(frame({ filename: "a.ts" }))).toBe("typescript");
     expect(filetypeFor(frame({ filename: "a.js" }))).toBe("javascript");
     // No bundled grammar — renders unhighlighted rather than failing.
-    expect(filetypeFor(frame({ filename: "a.py" }))).toBeUndefined();
+    expect(filetypeFor(frame({ filename: "a.rb" }))).toBeUndefined();
+  });
+
+  test("maps Python frames to the Python grammar", () => {
+    expect(filetypeFor(frame({ filename: "worker.py" }))).toBe("python");
+    expect(filetypeFor(frame({ filename: "worker.pyi" }))).toBe("python");
   });
 });

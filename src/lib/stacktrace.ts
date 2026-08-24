@@ -174,7 +174,8 @@ export function filetypeFor(frame: FrameLike): string | undefined {
   if (name.endsWith(".ts")) return "typescript";
   if (name.endsWith(".js") || name.endsWith(".jsx")) return "javascript";
   if (name.endsWith(".md")) return "markdown";
-  // Only JS/TS/Markdown grammars ship with OpenTUI; anything else renders
-  // unhighlighted rather than failing.
+  if (name.endsWith(".py") || name.endsWith(".pyi")) return "python";
+  // Languages without a bundled grammar render unhighlighted rather than
+  // failing.
   return undefined;
 }

@@ -4,8 +4,9 @@
 # can be verified.
 set -euo pipefail
 
-BIN_DIR="dist/bin"
-OUT_DIR="dist/release"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BIN_DIR="${ROOT_DIR}/dist/bin"
+OUT_DIR="${ROOT_DIR}/dist/release"
 
 [ -d "$BIN_DIR" ] || {
   echo "::error::$BIN_DIR does not exist — were the build artifacts downloaded?"
@@ -26,7 +27,9 @@ for dir in "$BIN_DIR"/*/; do
   # Artifact download does not preserve the executable bit, so set it here —
   # this is the mode that ends up in the tarball users extract.
   chmod 755 "${dir}sentry-tui"
-  tar -czf "${OUT_DIR}/sentry-tui-${target}.tar.gz" -C "$dir" sentry-tui
+  cp "${ROOT_DIR}/LICENSE" "${ROOT_DIR}/THIRD_PARTY_NOTICES" "$dir"
+  tar -czf "${OUT_DIR}/sentry-tui-${target}.tar.gz" -C "$dir" \
+    sentry-tui LICENSE THIRD_PARTY_NOTICES
   echo "packaged sentry-tui-${target}.tar.gz"
 done
 
