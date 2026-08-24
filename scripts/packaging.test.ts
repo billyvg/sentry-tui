@@ -139,8 +139,20 @@ describe("generated manifests", () => {
       expect(manifest.cpu).toEqual([target.cpu]);
       // A `bin` here would fight the launcher's own `sentry-tui` command.
       expect(manifest.bin).toBeUndefined();
-      expect(manifest.files).toEqual(["bin"]);
+      expect(manifest.files).toEqual(["bin", "LICENSE", "README.md", "THIRD_PARTY_NOTICES"]);
     }
+  });
+
+  test("compiled distributions carry their own and third-party license notices", async () => {
+    const notice = await read("THIRD_PARTY_NOTICES");
+    const npmBuilder = await read("scripts/build-npm.ts");
+    const releasePackager = await read(".github/scripts/package-release.sh");
+
+    expect(notice).toContain("tree-sitter-python");
+    expect(notice).toContain("Copyright (c) 2016 Max Brunsfeld");
+    expect(npmBuilder).toContain('join(dir, "THIRD_PARTY_NOTICES")');
+    expect(npmBuilder).toContain('join(dir, "LICENSE")');
+    expect(releasePackager).toContain("sentry-tui LICENSE THIRD_PARTY_NOTICES");
   });
 
   test("package directories stay one level deep", () => {

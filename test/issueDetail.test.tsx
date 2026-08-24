@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { findEntry, type Frame, type SentryEvent } from "~/api/types";
-import { theme } from "~/core/theme";
+import { darkTheme as theme } from "~/core/theme";
 import { App } from "~/ui/App";
 import { eventFixture, groupsFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
@@ -127,6 +127,59 @@ function eventWithExceptionChains(): SentryEvent {
         : entry,
     ),
   };
+}
+
+/** Replace the crashing frame with Python source that has visibly distinct tokens. */
+function pythonEvent(): SentryEvent {
+  const exception = findEntry(eventFixture.entries, "exception")!;
+  const value = exception.data.values![0]!;
+  const frames = value.stacktrace!.frames!;
+  const crashingFrame = frames[frames.length - 1]!;
+
+  return {
+    ...eventFixture,
+    platform: "python",
+    entries: eventFixture.entries.map((entry) =>
+      entry.type === "exception"
+        ? {
+            ...exception,
+            data: {
+              ...exception.data,
+              values: [
+                {
+                  ...value,
+                  stacktrace: {
+                    ...value.stacktrace!,
+                    frames: [
+                      ...frames.slice(0, -1),
+                      {
+                        ...crashingFrame,
+                        filename: "jobs/worker.py",
+                        absPath: "/srv/jobs/worker.py",
+                        function: "process_job",
+                        lineNo: 12,
+                        colNo: null,
+                        context: [
+                          [10, "def process_job():"],
+                          [11, "    response = fetch_job()"],
+                          [12, '    raise HTTPError("boom")'],
+                        ],
+                        vars: null,
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          }
+        : entry,
+    ),
+  };
+}
+
+/** Stable comparison for the normalized RGBA values captured from the renderer. */
+function colorSignature({ r, g, b, a }: { r: number; g: number; b: number; a: number }): string {
+  return `${r}:${g}:${b}:${a}`;
 }
 
 /** Open the first issue: focus the list, then press Enter. */
@@ -475,6 +528,32 @@ test("clicking another stack frame selects and toggles it directly", async () =>
     row = secondFrameRow();
     await h.click(row.x, row.y);
     expect(h.frame()).not.toContain("second exception context");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("Python stack context renders distinct syntax token colors", async () => {
+  const h = await openFirstIssue(stubClient({ event: pythonEvent() }));
+  try {
+    await h.waitForFrame((frame) => frame.includes('raise HTTPError("boom")'));
+
+    let keywordColor: string | undefined;
+    let functionColor: string | undefined;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const keyword = h.spanContaining("raise");
+      const functionName = h.spanContaining("HTTPError");
+      if (keyword && functionName) {
+        keywordColor = colorSignature(keyword.fg);
+        functionColor = colorSignature(functionName.fg);
+        if (keywordColor !== functionColor) break;
+      }
+      await h.wait(25);
+    }
+
+    expect(keywordColor).toBeDefined();
+    expect(functionColor).toBeDefined();
+    expect(keywordColor).not.toBe(functionColor);
   } finally {
     await h.cleanup();
   }

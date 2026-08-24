@@ -59,7 +59,7 @@ export function platformManifest(target: ReleaseTarget, version: string) {
     description: `${DESCRIPTION} (${target.key} binary)`,
     os: [target.os],
     cpu: [target.cpu],
-    files: ["bin"],
+    files: ["bin", "LICENSE", "README.md", "THIRD_PARTY_NOTICES"],
     // Yarn PnP cannot execute a binary from inside a zip archive.
     preferUnplugged: true,
   };
@@ -146,6 +146,8 @@ async function main(): Promise<void> {
         `Installed automatically as an optional dependency of \`${LAUNCHER_PACKAGE}\`; ` +
         `there is no reason to depend on it directly.\n`,
     );
+    await cp(join(ROOT, "LICENSE"), join(dir, "LICENSE"));
+    await cp(join(ROOT, "THIRD_PARTY_NOTICES"), join(dir, "THIRD_PARTY_NOTICES"));
     built.push(target);
   }
 
