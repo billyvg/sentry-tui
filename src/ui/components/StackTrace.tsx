@@ -10,15 +10,30 @@ import {
 import { fitText } from "~/lib/text";
 import { useSyntaxStyle } from "~/ui/hooks/useSyntaxStyle";
 
+/** Stable identity for one frame, including its event and exception chain. */
+export function stackFrameKey(traceId: string, exceptionIndex: number, frameIndex: number): string {
+  return `${traceId}:${exceptionIndex}:${frameIndex}`;
+}
+
 export function ExceptionSection({
   value,
+  traceId,
+  exceptionIndex,
   width,
   expandedFrames,
+  selectedFrame,
+  selectedFrameId,
+  onFrameClick,
   includeSystemFrames,
 }: {
   value: ExceptionValue;
+  traceId: string;
+  exceptionIndex: number;
   width: number;
-  expandedFrames: ReadonlySet<number>;
+  expandedFrames: ReadonlySet<string>;
+  selectedFrame?: string;
+  selectedFrameId: string;
+  onFrameClick: (key: string) => void;
   includeSystemFrames: boolean;
 }) {
   const rows = buildStackRows(value.stacktrace, { includeSystemFrames });
@@ -35,22 +50,29 @@ export function ExceptionSection({
         </text>
       ) : null}
 
-      {rows.map((row) =>
-        row.kind === "omitted" ? (
-          <text key={`omitted-${row.from}`} fg={theme.muted}>
-            {`  … frames ${row.from}–${row.to} omitted`}
-          </text>
-        ) : (
+      {rows.map((row) => {
+        if (row.kind === "omitted") {
+          return (
+            <text key={`omitted-${row.from}`} fg={theme.muted}>
+              {`  … frames ${row.from}–${row.to} omitted`}
+            </text>
+          );
+        }
+        const key = stackFrameKey(traceId, exceptionIndex, row.index);
+        return (
           <FrameRow
             key={row.index}
             frame={row.frame}
             width={width}
             repeats={row.repeats}
             hiddenBefore={row.hiddenBefore}
-            expanded={expandedFrames.has(row.index)}
+            expanded={expandedFrames.has(key)}
+            selected={selectedFrame === key}
+            selectedId={selectedFrameId}
+            onClick={() => onFrameClick(key)}
           />
-        ),
-      )}
+        );
+      })}
 
       {rows.length === 0 ? <text fg={theme.muted}>No stack trace available.</text> : null}
     </box>
@@ -63,12 +85,18 @@ function FrameRow({
   repeats,
   hiddenBefore,
   expanded,
+  selected,
+  selectedId,
+  onClick,
 }: {
   frame: FrameLike;
   width: number;
   repeats: number;
   hiddenBefore: number;
   expanded: boolean;
+  selected: boolean;
+  selectedId: string;
+  onClick: () => void;
 }) {
   const expandable = frameIsExpandable(frame);
   const marker = expandable ? (expanded ? "▾" : "▸") : " ";
@@ -81,10 +109,20 @@ function FrameRow({
         </text>
       ) : null}
 
-      <box style={{ flexDirection: "row", width }}>
-        <text fg={theme.muted}>{` ${marker} `}</text>
+      <box
+        id={selected ? selectedId : undefined}
+        style={{
+          flexDirection: "row",
+          width,
+          backgroundColor: selected ? theme.selected : undefined,
+        }}
+        onMouseDown={onClick}
+      >
+        <text
+          fg={selected ? theme.accent : theme.muted}
+        >{`${selected ? "❯" : " "} ${marker} `}</text>
         <text fg={frame.inApp ? theme.text : theme.muted}>
-          {fitText(formatFrameTitle(frame), width - 14)}
+          {fitText(formatFrameTitle(frame), width - 15)}
         </text>
         <box style={{ flexGrow: 1 }} />
         {repeats > 0 ? <text fg={theme.muted}>{`×${repeats + 1} `}</text> : null}
