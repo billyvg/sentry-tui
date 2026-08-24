@@ -80,7 +80,7 @@ test("the nav rail advertises the org picker's key beside the slug", async () =>
       .frame()
       .split("\n")
       .find((line) => line.includes("acme") && !line.includes("acmeError"));
-    expect(railRow).toContain("(o)");
+    expect(railRow).toContain("o");
   } finally {
     await h.cleanup();
   }
@@ -196,7 +196,7 @@ test("the filter box only takes text once the search key focuses it", async () =
     await h.waitForFrame((f) => f.includes("acmeError"));
     await h.press((i) => i.pressKey("o"));
     await h.waitForFrame((f) => f.includes("globex"));
-    expect(h.frame()).toContain("(/)");
+    expect(h.frame()).toContain("/ filter…");
 
     // Unfocused, letters are swallowed by the list rather than typed: "i"
     // would otherwise narrow to initech.
@@ -211,7 +211,7 @@ test("the filter box only takes text once the search key focuses it", async () =
     // The typed query reaches the box, and only its match survives. The
     // trailing space matters: the issue row behind the picker reads
     // "● acmeError", which is not the picker row this is looking for.
-    expect(frame).toContain("(/) ini");
+    expect(frame).toContain("/ ini");
     expect(frame).toContain("initech");
     expect(frame).not.toContain("● acme ");
   } finally {

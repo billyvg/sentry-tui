@@ -758,12 +758,14 @@ describe("narrow terminals", () => {
       await h.waitForFrame((f) => f.includes("Sort: 6 spans"));
 
       const lines = h.frame().split("\n");
-      const chipRow = lines.findIndex((line) => line.includes("(P)"));
+      const chipRow = lines.findIndex((line) => line.includes("Sort: 6 spans"));
       expect(chipRow).toBeGreaterThan(-1);
-      expect(lines[chipRow]).toContain("(E)");
-      expect(lines[chipRow]).toContain("(D)");
-      expect(lines[chipRow]).toContain("Sort: 6 spans");
-      if (width === 80) expect(lines[chipRow]!.match(/…/g)).toHaveLength(2);
+      expect(lines[chipRow]).toContain("P");
+      expect(lines[chipRow]).toContain("E");
+      expect(lines[chipRow]).toContain("D");
+      // Chips lost 2 cells apiece when their keys stopped wearing parens, so
+      // 80 columns now only forces one label to ellipsize instead of two.
+      if (width === 80) expect(lines[chipRow]!.match(/…/g)).toHaveLength(1);
 
       // The symptom of the wrap is what this pins: the sort label spilling one
       // fragment per line down the pane. Read from the chip's own column so

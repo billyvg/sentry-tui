@@ -22,7 +22,7 @@ import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/componen
 import { useIssues } from "~/ui/hooks/useIssues";
 import { useMemberAvatars } from "~/ui/hooks/useMemberAvatars";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
-import { BOLD } from "~/ui/lib/attributes";
+import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
 
 /**
  * Column the scrollbox's vertical scrollbar takes out of its own viewport.
@@ -248,9 +248,10 @@ export function IssueStream({
           paddingRight: 1,
         }}
       >
-        <text fg={theme.subText}>{"("}</text>
-        <text fg={theme.hotkey}>{"/"}</text>
-        <text fg={theme.subText}>{")"} </text>
+        <text fg={theme.hotkey} attributes={UNDERLINE}>
+          {"/"}
+        </text>
+        <text> </text>
         <input
           ref={inputRefCallback}
           value={displayValue}

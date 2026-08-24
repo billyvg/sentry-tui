@@ -216,7 +216,7 @@ test("the status bar offers Enter only where a screen has said what it does", as
   try {
     const frame = stub.frame();
     // The pane is a placeholder — nothing there can be opened.
-    expect(frame).not.toContain("(enter) open");
+    expect(frame).not.toContain("enter open");
     // The hints that *are* true are untouched.
     expect(frame).toContain("nav");
     expect(frame).toContain("help");
@@ -228,8 +228,8 @@ test("the status bar offers Enter only where a screen has said what it does", as
 test("a screen that registers an open action still advertises it", async () => {
   const h = await renderHarness(<App onQuit={() => {}} initialScreen="issues.feed" />);
   try {
-    await h.waitForFrame((f) => f.includes("(enter) open"));
-    expect(h.frame()).toContain("(enter) open");
+    await h.waitForFrame((f) => f.includes("enter open"));
+    expect(h.frame()).toContain("enter open");
   } finally {
     await h.cleanup();
   }

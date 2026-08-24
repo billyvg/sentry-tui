@@ -34,7 +34,7 @@ import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { useCardScrollFollow } from "~/ui/hooks/useCardScrollFollow";
 import { useReleaseHealth, useReleases } from "~/ui/hooks/useReleases";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
-import { BOLD, ITALIC } from "~/ui/lib/attributes";
+import { BOLD, ITALIC, UNDERLINE } from "~/ui/lib/attributes";
 import { layoutColumns } from "~/ui/lib/tableLayout";
 import type { ScreenProps } from "~/ui/screens/types";
 
@@ -273,9 +273,10 @@ export function ReleaseCards({
           paddingRight: 1,
         }}
       >
-        <text fg={theme.subText}>{"("}</text>
-        <text fg={state.searchFocused ? theme.accent : theme.text}>{"/"}</text>
-        <text fg={theme.subText}>{")"} </text>
+        <text fg={state.searchFocused ? theme.accent : theme.text} attributes={UNDERLINE}>
+          {"/"}
+        </text>
+        <text> </text>
         <input
           ref={inputRefCallback}
           value={state.searchQuery}

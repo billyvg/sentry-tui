@@ -1,5 +1,6 @@
 /**
- * The bordered `(/)`-prefixed search box every list screen sits under.
+ * The bordered search box every list screen sits under, prefixed with its
+ * underlined `/` hotkey.
  *
  * The box itself is three lines of styling, but the focus wiring is not: a
  * click lands on the native input rather than going through the app's key
@@ -33,6 +34,7 @@ import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
 import { theme } from "~/core/theme";
 import { SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { UNDERLINE } from "~/ui/lib/attributes";
 
 export interface SearchInputProps {
   /** Live value of the input: `state.searchQuery`, not the committed one. */
@@ -92,9 +94,10 @@ export function SearchInput({
         paddingRight: 1,
       }}
     >
-      <text fg={theme.subText}>{"("}</text>
-      <text fg={focused ? theme.accent : theme.text}>{"/"}</text>
-      <text fg={theme.subText}>{")"} </text>
+      <text fg={focused ? theme.accent : theme.text} attributes={UNDERLINE}>
+        {"/"}
+      </text>
+      <text> </text>
       <input
         ref={inputRefCallback}
         value={value}

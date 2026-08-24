@@ -93,8 +93,8 @@ const CHIP_EDGE_BOTTOM = "▔";
  */
 export function chipWidth({ command, label, caret = false }: ChipSpec): number {
   const key = formatKey(primaryKey(command));
-  // "▐ (k) label ▾ ▌"
-  const keyPart = key ? measureTextWidth(key) + 3 : 0;
+  // "▐ k label ▾ ▌"
+  const keyPart = key ? measureTextWidth(key) + 1 : 0;
   return CHIP_CAPS + 1 + keyPart + measureTextWidth(label) + (caret ? 2 : 0) + 1;
 }
 

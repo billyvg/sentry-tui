@@ -60,7 +60,7 @@ test("enter opens the issue detail with header metadata", async () => {
     expect(frame).toContain("TypeError");
     expect(frame).toContain("1.4k events");
     expect(frame).toContain("92 users");
-    expect(frame).toContain("(r) resolve"); // action chip
+    expect(frame).toContain("r resolve"); // action chip
   } finally {
     await h.cleanup();
   }
@@ -75,11 +75,17 @@ test("the header separates current state from the actions that change it", async
     // State — what the issue is. No key, so it can't read as a control.
     expect(frame).toContain("unresolved · javascript · high priority · unassigned");
     // Actions — what you can do, each carrying the key that does it.
-    expect(frame).toContain("(r) resolve");
-    expect(frame).toContain("(a) archive");
+    expect(frame).toContain("r resolve");
+    expect(frame).toContain("a archive");
     // `p` and `A` have no handler, so the header must not advertise them.
-    expect(frame).not.toContain("(p)");
-    expect(frame).not.toContain("(A)");
+    // Scoped to the actions row itself — none of `resolve`/`unresolve`/
+    // `archive`/`unarchive`/`bookmark`/`review` contain either letter, so a
+    // bare search stays a real check even without parens to delimit a key.
+    // Matched on "r resolve" rather than "resolve" alone: the state line above
+    // contains "unresolved", which itself contains "resolve".
+    const actionsRow = frame.split("\n").find((line) => line.includes("r resolve"));
+    expect(actionsRow).not.toContain("p");
+    expect(actionsRow).not.toContain("A");
   } finally {
     await h.cleanup();
   }
@@ -306,7 +312,7 @@ test("the scrollbox viewport fills the pane, with the scrollbar beside it", asyn
 test("a chip's end caps are painted in its rim color, not as stray blocks", async () => {
   const h = await openFirstIssue();
   try {
-    await h.waitForFrame((f) => f.includes("(r) resolve"));
+    await h.waitForFrame((f) => f.includes("r resolve"));
 
     // The pill's rounded end is a half block whose *unfilled* half falls
     // through to the page. It carries the rim rather than the fill, which is

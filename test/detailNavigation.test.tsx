@@ -196,8 +196,8 @@ test("a stateful view prints the trail, the back control and the back hint", asy
     // left, hard against the corner…
     expect(border).toContain("┌─ Explore › All Queries › Slow checkout spans ");
     // …and what Escape costs at the other end, painted over the frame.
-    expect(border).toContain("back to All Queries (esc)");
-    expect(border.replace(/[┐│ ]+$/, "")).toEndWith("(esc)");
+    expect(border).toContain("back to All Queries esc");
+    expect(border.replace(/[┐│ ]+$/, "")).toEndWith("esc");
     // Nothing below them: the view keeps the pane's full height.
     expect(frame.split("\n")[1]).not.toContain("back to");
 
@@ -219,10 +219,10 @@ test("the back control is trimmed rather than crowding out the trail", async () 
     const row = h.frame().split("\n")[0] ?? "";
     expect(row).toContain("…");
     // The key is never what gets cut.
-    expect(row).toContain("(esc)");
+    expect(row).toContain("esc");
     expect(row.trimEnd().length).toBeLessThanOrEqual(40);
     // Right-aligned: it ends where the pane's border begins.
-    expect(row.trimEnd()).toEndWith("(esc)");
+    expect(row.trimEnd()).toEndWith("esc");
     // …and it leaves the left half of the border to the trail.
     expect(row.indexOf("back")).toBeGreaterThanOrEqual(20);
   } finally {
@@ -264,7 +264,7 @@ test("the trail sheds its ancestors rather than overrunning a narrow pane", asyn
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
     await h.press((i) => i.pressEnter());
-    await h.waitForFrame((f) => f.includes("(esc)") && f.includes("PUMP-STATION-1"));
+    await h.waitForFrame((f) => f.includes("esc") && f.includes("PUMP-STATION-1"));
 
     for (const line of h.frame().split("\n").filter(Boolean)) {
       expect(line.length).toBeLessThanOrEqual(60);

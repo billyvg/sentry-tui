@@ -1,13 +1,13 @@
 import { formatKey, primaryKey } from "~/core/commands";
 import { theme } from "~/core/theme";
-import { BOLD, NONE } from "~/ui/lib/attributes";
+import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
 
 /**
- * A command's key, printed the one way the app prints keys: `(r)`.
+ * A command's key, printed the one way the app prints keys: `r`, underlined.
  *
  * Shared by the status bar and by `Chip` so the two can't drift into different
- * punctuation — the parens are the app's grammar for "this is a keystroke", and
- * they only work as a signal while nothing else wears them.
+ * markings — the underline is the app's grammar for "this is a keystroke", and
+ * it only works as a signal while nothing else wears it.
  *
  * The key itself is always pink, never the color of whatever it labels. A key
  * that inherited its surroundings would be readable but not *findable*: the
@@ -27,12 +27,8 @@ export function KeyHint({
   if (!key) return null;
 
   return (
-    <>
-      <text fg={theme.subText}>{"("}</text>
-      <text fg={theme.hotkey} attributes={emphasised ? BOLD : NONE}>
-        {formatKey(key)}
-      </text>
-      <text fg={theme.subText}>{")"}</text>
-    </>
+    <text fg={theme.hotkey} attributes={emphasised ? BOLD | UNDERLINE : UNDERLINE}>
+      {formatKey(key)}
+    </text>
   );
 }
