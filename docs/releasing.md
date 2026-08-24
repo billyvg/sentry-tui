@@ -43,9 +43,9 @@ must resolve `@opentui/core-<X>`, and `bun install` skips packages whose
 ## The commands
 
 ```bash
-bun run release:preflight     # is this machine and this repo ready?
+bun run release:preflight     # readiness for the next minor
 bun run release:dry-run       # build and package on CI, publish nothing
-bun run release:cut 0.2.0     # bump, verify, commit, tag, push — CI does the rest
+bun run release:cut           # next minor, verify, commit, tag, push
 bun run release:publish       # publish from CI artifacts, by hand
 bun run release:verify        # check what actually landed
 ```
@@ -117,19 +117,26 @@ run a step yourself. `--yes` skips confirmations; `--npm-dry-run` makes
 
 `bun run release:preflight` checks all of the above at once, plus whether the
 names are still free and whether the version you are about to publish is already
-taken. It exits non-zero only on problems that would actually break a release.
+taken. It resolves the next minor by default and accepts the same `--major`,
+`--minor`, `--patch`, or exact-version selector as `release:cut`; use the same
+selector for both commands. It exits non-zero only on problems that would
+actually break a release.
 
 ## Cutting a release
 
 ```bash
-bun run release:cut 0.2.0
+bun run release:cut           # 0.5.0 → 0.6.0
+bun run release:cut --patch   # 0.5.0 → 0.5.1
+bun run release:cut --major   # 0.5.0 → 1.0.0
 ```
 
-It bumps `version` in package.json (the single source of truth every generated
-manifest is stamped from), commits, tags `v0.2.0`, and pushes — after showing
-you exactly what will be published and asking. Called with no version it
-releases whatever package.json already names. Answering no restores the
-manifest, leaving the tree as it was found.
+It reads the current `version` from package.json (the single source of truth
+every generated manifest is stamped from), bumps it, commits, tags, and pushes
+— after showing you exactly what will be published and asking. With no flag it
+bumps the minor version; `--major`, `--minor`, and `--patch` select another
+increment. An exact version such as `bun run release:cut 0.6.0-beta.1` is still
+accepted for prereleases or unusual jumps. Answering no restores the manifest,
+leaving the tree as it was found.
 
 Before any of that it reads CI's verdict for the commit being released, rather
 than re-running the suite locally: the commit must be pushed, and its checks
@@ -146,6 +153,9 @@ after 20 minutes), which is usually what you want right after merging.
 
 | Flag        |                                                    |
 | ----------- | -------------------------------------------------- |
+| `--major`   | bump to the next major version                     |
+| `--minor`   | bump to the next minor version (the default)       |
+| `--patch`   | bump to the next patch version                     |
 | `--no-wait` | stop rather than wait on a run in progress         |
 | `--force`   | release whatever CI says, or without pushing first |
 | `--check`   | also run the full local suite, for belt and braces |

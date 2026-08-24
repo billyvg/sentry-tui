@@ -3,9 +3,9 @@
  * One command per step of a release, so nothing has to be reconstructed from
  * the runbook by hand.
  *
- *   bun run release:preflight   is this machine and this repo ready?
+ *   bun run release:preflight   check readiness for the next minor
  *   bun run release:dry-run     build and package on CI, publish nothing
- *   bun run release:cut 0.2.0   bump, verify, commit, tag, push — CI does the rest
+ *   bun run release:cut --minor bump, verify, commit, tag, push — CI does the rest
  *   bun run release:publish     publish from CI artifacts, by hand
  *   bun run release:verify      check what actually landed
  *
@@ -37,6 +37,9 @@ const REGISTRY = "https://registry.npmjs.org";
 const CI_WAIT_TIMEOUT_MS = 20 * 60 * 1000;
 /** Gap between check-run polls: unnoticeable to a human, gentle on the API. */
 const CI_POLL_MS = 15 * 1000;
+const SEMVER_VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-[\w.]+)?$/;
+const VERSION_BUMPS = ["major", "minor", "patch"] as const;
+type VersionBump = (typeof VERSION_BUMPS)[number];
 /** Packages in publish order: platforms first, then the launcher, then the alias. */
 const PUBLISH_ORDER = [
   ...RELEASE_TARGETS.map((target) => target.npmPackage),
@@ -145,7 +148,7 @@ async function packageVersion(): Promise<string> {
  * report all of it at once rather than failing one step at a time.
  */
 async function preflight(): Promise<void> {
-  const version = await packageVersion();
+  const version = requestedReleaseVersion(await packageVersion());
   let blocking = 0;
 
   step(`Preflight for v${version}`);
@@ -196,16 +199,14 @@ async function preflight(): Promise<void> {
 
   // The registry is the authority on whether these names are still ours to take.
   for (const name of [ALIAS_PACKAGE, LAUNCHER_PACKAGE]) {
-    const published = await publishedVersion(name);
-    if (!published) {
-      ok(`${name}: unpublished, name is free`);
-      continue;
-    }
-    if (published === version) {
-      bad(`${name}@${version} is already published — bump the version first`);
+    const { latest, targetPublished } = await releasePackageStatus(name, version);
+    if (targetPublished) {
+      bad(`${name}@${version} is already published — choose another version`);
       blocking++;
+    } else if (!latest) {
+      ok(`${name}: unpublished, name is free`);
     } else {
-      ok(`${name}: latest is ${published}, publishing ${version}`);
+      ok(`${name}: latest is ${latest}, publishing ${version}`);
     }
   }
 
@@ -400,18 +401,63 @@ async function requireGreenCi(sha: string): Promise<void> {
   }
 }
 
-/**
- * Bump the version, verify, commit, tag, and push — CI takes it from the tag.
- * Without an argument it releases whatever version package.json already names.
- */
-async function cut(): Promise<void> {
-  const requested = positionals[0];
-  const current = await packageVersion();
-  const version = requested ?? current;
-
-  if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
-    die(`"${version}" is not a semver version — try \`bun run release:cut 0.2.0\``);
+/** Resolve an exact version or increment from the version in package.json. */
+export function resolveReleaseVersion(
+  current: string,
+  requested: readonly string[],
+  bumps: readonly VersionBump[],
+): string {
+  if (requested.length > 1) throw new Error("pass at most one exact version");
+  if (bumps.length > 1) throw new Error("choose one of --major, --minor, or --patch");
+  if (requested.length > 0 && bumps.length > 0) {
+    throw new Error("pass an exact version or a bump flag, not both");
   }
+  if (requested[0]) return requested[0];
+
+  const match = current.match(SEMVER_VERSION);
+  if (!match) throw new Error(`"${current}" is not a semver version`);
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  const bump = bumps[0] ?? "minor";
+
+  if (bump === "major") return `${major + 1}.0.0`;
+  if (bump === "minor") return `${major}.${minor + 1}.0`;
+  return `${major}.${minor}.${patch + 1}`;
+}
+
+/** Collect every version bump selector from argv, including duplicates. */
+function requestedVersionBumps(args: readonly string[]): VersionBump[] {
+  return args.flatMap((arg) => {
+    const bump = VERSION_BUMPS.find((candidate) => arg === `--${candidate}`);
+    return bump ? [bump] : [];
+  });
+}
+
+/** Resolve the release target requested on the command line. */
+function requestedReleaseVersion(current: string): string {
+  let version: string;
+  try {
+    version = resolveReleaseVersion(
+      current,
+      positionals,
+      requestedVersionBumps(process.argv.slice(3)),
+    );
+  } catch (error) {
+    die(error instanceof Error ? error.message : String(error));
+  }
+
+  if (!SEMVER_VERSION.test(version)) {
+    die(`"${version}" is not a semver version — try an exact version such as 0.2.0`);
+  }
+  return version;
+}
+
+/** Bump the version, verify, commit, tag, and push — CI takes it from the tag. */
+async function cut(): Promise<void> {
+  const current = await packageVersion();
+  const version = requestedReleaseVersion(current);
 
   const dirty = (await capture(["git", "status", "--porcelain"])).out;
   if (dirty) die("working tree is dirty — commit or stash first");
@@ -515,6 +561,16 @@ async function publishedVersion(spec: string): Promise<string | undefined> {
   ]);
   if (view.code !== 0) return undefined;
   return view.out.trim().replaceAll('"', "") || undefined;
+}
+
+/** Read both npm's latest version and whether the exact release target exists. */
+export async function releasePackageStatus(
+  name: string,
+  version: string,
+  lookup: (spec: string) => Promise<string | undefined> = publishedVersion,
+): Promise<{ latest: string | undefined; targetPublished: boolean }> {
+  const [latest, target] = await Promise.all([lookup(name), lookup(`${name}@${version}`)]);
+  return { latest, targetPublished: target === version };
 }
 
 /** Whether this exact version is already on the registry. */
