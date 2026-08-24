@@ -92,7 +92,13 @@ async function openAllQueries(h: Awaited<ReturnType<typeof renderHarness>>) {
  */
 async function renderAt(client: SentryClient, screen: "explore.all-queries" | "explore.discover") {
   return renderHarness(
-    <App onQuit={() => {}} client={client} org="acme" initialScreen={screen} />,
+    <App
+      onQuit={() => {}}
+      client={client}
+      org="acme"
+      initialScreen={screen}
+      initialProjectsByOrg={{ acme: ["remembered-default"] }}
+    />,
     { width: WIDTH, height: HEIGHT },
   );
 }
@@ -262,6 +268,7 @@ test("Enter runs the saved query and shows its own columns", async () => {
     expect(events).toContain("query=span.op:http.client");
     expect(events).toContain("statsPeriod=24h");
     expect(events).toContain("project=checkout");
+    expect(events).not.toContain("project=remembered-default");
     expect(events).toContain("environment=production");
   } finally {
     await h.cleanup();

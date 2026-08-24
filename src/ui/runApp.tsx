@@ -4,6 +4,7 @@ import { createRoot } from "@opentui/react";
 
 import { restartInto } from "~/app/selfUpdate";
 import type { AppContext } from "~/app/startup";
+import { flushConfigWrites } from "~/api/config";
 import { finishStartup, log, setTerminalRestore, shutdownTelemetry } from "~/telemetry/index";
 import { App } from "~/ui/App";
 import { ErrorBoundary } from "~/ui/components/ErrorBoundary";
@@ -12,7 +13,7 @@ import { ErrorBoundary } from "~/ui/components/ErrorBoundary";
  * Owns the renderer lifecycle. `renderer.destroy()` must run on every exit path
  * or the terminal is left in `-echo`/`-icanon` and the user has to run `reset`.
  */
-export async function runApp({ client, org }: AppContext): Promise<void> {
+export async function runApp({ client, org, projectsByOrg }: AppContext): Promise<void> {
   const renderer = await createCliRenderer({
     screenMode: "alternate-screen",
     exitOnCtrlC: false, // the app owns Ctrl-C so it can shut down cleanly
@@ -34,6 +35,7 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     renderer.destroy();
+    await flushConfigWrites();
     log("info", "app.session.ended", { duration_ms: Date.now() - openedAt });
     // Only after the terminal is its own again: closing the session waits on
     // the network, capped, and must never happen behind the alternate screen.
@@ -57,6 +59,7 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     renderer.destroy();
+    await flushConfigWrites();
     log("info", "app.session.ended", { duration_ms: Date.now() - openedAt, reason: "update" });
     await shutdownTelemetry();
     process.stderr.write("sentry-tui: restarting into the new version…\n");
@@ -77,6 +80,7 @@ export async function runApp({ client, org }: AppContext): Promise<void> {
         onRestart={(path) => void restart(path)}
         client={client}
         org={org}
+        initialProjectsByOrg={projectsByOrg}
       />
     </ErrorBoundary>,
   );

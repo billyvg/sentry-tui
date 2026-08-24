@@ -175,6 +175,7 @@ export function ReplayStream({
   width,
   height,
   reloadToken,
+  onProjectSelect,
   pushView,
   registerActions,
   activateRow,
@@ -252,7 +253,7 @@ export function ReplayStream({
         sortLabel={rows ? countLabel(rows.length, "replay") : ""}
         width={width}
         anchorTop={SEARCH_ROWS}
-        onProjectChange={state.setSelectedProjects}
+        onProjectChange={onProjectSelect}
         onEnvChange={state.setSelectedEnvs}
         onPeriodChange={state.setStatsPeriod}
         onDropdownClose={closeDropdown}

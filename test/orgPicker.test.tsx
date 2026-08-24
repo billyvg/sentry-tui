@@ -40,12 +40,17 @@ const ORGS = [
 /** Records which org slug each issue-list request was scoped to. */
 function stubClient(orgsResponse: unknown = ORGS) {
   const listedOrgs: string[] = [];
+  const projectQueries: Array<{ org: string; projects: string[] }> = [];
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
     const issueList = url.match(/\/organizations\/([^/]+)\/issues\/(\?|$)/);
     let payload: unknown = [];
     if (issueList) {
       listedOrgs.push(issueList[1]!);
+      projectQueries.push({
+        org: issueList[1]!,
+        projects: new URL(url).searchParams.getAll("project"),
+      });
       payload = [
         {
           ...groupFixture,
@@ -54,6 +59,8 @@ function stubClient(orgsResponse: unknown = ORGS) {
       ];
     } else if (new URL(url).pathname.endsWith("/organizations/")) {
       payload = orgsResponse;
+    } else if (url.includes("/projects/")) {
+      payload = [{ id: "1", slug: "backend", name: "Backend", platform: "python" }];
     } else if (url.includes("issues-stats")) {
       payload = {};
     }
@@ -62,7 +69,19 @@ function stubClient(orgsResponse: unknown = ORGS) {
       headers: { "Content-Type": "application/json" },
     });
   }) as unknown as typeof fetch;
-  return { client: new SentryClient({ auth, fetchImpl }), listedOrgs };
+  return { client: new SentryClient({ auth, fetchImpl }), listedOrgs, projectQueries };
+}
+
+/** Wait until the serialized preference writes reach disk. */
+async function waitForConfig(expected: unknown): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  let actual: unknown;
+  do {
+    actual = await readConfig();
+    if (JSON.stringify(actual) === JSON.stringify(expected)) return;
+    await Bun.sleep(5);
+  } while (Date.now() < deadline);
+  expect(actual).toEqual(expected);
 }
 
 const renderApp = (client: SentryClient) =>
@@ -130,6 +149,62 @@ test("selecting an org refetches the stream against it and stores the default", 
     expect(listedOrgs).toContain("globex");
 
     expect((await readConfig()).org).toBe("globex");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("switching organizations loads that org's remembered projects", async () => {
+  const { client, projectQueries } = stubClient();
+  const h = await renderHarness(
+    <App
+      onQuit={() => {}}
+      client={client}
+      org="acme"
+      initialProjectsByOrg={{ acme: ["backend"], globex: ["frontend"] }}
+    />,
+    { width: WIDTH, height: HEIGHT },
+  );
+  try {
+    await h.waitForFrame((f) => f.includes("acmeError"));
+    expect(projectQueries.findLast((query) => query.org === "acme")?.projects).toEqual(["backend"]);
+
+    await h.press((i) => i.pressKey("o"));
+    await h.waitForFrame((f) => f.includes("globex"));
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("globexError"));
+
+    expect(projectQueries.findLast((query) => query.org === "globex")?.projects).toEqual([
+      "frontend",
+    ]);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("selecting a project and immediately switching orgs preserves both preferences", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await h.waitForFrame((f) => f.includes("acmeError"));
+
+    await h.press((i) => i.pressKey("P"));
+    await h.waitForFrame((f) => f.includes("┌─ Project "));
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    await h.pressEscape();
+
+    await h.press((i) => i.pressKey("o"));
+    await h.waitForFrame((f) => f.includes("globex"));
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("globexError"));
+
+    await waitForConfig({
+      org: "globex",
+      projectsByOrg: { acme: ["backend"] },
+    });
   } finally {
     await h.cleanup();
   }

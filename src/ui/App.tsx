@@ -62,6 +62,8 @@ export interface AppProps {
    * render pass per keystroke, and at ~29ms each that dwarfed the assertions.
    */
   initialScreen?: ScreenId;
+  /** Remembered project selections, keyed by organization slug. */
+  initialProjectsByOrg?: Readonly<Record<string, readonly string[]>>;
   /**
    * Hand the terminal to a newly downloaded build and exit.
    *
@@ -97,9 +99,17 @@ export function App({
   client = null,
   org: initialOrg = "",
   initialScreen = DEFAULT_SCREEN,
+  initialProjectsByOrg = {},
   onRestart,
 }: AppProps) {
   const { width, height } = useTerminalDimensions();
+
+  const [projectsByOrg, setProjectsByOrg] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(
+      Object.entries(initialProjectsByOrg).map(([slug, projects]) => [slug, [...projects]]),
+    ),
+  );
+  const projectsByOrgRef = useRef(projectsByOrg);
 
   // The open organization. Sourced from the CLI at startup, then owned here so
   // the picker can repoint every screen at once — every fetch in the tree takes
@@ -176,7 +186,26 @@ export function App({
   const activeKey =
     [...viewStack].reverse().find((view) => view.stateKey)?.stateKey ??
     (screen ? stateKeyOf(screen) : undefined);
-  const { active: state, resetOrgScoped, seed } = useScreenState(activeKey);
+  const {
+    active: state,
+    resetOrgScoped,
+    seed,
+  } = useScreenState(activeKey, projectsByOrg[org] ?? []);
+
+  /** Apply a dropdown selection and remember it as this organization's default. */
+  const selectProjects = useCallback(
+    (projects: string[]) => {
+      state.setSelectedProjects(projects);
+
+      const next = { ...projectsByOrgRef.current, [org]: [...projects] };
+      projectsByOrgRef.current = next;
+      setProjectsByOrg(next);
+      void writeConfig({ projectsByOrg: next }).catch(() => {
+        // A read-only config dir should not undo the selection on screen.
+      });
+    },
+    [org, state.setSelectedProjects],
+  );
 
   useNavigationTrace(activeGroup, activeItem, state.status.loading);
 
@@ -271,7 +300,7 @@ export function App({
 
       setOrg(slug);
       setViewStack([]);
-      resetOrgScoped();
+      resetOrgScoped(projectsByOrgRef.current[slug] ?? []);
       showNotice({ kind: "info", text: `switched to ${slug}` });
 
       // Retag, so an error after this points at the org actually on screen.
@@ -963,6 +992,7 @@ export function App({
     width: contentWidth,
     height: contentHeight,
     reloadToken,
+    onProjectSelect: selectProjects,
     pendingIds: triage.pending,
     pushView,
     notify: showNotice,

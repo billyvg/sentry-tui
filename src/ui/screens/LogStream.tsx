@@ -104,6 +104,7 @@ export function LogStream({
   width,
   height,
   reloadToken,
+  onProjectSelect,
   registerActions,
 }: ScreenProps) {
   const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
@@ -204,7 +205,7 @@ export function LogStream({
         sortLabel={entries ? `${entries.length} logs` : ""}
         width={width}
         anchorTop={SEARCH_ROWS}
-        onProjectChange={state.setSelectedProjects}
+        onProjectChange={onProjectSelect}
         onEnvChange={state.setSelectedEnvs}
         onPeriodChange={state.setStatsPeriod}
         onDropdownClose={closeDropdown}
