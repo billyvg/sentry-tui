@@ -27,6 +27,8 @@ export function credentialsPath(): string {
 /** Preferences. Never holds secrets — see {@link StoredCredentials}. */
 export interface StoredConfig {
   org?: string;
+  /** Last explicit project selection for each organization. */
+  projectsByOrg?: Record<string, string[]>;
   /**
    * Pre-0.2 installs kept the token here. Read for one last time by
    * {@link migrateLegacyToken}, then removed.
@@ -48,6 +50,18 @@ export interface StoredCredentials {
   siteUrl?: string;
   /** Shown by `sentry-tui status`; not used for any decision. */
   user?: { id?: string; name?: string; email?: string };
+}
+
+/** Keep only well-formed org-to-project entries from user-editable config. */
+export function normalizeProjectsByOrg(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const normalized: Record<string, string[]> = {};
+  for (const [org, projects] of Object.entries(value)) {
+    if (!Array.isArray(projects)) continue;
+    normalized[org] = projects.filter((project): project is string => typeof project === "string");
+  }
+  return normalized;
 }
 
 async function readJson<T>(path: string): Promise<T | null> {
@@ -73,13 +87,25 @@ export async function readConfig(): Promise<StoredConfig> {
   return (await readJson<StoredConfig>(configPath())) ?? {};
 }
 
+let configWriteQueue: Promise<void> = Promise.resolve();
+
 /**
  * Merge `updates` into the stored config and write it back.
- * Creates the config directory if it doesn't exist.
+ * Creates the config directory if it doesn't exist. Writes are serialized so
+ * overlapping updates cannot both read the same stale snapshot.
  */
-export async function writeConfig(updates: Partial<StoredConfig>): Promise<void> {
-  const existing = await readConfig();
-  writeJson(configPath(), { ...existing, ...updates });
+export function writeConfig(updates: Partial<StoredConfig>): Promise<void> {
+  const write = configWriteQueue.then(async () => {
+    const existing = await readConfig();
+    writeJson(configPath(), { ...existing, ...updates });
+  });
+  configWriteQueue = write.catch(() => {});
+  return write;
+}
+
+/** Wait until every config write scheduled so far has settled. */
+export function flushConfigWrites(): Promise<void> {
+  return configWriteQueue;
 }
 
 export async function readCredentials(): Promise<StoredCredentials | null> {

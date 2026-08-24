@@ -9,6 +9,7 @@ import {
   clearCredentials,
   configPath,
   credentialsPath,
+  flushConfigWrites,
   migrateLegacyToken,
   readConfig,
   readCredentials,
@@ -79,6 +80,28 @@ describe("credential storage", () => {
     await writeCredentials({ accessToken: "sntryu_secret" });
     expect(await clearCredentials()).toBe(true);
     expect(await readCredentials()).toBeNull();
+  });
+});
+
+describe("preference storage", () => {
+  test("serializes overlapping updates so both preferences survive", async () => {
+    await Promise.all([
+      writeConfig({ org: "globex" }),
+      writeConfig({ projectsByOrg: { acme: ["backend"] } }),
+    ]);
+
+    expect(await readConfig()).toEqual({
+      org: "globex",
+      projectsByOrg: { acme: ["backend"] },
+    });
+  });
+
+  test("flushes queued preferences before shutdown", async () => {
+    void writeConfig({ projectsByOrg: { acme: ["backend"] } });
+
+    await flushConfigWrites();
+
+    expect(await readConfig()).toEqual({ projectsByOrg: { acme: ["backend"] } });
   });
 });
 

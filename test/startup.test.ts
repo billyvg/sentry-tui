@@ -1,8 +1,30 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { HELP_TEXT, parseArgs } from "~/app/startup";
+import { bootstrap, HELP_TEXT, parseArgs } from "~/app/startup";
 import { APP_VERSION, VERSION_LABEL } from "~/lib/version";
+
+/** Bootstrap against one throwaway user config and restore the process env. */
+async function bootstrapWithConfig(config: unknown) {
+  const configDir = mkdtempSync(join(tmpdir(), "sentry-tui-startup-"));
+  const previousConfigDir = process.env["SENTRY_TUI_CONFIG_DIR"];
+  const previousToken = process.env["SENTRY_AUTH_TOKEN"];
+  process.env["SENTRY_TUI_CONFIG_DIR"] = configDir;
+  process.env["SENTRY_AUTH_TOKEN"] = "sntryu_test";
+
+  try {
+    await Bun.write(join(configDir, "config.json"), JSON.stringify(config));
+    return await bootstrap(parseArgs([]));
+  } finally {
+    if (previousConfigDir === undefined) delete process.env["SENTRY_TUI_CONFIG_DIR"];
+    else process.env["SENTRY_TUI_CONFIG_DIR"] = previousConfigDir;
+    if (previousToken === undefined) delete process.env["SENTRY_AUTH_TOKEN"];
+    else process.env["SENTRY_AUTH_TOKEN"] = previousToken;
+    rmSync(configDir, { recursive: true, force: true });
+  }
+}
 
 describe("parseArgs", () => {
   test("defaults to running the TUI", () => {
@@ -77,6 +99,28 @@ describe("parseArgs", () => {
   });
 });
 
+test("startup carries org-bound project selections into the app context", async () => {
+  const context = await bootstrapWithConfig({
+    org: "acme",
+    projectsByOrg: { acme: ["backend"], globex: ["frontend"] },
+  });
+
+  expect(context.projectsByOrg).toEqual({ acme: ["backend"], globex: ["frontend"] });
+});
+
+test("startup ignores malformed project selections in the user config", async () => {
+  const context = await bootstrapWithConfig({
+    org: "acme",
+    projectsByOrg: {
+      acme: ["backend", 42],
+      globex: "frontend",
+      empty: [],
+    },
+  });
+
+  expect(context.projectsByOrg).toEqual({ acme: ["backend"], empty: [] });
+});
+
 describe("help text", () => {
   test("documents the auth env vars", () => {
     expect(HELP_TEXT).toContain("SENTRY_AUTH_TOKEN");
@@ -93,6 +137,10 @@ describe("help text", () => {
     expect(HELP_TEXT).toContain("sentry-tui login");
     expect(HELP_TEXT).toContain("sentry-tui logout");
     expect(HELP_TEXT).toContain("sentry-tui status");
+  });
+
+  test("describes the preferences stored in config.json", () => {
+    expect(HELP_TEXT).toContain("organization and project selections");
   });
 });
 

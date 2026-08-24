@@ -4,10 +4,14 @@
  * rather than only the page it was given.
  */
 
-import { expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
+import { readConfig } from "~/api/config";
 import { App } from "~/ui/App";
 import { SEARCH_DEBOUNCE_MS } from "~/ui/hooks/useProjects";
 import { groupsFixture } from "./fixtures";
@@ -16,6 +20,33 @@ import { renderHarness, type Harness } from "./helpers";
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
 const HEIGHT = 30;
+
+let configDir: string;
+let previousConfigDir: string | undefined;
+
+beforeAll(() => {
+  previousConfigDir = process.env["SENTRY_TUI_CONFIG_DIR"];
+  configDir = mkdtempSync(join(tmpdir(), "sentry-tui-projects-"));
+  process.env["SENTRY_TUI_CONFIG_DIR"] = configDir;
+});
+
+afterAll(() => {
+  if (previousConfigDir === undefined) delete process.env["SENTRY_TUI_CONFIG_DIR"];
+  else process.env["SENTRY_TUI_CONFIG_DIR"] = previousConfigDir;
+  rmSync(configDir, { recursive: true, force: true });
+});
+
+/** Wait until the async preference write reaches disk. */
+async function waitForConfig(expected: unknown): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  let actual: unknown;
+  do {
+    actual = await readConfig();
+    if (JSON.stringify(actual) === JSON.stringify(expected)) return;
+    await Bun.sleep(5);
+  } while (Date.now() < deadline);
+  expect(actual).toEqual(expected);
+}
 
 /**
  * More projects than one page holds, so the ones at the end are reachable
@@ -141,6 +172,13 @@ async function closeSearchedProjectDropdown(h: Harness) {
   await h.waitForFrame((f) => !f.includes(PROJECT_BOX));
 }
 
+/** Jump straight to a destination through the command palette. */
+async function goTo(h: Harness, destination: string) {
+  await h.press((i) => i.pressKey("k", { ctrl: true }));
+  await h.press((i) => i.pressKey(destination));
+  await h.press((i) => i.pressKey("\r"));
+}
+
 test("the project list is slugs, never display names", async () => {
   const { client } = stubClient();
   const h = await renderApp(client);
@@ -154,6 +192,50 @@ test("the project list is slugs, never display names", async () => {
       "  frontend",
       "  mobile-ios",
     ]);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("remembered projects for the open org seed the issue stream", async () => {
+  const { client, issueUrls } = stubClient();
+  const h = await renderHarness(
+    <App
+      onQuit={() => {}}
+      client={client}
+      org="acme"
+      initialProjectsByOrg={{ acme: ["backend", "mobile-ios"], globex: ["frontend"] }}
+    />,
+    { width: WIDTH, height: HEIGHT },
+  );
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+
+    expect(new URL(issueUrls.at(-1)!).searchParams.getAll("project")).toEqual([
+      "backend",
+      "mobile-ios",
+    ]);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("remembered projects seed another ordinary screen", async () => {
+  const { client } = stubClient();
+  const h = await renderHarness(
+    <App
+      onQuit={() => {}}
+      client={client}
+      org="acme"
+      initialProjectsByOrg={{ acme: ["backend"] }}
+    />,
+    { width: WIDTH, height: HEIGHT },
+  );
+  try {
+    await goTo(h, "Logs");
+    await h.waitForFrame((f) => f.includes("Search logs"));
+
+    expect(h.frame()).toContain("backend ▾");
   } finally {
     await h.cleanup();
   }
@@ -184,6 +266,66 @@ test("the project selector toggles multiple projects before it closes", async ()
       "frontend",
     ]);
     expect(h.frame()).toContain("backend, frontend ▾");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("explicit project selections persist the complete selection for the open org", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await openProjectDropdown(h);
+
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+
+    await waitForConfig({
+      projectsByOrg: { acme: ["backend", "frontend"] },
+    });
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("an explicit project selection on another ordinary screen is remembered", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await goTo(h, "Logs");
+    await h.waitForFrame((f) => f.includes("Search logs"));
+    await h.press((i) => i.pressKey("P"));
+    await h.waitForFrame((f) => f.includes(PROJECT_BOX));
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+
+    await waitForConfig({ projectsByOrg: { acme: ["backend"] } });
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("explicitly choosing All remembers an empty scope without losing another org", async () => {
+  const { client } = stubClient();
+  const h = await renderHarness(
+    <App
+      onQuit={() => {}}
+      client={client}
+      org="acme"
+      initialProjectsByOrg={{ acme: ["backend"], globex: ["frontend"] }}
+    />,
+    { width: WIDTH, height: HEIGHT },
+  );
+  try {
+    await openProjectDropdown(h);
+    await h.press((i) => i.pressKey("g"));
+    await h.press((i) => i.pressEnter());
+
+    await waitForConfig({
+      projectsByOrg: { acme: [], globex: ["frontend"] },
+    });
   } finally {
     await h.cleanup();
   }

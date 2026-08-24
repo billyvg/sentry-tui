@@ -65,9 +65,18 @@ function stubClient({
  * every test cost a render pass per keystroke for a route these tests are
  * not about.
  */
-async function renderApp(client: SentryClient = stubClient()) {
+async function renderApp(
+  client: SentryClient = stubClient(),
+  initialProjectsByOrg: Readonly<Record<string, readonly string[]>> = {},
+) {
   return renderHarness(
-    <App onQuit={() => {}} client={client} org="acme" initialScreen="dashboards.all" />,
+    <App
+      onQuit={() => {}}
+      client={client}
+      org="acme"
+      initialScreen="dashboards.all"
+      initialProjectsByOrg={initialProjectsByOrg}
+    />,
     { width: WIDTH, height: HEIGHT },
   );
 }
@@ -98,6 +107,25 @@ test("enter on a dashboard opens its widgets, stacked in layout order", async ()
 
     expect(frame).toContain("6 widgets");
     expect(frame).toContain("widget 1 of 6");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a dashboard keeps its own project scope instead of the remembered org default", async () => {
+  const calls: string[] = [];
+  const h = await renderApp(stubClient({ calls }), { acme: ["remembered-default"] });
+  try {
+    await openDashboard(h);
+    await h.waitForFrame(() => calls.some((url) => url.includes("/events/")));
+
+    const widgetCalls = calls.filter(
+      (url) => url.includes("/events/") || url.includes("/events-stats/"),
+    );
+    expect(widgetCalls.length).toBeGreaterThan(0);
+    for (const url of widgetCalls) {
+      expect(new URL(url).searchParams.getAll("project")).toEqual([]);
+    }
   } finally {
     await h.cleanup();
   }

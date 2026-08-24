@@ -29,6 +29,7 @@ export function IssueFeed(props: ScreenProps) {
       title={view?.label}
       description={view?.description}
       state={props.state}
+      onProjectChange={props.onProjectSelect}
     />
   );
 }
@@ -53,12 +54,15 @@ export function IssueStreamView({
   registerActions,
   title,
   description,
+  onProjectChange,
 }: DetailContext & {
   state: ScreenState;
   /** Name of the view being shown, rendered above the search bar. */
   title?: string;
   /** One-line explanation of the view, shown beside the title. */
   description?: string;
+  /** Override for ordinary screens that remember explicit dropdown selections. */
+  onProjectChange?: (projects: string[]) => void;
 }) {
   const { setStatus, setOpenDropdown } = state;
   const issues = rowsOf<Group>(state);
@@ -98,7 +102,7 @@ export function IssueStreamView({
       selectedProjects={state.selectedProjects}
       selectedEnvs={state.selectedEnvs}
       statsPeriod={state.statsPeriod}
-      onProjectChange={state.setSelectedProjects}
+      onProjectChange={onProjectChange ?? state.setSelectedProjects}
       onEnvChange={state.setSelectedEnvs}
       onPeriodChange={state.setStatsPeriod}
       onDropdownClose={closeDropdown}

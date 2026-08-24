@@ -93,6 +93,7 @@ function ExploreTableScreen({
   width,
   height,
   reloadToken,
+  onProjectSelect,
   registerActions,
   activateRow,
   table,
@@ -248,7 +249,7 @@ function ExploreTableScreen({
         sortLabel={rows ? countLabel(rows.length, rowNoun(table)) : ""}
         width={width}
         anchorTop={SEARCH_ROWS}
-        onProjectChange={state.setSelectedProjects}
+        onProjectChange={onProjectSelect}
         onEnvChange={state.setSelectedEnvs}
         onPeriodChange={state.setStatsPeriod}
         onDropdownClose={closeDropdown}

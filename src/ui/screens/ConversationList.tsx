@@ -172,6 +172,7 @@ export function ConversationList({
   width,
   height,
   reloadToken,
+  onProjectSelect,
   registerActions,
   activateRow,
 }: ScreenProps) {
@@ -251,7 +252,7 @@ export function ConversationList({
         sortLabel={rows ? countLabel(rows.length, "conversation") : ""}
         width={width}
         anchorTop={SEARCH_ROWS}
-        onProjectChange={state.setSelectedProjects}
+        onProjectChange={onProjectSelect}
         onEnvChange={state.setSelectedEnvs}
         onPeriodChange={state.setStatsPeriod}
         onDropdownClose={closeDropdown}

@@ -84,6 +84,8 @@ export interface ScreenProps {
   height: number;
   /** Bump to refetch the current query — the app's global refresh. */
   reloadToken: number;
+  /** Apply and remember a project selection made through an ordinary screen's dropdown. */
+  onProjectSelect: (projects: string[]) => void;
   /** Row ids with a mutation in flight, for a pending marker. */
   pendingIds: ReadonlySet<string>;
   /** Push a detail view; Escape pops it. */

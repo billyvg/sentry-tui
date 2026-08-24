@@ -95,10 +95,11 @@ export interface ScreenStateStore {
   active: ScreenState;
   /**
    * Drop everything scoped to the current organization — rows, cursors, and
-   * the project and environment filters, whose slugs mean nothing in another
-   * org. Queries and periods are org-independent and survive.
+   * the environment filters, whose names mean nothing in another org. Project
+   * filters start from the new org's remembered selection. Queries and periods
+   * are org-independent and survive.
    */
-  resetOrgScoped: () => void;
+  resetOrgScoped: (selectedProjects?: readonly string[]) => void;
   /**
    * Start a slice from a known set of filters, dropping whatever it held.
    *
@@ -125,7 +126,7 @@ export function rowsOf<T>(state: ScreenState): readonly T[] {
 
 const UNREGISTERED_KEY = "__unregistered__";
 
-function initialData(key: string): ScreenStateData {
+function initialData(key: string, selectedProjects: readonly string[] = []): ScreenStateData {
   const defaults = defaultsForStateKey(key);
   const query = defaults.query ?? "";
   return {
@@ -133,7 +134,7 @@ function initialData(key: string): ScreenStateData {
     selected: 0,
     status: { loading: false },
     openDropdown: null,
-    selectedProjects: [],
+    selectedProjects: [...selectedProjects],
     selectedEnvs: [],
     statsPeriod: defaults.statsPeriod ?? DEFAULT_STATS_PERIOD,
     sort: defaults.sort ?? DEFAULT_SORT,
@@ -157,9 +158,14 @@ function sameStatus(a: ScreenStatus, b: ScreenStatus): boolean {
  *   screen — a dynamic starred-query item, say, which renders the placeholder
  *   pane and needs somewhere inert to put its state.
  */
-export function useScreenState(stateKey: string | undefined): ScreenStateStore {
+export function useScreenState(
+  stateKey: string | undefined,
+  initialSelectedProjects: readonly string[] = [],
+): ScreenStateStore {
   const [states, setStates] = useState<ReadonlyMap<string, ScreenStateData>>(() => new Map());
   const key = stateKey ?? UNREGISTERED_KEY;
+  const initialSelectedProjectsRef = useRef(initialSelectedProjects);
+  initialSelectedProjectsRef.current = initialSelectedProjects;
 
   /**
    * Guards the native blur handler against reverting a query that submit or
@@ -171,7 +177,8 @@ export function useScreenState(stateKey: string | undefined): ScreenStateStore {
   const patch = useCallback(
     (target: string, update: (current: ScreenStateData) => ScreenStateData) => {
       setStates((previous) => {
-        const current = previous.get(target) ?? initialData(target);
+        const current =
+          previous.get(target) ?? initialData(target, initialSelectedProjectsRef.current);
         const next = update(current);
         if (next === current && previous.has(target)) return previous;
         const map = new Map(previous);
@@ -197,14 +204,17 @@ export function useScreenState(stateKey: string | undefined): ScreenStateStore {
     [patch],
   );
 
-  const data = useMemo(() => states.get(key) ?? initialData(key), [states, key]);
+  const data = useMemo(
+    () => states.get(key) ?? initialData(key, initialSelectedProjects),
+    [states, key, initialSelectedProjects],
+  );
 
   const active = useMemo<ScreenState>(
     () => ({ ...data, key, ...settersFor(key) }),
     [data, key, settersFor],
   );
 
-  const resetOrgScoped = useCallback(() => {
+  const resetOrgScoped = useCallback((selectedProjects: readonly string[] = []) => {
     setStates((previous) => {
       const map = new Map<string, ScreenStateData>();
       for (const [k, value] of previous) {
@@ -212,7 +222,7 @@ export function useScreenState(stateKey: string | undefined): ScreenStateStore {
           ...value,
           entries: [],
           selected: 0,
-          selectedProjects: [],
+          selectedProjects: [...selectedProjects],
           selectedEnvs: [],
           openDropdown: null,
           status: { loading: false },

@@ -115,6 +115,7 @@ export function ProfileFunctions({
   width,
   height,
   reloadToken,
+  onProjectSelect,
   registerActions,
   activateRow,
 }: ScreenProps) {
@@ -250,7 +251,7 @@ export function ProfileFunctions({
         sortLabel={functions ? `${functions.length} functions` : ""}
         width={width}
         anchorTop={SEARCH_ROWS}
-        onProjectChange={state.setSelectedProjects}
+        onProjectChange={onProjectSelect}
         onEnvChange={state.setSelectedEnvs}
         onPeriodChange={state.setStatsPeriod}
         onDropdownClose={closeDropdown}

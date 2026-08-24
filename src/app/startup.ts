@@ -4,6 +4,7 @@ import {
   configPath,
   credentialsPath,
   migrateLegacyToken,
+  normalizeProjectsByOrg,
   readConfig,
   readCredentials,
   writeConfig,
@@ -17,6 +18,7 @@ export interface AppContext {
   client: SentryClient;
   org: string;
   tokenSource: string;
+  projectsByOrg: Record<string, string[]>;
 }
 
 export class MissingOrgError extends Error {
@@ -138,7 +140,7 @@ Environment:
   SENTRY_TUI_NO_TELEMETRY=1  Stop sentry-tui reporting its own crashes
 
 Files:
-  ${configPath()}       preferences (org)
+  ${configPath()}       preferences (organization and project selections)
   ${credentialsPath()}  credentials, written owner-readable only
 `;
 
@@ -196,7 +198,12 @@ export async function bootstrap(args: CliArgs): Promise<AppContext> {
   // account and is known only by the organization they opened.
   identify({ user: (await readCredentials())?.user, org });
 
-  return { client, org, tokenSource: auth.describe() };
+  return {
+    client,
+    org,
+    tokenSource: auth.describe(),
+    projectsByOrg: normalizeProjectsByOrg(config.projectsByOrg),
+  };
 }
 
 export { MissingTokenError };

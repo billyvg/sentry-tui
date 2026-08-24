@@ -143,6 +143,7 @@ export function ReleaseCards({
   width,
   height,
   reloadToken,
+  onProjectSelect,
   registerActions,
   activateRow,
 }: ScreenProps) {
@@ -304,7 +305,7 @@ export function ReleaseCards({
         sortLabel={releases ? `${releases.length} releases` : ""}
         width={width}
         anchorTop={SEARCH_ROWS}
-        onProjectChange={state.setSelectedProjects}
+        onProjectChange={onProjectSelect}
         onEnvChange={state.setSelectedEnvs}
         onPeriodChange={state.setStatsPeriod}
         onDropdownClose={closeDropdown}
