@@ -137,6 +137,7 @@ Environment:
   SENTRY_CLIENT_ID     OAuth application to log in through (self-hosted)
   SENTRY_URL           Sentry install to talk to (default https://sentry.io)
   SENTRY_TUI_LATENCY   Artificial request delay in ms, for testing
+  SENTRY_TUI_THEME     Color theme: auto, light, or dark (default auto)
   SENTRY_TUI_NO_TELEMETRY=1  Stop sentry-tui reporting its own crashes
 
 Files:

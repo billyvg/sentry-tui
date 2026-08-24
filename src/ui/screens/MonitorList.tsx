@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Detector } from "~/api/detectors";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { buildDetectorQuery, getMonitorListView, type MonitorListView } from "~/core/monitors";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { DataTable } from "~/ui/components/DataTable";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { useCheckInStats } from "~/ui/hooks/useCheckInStats";
@@ -64,6 +64,7 @@ function fallbackView(item: string): MonitorListView {
 }
 
 export function MonitorList(props: ScreenProps) {
+  const theme = useTheme();
   const { client, org, screen, state, focused, width, height, reloadToken } = props;
   const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
 
@@ -191,16 +192,24 @@ export function MonitorList(props: ScreenProps) {
   const columns = useMemo(
     () =>
       monitorColumns(
+        theme,
         timelineKind
-          ? { visualization: timelineColumn({ stats, failed: statsFailed, width: trackWidth }) }
+          ? {
+              visualization: timelineColumn({
+                stats,
+                failed: statsFailed,
+                width: trackWidth,
+                theme,
+              }),
+            }
           : undefined,
       ),
-    [timelineKind, stats, statsFailed, trackWidth],
+    [timelineKind, stats, statsFailed, trackWidth, theme],
   );
   const renderDetail = useCallback(
     (detector: Detector, _selected: boolean, detailWidth: number) =>
-      renderDetectorDetail(detector, detailWidth, { projectSlugs }),
-    [projectSlugs],
+      renderDetectorDetail(detector, detailWidth, { projectSlugs, theme }),
+    [projectSlugs, theme],
   );
 
   return (

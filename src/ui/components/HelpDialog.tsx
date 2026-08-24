@@ -1,5 +1,5 @@
 import { COMMANDS, formatKey, type CommandCategory } from "~/core/commands";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { padText } from "~/lib/text";
 import { ModalFrame } from "~/ui/components/ModalFrame";
 
@@ -22,6 +22,7 @@ export const HELP_WIDTH = 60;
 export const HELP_KEY_COLUMN = 17;
 
 export function HelpDialog({ onClose }: { onClose: () => void }) {
+  const theme = useTheme();
   // Rows are generated from the catalog, so an unbound command simply has no
   // row rather than advertising a dead key.
   const rows = SECTIONS.flatMap(({ category, title }) => {

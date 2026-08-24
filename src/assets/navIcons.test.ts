@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync } from "node:fs";
-import { imageInfo } from "@opentui/core";
+import { imageInfo, NativeImage } from "@opentui/core";
 
 import { navIconBytes, NAV_ICON_NAMES } from "~/assets/navIcons";
 
@@ -17,11 +17,15 @@ describe("nav icon assets", () => {
   // The imports are hand-written, so adding a PNG without adding its import
   // yields art that renders from source and is missing from the binary.
   test("every nav icon PNG is imported", () => {
-    expect(ON_DISK).toEqual([...NAV_ICON_NAMES].sort());
+    expect(ON_DISK).toEqual(NAV_ICON_NAMES.flatMap((name) => [name, `${name}_light`]).sort());
   });
 
   test("every nav icon decodes as a PNG", () => {
-    const bad = NAV_ICON_NAMES.filter((name) => imageInfo(navIconBytes(name)).format !== "png");
+    const bad = NAV_ICON_NAMES.flatMap((name) =>
+      (["dark", "light"] as const)
+        .filter((mode) => imageInfo(navIconBytes(name, mode)).format !== "png")
+        .map((mode) => `${mode}:${name}`),
+    );
     expect(bad).toEqual([]);
   });
 
@@ -32,7 +36,12 @@ describe("nav icon assets", () => {
   // dropped back in. Downscale to 128 (`sips -Z 128 <file> --out <file>`) rather
   // than raising this.
   test("no nav icon is larger than the render needs", () => {
-    const oversized = NAV_ICON_NAMES.map((name) => ({ name, ...imageInfo(navIconBytes(name)) }))
+    const oversized = NAV_ICON_NAMES.flatMap((name) =>
+      (["dark", "light"] as const).map((mode) => ({
+        name: `${mode}:${name}`,
+        ...imageInfo(navIconBytes(name, mode)),
+      })),
+    )
       .filter((icon) => icon.width > MAX_ICON_PX || icon.height > MAX_ICON_PX)
       .map((icon) => `${icon.name} (${icon.width}x${icon.height})`);
     expect(oversized).toEqual([]);
@@ -42,5 +51,19 @@ describe("nav icon assets", () => {
   // a fresh array per render would re-decode on every keystroke.
   test("hands back the same bytes for repeated lookups", () => {
     expect(navIconBytes("sentry")).toBe(navIconBytes("sentry"));
+    expect(navIconBytes("sentry", "light")).toBe(navIconBytes("sentry", "light"));
+  });
+
+  test("light mode selects a distinct light-canvas icon", () => {
+    const dark = navIconBytes("issues_active", "dark");
+    const light = navIconBytes("issues_active", "light");
+    expect(light).not.toBe(dark);
+    expect(imageInfo(light)).toMatchObject({ format: "png", width: 128, height: 128 });
+
+    const image = NativeImage.decode(light);
+    const raw = image.takeRaw();
+    expect(raw.data.slice(0, 4)).toEqual(Uint8Array.from([255, 255, 255, 255]));
+    raw.dispose();
+    image.dispose();
   });
 });

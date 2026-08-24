@@ -1,7 +1,27 @@
 import { describe, expect, test } from "bun:test";
 
 import { DEFAULT_TIMELINE_WINDOW_SECONDS } from "~/api/monitorStats";
-import { timelineWindowLabel } from "~/core/checkInTimeline";
+import * as timelineModule from "~/core/checkInTimeline";
+import { darkTheme, lightTheme, type Theme } from "~/core/theme";
+
+const { timelineWindowLabel } = timelineModule;
+const planned = timelineModule as typeof timelineModule & {
+  timelineStylesFor: (theme: Theme) => {
+    cron: { colors: Record<string, string>; trackColor: string };
+    uptime: { colors: Record<string, string>; trackColor: string };
+  };
+};
+
+test("timeline colors come from the requested palette", () => {
+  const dark = planned.timelineStylesFor(darkTheme);
+  const light = planned.timelineStylesFor(lightTheme);
+
+  expect(dark.cron.colors.ok).toBe(darkTheme.success);
+  expect(light.cron.colors.ok).toBe(lightTheme.success);
+  expect(light.uptime.colors.failure).toBe(lightTheme.danger);
+  expect(light.cron.trackColor).toBe(lightTheme.border);
+  expect(light.cron.colors.ok).not.toBe(dark.cron.colors.ok);
+});
 
 describe("timelineWindowLabel", () => {
   /**

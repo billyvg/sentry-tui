@@ -1,5 +1,5 @@
 import { formatKey, primaryKey } from "~/core/commands";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
 
 /**
@@ -23,6 +23,7 @@ export function KeyHint({
   command: string;
   emphasised?: boolean;
 }) {
+  const theme = useTheme();
   const key = primaryKey(command);
   if (!key) return null;
 

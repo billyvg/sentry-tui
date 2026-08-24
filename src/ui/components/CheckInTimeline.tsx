@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { TIMELINE_TRACK_COLOR, type TimelineStyle } from "~/core/checkInTimeline";
+import type { TimelineStyle } from "~/core/checkInTimeline";
 import {
   TIMELINE_PENDING_GLYPH,
   foldCheckIns,
@@ -50,7 +50,7 @@ export function CheckInTimeline<S extends string>({
   if (cells === 0) return null;
 
   if (buckets === undefined) {
-    return <text fg={TIMELINE_TRACK_COLOR}>{TIMELINE_PENDING_GLYPH.repeat(cells)}</text>;
+    return <text fg={style.trackColor}>{TIMELINE_PENDING_GLYPH.repeat(cells)}</text>;
   }
 
   const folded = foldCheckIns(buckets, { width: cells, since, until, config: style.config });
@@ -81,7 +81,7 @@ function coalesce<S extends string>(
   };
 
   for (const cell of cells) {
-    const color = cell.status === null ? TIMELINE_TRACK_COLOR : style.colors[cell.status];
+    const color = cell.status === null ? style.trackColor : style.colors[cell.status];
     if (color !== runColor) {
       flush();
       runColor = color;

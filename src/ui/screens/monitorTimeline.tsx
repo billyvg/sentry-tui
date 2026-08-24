@@ -15,13 +15,9 @@
  */
 
 import type { Detector } from "~/api/detectors";
-import {
-  CRON_TIMELINE_STYLE,
-  timelineWindowLabel,
-  UPTIME_TIMELINE_STYLE,
-} from "~/core/checkInTimeline";
+import { timelineStylesFor, timelineWindowLabel } from "~/core/checkInTimeline";
 import { cronMonitor } from "~/core/detectors";
-import { theme } from "~/core/theme";
+import type { Theme } from "~/core/theme";
 import { padText } from "~/lib/text";
 import type { Column } from "~/ui/components/DataTable";
 import { CheckInTimeline } from "~/ui/components/CheckInTimeline";
@@ -89,6 +85,8 @@ export function timelineColumnWidth(paneWidth: number): number {
 }
 
 export interface TimelineColumnContext {
+  /** Palette active for the table that owns this column. */
+  theme: Theme;
   /** Fetched stats for every row on the page, or `undefined` while in flight. */
   stats: CheckInStats | undefined;
   /**
@@ -109,7 +107,13 @@ export interface TimelineColumnContext {
  * on a Cron screen. A row with no check-in history leaves the cell blank
  * rather than drawing an empty timeline it never had.
  */
-export function timelineColumn({ stats, failed, width }: TimelineColumnContext): Column<Detector> {
+export function timelineColumn({
+  stats,
+  failed,
+  width,
+  theme,
+}: TimelineColumnContext): Column<Detector> {
+  const timelineStyles = timelineStylesFor(theme);
   return {
     key: "check-ins",
     // There is no axis under the row, so the header is where the window is
@@ -128,7 +132,7 @@ export function timelineColumn({ stats, failed, width }: TimelineColumnContext):
         return (
           <CheckInTimeline
             buckets={failed ? [] : uptimeBuckets(stats, detector.id)}
-            style={UPTIME_TIMELINE_STYLE}
+            style={timelineStyles.uptime}
             width={cellWidth}
             since={since}
             until={until}
@@ -142,7 +146,7 @@ export function timelineColumn({ stats, failed, width }: TimelineColumnContext):
       return (
         <CheckInTimeline
           buckets={failed || !monitorId ? [] : cronBuckets(stats, monitorId)}
-          style={CRON_TIMELINE_STYLE}
+          style={timelineStyles.cron}
           width={cellWidth}
           since={since}
           until={until}

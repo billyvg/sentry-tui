@@ -26,7 +26,7 @@ import {
   detectorEnvironment,
   detectorTypeLabel,
 } from "~/core/detectors";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { fitText } from "~/lib/text";
 import { dateTimeText, elapsedText } from "~/lib/time";
@@ -92,6 +92,7 @@ export function MonitorDetail({
   reloadToken,
   notify,
 }: MonitorDetailProps) {
+  const theme = useTheme();
   const periods = useDetectorOpenPeriods(client, {
     org,
     detectorId: detector.id,
@@ -183,6 +184,7 @@ function MonitorHeader({
   projectSlug?: string;
   width: number;
 }) {
+  const theme = useTheme();
   // The bar carries the enabled state in color, the way the issue header's
   // carries the level — so the word beneath it is a label, not the only signal.
   const bar = detector.enabled ? theme.accent : theme.muted;
@@ -349,6 +351,7 @@ function OpenPeriods({
 
 /** `#142  2026-08-20 09:00 → ongoing   4h`, in UTC like every other timestamp. */
 function OpenPeriodRow({ period, width }: { period: DetectorOpenPeriod; width: number }) {
+  const theme = useTheme();
   const open = period.isOpen || !period.end;
   return (
     <box style={{ flexDirection: "row", width }}>
@@ -387,6 +390,7 @@ function ConnectedAlerts({ status, width }: { status: AsyncStatus<Workflow[]>; w
 }
 
 function AlertRow({ workflow, width }: { workflow: Workflow; width: number }) {
+  const theme = useTheme();
   const actions = workflowActionTypes(workflow).map(actionTypeLabel).join(", ");
   const triggered = workflow.lastTriggered ? `${timeAgo(workflow.lastTriggered)} ago` : "never";
   const enabled = workflow.enabled !== false;

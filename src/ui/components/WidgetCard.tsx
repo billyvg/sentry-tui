@@ -20,7 +20,7 @@ import {
 import type { DashboardWidget } from "~/api/dashboards";
 import type { DiscoverRow } from "~/api/discover";
 import { errorOf, isLoading, valueOf, type AsyncStatus } from "~/core/async";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { bigDigitLines, splitBigValue } from "~/lib/bigDigits";
 import { formatCount, sparklineBlock, stretch, type SeriesPoint } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
@@ -71,6 +71,7 @@ export function WidgetCard({
   selected,
   placeholder = false,
 }: WidgetCardProps) {
+  const theme = useTheme();
   const inner = Math.max(4, width - CARD_CHROME_WIDTH);
   const bodyLines = Math.max(0, height - 3);
 
@@ -113,6 +114,7 @@ function CardTitle({
   selected: boolean;
   placeholder: boolean;
 }) {
+  const theme = useTheme();
   const tag = widget.displayType;
   const titleWidth = Math.max(1, width - tag.length - 1);
   return (
@@ -214,6 +216,7 @@ function NumberBody({
   pending: boolean;
   width: number;
 }) {
+  const theme = useTheme();
   const { numeric, suffix } = splitBigValue(data?.formatted ?? "");
   // A placeholder of the same shape, so the card doesn't resize or jump when
   // the real number lands.
@@ -259,6 +262,7 @@ function SeriesBody({
   pending: boolean;
   width: number;
 }) {
+  const theme = useTheme();
   const chartWidth = Math.max(4, width - AXIS_LABEL_WIDTH - 1);
   const raw: SeriesPoint[] | undefined = data?.buckets.map(([at, series]) => [
     at,
@@ -346,6 +350,7 @@ function TableBody({
   width: number;
   lines: number;
 }) {
+  const theme = useTheme();
   const headers = data?.headers ?? [];
   const fields = data?.fields ?? [];
   // One flex column per field. The rightmost sheds first, as it does
@@ -420,6 +425,7 @@ function BarsBody({
   rows: number;
   width: number;
 }) {
+  const theme = useTheme();
   const labelWidth = Math.max(BAR_LABEL_MIN, Math.min(BAR_LABEL_MAX, Math.floor(width * 0.35)));
   const barWidth = Math.max(1, width - labelWidth - BAR_VALUE_WIDTH - 2);
   const entries = data?.entries ?? [];
@@ -462,6 +468,7 @@ function BarsBody({
  * than leaving a card that looks broken.
  */
 function NotRenderable({ reason, width, lines }: { reason: string; width: number; lines: number }) {
+  const theme = useTheme();
   return (
     <FixedLines width={width} lines={lines}>
       <text fg={theme.muted}>{fitText(reason, width)}</text>
@@ -473,6 +480,7 @@ function NotRenderable({ reason, width, lines }: { reason: string; width: number
 }
 
 function CardError({ message, width, lines }: { message: string; width: number; lines: number }) {
+  const theme = useTheme();
   return (
     <FixedLines width={width} lines={lines}>
       <text fg={theme.danger}>{fitText("Failed to load this widget", width)}</text>

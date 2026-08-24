@@ -14,7 +14,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { theme } from "~/core/theme";
+import { darkTheme as theme } from "~/core/theme";
 import { App } from "~/ui/App";
 import { BOLD } from "~/ui/lib/attributes";
 import { renderHarness } from "./helpers";

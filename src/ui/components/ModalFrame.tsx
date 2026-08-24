@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useTerminalDimensions } from "@opentui/react";
 
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { resolveModalGeometry } from "~/ui/lib/modalGeometry";
 
 const SCRIM_Z = 55;
@@ -24,6 +24,7 @@ export function ModalFrame({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const theme = useTheme();
   const { width: termWidth, height: termHeight } = useTerminalDimensions();
   const geo = resolveModalGeometry({
     width,

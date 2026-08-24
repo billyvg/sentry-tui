@@ -10,7 +10,7 @@ import { buildGotoHotkeys } from "~/core/goto";
 import { getNavGroup, NAV_GROUPS, soleNavItem, type NavGroupId } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { findScreen, getScreen, stateKeyOf, type ScreenId } from "~/core/screens";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
 import { breadcrumbTrail } from "~/lib/breadcrumb";
 // Aliased: `breadcrumb` is taken in this file by the trail rendered in the
@@ -103,6 +103,7 @@ export function App({
   initialProjectsByOrg = {},
   onRestart,
 }: AppProps) {
+  const theme = useTheme();
   const { width, height } = useTerminalDimensions();
 
   const [projectsByOrg, setProjectsByOrg] = useState<Record<string, string[]>>(() =>

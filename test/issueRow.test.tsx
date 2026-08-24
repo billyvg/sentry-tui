@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { Group } from "~/api/types";
-import { theme } from "~/core/theme";
+import { darkTheme as theme } from "~/core/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { ITALIC } from "~/ui/lib/attributes";
 import {

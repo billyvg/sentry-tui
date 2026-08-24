@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { theme } from "~/core/theme";
+import { darkTheme as theme } from "~/core/theme";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { renderHarness } from "./helpers";

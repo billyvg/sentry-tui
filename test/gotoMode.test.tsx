@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { theme } from "~/core/theme";
+import { darkTheme as theme } from "~/core/theme";
 import { App } from "~/ui/App";
 import { renderHarness } from "./helpers";
 

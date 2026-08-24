@@ -1,6 +1,6 @@
 import type { Group, PriorityLevel } from "~/api/types";
 import { assigneeInitials } from "~/core/avatars";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { formatCount, sparkline, timeAgo } from "~/lib/sparkline";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
@@ -140,6 +140,7 @@ function RowRule({
   /** The row immediately below this rule is selected. */
   selectionBelow?: boolean;
 }) {
+  const theme = useTheme();
   const glyph = selectionAbove ? "▀" : selectionBelow ? "▄" : "─";
   const fg = selectionAbove || selectionBelow ? theme.selected : theme.border;
 
@@ -165,6 +166,7 @@ function TrendCell({
   fg: string;
   rules?: boolean;
 }) {
+  const theme = useTheme();
   const rule = rules ? "│" : " ";
 
   return (
@@ -186,6 +188,7 @@ export function IssueListHeader({
   /** The first row of the list — the one under this rule — is selected. */
   selectionBelow?: boolean;
 }) {
+  const theme = useTheme();
   const layout = resolveRowLayout(width);
 
   return (
@@ -247,6 +250,7 @@ export function IssueRow({
   /** The row was clicked. What that means is the list owner's call. */
   onClick?: () => void;
 }) {
+  const theme = useTheme();
   const layout = resolveRowLayout(width);
   const bg = selected ? theme.selected : undefined;
   const title = issueTitle(group);
@@ -328,6 +332,7 @@ export function IssueRow({
  * @param avatarUrl Remote URL of the assignee's avatar, if they set one.
  */
 function AssigneeCell({ group, avatarUrl }: { group: Group; avatarUrl?: string }) {
+  const theme = useTheme();
   const width = COLUMN_WIDTH.assignee;
   const { supportsHighRes } = useImageSupport();
 
@@ -360,6 +365,7 @@ function Column({
   group: Group;
   avatarUrl?: string;
 }) {
+  const theme = useTheme();
   const width = COLUMN_WIDTH[column];
 
   switch (column) {
@@ -441,6 +447,7 @@ function metaRow(group: Group, width: number, message: string, iconWidth: number
  * never jumps when the data lands.
  */
 export function IssueRowSkeleton({ width, seed }: { width: number; seed: number }) {
+  const theme = useTheme();
   const layout = resolveRowLayout(width);
   // Vary the bar widths so the list reads as pending content, not a progress
   // bar. Deterministic in the index so frames are stable across renders.

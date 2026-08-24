@@ -16,7 +16,8 @@ import { useCallback, useEffect, useMemo } from "react";
 import { savedQueryProjectSlugs, type SavedQuery } from "~/api/savedQueries";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { savedQueryScreen, type SavedQueryScreenConfig } from "~/core/savedQueryScreens";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
+import type { Theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
@@ -51,7 +52,10 @@ const MIN_QUERY_WIDTH = 20;
  * (`savedQueriesTable.tsx:366-394`), which drops `last-visited` at its medium
  * breakpoint and `created-by` and `dataset` at its small one.
  */
-function columnsFor(config: SavedQueryScreenConfig): ReadonlyArray<Column<SavedQuery>> {
+function columnsFor(
+  config: SavedQueryScreenConfig,
+  theme: Theme,
+): ReadonlyArray<Column<SavedQuery>> {
   return [
     {
       key: "star",
@@ -117,6 +121,7 @@ function columnsFor(config: SavedQueryScreenConfig): ReadonlyArray<Column<SavedQ
 }
 
 export function SavedQueries(props: ScreenProps) {
+  const theme = useTheme();
   const {
     client,
     org,
@@ -180,7 +185,7 @@ export function SavedQueries(props: ScreenProps) {
   );
   useScreenActions(registerActions, { open });
 
-  const columns = useMemo(() => columnsFor(config), [config]);
+  const columns = useMemo(() => columnsFor(config, theme), [config, theme]);
 
   return (
     <box style={{ flexDirection: "column", width, height }}>

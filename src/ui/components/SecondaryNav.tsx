@@ -1,5 +1,5 @@
 import { getNavGroup, type NavGroupId } from "~/core/nav";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import type { Hotkey } from "~/lib/hotkeys";
 import { fitText } from "~/lib/text";
 import { NavHotkeyLabel } from "~/ui/components/NavHotkeyLabel";
@@ -37,6 +37,7 @@ export function SecondaryNav({
   /** Clicking an item commits it, exactly as Enter does on the cursor. */
   onSelect?: (item: NavItemSpec) => void;
 }) {
+  const theme = useTheme();
   const nav = getNavGroup(group);
   const sections = navSectionsFor(group, extras);
 

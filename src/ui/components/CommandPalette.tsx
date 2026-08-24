@@ -11,7 +11,7 @@ import {
   type PaletteAction,
   type PaletteRow,
 } from "~/core/palette";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { fitText } from "~/lib/text";
 import { VERSION_LABEL } from "~/lib/version";
 import { HighlightedLabel } from "~/ui/components/HighlightedLabel";
@@ -59,6 +59,7 @@ export interface CommandPaletteProps {
  * every destination is one fuzzy match away regardless.
  */
 export function CommandPalette({ actions, onRun, onClose }: CommandPaletteProps) {
+  const theme = useTheme();
   const { width: termWidth, height: termHeight } = useTerminalDimensions();
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -205,6 +206,7 @@ function PaletteRowView({
   width: number;
   onPress: () => void;
 }) {
+  const theme = useTheme();
   const { action, positions } = row.result;
   const detail = action.detail ?? "";
   const labelWidth = Math.max(1, width - CURSOR_WIDTH - (detail ? detail.length + DETAIL_GAP : 0));

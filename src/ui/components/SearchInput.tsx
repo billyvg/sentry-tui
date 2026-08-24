@@ -32,7 +32,7 @@ import { useCallback, useRef } from "react";
 
 import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { UNDERLINE } from "~/ui/lib/attributes";
 
@@ -58,6 +58,7 @@ export function SearchInput({
   onFocus,
   onBlur,
 }: SearchInputProps) {
+  const theme = useTheme();
   const inputRef = useRef<InputRenderable>(null);
 
   // Listeners are attached in a ref callback rather than an effect: the

@@ -5,21 +5,25 @@ import { createRoot } from "@opentui/react";
 import { restartInto } from "~/app/selfUpdate";
 import type { AppContext } from "~/app/startup";
 import { flushConfigWrites } from "~/api/config";
+import { parseThemePreference } from "~/core/theme";
 import { finishStartup, log, setTerminalRestore, shutdownTelemetry } from "~/telemetry/index";
 import { App } from "~/ui/App";
 import { ErrorBoundary } from "~/ui/components/ErrorBoundary";
+import { resolveInitialTheme, ThemeProvider } from "~/ui/theme";
 
 /**
  * Owns the renderer lifecycle. `renderer.destroy()` must run on every exit path
  * or the terminal is left in `-echo`/`-icanon` and the user has to run `reset`.
  */
 export async function runApp({ client, org, projectsByOrg }: AppContext): Promise<void> {
+  const preference = parseThemePreference(process.env["SENTRY_TUI_THEME"]);
   const renderer = await createCliRenderer({
     screenMode: "alternate-screen",
     exitOnCtrlC: false, // the app owns Ctrl-C so it can shut down cleanly
     openConsoleOnError: true,
     targetFps: 30,
   });
+  const selection = await resolveInitialTheme(renderer, preference);
 
   const openedAt = Date.now();
   log("info", "app.session.started", {
@@ -28,6 +32,8 @@ export async function runApp({ client, org, projectsByOrg }: AppContext): Promis
     // worth knowing when a screen looks wrong for someone and not for us.
     columns: renderer.terminalWidth,
     rows: renderer.terminalHeight,
+    theme: selection.mode,
+    theme_source: selection.source,
   });
 
   let shuttingDown = false;
@@ -73,16 +79,18 @@ export async function runApp({ client, org, projectsByOrg }: AppContext): Promis
   process.on("SIGTERM", () => void shutdown());
 
   createRoot(renderer).render(
-    <ErrorBoundary onQuit={() => void shutdown()}>
-      <FirstPaint />
-      <App
-        onQuit={() => void shutdown()}
-        onRestart={(path) => void restart(path)}
-        client={client}
-        org={org}
-        initialProjectsByOrg={projectsByOrg}
-      />
-    </ErrorBoundary>,
+    <ThemeProvider source={renderer} initialMode={selection.mode} fixed={selection.fixed}>
+      <ErrorBoundary onQuit={() => void shutdown()}>
+        <FirstPaint />
+        <App
+          onQuit={() => void shutdown()}
+          onRestart={(path) => void restart(path)}
+          client={client}
+          org={org}
+          initialProjectsByOrg={projectsByOrg}
+        />
+      </ErrorBoundary>
+    </ThemeProvider>,
   );
 }
 

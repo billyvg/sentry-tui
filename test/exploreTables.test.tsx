@@ -7,6 +7,7 @@ import { SentryClient } from "~/api/client";
 import { defaultExploreQuery, resolveExploreQuery, withGroupBys } from "~/core/exploreQuery";
 import { EXPLORE_TABLES, getExploreTable } from "~/core/exploreTables";
 import { getScreen } from "~/core/screens";
+import { darkTheme } from "~/core/theme";
 import { proportionalBar } from "~/lib/sparkline";
 import { DataTable } from "~/ui/components/DataTable";
 import { layoutColumns } from "~/ui/lib/tableLayout";
@@ -153,7 +154,7 @@ describe("registration", () => {
 describe("columns", () => {
   test("no column draws a field its query never asked for", () => {
     for (const table of EXPLORE_TABLES) {
-      const columns = exploreColumnsFor(table.id, { maxDurationMs: 1000 });
+      const columns = exploreColumnsFor(table.id, { maxDurationMs: 1000, theme: darkTheme });
       expect(columns.length).toBeGreaterThan(0);
       for (const column of columns) {
         expect(table.fields).toContain(column.key);
@@ -165,7 +166,7 @@ describe("columns", () => {
     const traces = getExploreTable("explore.traces")!;
     const state = withGroupBys(defaultExploreQuery(traces), ["span.op", "transaction"], traces);
     const resolved = resolveExploreQuery(traces, state);
-    const columns = aggregateColumns(state.groupBys, resolved.yAxis, 1000);
+    const columns = aggregateColumns(state.groupBys, resolved.yAxis, 1000, darkTheme);
     expect(columns.map((c) => c.key)).toEqual([...resolved.fields]);
     // The leading group by is what the rows are read by, so it never sheds;
     // the rest go from the right.
@@ -183,7 +184,7 @@ describe("columns", () => {
 
   test("every column set has exactly one flex column that never sheds", () => {
     for (const table of EXPLORE_TABLES) {
-      const columns = exploreColumnsFor(table.id, { maxDurationMs: 1000 });
+      const columns = exploreColumnsFor(table.id, { maxDurationMs: 1000, theme: darkTheme });
       const flex = columns.filter((c) => c.width === "flex");
       expect(flex).toHaveLength(1);
       expect(flex[0]!.priority).toBeUndefined();
@@ -192,14 +193,16 @@ describe("columns", () => {
 
   test("column keys are unique within a table", () => {
     for (const table of EXPLORE_TABLES) {
-      const keys = exploreColumnsFor(table.id, { maxDurationMs: 1000 }).map((c) => c.key);
+      const keys = exploreColumnsFor(table.id, { maxDurationMs: 1000, theme: darkTheme }).map(
+        (c) => c.key,
+      );
       expect(keys).toHaveLength(new Set(keys).size);
     }
   });
 
   test("shed priorities are distinct, so the order is not a coin toss", () => {
     for (const table of EXPLORE_TABLES) {
-      const priorities = exploreColumnsFor(table.id, { maxDurationMs: 1000 })
+      const priorities = exploreColumnsFor(table.id, { maxDurationMs: 1000, theme: darkTheme })
         .map((c) => c.priority)
         .filter((p): p is number => p !== undefined);
       expect(priorities).toHaveLength(new Set(priorities).size);
@@ -210,7 +213,7 @@ describe("columns", () => {
   // the border, so the widths here are pessimistic on purpose.
   test.each([40, 60, 80, 100, 140])("columns fit and shed in order at %i cells", (available) => {
     for (const table of EXPLORE_TABLES) {
-      const columns = exploreColumnsFor(table.id, { maxDurationMs: 1000 });
+      const columns = exploreColumnsFor(table.id, { maxDurationMs: 1000, theme: darkTheme });
       const resolved = layoutColumns(columns, available, { gap: 1, minFlex: EXPLORE_MIN_FLEX });
       const used = resolved.reduce((sum, r) => sum + r.width, 0) + Math.max(0, resolved.length - 1);
       expect(used).toBeLessThanOrEqual(available);
@@ -231,7 +234,7 @@ describe("columns", () => {
    * which is a column that technically renders and says nothing.
    */
   test("the default floor squeezes the flex column instead of shedding", () => {
-    const traces = exploreColumnsFor("explore.traces", { maxDurationMs: 1000 });
+    const traces = exploreColumnsFor("explore.traces", { maxDurationMs: 1000, theme: darkTheme });
     const flex = layoutColumns(traces, 80, { gap: 1 }).find(
       (r) => r.column.key === "span.description",
     );
@@ -240,7 +243,7 @@ describe("columns", () => {
 
   test("EXPLORE_MIN_FLEX sheds a fixed column instead", () => {
     for (const table of EXPLORE_TABLES) {
-      const columns = exploreColumnsFor(table.id, { maxDurationMs: 1000 });
+      const columns = exploreColumnsFor(table.id, { maxDurationMs: 1000, theme: darkTheme });
       const flexKey = columns.find((c) => c.width === "flex")!.key;
       const resolved = layoutColumns(columns, 80, { gap: 1, minFlex: EXPLORE_MIN_FLEX });
       const flex = resolved.find((r) => r.column.key === flexKey);
@@ -252,7 +255,7 @@ describe("columns", () => {
   });
 
   test("the shed order is lowest priority first", () => {
-    const traces = exploreColumnsFor("explore.traces", { maxDurationMs: 1000 });
+    const traces = exploreColumnsFor("explore.traces", { maxDurationMs: 1000, theme: darkTheme });
     const layout = { gap: 1, minFlex: EXPLORE_MIN_FLEX };
     const wide = layoutColumns(traces, 140, layout).map((r) => r.column.key);
     const narrow = layoutColumns(traces, 80, layout).map((r) => r.column.key);
@@ -629,7 +632,7 @@ function renderRows(
     <box style={{ width, height: 20, flexDirection: "column" }}>
       <DataTable<ExploreEvent>
         rows={rows}
-        columns={exploreColumnsFor(id as never, { maxDurationMs: 9010 })}
+        columns={exploreColumnsFor(id as never, { maxDurationMs: 9010, theme: darkTheme })}
         width={width}
         selectedIndex={0}
         focused

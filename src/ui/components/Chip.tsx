@@ -1,5 +1,5 @@
 import { formatKey, primaryKey } from "~/core/commands";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { measureTextWidth } from "~/lib/text";
 import { KeyHint } from "~/ui/components/KeyHint";
 
@@ -120,6 +120,7 @@ export function Chip({
   active?: boolean;
   onPress?: () => void;
 }) {
+  const theme = useTheme();
   const key = formatKey(primaryKey(command));
   // An unbound command has no key to print, but the chip is still pressable by
   // mouse — so it keeps its surface and simply loses the key group.

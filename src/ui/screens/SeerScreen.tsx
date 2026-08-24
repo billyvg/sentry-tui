@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useState } from "react";
 
 import { matchesCommand } from "~/core/commands";
 import { SEER_SUGGESTED_QUESTIONS } from "~/core/seer";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { SeerChatContext } from "~/ui/hooks/useSeerChat";
 import { SeerExplorer } from "~/ui/screens/SeerExplorer";
 import type { ScreenProps } from "~/ui/screens/types";
@@ -25,6 +25,7 @@ import type { ScreenProps } from "~/ui/screens/types";
  * does.
  */
 export function SeerScreen({ state, width, height, focused, registerActions }: ScreenProps) {
+  const theme = useTheme();
   const chat = useContext(SeerChatContext);
   const [inputFocused, setInputFocused] = useState(true);
 

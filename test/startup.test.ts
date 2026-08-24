@@ -127,6 +127,7 @@ describe("help text", () => {
     expect(HELP_TEXT).toContain("SENTRY_ORG");
     expect(HELP_TEXT).toContain("SENTRY_TUI_LATENCY");
     expect(HELP_TEXT).toContain("SENTRY_CLIENT_ID");
+    expect(HELP_TEXT).toContain("SENTRY_TUI_THEME");
   });
 
   test("documents the version flag", () => {
