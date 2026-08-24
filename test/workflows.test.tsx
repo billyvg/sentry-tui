@@ -81,7 +81,7 @@ async function renderAlerts(client: SentryClient | null = stubClient(), width = 
 /** Walk the nav rail to Monitors › Alerts, the way a user gets there. */
 async function navigateToAlerts(h: Harness) {
   await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-  await h.press((i) => i.pressTab());
+  await h.openNav();
   for (let n = 0; n < MONITORS_GROUP_INDEX; n++) await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
   for (let n = 0; n < ALERTS_INDEX; n++) await h.press((i) => i.pressKey("j"));
@@ -424,14 +424,16 @@ test("the header sits at the same offsets in the skeleton as under real rows", a
  * order, and the name survives every width.
  */
 for (const { width, kept, shed } of [
-  { width: 80, kept: ["Name", "Projects"], shed: ["Monitors", "Last Triggered", "Actions"] },
+  {
+    width: 80,
+    kept: ["Name", "Projects", "Actions"],
+    shed: ["Monitors", "Last Triggered"],
+  },
   {
     width: 100,
-    // The nav rail and its filter chips shed 2 cells apiece when their keys
-    // stopped wearing parens, so 100 columns now has room for one more
-    // column than it used to.
-    kept: ["Name", "Projects", "Actions", "Last Triggered"],
-    shed: ["Monitors"],
+    // The compact rail leaves enough room for the full table at 100 columns.
+    kept: ["Name", "Projects", "Actions", "Last Triggered", "Monitors"],
+    shed: [],
   },
   {
     width: 140,

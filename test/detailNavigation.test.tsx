@@ -1,11 +1,11 @@
 /**
  * Navigation while a view is on the stack.
  *
- * A pushed view used to make the nav panes inert: Tab moved focus into the rail
- * and painted its focus ring, then j/k/Enter did nothing, which reads as a hung
- * app rather than as a modal state. It also said nothing about Escape being the
- * way out — the status bar printed the ordinary list hints over an opened saved
- * query, and only the issue detail carried a breadcrumb, hand-rolled.
+ * A pushed view used to make the nav panes inert: opening the rail and moving
+ * its cursor painted a focus ring, then j/k/Enter did nothing, which reads as a
+ * hung app rather than as a modal state. It also said nothing about Escape
+ * being the way out — the status bar printed the ordinary list hints over an
+ * opened saved query, and only the issue detail carried a breadcrumb, hand-rolled.
  */
 
 import { expect, test } from "bun:test";
@@ -71,7 +71,7 @@ async function openSavedQueryResults(): Promise<Harness> {
   const h = await renderApp();
   await h.waitForFrame((f) => f.includes("TypeError") || f.includes("No issues"));
   // Rail → Explore, then down the sidebar to All Queries (9 past Traces).
-  await h.press((i) => i.pressTab());
+  await h.openNav();
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
   for (let n = 0; n < 9; n++) await h.press((i) => i.pressKey("j"));
@@ -89,7 +89,7 @@ async function openSavedQueryResults(): Promise<Harness> {
 test("the nav rail answers j/k while a detail view is open", async () => {
   const h = await openIssueDetail();
   try {
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     await h.press((i) => i.pressKey("j"));
     await h.press((i) => i.pressEnter());
 
@@ -106,7 +106,7 @@ test("the nav rail answers j/k while a detail view is open", async () => {
 test("the nav rail answers j/k over a view that has its own state slice", async () => {
   const h = await openSavedQueryResults();
   try {
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     // The rail is parked on Explore, where this view came from; `k` walks it
     // back up to Issues, whose sidebar is the proof the cursor moved.
     await h.press((i) => i.pressKey("k"));
@@ -122,7 +122,7 @@ test("the nav rail answers j/k over a view that has its own state slice", async 
 test("choosing a nav item from inside a detail view leaves it behind", async () => {
   const h = await openIssueDetail();
   try {
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     await h.press((i) => i.pressKey("j"));
     await h.press((i) => i.pressEnter());
     await h.press((i) => i.pressEnter()); // Explore › Traces
@@ -139,7 +139,7 @@ test("choosing a nav item from inside a detail view leaves it behind", async () 
 test("escape closes the secondary drawer before it pops the view", async () => {
   const h = await openIssueDetail();
   try {
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     await h.press((i) => i.pressEnter()); // Issues' own sidebar, over the view
 
     await h.pressEscape();
@@ -157,7 +157,7 @@ test("escape closes the secondary drawer before it pops the view", async () => {
 test("escape pops the view from the nav rail too", async () => {
   const h = await openIssueDetail();
   try {
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     await h.pressEscape();
 
     await h.waitForFrame((f) => !f.includes("back to Feed"));
@@ -170,7 +170,7 @@ test("escape pops the view from the nav rail too", async () => {
 test("triage keys stay with the content pane, detail view included", async () => {
   const h = await openIssueDetail();
   try {
-    await h.press((i) => i.pressTab()); // focus the rail
+    await h.openNav(); // focus the rail
     await h.press((i) => i.pressKey("r"));
 
     // `r` on the rail is not a resolve: nothing was written, and the header

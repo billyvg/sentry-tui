@@ -22,6 +22,7 @@ import { isDropdownMounted } from "~/ui/components/Dropdown";
 import { isFilterBarMounted, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { HelpDialog } from "~/ui/components/HelpDialog";
 import {
+  COLLAPSED_NAV_RAIL_WIDTH,
   NavRail,
   NAV_RAIL_WIDTH,
   ORG_HEADER_ANCHOR_LEFT,
@@ -115,7 +116,8 @@ export function App({
   const [activeGroup, setActiveGroup] = useState<NavGroupId>(initial.group);
   const [activeItem, setActiveItem] = useState(initial.item);
 
-  // Secondary nav: visible only after pressing Enter on the rail.
+  // Primary nav labels start hidden; secondary nav appears after opening a group.
+  const [navExpanded, setNavExpanded] = useState(false);
   const [showSecondary, setShowSecondary] = useState(false);
   const [secondaryItem, setSecondaryItem] = useState(initial.item);
 
@@ -306,10 +308,6 @@ export function App({
   const secondaryItems = useMemo(() => navItemsFor(railGroup, navExtras), [railGroup, navExtras]);
 
   /**
-   * Open a nav group's secondary list — the one path Enter on the rail and a
-   * click on a rail item both take.
-   */
-  /**
    * Show a group's item in the content pane — the one path every way of
    * navigating ends at: the secondary nav, a click, and the command palette.
    */
@@ -320,6 +318,7 @@ export function App({
       setActiveGroup(group);
       setActiveItem(item);
       setSecondaryItem(item);
+      setNavExpanded(false);
       setShowSecondary(false);
       // Navigating away supersedes whatever view is on the stack; otherwise
       // it keeps rendering over the group just chosen. The outgoing screen's
@@ -356,6 +355,12 @@ export function App({
     },
     [activeGroup, activeItem, focus, navigateTo],
   );
+
+  /** Restore the labeled rail without choosing a destination. */
+  const expandNav = useCallback(() => {
+    setNavExpanded(true);
+    focus.focus("nav");
+  }, [focus]);
 
   /**
    * Commit a secondary nav item as the active view — shared by Enter on the
@@ -619,6 +624,7 @@ export function App({
         () => {
           if (!gotoMode) {
             if (!matchesCommand("sentry.nav.goto", key)) return "notMine";
+            setNavExpanded(true);
             setGotoMode(true);
             return "mine";
           }
@@ -723,6 +729,10 @@ export function App({
             return "mine";
           }
           if (matchesCommand("sentry.app.focusNext", key)) {
+            if (!navExpanded) {
+              focus.focus("content");
+              return "mine";
+            }
             const cur = focus.focusedRef.current;
             if (showSecondary) {
               focus.focus(cur === "nav" ? "secondary" : "nav");
@@ -732,6 +742,10 @@ export function App({
             return "mine";
           }
           if (matchesCommand("sentry.app.focusPrev", key)) {
+            if (!navExpanded) {
+              focus.focus("content");
+              return "mine";
+            }
             const cur = focus.focusedRef.current;
             if (showSecondary) {
               focus.focus(cur === "secondary" ? "nav" : "secondary");
@@ -758,9 +772,8 @@ export function App({
           return "notMine";
         },
         // 7. Nav rail: j/k moves the cursor, Enter opens secondary nav. Live
-        // whenever the rail holds focus, a pushed view included — Tab can put
-        // the cursor up here from anywhere, and a focused pane that answers
-        // nothing is indistinguishable from a hung app.
+        // whenever the expanded rail holds focus, a pushed view included — a
+        // focused pane that answers nothing is indistinguishable from a hung app.
         () => {
           if (focus.focusedRef.current !== "nav") return "notMine";
           if (matchesCommand("sentry.nav.open", key)) {
@@ -860,7 +873,8 @@ export function App({
   // as they were, rather than leaving a drawer open that nobody pulled.
   const showSecondaryPane = showSecondary || gotoMode;
   const secondaryWidth = showSecondaryPane ? SECONDARY_NAV_WIDTH : 0;
-  const contentWidth = Math.max(20, width - NAV_RAIL_WIDTH - secondaryWidth - 2);
+  const railWidth = navExpanded ? NAV_RAIL_WIDTH : COLLAPSED_NAV_RAIL_WIDTH;
+  const contentWidth = Math.max(20, width - railWidth - secondaryWidth - 2);
   const contentHeight = Math.max(3, height - 3);
 
   /**
@@ -982,11 +996,13 @@ export function App({
       <box style={{ flexGrow: 1, flexDirection: "row" }}>
         <NavRail
           active={railGroup}
+          expanded={navExpanded}
           focused={focus.isFocused("nav")}
           avatarUrl={avatarUrl}
           orgSlug={org}
           hotkeys={gotoHotkeys?.groups}
           onSelect={openNavGroup}
+          onExpand={expandNav}
           onOrgPress={() => setShowOrgPicker(true)}
         />
         {showSecondaryPane ? (

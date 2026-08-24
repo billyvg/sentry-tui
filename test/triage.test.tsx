@@ -216,8 +216,8 @@ describe("triage from the issue list", () => {
     });
     try {
       await h.waitForFrame((f) => f.includes("TypeError"));
-      // Content has focus by default — tab to the rail.
-      await h.press((i) => i.pressTab());
+      // Open the compact rail and leave its navigation cursor focused.
+      await h.openNav();
       await h.press((i) => i.pressKey("r"));
       expect(puts).toHaveLength(0);
     } finally {

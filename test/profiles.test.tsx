@@ -34,7 +34,7 @@ function stubClient(rows: unknown = rawProfileFunctionRowsFixture) {
 
 /** Navigate to Explore › Profiles. */
 async function navigateToProfiles(h: Awaited<ReturnType<typeof renderHarness>>) {
-  await h.press((i) => i.pressTab());
+  await h.openNav();
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
   for (let i = 0; i < PROFILES_INDEX; i++) await h.press((k) => k.pressKey("j"));

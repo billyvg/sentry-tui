@@ -52,10 +52,9 @@ test("a screen's query and cursor survive a round trip through another section",
     await h.press((i) => i.pressKey("\r"));
     expect(h.frame()).toContain("is:unresolved marker");
 
-    // Somewhere with a screen of its own and no state we share — Settings is
-    // still stubbed, which is exactly the round trip this is about.
-    await goTo(h, "Teams");
-    await h.waitForFrame((f) => f.includes("Not implemented yet."));
+    // Somewhere with a screen of its own and no state we share.
+    await goTo(h, "Ask Seer");
+    await h.waitForFrame((f) => f.includes("Ask Seer anything"));
     expect(h.frame()).not.toContain("is:unresolved marker");
 
     await goTo(h, "Feed");

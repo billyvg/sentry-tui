@@ -69,6 +69,9 @@ const ORG_HEADER_ROW_WIDTH = AVATAR_WIDTH + 1 + WIDEST_NAV_LABEL + ORG_KEY_HINT_
 export const NAV_RAIL_WIDTH =
   RAIL_CHROME_WIDTH + Math.max(NAV_ITEM_ROW_WIDTH, ORG_HEADER_ROW_WIDTH);
 
+/** Width of the compact rail: chrome around the two-cell icon column. */
+export const COLLAPSED_NAV_RAIL_WIDTH = RAIL_CHROME_WIDTH + NAV_ICON_WIDTH;
+
 /**
  * Blank rows framing the org header. The bottom margin exceeds NAV_ITEM_GAP so
  * the org reads as its own block rather than another nav entry.
@@ -87,6 +90,8 @@ export const ORG_HEADER_ANCHOR_TOP = 1 + ORG_HEADER_MARGIN_TOP + AVATAR_HEIGHT;
 
 interface NavRailProps {
   active: NavGroupId;
+  /** Whether the rail shows its full labels and organization header. */
+  expanded: boolean;
   focused: boolean;
   /** Goto keys to print in the labels. Absent unless goto mode is open. */
   hotkeys?: ReadonlyMap<NavGroupId, Hotkey>;
@@ -96,6 +101,8 @@ interface NavRailProps {
   orgSlug?: string;
   /** Clicking a group opens it, exactly as Enter does on the rail cursor. */
   onSelect?: (group: NavGroupId) => void;
+  /** Clicking anywhere on the compact rail restores the full navigation. */
+  onExpand?: () => void;
   /** Open the organization picker — the header is a control, not a caption. */
   onOrgPress?: () => void;
 }
@@ -103,25 +110,29 @@ interface NavRailProps {
 /** Primary navigation rail — shows icons (when supported) plus text labels. */
 export function NavRail({
   active,
+  expanded,
   focused,
   hotkeys,
   avatarUrl,
   orgSlug,
   onSelect,
+  onExpand,
   onOrgPress,
 }: NavRailProps) {
   /** Usable content width: total minus borders (left+right) and horizontal padding. */
-  const contentWidth = NAV_RAIL_WIDTH - RAIL_CHROME_WIDTH;
+  const railWidth = expanded ? NAV_RAIL_WIDTH : COLLAPSED_NAV_RAIL_WIDTH;
+  const contentWidth = railWidth - RAIL_CHROME_WIDTH;
   const { supportsHighRes: hasImages } = useImageSupport();
 
   /** What the slug has left after the avatar (when drawn) and the key hint. */
-  const slugWidth =
-    contentWidth - (hasImages && avatarUrl ? AVATAR_WIDTH + 1 : 0) - ORG_KEY_HINT_WIDTH;
+  const slugWidth = expanded
+    ? contentWidth - (hasImages && avatarUrl ? AVATAR_WIDTH + 1 : 0) - ORG_KEY_HINT_WIDTH
+    : 0;
 
   return (
     <box
       style={{
-        width: NAV_RAIL_WIDTH,
+        width: railWidth,
         flexShrink: 0,
         flexDirection: "column",
         // No surface tint: the rail sits on the app background like the content
@@ -132,6 +143,7 @@ export function NavRail({
         paddingLeft: 1,
         paddingRight: 1,
       }}
+      onMouseDown={expanded ? undefined : onExpand}
     >
       {/* Org header: avatar only when hi-res images are available, slug always */}
       {orgSlug || (hasImages && avatarUrl) ? (
@@ -139,32 +151,45 @@ export function NavRail({
           style={{
             height: hasImages ? AVATAR_HEIGHT : 1,
             flexDirection: "column",
+            alignItems: expanded ? "stretch" : "center",
             marginTop: ORG_HEADER_MARGIN_TOP,
             marginBottom: ORG_HEADER_MARGIN_BOTTOM,
           }}
-          onMouseDown={onOrgPress}
+          onMouseDown={expanded ? onOrgPress : undefined}
         >
-          <box style={{ flexDirection: "row", alignItems: "center", gap: 1 }}>
-            {hasImages && avatarUrl ? (
-              <image
-                source={avatarUrl}
-                fit="fit"
-                style={{ width: AVATAR_WIDTH, height: AVATAR_HEIGHT }}
-              />
-            ) : null}
-            {orgSlug ? (
-              <text fg={theme.text} attributes={1}>
-                {fitText(orgSlug, slugWidth)}
-              </text>
-            ) : null}
-            {/* The key rides the slug, so the org reads as something you press
-                rather than a label that happens to sit above the nav. Wrapped
-                so the row's gap falls beside the hint, not between its parens
-                and the key. */}
-            <box style={{ flexDirection: "row" }}>
-              <KeyHint command={ORG_PICKER_COMMAND} />
+          {expanded ? (
+            <box style={{ flexDirection: "row", alignItems: "center", gap: 1 }}>
+              {hasImages && avatarUrl ? (
+                <image
+                  source={avatarUrl}
+                  fit="fit"
+                  style={{ width: AVATAR_WIDTH, height: AVATAR_HEIGHT }}
+                />
+              ) : null}
+              {orgSlug ? (
+                <text fg={theme.text} attributes={1}>
+                  {fitText(orgSlug, slugWidth)}
+                </text>
+              ) : null}
+              {/* The key rides the slug, so the org reads as something you press
+                  rather than a label that happens to sit above the nav. Wrapped
+                  so the row's gap falls beside the hint, not between its parens
+                  and the key. */}
+              <box style={{ flexDirection: "row" }}>
+                <KeyHint command={ORG_PICKER_COMMAND} />
+              </box>
             </box>
-          </box>
+          ) : hasImages && avatarUrl ? (
+            <image
+              source={avatarUrl}
+              fit="fit"
+              style={{ width: AVATAR_WIDTH, height: AVATAR_HEIGHT }}
+            />
+          ) : orgSlug ? (
+            <text fg={theme.text} attributes={1}>
+              {Array.from(orgSlug)[0]?.toUpperCase()}
+            </text>
+          ) : null}
         </box>
       ) : null}
 
@@ -184,15 +209,21 @@ export function NavRail({
                 gap: hasImages ? NAV_ICON_GAP : 0,
                 height: NAV_ITEM_HEIGHT,
               }}
-              onMouseDown={() => onSelect?.(group.id)}
+              onMouseDown={expanded ? () => onSelect?.(group.id) : undefined}
             >
               {hasImages ? <NavIcon groupId={group.id} active={isActive} /> : null}
-              <NavHotkeyLabel
-                label={group.label}
-                hotkey={hotkeys?.get(group.id)}
-                fg={isActive ? theme.accent : theme.muted}
-                bold={isActive}
-              />
+              {expanded ? (
+                <NavHotkeyLabel
+                  label={group.label}
+                  hotkey={hotkeys?.get(group.id)}
+                  fg={isActive ? theme.accent : theme.muted}
+                  bold={isActive}
+                />
+              ) : hasImages ? null : (
+                <text fg={isActive ? theme.accent : theme.muted} attributes={isActive ? 1 : 0}>
+                  {group.glyph}
+                </text>
+              )}
             </box>
           );
         })}

@@ -193,7 +193,7 @@ test("a click that focuses the list can only select, never open", async () => {
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
     // Move focus off the list; the cursor stays on row 0 but stops rendering.
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     expect(h.frame()).not.toContain("▸");
 
     // Clicking row 0 — the row the cursor is already on — must not count as
@@ -213,7 +213,7 @@ test("clicking a row closes the secondary nav drawer", async () => {
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
     // Open the drawer from the rail.
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     await h.press((i) => i.pressEnter());
     expect(h.frame()).toContain("Inbox");
 
@@ -342,8 +342,8 @@ test("selecting a different nav group via secondary nav shows its content", asyn
   try {
     await h.waitForFrame((f) => f.includes("TypeError"));
 
-    // Tab to the nav rail, then move to Explore.
-    await h.press((i) => i.pressTab());
+    // Open the compact rail, then move to Explore.
+    await h.openNav();
     await h.press((i) => i.pressKey("j"));
     // Open secondary nav on Explore.
     await h.press((i) => i.pressEnter());
@@ -351,7 +351,8 @@ test("selecting a different nav group via secondary nav shows its content", asyn
     await h.press((i) => i.pressEnter());
 
     const frame = h.frame();
-    expect(frame).toContain("Explore");
+    // Choosing a destination collapses the labeled rail again.
+    expect(frame).not.toContain("Explore");
     // Traces is a screen of its own, so the issue stream is gone entirely.
     expect(frame).toContain("Search spans…");
     expect(frame).not.toContain("TypeError");

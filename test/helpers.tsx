@@ -24,6 +24,8 @@ export interface Harness extends TestRendererSetup {
    * resulting state update reaches the renderer before the next capture.
    */
   click: (x: number, y: number) => Promise<void>;
+  /** Expand the compact primary nav through its mouse interaction. */
+  openNav: () => Promise<void>;
   /**
    * Let real time pass, settling whatever it releases — a debounce, a poll.
    *
@@ -71,6 +73,13 @@ export async function renderHarness(
     await setup.flush();
   };
 
+  const click = async (x: number, y: number) => {
+    await act(async () => {
+      await setup.mockMouse.click(x, y);
+    });
+    await setup.flush();
+  };
+
   return Object.assign(setup, {
     press,
     pressEscape: async () => {
@@ -80,12 +89,10 @@ export async function renderHarness(
       });
       await setup.flush();
     },
-    click: async (x: number, y: number) => {
-      await act(async () => {
-        await setup.mockMouse.click(x, y);
-      });
-      await setup.flush();
-    },
+    click,
+    // Inside the collapsed rail's top row whether or not an org marker is
+    // present; the rail owns the whole compact surface as its hit target.
+    openNav: () => click(2, 1),
     wait: async (ms: number) => {
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, ms));

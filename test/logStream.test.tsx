@@ -53,8 +53,8 @@ function stubClient(
 
 /** Navigate to Explore > Logs. */
 async function navigateToLogs(h: Awaited<ReturnType<typeof renderHarness>>) {
-  // Content has focus by default; tab to the nav rail first.
-  await h.press((i) => i.pressTab());
+  // Expand and focus the compact nav rail first.
+  await h.openNav();
   // Move rail cursor to Explore (j once from Issues).
   await h.press((i) => i.pressKey("j"));
   // Open secondary nav.

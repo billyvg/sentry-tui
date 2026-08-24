@@ -47,7 +47,7 @@ function stubClient(rows: unknown = rawConversationsFixture) {
 
 async function navigateToConversations(h: Awaited<ReturnType<typeof renderHarness>>) {
   await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-  await h.press((i) => i.pressTab());
+  await h.openNav();
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
   for (let n = 0; n < CONVERSATIONS_INDEX; n++) await h.press((i) => i.pressKey("j"));

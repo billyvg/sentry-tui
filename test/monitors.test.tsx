@@ -79,9 +79,9 @@ test("the Monitors sidebar reaches the detector table", async () => {
   try {
     await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
 
-    // Content has focus by default; tab to the rail, then walk to Monitors and
+    // Open the compact rail, then walk to Monitors and
     // take its first item.
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     // Issues → Explore → Dashboards → Seer → Monitors.
     for (let step = 0; step < 4; step++) await h.press((i) => i.pressKey("j"));
     await h.press((i) => i.pressEnter());
