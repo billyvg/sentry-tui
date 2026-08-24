@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
+import { findEntry, type Frame, type SentryEvent } from "~/api/types";
 import { theme } from "~/core/theme";
 import { App } from "~/ui/App";
 import { eventFixture, groupsFixture } from "./fixtures";
@@ -19,14 +20,17 @@ const WIDTH = 120;
  */
 const HEIGHT = 60;
 
-function stubClient({ eventDelayMs = 0 } = {}) {
+function stubClient({
+  event = eventFixture,
+  eventDelayMs = 0,
+}: { event?: SentryEvent; eventDelayMs?: number } = {}) {
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
     let payload: unknown = groupsFixture;
     if (url.includes("issues-stats")) payload = {};
     else if (url.includes("/events/")) {
       if (eventDelayMs) await new Promise((r) => setTimeout(r, eventDelayMs));
-      payload = eventFixture;
+      payload = event;
     }
     return new Response(JSON.stringify(payload), {
       status: 200,
@@ -34,6 +38,95 @@ function stubClient({ eventDelayMs = 0 } = {}) {
     });
   }) as unknown as typeof fetch;
   return new SentryClient({ auth, fetchImpl });
+}
+
+/** Replace the fixture's trace with an arbitrary number of visible frames. */
+function eventWithFrames(count: number, prefix = "frame"): SentryEvent {
+  const exception = findEntry(eventFixture.entries, "exception")!;
+  const value = exception.data.values![0]!;
+  const source = value.stacktrace!.frames![1]!;
+  const frames = Array.from({ length: count }, (_, index): Frame => ({
+    ...source,
+    filename: `${prefix}-${index}.tsx`,
+    function: `${prefix}${index}`,
+    lineNo: index + 1,
+    context: index === count - 1 ? source.context : [],
+    vars: index === count - 1 ? source.vars : null,
+  }));
+
+  return {
+    ...eventFixture,
+    entries: eventFixture.entries.map((entry) =>
+      entry.type === "exception"
+        ? {
+            ...exception,
+            data: {
+              ...exception.data,
+              values: [{ ...value, stacktrace: { ...value.stacktrace!, frames } }],
+            },
+          }
+        : entry,
+    ),
+  };
+}
+
+/** Return a different event body for each refresh of the issue detail. */
+function refreshingClient(events: SentryEvent[]) {
+  let eventCalls = 0;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    let payload: unknown = groupsFixture;
+    if (url.includes("issues-stats")) payload = {};
+    else if (url.includes("/events/")) {
+      payload = events[Math.min(eventCalls++, events.length - 1)];
+    }
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as unknown as typeof fetch;
+  return new SentryClient({ auth, fetchImpl });
+}
+
+/** Give two exception chains frames with the same wire index but different context. */
+function eventWithExceptionChains(): SentryEvent {
+  const exception = findEntry(eventFixture.entries, "exception")!;
+  const value = exception.data.values![0]!;
+  const source = value.stacktrace!.frames![1]!;
+  const exceptionValue = (type: string, context: string) => ({
+    ...value,
+    type,
+    stacktrace: {
+      ...value.stacktrace!,
+      frames: [
+        {
+          ...source,
+          filename: `${type}.tsx`,
+          function: type,
+          context: [[source.lineNo!, context] as [number, string]],
+          vars: null,
+        },
+      ],
+    },
+  });
+
+  return {
+    ...eventFixture,
+    entries: eventFixture.entries.map((entry) =>
+      entry.type === "exception"
+        ? {
+            ...exception,
+            data: {
+              ...exception.data,
+              values: [
+                exceptionValue("FirstError", "first exception context"),
+                exceptionValue("SecondError", "second exception context"),
+              ],
+            },
+          }
+        : entry,
+    ),
+  };
 }
 
 /** Open the first issue: focus the list, then press Enter. */
@@ -188,6 +281,200 @@ test("expands the crashing frame's source context with the active line marked", 
     expect(frame).toContain("❯"); // active-line marker
     expect(frame).toContain("Local variables");
     expect(frame).toContain("props");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the newest crashing frame starts expanded regardless of its wire index", async () => {
+  const h = await openFirstIssue(stubClient({ event: eventWithFrames(8) }));
+  try {
+    await h.waitForFrame((f) => f.includes("frame-7.tsx in frame7"));
+    expect(h.frame()).toContain("return <Header id={user.id} />");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("enter collapses and expands the selected stack frame", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("return <Header id={user.id} />"));
+
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).not.toContain("return <Header id={user.id} />");
+
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("return <Header id={user.id} />");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("navigation keys move the stack frame cursor", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("invokeGuardedCallback"));
+    const selectedLine = (needle: string) =>
+      h
+        .frame()
+        .split("\n")
+        .find((line) => line.includes(needle))!;
+
+    expect(selectedLine("renderRoot")).toContain("❯");
+
+    await h.press((i) => i.pressKey("j"));
+    expect(selectedLine("invokeGuardedCallback")).toContain("❯");
+
+    await h.press((i) => i.pressArrow("up"));
+    expect(selectedLine("renderRoot")).toContain("❯");
+
+    await h.press((i) => i.pressArrow("down"));
+    expect(selectedLine("invokeGuardedCallback")).toContain("❯");
+
+    await h.press((i) => i.pressKey("k"));
+    expect(selectedLine("renderRoot")).toContain("❯");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a move and toggle in the same input burst act on the new frame", async () => {
+  const h = await openFirstIssue(stubClient({ event: eventWithExceptionChains() }));
+  try {
+    await h.waitForFrame((f) => f.includes("SecondError.tsx in SecondError"));
+
+    await h.press((i) => {
+      i.pressKey("j");
+      i.pressEnter();
+    });
+
+    const secondLine = h
+      .frame()
+      .split("\n")
+      .find((line) => line.includes("SecondError.tsx"));
+    expect(secondLine).toContain("❯");
+    expect(h.frame()).toContain("first exception context");
+    expect(h.frame()).toContain("second exception context");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("refreshing to a shorter trace keeps a usable frame cursor", async () => {
+  const client = refreshingClient([eventWithFrames(10, "old"), eventWithFrames(1, "fresh")]);
+  const h = await openFirstIssue(client);
+  try {
+    await h.waitForFrame((f) => f.includes("old-9.tsx in old9"));
+    for (let index = 0; index < 5; index++) {
+      await h.press((i) => i.pressKey("j"));
+    }
+
+    await h.press((i) => i.pressKey("R", { shift: true }));
+    await h.waitForFrame((f) => f.includes("fresh-0.tsx in fresh0"));
+
+    const freshLine = () =>
+      h
+        .frame()
+        .split("\n")
+        .find((line) => line.includes("fresh-0.tsx"));
+    expect(freshLine()).toContain("❯");
+    expect(h.frame()).toContain("return <Header id={user.id} />");
+
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).not.toContain("return <Header id={user.id} />");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the stacktrace viewport follows the frame cursor", async () => {
+  const client = stubClient({ event: eventWithFrames(20) });
+  const h = await renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
+    width: WIDTH,
+    height: 24,
+  });
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("frame-19.tsx in frame19"));
+
+    for (let index = 0; index < 12; index++) {
+      await h.press((i) => i.pressKey("j"));
+    }
+
+    const selected = h
+      .frame()
+      .split("\n")
+      .find((line) => line.includes("frame-7.tsx in frame7"));
+    expect(selected).toContain("❯");
+
+    for (let index = 0; index < 12; index++) {
+      await h.press((i) => i.pressKey("k"));
+    }
+
+    const initial = h
+      .frame()
+      .split("\n")
+      .find((line) => line.includes("frame-19.tsx in frame19"));
+    expect(initial).toContain("❯");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("frame state stays independent across exception chains", async () => {
+  const h = await openFirstIssue(stubClient({ event: eventWithExceptionChains() }));
+  try {
+    await h.waitForFrame((f) => f.includes("SecondError.tsx in SecondError"));
+    const frameLine = (needle: string) =>
+      h
+        .frame()
+        .split("\n")
+        .find((line) => line.includes(needle))!;
+
+    expect(frameLine("FirstError.tsx")).toContain("❯");
+    expect(frameLine("SecondError.tsx")).not.toContain("❯");
+    expect(h.frame()).toContain("first exception context");
+    expect(h.frame()).not.toContain("second exception context");
+
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    expect(frameLine("SecondError.tsx")).toContain("❯");
+    expect(h.frame()).toContain("first exception context");
+    expect(h.frame()).toContain("second exception context");
+
+    await h.press((i) => i.pressKey("k"));
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).not.toContain("first exception context");
+    expect(h.frame()).toContain("second exception context");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("clicking another stack frame selects and toggles it directly", async () => {
+  const h = await openFirstIssue(stubClient({ event: eventWithExceptionChains() }));
+  try {
+    await h.waitForFrame((f) => f.includes("SecondError.tsx in SecondError"));
+    const secondFrameRow = () => {
+      const lines = h.frame().split("\n");
+      const y = lines.findIndex((line) => line.includes("SecondError.tsx"));
+      return { x: lines[y]!.indexOf("SecondError.tsx"), y };
+    };
+
+    let row = secondFrameRow();
+    await h.click(row.x, row.y);
+    const selectedLine = h
+      .frame()
+      .split("\n")
+      .find((line) => line.includes("SecondError.tsx"));
+    expect(selectedLine).toContain("❯");
+    expect(h.frame()).toContain("second exception context");
+
+    row = secondFrameRow();
+    await h.click(row.x, row.y);
+    expect(h.frame()).not.toContain("second exception context");
   } finally {
     await h.cleanup();
   }

@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useKeyboard } from "@opentui/react";
+
+import type { ScrollBoxRenderable } from "@opentui/core";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -10,9 +13,11 @@ import {
   type SentryEvent,
 } from "~/api/types";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
+import { matchesCommand } from "~/core/commands";
 import { theme } from "~/core/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { countLabel, sparklineBlock, timeAgo } from "~/lib/sparkline";
+import { buildStackRows } from "~/lib/stacktrace";
 import { fitText, measureTextWidth } from "~/lib/text";
 import { ChipRow, type ChipSpec } from "~/ui/components/Chip";
 import {
@@ -27,8 +32,9 @@ import {
 } from "~/ui/components/DetailSections";
 import { PlatformIcon } from "~/ui/components/PlatformIcon";
 import { Placeholder } from "~/ui/components/Placeholder";
-import { ExceptionSection } from "~/ui/components/StackTrace";
+import { ExceptionSection, stackFrameKey } from "~/ui/components/StackTrace";
 import { BOLD } from "~/ui/lib/attributes";
+import { consumeKey } from "~/ui/lib/keyRouting";
 import { useIssueEvent } from "~/ui/hooks/useIssueEvent";
 
 /** Section ids, mirroring `views/issueDetails/context.tsx`'s SectionKey. */
@@ -57,6 +63,8 @@ const SECTION_TITLES: Record<SectionKey, string> = {
 const HEADER_SPARKLINE_WIDTH = 24;
 /** Rows of block glyphs in the header chart — 24 levels of vertical detail. */
 const HEADER_SPARKLINE_ROWS = 3;
+/** Renderable id used to keep the frame cursor inside the detail viewport. */
+const SELECTED_FRAME_ID = "issue-detail-selected-frame";
 
 export function IssueDetail({
   client,
@@ -80,12 +88,104 @@ export function IssueDetail({
   const event = valueOf(status);
   const error = errorOf(status);
   const loading = isInitialLoad(status);
+  const scrollRef = useRef<ScrollBoxRenderable>(null);
 
   const { collapsed, toggle } = useSectionFolds(SECTION_ORDER, focused);
-  const [expandedFrames] = useState<ReadonlySet<number>>(
-    // The crashing frame is the one you want to see first.
-    () => new Set([0, 1]),
+  const [selectedFrameKey, setSelectedFrameKey] = useState<string>();
+  const selectedFrameKeyRef = useRef(selectedFrameKey);
+  const [frameExpansion, setFrameExpansion] = useState<ReadonlyMap<string, boolean>>(
+    () => new Map(),
   );
+  const frameRows = event
+    ? (findEntry(event.entries, "exception")?.data.values ?? []).flatMap((value, exceptionIndex) =>
+        buildStackRows(value.stacktrace)
+          .filter((row) => row.kind === "frame")
+          .map((row) => ({
+            key: stackFrameKey(event.id, exceptionIndex, row.index),
+            row,
+          })),
+      )
+    : [];
+  const selectedFrame = frameRows.find((frame) => frame.key === selectedFrameKey) ?? frameRows[0];
+  const defaultExpandedFrame = frameRows[0]?.key;
+  const expandedFrames = new Set(
+    frameRows
+      .filter((frame) => frameExpansion.get(frame.key) ?? frame.key === defaultExpandedFrame)
+      .map((frame) => frame.key),
+  );
+
+  useLayoutEffect(() => {
+    if (selectedFrameKey === selectedFrame?.key) return;
+    selectedFrameKeyRef.current = selectedFrame?.key;
+    setSelectedFrameKey(selectedFrame?.key);
+  }, [selectedFrame?.key, selectedFrameKey]);
+
+  /** Expand or collapse one visible frame without disturbing the others. */
+  const toggleFrame = useCallback(
+    (key: string) => {
+      setFrameExpansion((current) => {
+        const next = new Map(current);
+        const expanded = current.get(key) ?? key === defaultExpandedFrame;
+        next.set(key, !expanded);
+        return next;
+      });
+    },
+    [defaultExpandedFrame],
+  );
+
+  /** Select one visible frame and synchronously expose it to the next key event. */
+  const selectFrameAt = useCallback(
+    (position: number) => {
+      const next = frameRows[Math.max(0, Math.min(position, frameRows.length - 1))];
+      if (!next) return;
+      selectedFrameKeyRef.current = next.key;
+      setSelectedFrameKey(next.key);
+    },
+    [frameRows],
+  );
+
+  /** Put a clicked frame under the cursor and toggle its context directly. */
+  const clickFrame = useCallback(
+    (key: string) => {
+      const position = frameRows.findIndex((frame) => frame.key === key);
+      if (position < 0) return;
+      selectFrameAt(position);
+      toggleFrame(key);
+    },
+    [frameRows, selectFrameAt, toggleFrame],
+  );
+
+  useKeyboard((key) => {
+    if (!focused || collapsed.has("exception") || !selectedFrame) return;
+    if (matchesCommand("sentry.nav.down", key)) {
+      const current = Math.max(
+        0,
+        frameRows.findIndex((frame) => frame.key === selectedFrameKeyRef.current),
+      );
+      selectFrameAt(current + 1);
+      consumeKey(key);
+      return;
+    }
+    if (matchesCommand("sentry.nav.up", key)) {
+      const current = Math.max(
+        0,
+        frameRows.findIndex((frame) => frame.key === selectedFrameKeyRef.current),
+      );
+      selectFrameAt(current - 1);
+      consumeKey(key);
+      return;
+    }
+    if (matchesCommand("sentry.nav.open", key)) {
+      const liveFrame =
+        frameRows.find((frame) => frame.key === selectedFrameKeyRef.current) ?? selectedFrame;
+      toggleFrame(liveFrame.key);
+      consumeKey(key);
+    }
+  });
+
+  useEffect(() => {
+    scrollRef.current?.scrollChildIntoView(SELECTED_FRAME_ID);
+  }, [selectedFrame?.key, frameExpansion, height]);
 
   const inner = Math.max(20, width - 2);
 
@@ -99,6 +199,7 @@ export function IssueDetail({
      * space below the content.
      */
     <scrollbox
+      ref={scrollRef}
       focused={focused}
       // Matches the stream screens: a continuously drawn track reads as a
       // scroll rail rather than as a stray mark at the edge of the pane.
@@ -135,6 +236,9 @@ export function IssueDetail({
                 event={event}
                 width={inner}
                 expandedFrames={expandedFrames}
+                selectedFrame={selectedFrame?.key}
+                selectedFrameId={SELECTED_FRAME_ID}
+                onFrameClick={clickFrame}
               />
             </Section>
           ))
@@ -328,11 +432,17 @@ function SectionBody({
   event,
   width,
   expandedFrames,
+  selectedFrame,
+  selectedFrameId,
+  onFrameClick,
 }: {
   sectionKey: SectionKey;
   event: SentryEvent;
   width: number;
-  expandedFrames: ReadonlySet<number>;
+  expandedFrames: ReadonlySet<string>;
+  selectedFrame?: string;
+  selectedFrameId: string;
+  onFrameClick: (key: string) => void;
 }) {
   switch (sectionKey) {
     case "exception": {
@@ -347,8 +457,13 @@ function SectionBody({
             <ExceptionSection
               key={i}
               value={value}
+              traceId={event.id}
+              exceptionIndex={i}
               width={width - BODY_INDENT.length}
               expandedFrames={expandedFrames}
+              selectedFrame={selectedFrame}
+              selectedFrameId={selectedFrameId}
+              onFrameClick={onFrameClick}
               includeSystemFrames={false}
             />
           ))}
