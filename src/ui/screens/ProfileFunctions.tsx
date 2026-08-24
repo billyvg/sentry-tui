@@ -24,7 +24,7 @@ import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { useProfileFunctions } from "~/ui/hooks/useProfileFunctions";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
-import { BOLD } from "~/ui/lib/attributes";
+import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
 import type { ScreenProps } from "~/ui/screens/types";
 
 /**
@@ -219,9 +219,10 @@ export function ProfileFunctions({
           paddingRight: 1,
         }}
       >
-        <text fg={theme.subText}>{"("}</text>
-        <text fg={state.searchFocused ? theme.accent : theme.text}>{"/"}</text>
-        <text fg={theme.subText}>{")"} </text>
+        <text fg={state.searchFocused ? theme.accent : theme.text} attributes={UNDERLINE}>
+          {"/"}
+        </text>
+        <text> </text>
         <input
           ref={inputRefCallback}
           value={state.searchQuery}

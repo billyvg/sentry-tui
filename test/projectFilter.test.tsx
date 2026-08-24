@@ -136,7 +136,7 @@ async function search(h: Harness, text: string) {
 /** Clear an active project search, then close its multi-select dropdown. */
 async function closeSearchedProjectDropdown(h: Harness) {
   await h.pressEscape();
-  await h.waitForFrame((f) => pickerRows(f, "Project")[0] === "(/) filter…");
+  await h.waitForFrame((f) => pickerRows(f, "Project")[0] === "/ filter…");
   await h.pressEscape();
   await h.waitForFrame((f) => !f.includes(PROJECT_BOX));
 }
@@ -148,7 +148,7 @@ test("the project list is slugs, never display names", async () => {
     await openProjectDropdown(h);
 
     expect(pickerRows(h.frame(), "Project").slice(0, 5)).toEqual([
-      "(/) filter…",
+      "/ filter…",
       "● All",
       "  backend",
       "  frontend",
@@ -231,7 +231,7 @@ test("the filter box waits for the search key before it takes text", async () =>
 
     await search(h, "front");
 
-    expect(pickerRows(h.frame(), "Project")).toEqual(["(/) front", "  frontend"]);
+    expect(pickerRows(h.frame(), "Project")).toEqual(["/ front", "  frontend"]);
   } finally {
     await h.cleanup();
   }
@@ -246,7 +246,7 @@ test("a fuzzy query still finds the slug, and enter scopes the stream to it", as
     // Non-contiguous: "mios" reaches mobile-ios the way the palette matches —
     // and the way the server, which only knows substrings, cannot.
     await search(h, "mios");
-    expect(pickerRows(h.frame(), "Project")).toEqual(["(/) mios", "  mobile-ios"]);
+    expect(pickerRows(h.frame(), "Project")).toEqual(["/ mios", "  mobile-ios"]);
 
     issueUrls.length = 0;
     await h.press((i) => i.pressEnter());
@@ -274,12 +274,12 @@ test("a project past the first page is searched for, listed, and selectable", as
     await h.press((i) => i.pressKey("zeta"));
     // Nothing held matches it and the search has yet to go out, let alone come
     // back — which is not the same as a miss, and doesn't read as one.
-    expect(pickerRows(h.frame(), "Project")).toEqual(["(/) zeta", " Searching…"]);
+    expect(pickerRows(h.frame(), "Project")).toEqual(["/ zeta", " Searching…"]);
 
     await h.wait(SEARCH_SETTLE_MS);
 
     expect(projectUrls.some((url) => new URL(url).searchParams.get("query") === "zeta")).toBe(true);
-    expect(pickerRows(h.frame(), "Project")).toEqual(["(/) zeta", "  zeta-payments"]);
+    expect(pickerRows(h.frame(), "Project")).toEqual(["/ zeta", "  zeta-payments"]);
 
     issueUrls.length = 0;
     await h.press((i) => i.pressEnter());
@@ -302,7 +302,7 @@ test("a project the server matched on its name is listed, slug and all", async (
     // see — only the server's answer puts it in the list.
     await search(h, "buy");
 
-    expect(pickerRows(h.frame(), "Project")).toEqual(["(/) buy", "  checkout"]);
+    expect(pickerRows(h.frame(), "Project")).toEqual(["/ buy", "  checkout"]);
   } finally {
     await h.cleanup();
   }
@@ -322,7 +322,7 @@ test("the chosen project keeps its row when the list it came from is gone", asyn
     await h.press((i) => i.pressKey("P"));
     await h.waitForFrame((f) => f.includes(PROJECT_BOX));
     expect(pickerRows(h.frame(), "Project").slice(0, 3)).toEqual([
-      "(/) filter…",
+      "/ filter…",
       "  All",
       "● zeta-payments",
     ]);
@@ -341,7 +341,7 @@ test("escape clears the filter first, then closes the dropdown", async () => {
 
     await h.pressEscape();
     await h.waitForFrame((f) => pickerRows(f, "Project").includes("  backend"));
-    expect(pickerRows(h.frame(), "Project")[0]).toBe("(/) filter…");
+    expect(pickerRows(h.frame(), "Project")[0]).toBe("/ filter…");
 
     await h.pressEscape();
     await h.waitForFrame((f) => !f.includes(PROJECT_BOX));

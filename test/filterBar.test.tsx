@@ -30,7 +30,7 @@ function renderFilterBar(width: number, projects: string[], environments: string
 
 /** The middle line of the chips, where their labels and Sort are printed. */
 function filterLine(frame: string): string {
-  return frame.split("\n").find((line) => line.includes("(P)")) ?? "";
+  return frame.split("\n").find((line) => line.includes("Sort: Last Seen")) ?? "";
 }
 
 test("multiple selections list every project slug and environment name when they fit", async () => {

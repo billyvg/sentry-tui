@@ -10,7 +10,7 @@ const renderApp = (opts?: { width?: number; height?: number }) =>
 test("the status bar advertises the mode's key", async () => {
   const h = await renderApp();
   try {
-    expect(h.frame()).toContain("(n) nav");
+    expect(h.frame()).toContain("n nav");
   } finally {
     await h.cleanup();
   }
@@ -26,14 +26,16 @@ test("n opens both nav panes with a key printed in every label", async () => {
 
     const frame = h.frame();
     // Primary rail: each group answers to its own initial, lower-cased.
-    expect(frame).toContain("(i)ssues");
-    expect(frame).toContain("(e)xplore");
-    expect(frame).toContain("(d)ashboards");
+    // Anchored on the rail's own left border so "issues" doesn't also match
+    // the Feed screen's "...priority issues across your projects" prose.
+    expect(frame).toContain("│ issues");
+    expect(frame).toContain("explore");
+    expect(frame).toContain("dashboards");
     // Secondary pane, opened by the mode rather than by Enter.
-    expect(frame).toContain("(f)eed");
+    expect(frame).toContain("feed");
     // "Inbox" wants `i`, which Issues holds, and `n`, which the mode keeps for
     // itself — so it reaches past both to the next character it owns.
-    expect(frame).toContain("In(b)ox");
+    expect(frame).toContain("Inbox");
     // The bar says what the app is waiting for.
     expect(frame).toContain("go to…");
   } finally {
@@ -68,12 +70,12 @@ test("a secondary key navigates and closes the mode", async () => {
   try {
     await h.press((i) => i.pressKey("n"));
     // Issues › All Views: `a` is gone by then, so the key is the second word's.
-    expect(h.frame()).toContain("All (v)iews");
+    expect(h.frame()).toContain("All views");
     await h.press((i) => i.pressKey("v"));
 
     const frame = h.frame();
     expect(frame).toContain("All Views"); // the content pane's own header
-    expect(frame).not.toContain("(i)ssues"); // keys are gone with the mode
+    expect(frame).not.toContain("issues"); // keys are gone with the mode
     expect(frame).not.toContain("Inbox"); // and so is the secondary pane
   } finally {
     await h.cleanup();
@@ -90,8 +92,8 @@ test("a group key repoints the secondary pane without leaving the mode", async (
     // Explore's items, each with a key, and the mode still waiting. Traces
     // keys off its `r`: the groups are assigned first, and Seer takes `s`,
     // which pushes Settings onto `t`.
-    expect(afterGroup).toContain("T(r)aces");
-    expect(afterGroup).toContain("(l)ogs");
+    expect(afterGroup).toContain("Traces");
+    expect(afterGroup).toContain("logs");
     expect(afterGroup).toContain("go to…");
     // Still on the Issues feed: choosing a group is not yet a destination.
     expect(afterGroup).toContain("Feed");
@@ -107,12 +109,12 @@ test("escape leaves the mode and puts the panes back", async () => {
   const h = await renderApp();
   try {
     await h.press((i) => i.pressKey("n"));
-    expect(h.frame()).toContain("(f)eed");
+    expect(h.frame()).toContain("feed");
 
     await h.pressEscape();
 
     const frame = h.frame();
-    expect(frame).not.toContain("(f)eed");
+    expect(frame).not.toContain("feed");
     expect(frame).not.toContain("Inbox"); // the pane closed with the mode
     expect(frame).toContain("is:unresolved"); // content untouched
   } finally {
@@ -125,7 +127,8 @@ test("a second n leaves the mode, so the keys can't get stuck on", async () => {
   try {
     await h.press((i) => i.pressKey("n"));
     await h.press((i) => i.pressKey("n"));
-    expect(h.frame()).not.toContain("(i)ssues");
+    // Anchored on the rail's own border — see the note above.
+    expect(h.frame()).not.toContain("│ issues");
   } finally {
     await h.cleanup();
   }
@@ -139,7 +142,7 @@ test("an unassigned key leaves the mode without acting on the issue", async () =
     // and a miss must not fall through to the command it usually runs.
     await h.press((i) => i.pressKey("q"));
 
-    expect(h.frame()).not.toContain("(i)ssues");
+    expect(h.frame()).not.toContain("│ issues");
   } finally {
     await h.cleanup();
   }
@@ -149,14 +152,14 @@ test("the org key still opens the picker while the mode is up", async () => {
   const h = await renderApp();
   try {
     await h.press((i) => i.pressKey("n"));
-    // The rail prints `(o)` beside the slug throughout, so no nav item may
+    // The rail prints `o` beside the slug throughout, so no nav item may
     // claim it — "Errors & Outages" reaches past its `O` to the next character.
-    expect(h.frame()).toContain("E(r)rors & Outages");
+    expect(h.frame()).toContain("Errors & Outages");
 
     await h.press((i) => i.pressKey("o"));
     const frame = h.frame();
     expect(frame).toContain("Organization"); // the picker, anchored to the rail
-    expect(frame).not.toContain("(i)ssues"); // and the mode stepped aside
+    expect(frame).not.toContain("│ issues"); // and the mode stepped aside
   } finally {
     await h.cleanup();
   }

@@ -6,6 +6,7 @@ import { theme } from "~/core/theme";
 import { fitText } from "~/lib/text";
 import { HighlightedLabel } from "~/ui/components/HighlightedLabel";
 import { PlatformIcon, usePlatformIconWidth } from "~/ui/components/PlatformIcon";
+import { UNDERLINE } from "~/ui/lib/attributes";
 import {
   consumeKey,
   isTypingSafeDown,
@@ -353,9 +354,10 @@ export function Dropdown({
             style={{ flexDirection: "row", flexShrink: 0 }}
             onMouseUp={() => setFilterFocused(true)}
           >
-            <text fg={theme.subText}>{"("}</text>
-            <text fg={theme.hotkey}>{"/"}</text>
-            <text fg={theme.subText}>{") "}</text>
+            <text fg={theme.hotkey} attributes={UNDERLINE}>
+              {"/"}
+            </text>
+            <text> </text>
             <input
               value={query}
               placeholder="filter…"

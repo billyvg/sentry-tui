@@ -158,7 +158,7 @@ test("a screen that does have a filter row still opens its dropdown", async () =
     // in the issue rows behind it, so asserting on one passes either way.
     const frame = h.frame();
     expect(frame).toContain("─ Project ");
-    expect(frame).toContain("(/) filter…");
+    expect(frame).toContain("/ filter…");
   } finally {
     await h.cleanup();
   }

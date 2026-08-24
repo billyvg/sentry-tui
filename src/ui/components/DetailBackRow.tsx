@@ -29,10 +29,10 @@ const OVERLAY_PADDING = 2;
 
 const BACK_COMMAND = "sentry.nav.back";
 
-/** Cells `KeyHint` draws: the chord plus the parentheses around it. */
+/** Cells `KeyHint` draws: just the chord, underlined — no other decoration. */
 function keyHintWidth(command: string): number {
   const key = primaryKey(command);
-  return key ? measureTextWidth(formatKey(key)) + 2 : 0;
+  return key ? measureTextWidth(formatKey(key)) : 0;
 }
 
 /**

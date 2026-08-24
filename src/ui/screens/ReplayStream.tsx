@@ -39,7 +39,7 @@ import { useProjects } from "~/ui/hooks/useProjects";
 import { useReplayErrors, useReplays } from "~/ui/hooks/useReplays";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
-import { BOLD } from "~/ui/lib/attributes";
+import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
 import type { DetailContext, ScreenProps, ViewStackEntry } from "~/ui/screens/types";
 
 /**
@@ -661,9 +661,10 @@ function SearchInputPlaceholder({
         paddingRight: 1,
       }}
     >
-      <text fg={theme.subText}>{"("}</text>
-      <text fg={state.searchFocused ? theme.accent : theme.text}>{"/"}</text>
-      <text fg={theme.subText}>{")"} </text>
+      <text fg={state.searchFocused ? theme.accent : theme.text} attributes={UNDERLINE}>
+        {"/"}
+      </text>
+      <text> </text>
       <input
         ref={inputRefCallback}
         value={state.searchQuery}
