@@ -46,8 +46,8 @@ function lastSort(urls: string[]): string | null {
 
 /** Rail → Enter → j × steps → Enter, i.e. pick the nth Issues nav item. */
 async function selectIssuesItem(h: Harness, steps: number) {
-  // Focus starts on the content pane; Tab moves it to the rail.
-  await h.press((i) => i.pressTab());
+  // Focus starts on the content pane; clicking the compact rail expands it.
+  await h.openNav();
   await h.press((i) => i.pressEnter());
   for (let n = 0; n < steps; n++) await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
@@ -125,9 +125,9 @@ test("reaching a view through the command palette applies its query too", async 
     // target's would silently skip the query reset.
     await h.press((i) => i.pressKey("k", { ctrl: true }));
     await h.waitForFrame((f) => f.includes("Command palette"));
-    await h.press((i) => i.pressKey("teams"));
+    await h.press((i) => i.pressKey("all monitors"));
     await h.press((i) => i.pressEnter());
-    await h.waitForFrame((f) => f.includes("Not implemented yet"));
+    await h.waitForFrame((f) => f.includes("All Monitors"));
 
     await h.press((i) => i.pressKey("k", { ctrl: true }));
     await h.waitForFrame((f) => f.includes("Command palette"));
@@ -155,7 +155,7 @@ test("switching back to Feed restores the default query", async () => {
 
     // Re-entering the group starts the cursor on the active item, so walking
     // back up to Feed is the same number of steps in the other direction.
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     await h.press((i) => i.pressEnter());
     for (let n = 0; n < ITEM_INDEX["Warnings"]!; n++) await h.press((i) => i.pressKey("k"));
     await h.press((i) => i.pressEnter());

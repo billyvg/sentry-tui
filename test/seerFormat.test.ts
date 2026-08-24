@@ -18,7 +18,7 @@ test("Seer has one destination, so the rail opens it directly", () => {
 });
 
 test("groups with several destinations keep their secondary list", () => {
-  for (const id of ["issues", "explore", "dashboards", "monitors", "settings"] as const) {
+  for (const id of ["issues", "explore", "dashboards", "monitors"] as const) {
     expect(soleNavItem(getNavGroup(id))).toBeUndefined();
   }
 });

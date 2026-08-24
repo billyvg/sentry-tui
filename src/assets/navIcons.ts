@@ -9,8 +9,6 @@ import monitorsInactive from "./icons/monitors_inactive.png" with { type: "file"
 import seerActive from "./icons/seer_active.png" with { type: "file" };
 import seerInactive from "./icons/seer_inactive.png" with { type: "file" };
 import sentry from "./icons/sentry.png" with { type: "file" };
-import settingsActive from "./icons/settings_active.png" with { type: "file" };
-import settingsInactive from "./icons/settings_inactive.png" with { type: "file" };
 
 import { imageBytes } from "~/assets/imageBytes";
 
@@ -33,8 +31,6 @@ const NAV_ICON_PATHS = {
   seer_active: seerActive,
   seer_inactive: seerInactive,
   sentry: sentry,
-  settings_active: settingsActive,
-  settings_inactive: settingsInactive,
 };
 
 /** Base name of a nav icon PNG, e.g. `issues_active`. */

@@ -16,6 +16,35 @@ test("the status bar advertises the mode's key", async () => {
   }
 });
 
+test("n expands the collapsed rail and escape leaves its labels open", async () => {
+  const h = await renderApp();
+  try {
+    expect(h.frame()).not.toContain("Dashboards");
+
+    await h.press((i) => i.pressKey("n"));
+    expect(h.frame()).toContain("dashboards");
+    expect(h.frame()).toContain("Inbox");
+
+    await h.pressEscape();
+    expect(h.frame()).toContain("Dashboards");
+    expect(h.frame()).not.toContain("Inbox");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("Settings is absent from the compact rail and goto mode", async () => {
+  const h = await renderApp();
+  try {
+    expect(h.frame()).not.toContain("│ S  │");
+
+    await h.press((i) => i.pressKey("n"));
+    expect(h.frame()).not.toContain("Settings");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("n opens both nav panes with a key printed in every label", async () => {
   const h = await renderApp();
   try {
@@ -89,10 +118,9 @@ test("a group key repoints the secondary pane without leaving the mode", async (
     await h.press((i) => i.pressKey("e"));
 
     const afterGroup = h.frame();
-    // Explore's items, each with a key, and the mode still waiting. Traces
-    // keys off its `r`: the groups are assigned first, and Seer takes `s`,
-    // which pushes Settings onto `t`.
-    expect(afterGroup).toContain("Traces");
+    // Explore's items, each with a key, and the mode still waiting. Primary
+    // groups are assigned first, then Traces takes the now-free `t`.
+    expect(afterGroup).toContain("traces");
     expect(afterGroup).toContain("logs");
     expect(afterGroup).toContain("go to…");
     // Still on the Issues feed: choosing a group is not yet a destination.

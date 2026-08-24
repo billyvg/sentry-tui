@@ -113,7 +113,7 @@ async function renderTable(
 /** Walk the nav rail to Explore and select `item` from the sidebar. */
 async function navigateTo(h: Awaited<ReturnType<typeof renderHarness>>, item: string) {
   await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-  await h.press((i) => i.pressTab()); // content → nav rail
+  await h.openNav(); // content → nav rail
   await h.press((i) => i.pressKey("j")); // Issues → Explore
   await h.press((i) => i.pressEnter()); // open the sidebar
   for (let n = 0; n < EXPLORE_ITEM_INDEX[item]!; n++) await h.press((i) => i.pressKey("j"));
@@ -546,7 +546,7 @@ describe("Explore › Metrics", () => {
     const h = await renderApp(stubClient());
     try {
       await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-      await h.press((i) => i.pressTab()); // content → nav rail
+      await h.openNav(); // content → nav rail
       await h.press((i) => i.pressKey("j")); // Issues → Explore
       await h.press((i) => i.pressEnter()); // open the sidebar, without leaving it
 
@@ -720,7 +720,7 @@ describe("sibling isolation", () => {
         // Straight from Traces to Metrics: same component, same slot. Without a
         // remount React would keep the hook state and paint spans under a
         // Metrics header until the new fetch landed — which here it never does.
-        await h.press((i) => i.pressTab());
+        await h.openNav();
         await h.press((i) => i.pressEnter());
         await h.press((i) => i.pressKey("j"));
         await h.press((i) => i.pressKey("j"));
@@ -763,9 +763,8 @@ describe("narrow terminals", () => {
       expect(lines[chipRow]).toContain("P");
       expect(lines[chipRow]).toContain("E");
       expect(lines[chipRow]).toContain("D");
-      // Chips lost 2 cells apiece when their keys stopped wearing parens, so
-      // 80 columns now only forces one label to ellipsize instead of two.
-      if (width === 80) expect(lines[chipRow]!.match(/…/g)).toHaveLength(1);
+      // The compact rail leaves enough room for every label even at 80 columns.
+      if (width === 80) expect(lines[chipRow]).not.toContain("…");
 
       // The symptom of the wrap is what this pins: the sort label spilling one
       // fragment per line down the pane. Read from the chip's own column so

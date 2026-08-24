@@ -43,7 +43,7 @@ function stubClient() {
 }
 
 async function openAllViews(h: Harness) {
-  await h.press((i) => i.pressTab());
+  await h.openNav();
   await h.press((i) => i.pressEnter());
   for (let n = 0; n < ALL_VIEWS_INDEX; n++) await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());

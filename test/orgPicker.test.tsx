@@ -95,6 +95,7 @@ test("the nav rail advertises the org picker's key beside the slug", async () =>
   const h = await renderApp(client);
   try {
     await h.waitForFrame((f) => f.includes("acmeError"));
+    await h.openNav();
     const railRow = h
       .frame()
       .split("\n")

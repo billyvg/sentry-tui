@@ -92,7 +92,7 @@ async function openTraces(client: SentryClient) {
     height: HEIGHT,
   });
   await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-  await h.press((i) => i.pressTab()); // content → nav rail
+  await h.openNav(); // content → nav rail
   await h.press((i) => i.pressKey("j")); // Issues → Explore
   await h.press((i) => i.pressEnter()); // open the sidebar
   await h.press((i) => i.pressEnter()); // Traces is the first item
@@ -132,7 +132,7 @@ describe("the query builder row", () => {
         height: HEIGHT,
       });
       await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-      await h.press((i) => i.pressTab());
+      await h.openNav();
       await h.press((i) => i.pressKey("j"));
       await h.press((i) => i.pressEnter());
       for (let n = 0; n < 3; n++) await h.press((i) => i.pressKey("j")); // → Errors

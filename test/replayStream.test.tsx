@@ -67,22 +67,23 @@ async function renderApp(client: SentryClient | null = stubClient(), width = WID
 /**
  * The replay URL as printed, rejoined across however many lines it took.
  *
- * The pane starts after the 21-cell nav rail; borders and padding come off so
- * the fragments concatenate back into the original string.
+ * Derive the pane's content offset from the playback note so this remains
+ * valid whether the primary rail is compact or expanded.
  */
 function printedUrl(frame: string): string {
-  const lines = frame.split("\n").map((line) =>
-    line
-      .slice(21)
-      .replace(/[│┌┐└┘╭╮╰╯]/g, "")
-      .trim(),
-  );
+  const lines = frame.split("\n");
   const start = lines.findIndex((line) => line.includes("Open it at:"));
   if (start < 0) return "";
+  const contentStart = lines[start]?.indexOf("Playback") ?? -1;
+  if (contentStart < 0) return "";
   const url: string[] = [];
   for (const line of lines.slice(start + 1)) {
-    if (line === "") break;
-    url.push(line);
+    const fragment = line
+      .slice(contentStart)
+      .replace(/[│┌┐└┘╭╮╰╯]/g, "")
+      .trim();
+    if (fragment === "") break;
+    url.push(fragment);
   }
   return url.join("");
 }
@@ -109,7 +110,7 @@ test("navigating to Explore > Replays shows the replay table", async () => {
   });
   try {
     await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     await h.press((i) => i.pressKey("j"));
     await h.press((i) => i.pressEnter());
     for (let step = 0; step < 6; step++) await h.press((i) => i.pressKey("j"));
@@ -271,10 +272,10 @@ test("a narrow pane sheds down to the web's sub-800px column set", async () => {
   try {
     await h.waitForFrame((f) => f.includes("Alice Nguyen"));
     const frame = h.frame();
-    // Dropped, in the order the web's container queries drop them.
+    // Click counts drop first; the compact rail leaves Activity enough room.
     expect(frame).not.toContain("Dead");
     expect(frame).not.toContain("Rage");
-    expect(frame).not.toContain("Activity");
+    expect(frame).toContain("Activity");
     // Kept: this is WEB_MAX_800 minus the bulk-select checkbox.
     expect(frame).toContain("Duration");
     expect(frame).toContain("Errors");
@@ -284,14 +285,13 @@ test("a narrow pane sheds down to the web's sub-800px column set", async () => {
   }
 });
 
-test("a mid-width pane sheds click counts before activity", async () => {
+test("a mid-width pane keeps click counts and activity", async () => {
   const h = await openReplays(undefined, 100);
   try {
     await h.waitForFrame((f) => f.includes("8a3f2c1d"));
     const frame = h.frame();
-    // Upstream drops both click columns before Activity, so the rightmost of
-    // the two goes first as the pane narrows.
-    expect(frame).not.toContain("Rage");
+    // The compact rail gives the table enough room for every replay column.
+    expect(frame).toContain("Rage");
     expect(frame).toContain("Dead");
     expect(frame).toContain("Activity");
     // And the session column keeps enough room for a name.

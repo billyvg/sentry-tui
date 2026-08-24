@@ -49,7 +49,7 @@ function stubClient() {
 
 /** All Views is a real screen with no filter row — the shape that wedged. */
 async function openAllViews(h: Harness) {
-  await h.press((i) => i.pressTab());
+  await h.openNav();
   await h.press((i) => i.pressEnter());
   for (let n = 0; n < ALL_VIEWS_INDEX; n++) await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
@@ -130,7 +130,7 @@ test("the dashboards list does not wedge either", async () => {
     height: HEIGHT,
   });
   try {
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     for (const key of ["j", "j"]) await h.press((i) => i.pressKey(key));
     await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Dashboards"));

@@ -57,7 +57,7 @@ function stubClient({
 
 /** Navigate to Explore › Releases. */
 async function navigateToReleases(h: Awaited<ReturnType<typeof renderHarness>>) {
-  await h.press((i) => i.pressTab());
+  await h.openNav();
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
   for (let i = 0; i < RELEASES_INDEX; i++) await h.press((k) => k.pressKey("j"));

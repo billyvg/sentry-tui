@@ -62,9 +62,9 @@ async function renderApp(client: SentryClient | null = stubClient()) {
 /** Open the Dashboards sidebar without committing to an item. */
 async function openDashboardsNav(h: Awaited<ReturnType<typeof renderHarness>>) {
   await h.waitForFrame((f) => f.includes("Feed") || f.includes("No issues"));
-  // Content has focus by default; tab to the nav rail, then Issues → Explore →
+  // Open the compact rail, then walk Issues → Explore →
   // Dashboards.
-  await h.press((i) => i.pressTab());
+  await h.openNav();
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
@@ -301,14 +301,16 @@ for (const key of ["P", "E", "D"]) {
  * thing worth giving up.
  */
 for (const { width, kept, shed } of [
-  { width: 80, kept: ["Name", "Widgets", "Last Visited"], shed: ["Access", "Created", "Owner"] },
+  {
+    width: 80,
+    kept: ["Name", "Widgets", "Owner", "Last Visited"],
+    shed: ["Access", "Created"],
+  },
   {
     width: 100,
-    // The rail shed 2 fixed columns of its own when the goto key stopped
-    // costing width permanently (see NavRail.tsx), leaving Created room to
-    // fit alongside Owner here where it used to be shed.
-    kept: ["Name", "Widgets", "Owner", "Created", "Last Visited"],
-    shed: ["Access"],
+    // The compact rail leaves enough room for the full table at 100 columns.
+    kept: ["Name", "Widgets", "Owner", "Access", "Created", "Last Visited"],
+    shed: [],
   },
   {
     width: 140,

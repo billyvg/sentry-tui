@@ -70,7 +70,7 @@ async function renderApp(client: SentryClient) {
  * All Queries.
  */
 async function navigateToExplore(h: Awaited<ReturnType<typeof renderHarness>>, steps: number) {
-  await h.press((i) => i.pressTab());
+  await h.openNav();
   await h.press((i) => i.pressKey("j"));
   await h.press((i) => i.pressEnter());
   for (let n = 0; n < steps; n++) await h.press((i) => i.pressKey("j"));
@@ -345,15 +345,13 @@ for (const width of [80, 100, 140]) {
       expect(h.frame()).toContain("Slow checkout spans");
       expect(h.frame()).toContain("Name");
       expect(h.frame()).toContain("Query");
+      expect(h.frame()).toContain("Creator");
 
       if (width === 80) {
-        // Shed rather than squeezed: the web keeps star, name and query at its
-        // small breakpoint too, and the query stays long enough to read.
-        expect(h.frame()).not.toContain("Creator");
+        // The compact rail buys enough room for Creator while the lower-value
+        // Last Viewed column still sheds and the query stays readable.
         expect(h.frame()).not.toContain("Last Viewed");
         expect(h.frame()).toContain("span.op:http.client");
-      } else {
-        expect(h.frame()).toContain("Creator");
       }
     } finally {
       await h.cleanup();

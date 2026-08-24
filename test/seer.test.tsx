@@ -73,6 +73,7 @@ test("the nav rail lists Seer and no longer lists Insights", async () => {
   const { client } = stubClient();
   const h = await renderApp(client);
   try {
+    await h.openNav();
     expect(h.frame()).toContain("Seer");
     expect(h.frame()).not.toContain("Insights");
   } finally {
@@ -84,7 +85,7 @@ test("enter on the Seer rail item opens the screen without a secondary nav", asy
   const { client } = stubClient();
   const h = await renderApp(client);
   try {
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     await h.press((i) => i.pressKey("j"));
     await h.press((i) => i.pressKey("j"));
     await h.press((i) => i.pressKey("j"));
@@ -118,7 +119,7 @@ test("a multi-item group still opens its secondary nav", async () => {
   const h = await renderApp(client);
   try {
     // Explore has many destinations, so Enter must still offer the list.
-    await h.press((i) => i.pressTab());
+    await h.openNav();
     await h.press((i) => i.pressKey("j"));
     await h.press((i) => i.pressEnter());
     expect(h.frame()).toContain("Traces");

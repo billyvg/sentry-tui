@@ -32,7 +32,7 @@ export function SeerScreen({ state, width, height, focused, registerActions }: S
   const setValue = state.setSearchQuery;
 
   // The composer only counts as focused while the content pane holds focus, so
-  // tabbing to the nav rail can't leave two widgets both claiming keys.
+  // opening the nav rail can't leave two widgets both claiming keys.
   const composerFocused = focused && inputFocused;
 
   const submit = useCallback(() => {

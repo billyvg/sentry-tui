@@ -19,12 +19,9 @@ const BARE: PaletteContext = { streamView: false, hasIssue: false, updateReady: 
 const labels = (context: PaletteContext) => buildPaletteActions(context).map((a) => a.label);
 
 describe("buildPaletteActions", () => {
-  test("ids are unique even where two groups share an item label", () => {
+  test("ids are unique", () => {
     const ids = buildPaletteActions(EVERYTHING).map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
-    // "Projects" is both a Settings page and an Insights-era label; the group
-    // is what keeps the two rows apart.
-    expect(ids).toContain("nav:settings:Projects");
   });
 
   test("every nav destination is reachable", () => {

@@ -20,6 +20,40 @@ test("renders the app shell with nav and status bar, content defaults to Issues 
   }
 });
 
+test("starts with the primary navigation collapsed around its glyphs", async () => {
+  const h = await renderApp();
+  try {
+    const frame = h.frame();
+    expect(frame).not.toContain("Dashboards");
+    expect(frame).not.toContain("Explore");
+    expect(frame).toContain("│ D  │");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the collapsed rail keeps an organization marker above the nav glyphs", async () => {
+  const h = await renderHarness(<App onQuit={() => {}} org="acme" />);
+  try {
+    expect(h.frame()).toContain("│ A  │");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("clicking the collapsed rail expands its labels without choosing a group", async () => {
+  const h = await renderApp();
+  try {
+    await h.click(2, 1);
+
+    const frame = h.frame();
+    expect(frame).toContain("Dashboards");
+    expect(frame).not.toContain("Inbox");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("? opens the help overlay listing commands by title", async () => {
   const h = await renderApp();
   try {
@@ -50,8 +84,7 @@ test("escape closes the help overlay", async () => {
 test("navigating the rail moves the rail cursor without showing secondary", async () => {
   const h = await renderApp();
   try {
-    // Content has focus by default; tab to the nav rail first.
-    await h.press((i) => i.pressTab());
+    await h.openNav(); // expand and focus the rail
     // Move down to Explore.
     await h.press((i) => i.pressKey("j"));
 
@@ -68,8 +101,7 @@ test("navigating the rail moves the rail cursor without showing secondary", asyn
 test("enter on the rail opens secondary nav and moves focus there", async () => {
   const h = await renderApp();
   try {
-    // Content has focus by default; tab to the nav rail first.
-    await h.press((i) => i.pressTab());
+    await h.openNav(); // expand and focus the rail
     // Press Enter on Issues (default rail position).
     await h.press((i) => i.pressEnter());
 
@@ -85,8 +117,7 @@ test("enter on the rail opens secondary nav and moves focus there", async () => 
 test("j/k in secondary nav moves items, Enter selects and hides secondary", async () => {
   const h = await renderApp();
   try {
-    // Tab to the nav rail, then open secondary nav.
-    await h.press((i) => i.pressTab());
+    await h.openNav(); // expand and focus the rail
     await h.press((i) => i.pressEnter());
     expect(h.frame()).toContain("Feed");
 
@@ -110,8 +141,7 @@ test("j/k in secondary nav moves items, Enter selects and hides secondary", asyn
 test("escape from secondary nav hides it and returns focus to the rail", async () => {
   const h = await renderApp();
   try {
-    // Tab to the nav rail, then open secondary nav.
-    await h.press((i) => i.pressTab());
+    await h.openNav(); // expand and focus the rail
     await h.press((i) => i.pressEnter());
     expect(h.frame()).toContain("Inbox");
 
@@ -141,6 +171,7 @@ const SECONDARY_ITEM_X = NAV_RAIL_WIDTH + 3;
 test("clicking a rail group opens its secondary nav, without tabbing to the rail", async () => {
   const h = await renderApp();
   try {
+    await h.openNav(); // expand the compact rail
     await h.click(RAIL_ROW_RIGHT_EDGE, EXPLORE_ROW);
 
     const frame = h.frame();
@@ -156,6 +187,7 @@ test("clicking a rail group opens its secondary nav, without tabbing to the rail
 test("clicking a secondary nav item selects it and hides the secondary nav", async () => {
   const h = await renderApp();
   try {
+    await h.openNav(); // expand the compact rail
     await h.click(RAIL_ROW_RIGHT_EDGE, EXPLORE_ROW);
     // "Logs" is the second item in Explore's first section — see the frame
     // above: header on row 2, rule on row 3, Traces on 4, Logs on 5.
@@ -169,14 +201,30 @@ test("clicking a secondary nav item selects it and hides the secondary nav", asy
   }
 });
 
-test("tab cycles between nav and content when secondary is hidden", async () => {
+test("selecting a destination collapses the primary navigation", async () => {
   const h = await renderApp();
   try {
-    // Tab from nav → content (secondary is hidden).
-    await h.press((i) => i.pressTab());
-    // Now content is focused; the issue stream is still showing.
+    await h.openNav(); // expand the compact rail
+    await h.click(RAIL_ROW_RIGHT_EDGE, EXPLORE_ROW);
+    await h.click(SECONDARY_ITEM_X, 5); // Explore › Logs
+
     const frame = h.frame();
-    expect(frame).toContain("is:unresolved");
+    expect(frame).toContain("Search logs…");
+    expect(frame).not.toContain("Dashboards");
+    expect(frame).toContain("│ D  │");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("tab skips hidden navigation controls while the rail is collapsed", async () => {
+  const h = await renderApp();
+  try {
+    await h.press((i) => i.pressTab());
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+
+    expect(h.frame()).not.toContain("Traces");
   } finally {
     await h.cleanup();
   }
@@ -208,20 +256,21 @@ test("does not overflow a narrow terminal", async () => {
  * The status bar used to print `(enter) open` for every screen, having never
  * checked that anything was listening: `App` fell back to
  * `screen.openLabel ?? "open"` whatever the mounted screen had registered. On
- * a stub screen, and on any list that registers no action, Enter did nothing —
- * which reads as the app ignoring you rather than as a key that isn't bound.
+ * a screen with no open action, Enter did nothing — which reads as the app
+ * ignoring you rather than as a key that isn't bound.
  */
 test("the status bar offers Enter only where a screen has said what it does", async () => {
-  const stub = await renderHarness(<App onQuit={() => {}} initialScreen="settings.organization" />);
+  const chat = await renderHarness(<App onQuit={() => {}} initialScreen="seer.ask" />);
   try {
-    const frame = stub.frame();
-    // The pane is a placeholder — nothing there can be opened.
+    const frame = chat.frame();
+    // The composer owns Enter only while it is focused; the screen has no row
+    // or panel that the app-level open command can advertise.
     expect(frame).not.toContain("enter open");
     // The hints that *are* true are untouched.
     expect(frame).toContain("nav");
     expect(frame).toContain("help");
   } finally {
-    await stub.cleanup();
+    await chat.cleanup();
   }
 });
 

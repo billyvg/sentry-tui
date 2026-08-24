@@ -144,10 +144,10 @@ test("enter runs whichever row the cursor moved to", async () => {
   const h = await renderApp();
   try {
     await openPalette(h);
-    await h.press((i) => i.pressKey("settings"));
-    // Every Settings destination matches on its group keyword; step off the
+    await h.press((i) => i.pressKey("monitors"));
+    // Every Monitors destination matches on its group keyword; step off the
     // first so Enter has somewhere other than the default to land.
-    const items = ["Organization", "Projects", "Teams"];
+    const items = ["All Monitors", "My Monitors", "Error", "Metric", "Cron", "Uptime"];
     const cursorOn = () => items.find((item) => h.frame().includes(`▸ ${item}`));
 
     const first = cursorOn();
@@ -157,7 +157,8 @@ test("enter runs whichever row the cursor moved to", async () => {
     expect(second).not.toBe(first);
 
     await h.press((i) => i.pressKey("\r"));
-    expect(h.frame()).toContain(`Settings › ${second}`);
+    expect(h.frame()).not.toContain("Command palette");
+    expect(h.frame()).toContain(second!);
   } finally {
     await h.cleanup();
   }

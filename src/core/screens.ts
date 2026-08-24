@@ -54,10 +54,7 @@ export type ScreenId =
   | "monitors.cron"
   | "monitors.uptime"
   | "monitors.mobile-build"
-  | "monitors.alerts"
-  | "settings.organization"
-  | "settings.projects"
-  | "settings.teams";
+  | "monitors.alerts";
 
 /**
  * The shape a screen renders in. Descriptive, not aspirational: a screen that
@@ -216,10 +213,6 @@ export const SCREENS: readonly ScreenDef[] = [
   s("monitors.alerts", "monitors", "Alerts", "table"),
 
   s("seer.ask", "seer", "Ask Seer", "chat"),
-
-  s("settings.organization", "settings", "Organization", "stub"),
-  s("settings.projects", "settings", "Projects", "stub"),
-  s("settings.teams", "settings", "Teams", "stub"),
 ];
 
 /** Logs is the one screen whose Enter opens a panel rather than a view. */
