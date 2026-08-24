@@ -15,7 +15,7 @@ import type { SentryClient } from "~/api/client";
 import type { GroupSearchView } from "~/api/groupSearchViews";
 import { DEFAULT_STATS_PERIOD } from "~/api/issues";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { useGroupSearchViews } from "~/ui/hooks/useGroupSearchViews";
@@ -75,6 +75,7 @@ export function IssueViewsList({
   onStatusChange,
   reloadToken,
 }: IssueViewsListProps) {
+  const theme = useTheme();
   const listRef = useRef<ScrollBoxRenderable>(null);
   const status = useGroupSearchViews(client, { org, reloadToken });
 
@@ -181,6 +182,7 @@ function ViewRow({
   width: number;
   selected: boolean;
 }) {
+  const theme = useTheme();
   // Leading marker doubles as the cursor and the star indicator: the cursor
   // takes the first cell, the star the second, so neither can hide the other.
   const cursor = selected ? "❯" : " ";

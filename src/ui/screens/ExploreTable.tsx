@@ -39,7 +39,7 @@ import {
   getExploreTable,
   type ExploreTable as ExploreTableConfig,
 } from "~/core/exploreTables";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { countLabel } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
@@ -67,6 +67,7 @@ import type { ScreenProps } from "~/ui/screens/types";
 const DETAIL_LABEL_WIDTH = 26;
 
 export function ExploreTable(props: ScreenProps) {
+  const theme = useTheme();
   const table = getExploreTable(props.screen.id);
   // Unreachable through the registry — `test/exploreTables.test.tsx` pins the
   // two lists together — but a screen wired up without a config would
@@ -98,6 +99,7 @@ function ExploreTableScreen({
   activateRow,
   table,
 }: ScreenProps & { table: ExploreTableConfig }) {
+  const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
     state;
   const query = state.committedQuery;
@@ -210,9 +212,9 @@ function ExploreTableScreen({
   const columns = useMemo(
     () =>
       resolved.mode === "aggregate"
-        ? aggregateColumns(builder.groupBys, resolved.yAxis, maxAggregate)
-        : exploreColumnsFor(table.id, { maxDurationMs }),
-    [resolved.mode, resolved.yAxis, builder.groupBys, maxAggregate, table.id, maxDurationMs],
+        ? aggregateColumns(builder.groupBys, resolved.yAxis, maxAggregate, theme)
+        : exploreColumnsFor(table.id, { maxDurationMs, theme }),
+    [resolved.mode, resolved.yAxis, builder.groupBys, maxAggregate, table.id, maxDurationMs, theme],
   );
 
   const selected = rows?.[state.selected] ?? null;
@@ -330,6 +332,7 @@ function EventDetail({
   fields: readonly string[];
   width: number;
 }) {
+  const theme = useTheme();
   const valueWidth = Math.max(10, width - DETAIL_LABEL_WIDTH - 2);
   return (
     <box

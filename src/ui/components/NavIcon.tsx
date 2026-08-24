@@ -1,5 +1,6 @@
 import { navIconBytes } from "~/assets/navIcons";
 import type { NavGroupId } from "~/core/nav";
+import { useTheme } from "~/ui/theme";
 
 /**
  * Map each nav group to its icon base name (matches Sentry web icon names).
@@ -37,11 +38,12 @@ interface NavIconProps {
  * pre-rendered PNGs with matching theme colors.
  */
 export function NavIcon({ groupId, active }: NavIconProps) {
+  const theme = useTheme();
   const variant = active ? "active" : "inactive";
 
   return (
     <image
-      source={navIconBytes(`${ICON_BASE[groupId]}_${variant}`)}
+      source={navIconBytes(`${ICON_BASE[groupId]}_${variant}`, theme.mode)}
       fit="fit"
       style={{
         width: NAV_ICON_WIDTH,
@@ -53,9 +55,10 @@ export function NavIcon({ groupId, active }: NavIconProps) {
 
 /** The Sentry logo mark for the top of the nav rail. */
 export function SentryLogo() {
+  const theme = useTheme();
   return (
     <image
-      source={navIconBytes("sentry")}
+      source={navIconBytes("sentry", theme.mode)}
       fit="fit"
       style={{
         width: NAV_ICON_WIDTH,

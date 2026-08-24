@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import { matchesCommand } from "~/core/commands";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { fitText } from "~/lib/text";
 import { HighlightedLabel } from "~/ui/components/HighlightedLabel";
 import { PlatformIcon, usePlatformIconWidth } from "~/ui/components/PlatformIcon";
@@ -135,6 +135,7 @@ export function Dropdown({
   onSelect,
   onClose,
 }: DropdownProps) {
+  const theme = useTheme();
   const { width: termWidth, height: termHeight } = useTerminalDimensions();
   const platformIconWidth = usePlatformIconWidth();
   const [query, setQuery] = useState("");

@@ -18,7 +18,7 @@ import { useRef, type RefObject } from "react";
 import type { ScrollBoxRenderable } from "@opentui/core";
 
 import type { AsyncError } from "~/core/async";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { padText } from "~/lib/text";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
 import { layoutColumns, type ColumnSpec } from "~/ui/lib/tableLayout";
@@ -126,6 +126,7 @@ export function DataTable<T>({
   gutter = DEFAULT_GUTTER,
   layout = [],
 }: DataTableProps<T>) {
+  const theme = useTheme();
   const listRef = useRef<ScrollBoxRenderable>(null);
   const rowWidth = Math.max(1, width - gutter);
   const resolved = layoutColumns(columns, rowWidth, { gap, minFlex });
@@ -217,6 +218,7 @@ function TableHeader<T>({
   width: number;
   gap: number;
 }) {
+  const theme = useTheme();
   return (
     <box
       style={{
@@ -286,6 +288,7 @@ function Row<T>({
   separator: boolean;
   onRowClick?: (index: number, row: T) => void;
 }) {
+  const theme = useTheme();
   return (
     // The handler sits on the outer box so every cell of the row answers to a
     // click — a row with dead columns in it reads as an unreliable target.
@@ -335,6 +338,7 @@ function SkeletonRow<T>({
   detail: boolean;
   separator: boolean;
 }) {
+  const theme = useTheme();
   return (
     <box style={{ flexDirection: "column", width, flexShrink: 0 }}>
       <box style={{ flexDirection: "row" }}>
@@ -374,6 +378,7 @@ function TableEmpty({
   title: string;
   lines?: ReadonlyArray<string | undefined>;
 }) {
+  const theme = useTheme();
   return (
     <box style={{ flexDirection: "column", padding: 1 }}>
       <text fg={theme.text}>{title}</text>
@@ -387,6 +392,7 @@ function TableEmpty({
 }
 
 function TableError({ title, error }: { title: string; error: AsyncError }) {
+  const theme = useTheme();
   return (
     <box style={{ flexDirection: "column", padding: 1 }}>
       <text fg={theme.danger}>{title}</text>

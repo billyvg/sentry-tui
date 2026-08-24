@@ -1,6 +1,6 @@
 import { formatKey, primaryKey } from "~/core/commands";
 import { NAV_GROUPS, type NavGroupId } from "~/core/nav";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import type { Hotkey } from "~/lib/hotkeys";
 import { fitText, measureTextWidth } from "~/lib/text";
 import { KeyHint } from "~/ui/components/KeyHint";
@@ -119,6 +119,7 @@ export function NavRail({
   onExpand,
   onOrgPress,
 }: NavRailProps) {
+  const theme = useTheme();
   /** Usable content width: total minus borders (left+right) and horizontal padding. */
   const railWidth = expanded ? NAV_RAIL_WIDTH : COLLAPSED_NAV_RAIL_WIDTH;
   const contentWidth = railWidth - RAIL_CHROME_WIDTH;

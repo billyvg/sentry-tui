@@ -14,7 +14,7 @@ import {
 import type { Group } from "~/api/types";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { assigneeAvatarUrl } from "~/core/avatars";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { fitText, measureTextWidth } from "~/lib/text";
 import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
@@ -134,6 +134,7 @@ export function IssueStream({
   title,
   description,
 }: IssueStreamProps) {
+  const theme = useTheme();
   const [localQuery] = useState(DEFAULT_QUERY);
   const query = queryProp ?? localQuery;
   const displayValue = searchValue ?? query;

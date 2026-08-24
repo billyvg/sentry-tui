@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { findEntry, type Frame, type SentryEvent } from "~/api/types";
-import { theme } from "~/core/theme";
+import { darkTheme as theme } from "~/core/theme";
 import { App } from "~/ui/App";
 import { eventFixture, groupsFixture } from "./fixtures";
 import { renderHarness } from "./helpers";

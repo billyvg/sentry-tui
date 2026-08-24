@@ -7,7 +7,7 @@
  */
 
 import type { TimeseriesBucket } from "~/api/discover";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { formatCount, stretch } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DIM } from "~/ui/lib/attributes";
@@ -138,6 +138,7 @@ function buildTimeLabels(
 }
 
 export function BarChart({ buckets, width, height, title, noun }: BarChartProps) {
+  const theme = useTheme();
   if (width < 20 || height < 4) return null;
 
   // Border takes 2 cols (left + right), padding takes 1 col.

@@ -22,14 +22,10 @@ import { useEffect, useMemo, useRef } from "react";
 import type { SentryClient } from "~/api/client";
 import type { Detector } from "~/api/detectors";
 import { errorOf, valueOf } from "~/core/async";
-import {
-  CRON_TIMELINE_STYLE,
-  timelineWindowLabel,
-  UPTIME_TIMELINE_STYLE,
-  type TimelineStyle,
-} from "~/core/checkInTimeline";
+import { timelineStylesFor, timelineWindowLabel, type TimelineStyle } from "~/core/checkInTimeline";
 import { cronMonitor } from "~/core/detectors";
-import { theme } from "~/core/theme";
+import type { Theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { foldCheckIns, summariseTimeline, type StatsBucket } from "~/lib/checkInTimeline";
 import { CheckInTimeline } from "~/ui/components/CheckInTimeline";
 import { BODY_INDENT, Empty } from "~/ui/components/DetailSections";
@@ -80,6 +76,8 @@ export function DetectorTimelineSection({
   reloadToken,
   notify,
 }: DetectorTimelineProps) {
+  const theme = useTheme();
+  const timelineStyles = timelineStylesFor(theme);
   const kind = timelineKindFor(detector.type);
   // Cron stats are keyed by the monitor behind the detector; uptime stats by
   // the detector itself, which the endpoint maps to a subscription.
@@ -136,13 +134,13 @@ export function DetectorTimelineSection({
     <box style={{ flexDirection: "column", width }}>
       <box style={{ flexDirection: "row", width }}>
         <text fg={theme.muted}>{`${BODY_INDENT}${timelineWindowLabel()}`}</text>
-        {environmentNote(detector)}
+        {environmentNote(detector, theme)}
       </box>
 
       {kind === "uptime" ? (
         <Track
           buckets={failed ? [] : uptimeBuckets(stats, detector.id)}
-          style={UPTIME_TIMELINE_STYLE}
+          style={timelineStyles.uptime}
           width={trackWidth}
           since={since}
           until={until}
@@ -150,7 +148,7 @@ export function DetectorTimelineSection({
       ) : (
         <Track
           buckets={failed ? [] : cronBuckets(stats, monitorId)}
-          style={CRON_TIMELINE_STYLE}
+          style={timelineStyles.cron}
           width={trackWidth}
           since={since}
           until={until}
@@ -238,7 +236,7 @@ function Tally<S extends string>({
  * track for each; this sums them into one, so it says so whenever there is
  * more than one being summed.
  */
-function environmentNote(detector: Detector) {
+function environmentNote(detector: Detector, theme: Theme) {
   const environments = cronMonitor(detector)?.environments ?? [];
   if (environments.length < 2) return null;
   return <text fg={theme.subText}>{`  (all ${environments.length} environments)`}</text>;

@@ -17,7 +17,8 @@ import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
 import type { ProfileFunction } from "~/api/profileFunctions";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
+import type { Theme } from "~/core/theme";
 import { formatCount } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
@@ -53,59 +54,63 @@ const FLAMEGRAPH_NOTE = [
  * then the package, then the per-call figures, which are refinements of the
  * total rather than replacements for it.
  */
-const COLUMNS: ReadonlyArray<Column<ProfileFunction>> = [
-  {
-    key: "function",
-    label: "Function",
-    width: "flex",
-    render: (fn, _selected, width) => <text fg={theme.text}>{padText(fn.name, width)}</text>,
-  },
-  {
-    key: "package",
-    label: "Package",
-    width: 18,
-    priority: 2,
-    render: (fn, _selected, width) => <text fg={theme.muted}>{padText(fn.package, width)}</text>,
-  },
-  {
-    key: "project",
-    label: "Project",
-    width: 12,
-    priority: 1,
-    render: (fn, _selected, width) => (
-      <text fg={theme.subText}>{padText(fn.projectSlug ?? "", width)}</text>
-    ),
-  },
-  {
-    key: "count",
-    label: "Calls",
-    width: 7,
-    align: "right",
-    priority: 3,
-    render: (fn, _selected, width) => (
-      <text fg={theme.muted}>{padText(formatCount(fn.count), width, "right")}</text>
-    ),
-  },
-  {
-    key: "p75",
-    label: "p75",
-    width: 9,
-    align: "right",
-    priority: 4,
-    render: (fn, _selected, width) => (
-      <text fg={theme.muted}>{padText(formatNanoseconds(fn.p75SelfTimeNs), width, "right")}</text>
-    ),
-  },
-  {
-    key: "total",
-    label: "Self Time",
-    width: 10,
-    align: "right",
-    render: (fn, _selected, width) => (
-      <text fg={theme.text}>{padText(formatNanoseconds(fn.totalSelfTimeNs), width, "right")}</text>
-    ),
-  },
-];
+function profileColumns(theme: Theme): ReadonlyArray<Column<ProfileFunction>> {
+  return [
+    {
+      key: "function",
+      label: "Function",
+      width: "flex",
+      render: (fn, _selected, width) => <text fg={theme.text}>{padText(fn.name, width)}</text>,
+    },
+    {
+      key: "package",
+      label: "Package",
+      width: 18,
+      priority: 2,
+      render: (fn, _selected, width) => <text fg={theme.muted}>{padText(fn.package, width)}</text>,
+    },
+    {
+      key: "project",
+      label: "Project",
+      width: 12,
+      priority: 1,
+      render: (fn, _selected, width) => (
+        <text fg={theme.subText}>{padText(fn.projectSlug ?? "", width)}</text>
+      ),
+    },
+    {
+      key: "count",
+      label: "Calls",
+      width: 7,
+      align: "right",
+      priority: 3,
+      render: (fn, _selected, width) => (
+        <text fg={theme.muted}>{padText(formatCount(fn.count), width, "right")}</text>
+      ),
+    },
+    {
+      key: "p75",
+      label: "p75",
+      width: 9,
+      align: "right",
+      priority: 4,
+      render: (fn, _selected, width) => (
+        <text fg={theme.muted}>{padText(formatNanoseconds(fn.p75SelfTimeNs), width, "right")}</text>
+      ),
+    },
+    {
+      key: "total",
+      label: "Self Time",
+      width: 10,
+      align: "right",
+      render: (fn, _selected, width) => (
+        <text fg={theme.text}>
+          {padText(formatNanoseconds(fn.totalSelfTimeNs), width, "right")}
+        </text>
+      ),
+    },
+  ];
+}
 
 export function ProfileFunctions({
   client,
@@ -119,6 +124,7 @@ export function ProfileFunctions({
   registerActions,
   activateRow,
 }: ScreenProps) {
+  const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
     state;
   const inputRef = useRef<InputRenderable>(null);
@@ -262,7 +268,7 @@ export function ProfileFunctions({
 
       <DataTable
         rows={functions}
-        columns={COLUMNS}
+        columns={profileColumns(theme)}
         width={width}
         selectedIndex={state.selected}
         focused={focused}
@@ -292,6 +298,7 @@ export function ProfileFunctions({
 
 /** The standing note where the web draws its aggregate flamegraph. */
 function FlamegraphNote({ width }: { width: number }) {
+  const theme = useTheme();
   return (
     <box
       style={{
@@ -316,6 +323,7 @@ function FlamegraphNote({ width }: { width: number }) {
 
 /** Detail panel for the function under the cursor. */
 function FunctionDetail({ fn, width }: { fn: ProfileFunction; width: number }) {
+  const theme = useTheme();
   return (
     <box
       style={{

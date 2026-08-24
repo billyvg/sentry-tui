@@ -1,5 +1,5 @@
 import type { ExceptionValue } from "~/api/types";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import {
   buildStackRows,
   filetypeFor,
@@ -36,6 +36,7 @@ export function ExceptionSection({
   onFrameClick: (key: string) => void;
   includeSystemFrames: boolean;
 }) {
+  const theme = useTheme();
   const rows = buildStackRows(value.stacktrace, { includeSystemFrames });
 
   return (
@@ -98,6 +99,7 @@ function FrameRow({
   selectedId: string;
   onClick: () => void;
 }) {
+  const theme = useTheme();
   const expandable = frameIsExpandable(frame);
   const marker = expandable ? (expanded ? "▾" : "▸") : " ";
 
@@ -135,6 +137,7 @@ function FrameRow({
 }
 
 function FrameContext({ frame, width }: { frame: FrameLike; width: number }) {
+  const theme = useTheme();
   const syntaxStyle = useSyntaxStyle();
   // Highlighting is an enhancement: until the style resolves (and for
   // languages without a bundled grammar) the source still renders as plain

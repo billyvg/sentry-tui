@@ -23,7 +23,8 @@ import { useEffect, useMemo } from "react";
 import type { Detector } from "~/api/detectors";
 import { actionTypeLabel, workflowActionTypes, type Workflow } from "~/api/workflows";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
+import type { Theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
@@ -67,58 +68,61 @@ interface WorkflowRow {
  * column to appear is the first to go: Monitors, then Last Triggered, then
  * Actions, then Projects. The name has no priority, so it always survives.
  */
-const COLUMNS: ReadonlyArray<Column<WorkflowRow>> = [
-  {
-    key: "name",
-    label: "Name",
-    width: "flex",
-    render: (row, selected, width) => (
-      <text fg={nameColor(row, selected)} attributes={selected ? BOLD : 0}>
-        {padText(row.name, width)}
-      </text>
-    ),
-  },
-  {
-    key: "lastTriggered",
-    label: "Last Triggered",
-    // Exactly the header's own width: the label is the widest thing in the
-    // column, and a truncated `Last Trigger…` reads as a bug.
-    width: 14,
-    priority: 2,
-    render: (row, _selected, width) => (
-      <text fg={theme.subText}>{padText(row.lastTriggered, width)}</text>
-    ),
-  },
-  {
-    key: "actions",
-    label: "Actions",
-    width: 18,
-    priority: 3,
-    render: (row, _selected, width) => (
-      <text fg={row.enabled ? theme.text : theme.subText}>{padText(row.actions, width)}</text>
-    ),
-  },
-  {
-    key: "projects",
-    label: "Projects",
-    width: 18,
-    priority: 4,
-    render: (row, _selected, width) => (
-      <text fg={row.enabled ? theme.muted : theme.subText}>{padText(row.projects, width)}</text>
-    ),
-  },
-  {
-    key: "monitors",
-    label: "Monitors",
-    width: 11,
-    priority: 1,
-    render: (row, _selected, width) => (
-      <text fg={row.enabled ? theme.muted : theme.subText}>{padText(row.monitors, width)}</text>
-    ),
-  },
-];
+function workflowColumns(theme: Theme): ReadonlyArray<Column<WorkflowRow>> {
+  return [
+    {
+      key: "name",
+      label: "Name",
+      width: "flex",
+      render: (row, selected, width) => (
+        <text fg={nameColor(row, selected, theme)} attributes={selected ? BOLD : 0}>
+          {padText(row.name, width)}
+        </text>
+      ),
+    },
+    {
+      key: "lastTriggered",
+      label: "Last Triggered",
+      // Exactly the header's own width: the label is the widest thing in the
+      // column, and a truncated `Last Trigger…` reads as a bug.
+      width: 14,
+      priority: 2,
+      render: (row, _selected, width) => (
+        <text fg={theme.subText}>{padText(row.lastTriggered, width)}</text>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      width: 18,
+      priority: 3,
+      render: (row, _selected, width) => (
+        <text fg={row.enabled ? theme.text : theme.subText}>{padText(row.actions, width)}</text>
+      ),
+    },
+    {
+      key: "projects",
+      label: "Projects",
+      width: 18,
+      priority: 4,
+      render: (row, _selected, width) => (
+        <text fg={row.enabled ? theme.muted : theme.subText}>{padText(row.projects, width)}</text>
+      ),
+    },
+    {
+      key: "monitors",
+      label: "Monitors",
+      width: 11,
+      priority: 1,
+      render: (row, _selected, width) => (
+        <text fg={row.enabled ? theme.muted : theme.subText}>{padText(row.monitors, width)}</text>
+      ),
+    },
+  ];
+}
 
 export function WorkflowList(props: ScreenProps) {
+  const theme = useTheme();
   const { client, org, state, focused, width, height, reloadToken } = props;
   const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
 
@@ -216,7 +220,7 @@ export function WorkflowList(props: ScreenProps) {
 
       <DataTable
         rows={rows}
-        columns={COLUMNS}
+        columns={workflowColumns(theme)}
         width={width}
         minFlex={MIN_NAME_WIDTH}
         selectedIndex={state.selected}
@@ -257,7 +261,7 @@ function countLabel(count: number): string {
  * The name is the one column that never sheds, so losing its colour is the
  * only cue for "this alert is off" that survives a narrow terminal.
  */
-function nameColor(row: WorkflowRow, selected: boolean): string {
+function nameColor(row: WorkflowRow, selected: boolean, theme: Theme): string {
   if (!row.enabled) return theme.subText;
   return selected ? theme.text : theme.accent;
 }

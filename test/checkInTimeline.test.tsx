@@ -11,7 +11,8 @@ import { expect, test } from "bun:test";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
-import { CRON_TIMELINE_STYLE, UPTIME_TIMELINE_STYLE } from "~/core/checkInTimeline";
+import { timelineStylesFor } from "~/core/checkInTimeline";
+import { darkTheme } from "~/core/theme";
 import {
   CRON_GLYPHS,
   TIMELINE_EMPTY_GLYPH,
@@ -22,6 +23,8 @@ import { CheckInTimeline } from "~/ui/components/CheckInTimeline";
 import { selectEnvironment } from "~/api/monitorStats";
 import { cronBuckets, uptimeBuckets, useCheckInStats } from "~/ui/hooks/useCheckInStats";
 import { renderHarness } from "./helpers";
+
+const { cron: CRON_TIMELINE_STYLE, uptime: UPTIME_TIMELINE_STYLE } = timelineStylesFor(darkTheme);
 import {
   CHECKOUT_UPTIME_ID,
   DAY_SECONDS,

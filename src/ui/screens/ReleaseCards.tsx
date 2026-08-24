@@ -26,7 +26,8 @@ import {
   type ReleaseProject,
 } from "~/api/releases";
 import { errorOf, loadingSince, valueOf } from "~/core/async";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
+import type { Theme } from "~/core/theme";
 import { formatCount, timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import type { Column } from "~/ui/components/DataTable";
@@ -84,56 +85,62 @@ interface ProjectRow {
  * session health), then crashes, then the adoption bar — which is the last to
  * go because a bar is the thing this view renders better than the web does.
  */
-const PROJECT_COLUMNS: ReadonlyArray<Column<ProjectRow>> = [
-  {
-    key: "project",
-    label: "Project",
-    width: "flex",
-    render: (row, _selected, width) => (
-      <text fg={theme.text}>{padText(row.project.slug, width)}</text>
-    ),
-  },
-  {
-    key: "adoption",
-    label: "Adoption",
-    width: ADOPTION_BAR + 2 + 4,
-    priority: 3,
-    render: (row, _selected, width) => <AdoptionCell row={row} width={width} />,
-  },
-  {
-    key: "crashFree",
-    label: "Crash-Free",
-    width: 11,
-    align: "right",
-    render: (row, _selected, width) => <CrashFreeCell row={row} width={width} />,
-  },
-  {
-    key: "crashes",
-    label: "Crashes",
-    width: 8,
-    align: "right",
-    priority: 2,
-    render: (row, _selected, width) =>
-      row.pending ? (
-        <PendingCell width={width} align="right" />
-      ) : (
-        <text fg={theme.muted}>
-          {padText(row.health ? formatCount(row.health.sessionsCrashed ?? 0) : "—", width, "right")}
-        </text>
+function projectColumns(theme: Theme): ReadonlyArray<Column<ProjectRow>> {
+  return [
+    {
+      key: "project",
+      label: "Project",
+      width: "flex",
+      render: (row, _selected, width) => (
+        <text fg={theme.text}>{padText(row.project.slug, width)}</text>
       ),
-  },
-  {
-    key: "newIssues",
-    label: "New Issues",
-    width: 10,
-    align: "right",
-    priority: 1,
-    // From the list request, not the health one — it is never pending.
-    render: (row, _selected, width) => (
-      <text fg={theme.muted}>{padText(formatCount(row.project.newGroups), width, "right")}</text>
-    ),
-  },
-];
+    },
+    {
+      key: "adoption",
+      label: "Adoption",
+      width: ADOPTION_BAR + 2 + 4,
+      priority: 3,
+      render: (row, _selected, width) => <AdoptionCell row={row} width={width} />,
+    },
+    {
+      key: "crashFree",
+      label: "Crash-Free",
+      width: 11,
+      align: "right",
+      render: (row, _selected, width) => <CrashFreeCell row={row} width={width} />,
+    },
+    {
+      key: "crashes",
+      label: "Crashes",
+      width: 8,
+      align: "right",
+      priority: 2,
+      render: (row, _selected, width) =>
+        row.pending ? (
+          <PendingCell width={width} align="right" />
+        ) : (
+          <text fg={theme.muted}>
+            {padText(
+              row.health ? formatCount(row.health.sessionsCrashed ?? 0) : "—",
+              width,
+              "right",
+            )}
+          </text>
+        ),
+    },
+    {
+      key: "newIssues",
+      label: "New Issues",
+      width: 10,
+      align: "right",
+      priority: 1,
+      // From the list request, not the health one — it is never pending.
+      render: (row, _selected, width) => (
+        <text fg={theme.muted}>{padText(formatCount(row.project.newGroups), width, "right")}</text>
+      ),
+    },
+  ];
+}
 
 export function ReleaseCards({
   client,
@@ -147,6 +154,7 @@ export function ReleaseCards({
   registerActions,
   activateRow,
 }: ScreenProps) {
+  const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
     state;
   const listRef = useRef<ScrollBoxRenderable>(null);
@@ -235,8 +243,8 @@ export function ReleaseCards({
   const cardWidth = Math.max(20, width - GUTTER);
   const tableWidth = Math.max(10, cardWidth - INDENT);
   const resolved = useMemo(
-    () => layoutColumns(PROJECT_COLUMNS, tableWidth, { gap: GAP }),
-    [tableWidth],
+    () => layoutColumns(projectColumns(theme), tableWidth, { gap: GAP }),
+    [tableWidth, theme],
   );
 
   /** Card heights, in display order — what the scrollbox is measured against. */
@@ -421,6 +429,7 @@ function ReleaseCard({
   expanded: boolean;
   onPress: (index: number) => void;
 }) {
+  const theme = useTheme();
   const { shown, hidden } = cardProjects(release, expanded);
   const tableWidth = Math.max(10, width - INDENT);
 
@@ -530,6 +539,7 @@ function releaseSummary(release: Release): string {
  * the share itself rather than the series behind it.
  */
 function AdoptionCell({ row, width }: { row: ProjectRow; width: number }) {
+  const theme = useTheme();
   const barWidth = Math.max(1, width - 6);
   if (row.pending) return <PendingCell width={width} />;
 
@@ -551,6 +561,7 @@ function AdoptionCell({ row, width }: { row: ProjectRow; width: number }) {
 
 /** Crash-free rate, coloured by the same thresholds the web picks icons with. */
 function CrashFreeCell({ row, width }: { row: ProjectRow; width: number }) {
+  const theme = useTheme();
   if (row.pending) return <PendingCell width={width} align="right" />;
 
   const rate = row.health?.crashFreeSessions;
@@ -579,6 +590,7 @@ function CrashFreeCell({ row, width }: { row: ProjectRow; width: number }) {
  * what keeps it from reading as broken.
  */
 function PendingCell({ width, align = "left" }: { width: number; align?: "left" | "right" }) {
+  const theme = useTheme();
   return (
     <text fg={theme.panelAlt}>
       {padText("─".repeat(Math.max(1, Math.floor(width * 0.6))), width, align)}
@@ -622,6 +634,7 @@ function SkeletonCard({
   width: number;
   seed: number;
 }) {
+  const theme = useTheme();
   const tableWidth = Math.max(10, width - INDENT);
   return (
     <box style={{ flexDirection: "column", width, flexShrink: 0 }}>

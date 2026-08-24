@@ -12,7 +12,8 @@ import { useCallback, useEffect } from "react";
 
 import type { LogEntry, LogSeverity } from "~/api/logs";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
-import { theme } from "~/core/theme";
+import type { Theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { fitText, padText } from "~/lib/text";
 import { clockTime } from "~/lib/time";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
@@ -27,15 +28,6 @@ import type { ScreenProps } from "~/ui/screens/types";
 // ---------------------------------------------------------------------------
 // Severity colors, matching the web's log level palette
 // ---------------------------------------------------------------------------
-
-const SEVERITY_COLOR: Record<LogSeverity, string> = {
-  trace: theme.subText,
-  debug: theme.muted,
-  info: theme.accent,
-  warn: theme.warning,
-  error: theme.danger,
-  fatal: theme.level.fatal,
-};
 
 const SEVERITY_LABEL: Record<LogSeverity, string> = {
   trace: "TRACE",
@@ -53,48 +45,60 @@ const SEVERITY_LABEL: Record<LogSeverity, string> = {
  * log line. Project goes first when the pane narrows, then severity, whose
  * colour still reads off the message beside it.
  */
-const COLUMNS: ReadonlyArray<Column<LogEntry>> = [
-  {
-    key: "time",
-    label: "Time",
-    width: 10,
-    render: (entry, _selected, width) => (
-      <text fg={theme.muted}>{padText(clockTime(entry.timestamp), width)}</text>
-    ),
-  },
-  {
-    key: "severity",
-    label: "Level",
-    width: 6,
-    priority: 2,
-    render: (entry, _selected, width) => {
-      const severity = entry.severityText;
-      return (
-        <text
-          fg={SEVERITY_COLOR[severity] ?? theme.muted}
-          attributes={severity === "error" || severity === "fatal" ? BOLD : 0}
-        >
-          {padText(SEVERITY_LABEL[severity] ?? severity.toUpperCase(), width)}
-        </text>
-      );
+function logColumns(theme: Theme): ReadonlyArray<Column<LogEntry>> {
+  const severityColor: Record<LogSeverity, string> = {
+    trace: theme.subText,
+    debug: theme.muted,
+    info: theme.accent,
+    warn: theme.warning,
+    error: theme.danger,
+    fatal: theme.level.fatal,
+  };
+  return [
+    {
+      key: "time",
+      label: "Time",
+      width: 10,
+      render: (entry, _selected, width) => (
+        <text fg={theme.muted}>{padText(clockTime(entry.timestamp), width)}</text>
+      ),
     },
-  },
-  {
-    key: "project",
-    label: "Project",
-    width: 14,
-    priority: 1,
-    render: (entry, _selected, width) => (
-      <text fg={theme.subText}>{padText(entry.projectSlug ?? "", width)}</text>
-    ),
-  },
-  {
-    key: "message",
-    label: "Message",
-    width: "flex",
-    render: (entry, _selected, width) => <text fg={theme.text}>{padText(entry.body, width)}</text>,
-  },
-];
+    {
+      key: "severity",
+      label: "Level",
+      width: 6,
+      priority: 2,
+      render: (entry, _selected, width) => {
+        const severity = entry.severityText;
+        return (
+          <text
+            fg={severityColor[severity] ?? theme.muted}
+            attributes={severity === "error" || severity === "fatal" ? BOLD : 0}
+          >
+            {padText(SEVERITY_LABEL[severity] ?? severity.toUpperCase(), width)}
+          </text>
+        );
+      },
+    },
+    {
+      key: "project",
+      label: "Project",
+      width: 14,
+      priority: 1,
+      render: (entry, _selected, width) => (
+        <text fg={theme.subText}>{padText(entry.projectSlug ?? "", width)}</text>
+      ),
+    },
+    {
+      key: "message",
+      label: "Message",
+      width: "flex",
+      render: (entry, _selected, width) => (
+        <text fg={theme.text}>{padText(entry.body, width)}</text>
+      ),
+    },
+  ];
+}
 
 export function LogStream({
   client,
@@ -107,6 +111,7 @@ export function LogStream({
   onProjectSelect,
   registerActions,
 }: ScreenProps) {
+  const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
     state;
 
@@ -225,7 +230,7 @@ export function LogStream({
 
       <DataTable
         rows={entries}
-        columns={COLUMNS}
+        columns={logColumns(theme)}
         width={width}
         selectedIndex={state.selected}
         focused={focused}
@@ -256,6 +261,7 @@ export function LogStream({
 // ---------------------------------------------------------------------------
 
 function LogDetail({ entry, width }: { entry: LogEntry; width: number }) {
+  const theme = useTheme();
   return (
     <box
       style={{

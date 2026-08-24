@@ -17,7 +17,8 @@ import { useCallback, useEffect } from "react";
 import type { DashboardListItem } from "~/api/dashboards";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { getDashboardListView, type DashboardListView } from "~/core/dashboards";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
+import type { Theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
@@ -40,113 +41,121 @@ const HEADING_ROWS = 2;
  */
 const MIN_TITLE_WIDTH = 24;
 
-const STAR_COLUMN: Column<DashboardListItem> = {
-  key: "star",
-  label: "★",
-  width: 1,
-  render: (row) => (
-    <text fg={row.isFavorited ? theme.warning : theme.border}>{row.isFavorited ? "★" : "☆"}</text>
-  ),
-};
-
-const NAME_COLUMN: Column<DashboardListItem> = {
-  key: "name",
-  label: "Name",
-  width: "flex",
-  render: (row, selected, width) => (
-    <text fg={selected ? theme.text : theme.accent} attributes={selected ? BOLD : 0}>
-      {padText(row.title, width)}
-    </text>
-  ),
-};
-
-const WIDGETS_COLUMN: Column<DashboardListItem> = {
-  key: "widgets",
-  label: "Widgets",
-  width: 7,
-  align: "right",
-  priority: 4,
-  render: (row, _selected, width) => (
-    <text fg={theme.text}>{padText(String(row.widgetDisplay?.length ?? 0), width, "right")}</text>
-  ),
-};
-
-const LAST_VISITED_COLUMN: Column<DashboardListItem> = {
-  key: "lastVisited",
-  label: "Last Visited",
-  width: 12,
-  priority: 5,
-  render: (row, _selected, width) => (
-    <text fg={theme.subText}>
-      {padText(row.lastVisited ? timeAgo(row.lastVisited) : "—", width)}
-    </text>
-  ),
-};
-
-/**
- * The web's flag-on column set, minus the row actions a read-only client has
- * no use for: `★ · Name · Widgets · Owner · Access · Created · Last Visited`.
- */
-const STANDARD_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
-  STAR_COLUMN,
-  NAME_COLUMN,
-  WIDGETS_COLUMN,
-  {
-    key: "owner",
-    label: "Owner",
-    width: 18,
-    priority: 3,
-    render: (row, _selected, width) => (
-      <text fg={theme.muted}>{padText(ownerLabel(row), width)}</text>
+function dashboardColumns(theme: Theme): {
+  standard: ReadonlyArray<Column<DashboardListItem>>;
+  prebuilt: ReadonlyArray<Column<DashboardListItem>>;
+} {
+  const STAR_COLUMN: Column<DashboardListItem> = {
+    key: "star",
+    label: "★",
+    width: 1,
+    render: (row) => (
+      <text fg={row.isFavorited ? theme.warning : theme.border}>{row.isFavorited ? "★" : "☆"}</text>
     ),
-  },
-  {
-    key: "access",
-    label: "Access",
-    width: 10,
-    priority: 1,
-    render: (row, _selected, width) => (
-      <text fg={theme.muted}>{padText(accessLabel(row), width)}</text>
-    ),
-  },
-  {
-    key: "created",
-    label: "Created",
-    width: 10,
-    priority: 2,
-    render: (row, _selected, width) => (
-      <text fg={theme.subText}>
-        {padText(row.dateCreated ? timeAgo(row.dateCreated) : "—", width)}
+  };
+
+  const NAME_COLUMN: Column<DashboardListItem> = {
+    key: "name",
+    label: "Name",
+    width: "flex",
+    render: (row, selected, width) => (
+      <text fg={selected ? theme.text : theme.accent} attributes={selected ? BOLD : 0}>
+        {padText(row.title, width)}
       </text>
     ),
-  },
-  LAST_VISITED_COLUMN,
-];
+  };
 
-/**
- * The prebuilt column set: `★ · Name · Description · Widgets · Last Visited`.
- *
- * Sentry-built dashboards have no owner and cannot be edited, so the web drops
- * those three columns and shows the description instead
- * (`dashboardTable.tsx:120-146`).
- */
-const PREBUILT_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
-  STAR_COLUMN,
-  NAME_COLUMN,
-  {
-    key: "description",
-    label: "Description",
-    width: "flex",
-    priority: 1,
+  const WIDGETS_COLUMN: Column<DashboardListItem> = {
+    key: "widgets",
+    label: "Widgets",
+    width: 7,
+    align: "right",
+    priority: 4,
     render: (row, _selected, width) => (
-      <text fg={theme.muted}>{padText(row.description ?? "", width)}</text>
+      <text fg={theme.text}>{padText(String(row.widgetDisplay?.length ?? 0), width, "right")}</text>
     ),
-  },
-  WIDGETS_COLUMN,
-  LAST_VISITED_COLUMN,
-];
+  };
+
+  const LAST_VISITED_COLUMN: Column<DashboardListItem> = {
+    key: "lastVisited",
+    label: "Last Visited",
+    width: 12,
+    priority: 5,
+    render: (row, _selected, width) => (
+      <text fg={theme.subText}>
+        {padText(row.lastVisited ? timeAgo(row.lastVisited) : "—", width)}
+      </text>
+    ),
+  };
+
+  /**
+   * The web's flag-on column set, minus the row actions a read-only client has
+   * no use for: `★ · Name · Widgets · Owner · Access · Created · Last Visited`.
+   */
+  const STANDARD_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
+    STAR_COLUMN,
+    NAME_COLUMN,
+    WIDGETS_COLUMN,
+    {
+      key: "owner",
+      label: "Owner",
+      width: 18,
+      priority: 3,
+      render: (row, _selected, width) => (
+        <text fg={theme.muted}>{padText(ownerLabel(row), width)}</text>
+      ),
+    },
+    {
+      key: "access",
+      label: "Access",
+      width: 10,
+      priority: 1,
+      render: (row, _selected, width) => (
+        <text fg={theme.muted}>{padText(accessLabel(row), width)}</text>
+      ),
+    },
+    {
+      key: "created",
+      label: "Created",
+      width: 10,
+      priority: 2,
+      render: (row, _selected, width) => (
+        <text fg={theme.subText}>
+          {padText(row.dateCreated ? timeAgo(row.dateCreated) : "—", width)}
+        </text>
+      ),
+    },
+    LAST_VISITED_COLUMN,
+  ];
+
+  /**
+   * The prebuilt column set: `★ · Name · Description · Widgets · Last Visited`.
+   *
+   * Sentry-built dashboards have no owner and cannot be edited, so the web drops
+   * those three columns and shows the description instead
+   * (`dashboardTable.tsx:120-146`).
+   */
+  const PREBUILT_COLUMNS: ReadonlyArray<Column<DashboardListItem>> = [
+    STAR_COLUMN,
+    NAME_COLUMN,
+    {
+      key: "description",
+      label: "Description",
+      width: "flex",
+      priority: 1,
+      render: (row, _selected, width) => (
+        <text fg={theme.muted}>{padText(row.description ?? "", width)}</text>
+      ),
+    },
+    WIDGETS_COLUMN,
+    LAST_VISITED_COLUMN,
+  ];
+
+  return { standard: STANDARD_COLUMNS, prebuilt: PREBUILT_COLUMNS };
+}
 
 export function DashboardList(props: ScreenProps) {
+  const theme = useTheme();
   const { client, org, screen, state, focused, width, height, reloadToken } = props;
   const { setEntries, setStatus, focusSearch, handleSearchBlur } = state;
 
@@ -194,7 +203,8 @@ export function DashboardList(props: ScreenProps) {
   useScreenActions(props.registerActions, { open });
 
   const isPrebuilt = config.filter === "onlyPrebuilt";
-  const columns = isPrebuilt ? PREBUILT_COLUMNS : STANDARD_COLUMNS;
+  const columnSets = dashboardColumns(theme);
+  const columns = isPrebuilt ? columnSets.prebuilt : columnSets.standard;
 
   return (
     <box style={{ flexDirection: "column", width, height }}>

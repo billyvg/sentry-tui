@@ -22,7 +22,7 @@ import {
   detectorDetailParts,
   detectorTypeLabel,
 } from "~/core/detectors";
-import { theme } from "~/core/theme";
+import type { Theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import type { Column } from "~/ui/components/DataTable";
@@ -62,71 +62,89 @@ export interface MonitorColumnContext {
  * alone — dimming them further would only cost the row legibility it has
  * already given up.
  */
-function rowFg(detector: Detector, color: string): string {
+function rowFg(detector: Detector, color: string, theme: Theme): string {
   return detector.enabled ? color : theme.muted;
 }
 
-const NAME_COLUMN: Column<Detector> = {
-  key: "name",
-  label: "Name",
-  width: "flex",
-  render: (detector, selected, width) => (
-    <text
-      fg={rowFg(detector, selected ? theme.text : theme.accent)}
-      attributes={selected && detector.enabled ? BOLD : 0}
-    >
-      {padText(detector.name, width)}
-    </text>
-  ),
-};
-
-const TYPE_COLUMN: Column<Detector> = {
-  key: "type",
-  label: "Type",
-  width: 12,
-  // Last of the four to go: with the timeline column present it is the only
-  // thing left saying what kind of monitor the row is.
-  priority: 4,
-  render: (detector, _selected, width) => (
-    <text fg={rowFg(detector, theme.text)}>{padText(detectorTypeLabel(detector.type), width)}</text>
-  ),
-};
-
-const LAST_ISSUE_COLUMN: Column<Detector> = {
-  key: "last-issue",
-  label: "Last Issue",
-  width: 26,
-  priority: 2,
-  render: (detector, _selected, width) => (
-    <text fg={theme.subText}>{padText(lastIssueLabel(detector), width)}</text>
-  ),
-};
-
-const ASSIGNEE_COLUMN: Column<Detector> = {
-  key: "assignee",
-  label: "Assignee",
-  width: 16,
-  priority: 3,
-  render: (detector, _selected, width) => (
-    <text fg={theme.subText}>{padText(detectorAssigneeLabel(detector.owner), width)}</text>
-  ),
-};
-
-const ALERTS_COLUMN: Column<Detector> = {
-  key: "alerts",
-  label: "Alerts",
-  width: 6,
-  align: "right",
-  priority: 1,
-  render: (detector, _selected, width) => {
-    const count = detector.workflowIds?.length ?? 0;
-    return (
-      <text fg={count > 0 ? rowFg(detector, theme.text) : theme.subText}>
-        {padText(count > 0 ? String(count) : "—", width, "right")}
+function monitorColumnSet(theme: Theme): {
+  name: Column<Detector>;
+  type: Column<Detector>;
+  lastIssue: Column<Detector>;
+  assignee: Column<Detector>;
+  alerts: Column<Detector>;
+} {
+  const NAME_COLUMN: Column<Detector> = {
+    key: "name",
+    label: "Name",
+    width: "flex",
+    render: (detector, selected, width) => (
+      <text
+        fg={rowFg(detector, selected ? theme.text : theme.accent, theme)}
+        attributes={selected && detector.enabled ? BOLD : 0}
+      >
+        {padText(detector.name, width)}
       </text>
-    );
-  },
-};
+    ),
+  };
+
+  const TYPE_COLUMN: Column<Detector> = {
+    key: "type",
+    label: "Type",
+    width: 12,
+    // Last of the four to go: with the timeline column present it is the only
+    // thing left saying what kind of monitor the row is.
+    priority: 4,
+    render: (detector, _selected, width) => (
+      <text fg={rowFg(detector, theme.text, theme)}>
+        {padText(detectorTypeLabel(detector.type), width)}
+      </text>
+    ),
+  };
+
+  const LAST_ISSUE_COLUMN: Column<Detector> = {
+    key: "last-issue",
+    label: "Last Issue",
+    width: 26,
+    priority: 2,
+    render: (detector, _selected, width) => (
+      <text fg={theme.subText}>{padText(lastIssueLabel(detector), width)}</text>
+    ),
+  };
+
+  const ASSIGNEE_COLUMN: Column<Detector> = {
+    key: "assignee",
+    label: "Assignee",
+    width: 16,
+    priority: 3,
+    render: (detector, _selected, width) => (
+      <text fg={theme.subText}>{padText(detectorAssigneeLabel(detector.owner), width)}</text>
+    ),
+  };
+
+  const ALERTS_COLUMN: Column<Detector> = {
+    key: "alerts",
+    label: "Alerts",
+    width: 6,
+    align: "right",
+    priority: 1,
+    render: (detector, _selected, width) => {
+      const count = detector.workflowIds?.length ?? 0;
+      return (
+        <text fg={count > 0 ? rowFg(detector, theme.text, theme) : theme.subText}>
+          {padText(count > 0 ? String(count) : "—", width, "right")}
+        </text>
+      );
+    },
+  };
+
+  return {
+    name: NAME_COLUMN,
+    type: TYPE_COLUMN,
+    lastIssue: LAST_ISSUE_COLUMN,
+    assignee: ASSIGNEE_COLUMN,
+    alerts: ALERTS_COLUMN,
+  };
+}
 
 /**
  * The row's columns, in the web's order and with its shed order.
@@ -136,11 +154,13 @@ const ALERTS_COLUMN: Column<Detector> = {
  * breakpoint) so it goes first, then Last Issue, then Assignee, then Type.
  * The name never sheds.
  */
-export function monitorColumns({ visualization }: MonitorColumnContext = {}): ReadonlyArray<
-  Column<Detector>
-> {
-  if (visualization) return [NAME_COLUMN, TYPE_COLUMN, visualization];
-  return [NAME_COLUMN, TYPE_COLUMN, LAST_ISSUE_COLUMN, ASSIGNEE_COLUMN, ALERTS_COLUMN];
+export function monitorColumns(
+  theme: Theme,
+  { visualization }: MonitorColumnContext = {},
+): ReadonlyArray<Column<Detector>> {
+  const columns = monitorColumnSet(theme);
+  if (visualization) return [columns.name, columns.type, visualization];
+  return [columns.name, columns.type, columns.lastIssue, columns.assignee, columns.alerts];
 }
 
 /**
@@ -154,7 +174,7 @@ export function monitorColumns({ visualization }: MonitorColumnContext = {}): Re
 export function renderDetectorDetail(
   detector: Detector,
   width: number,
-  { projectSlugs }: MonitorColumnContext = {},
+  { projectSlugs, theme }: MonitorColumnContext & { theme: Theme },
 ): ReactNode {
   const projectSlug = detector.projectId
     ? (projectSlugs?.get(detector.projectId) ?? detector.latestGroup?.project?.slug)

@@ -7,6 +7,8 @@
  */
 
 export interface Theme {
+  /** Palette identity, used to cache native color resources by mode. */
+  mode: ThemeMode;
   /** App background. */
   bg: string;
   /** Panel surfaces — one step up from the background. */
@@ -60,6 +62,8 @@ export interface Theme {
    */
   hotkey: string;
 
+  /** Tree-sitter token colors. */
+  syntax: SyntaxPalette;
   /** Issue severity colors, keyed by `Level`. */
   level: Record<LevelKey, string>;
   /** Issue status tag colors, keyed by the badge variants Sentry uses. */
@@ -73,12 +77,29 @@ export interface Theme {
   };
 }
 
+export type ThemeMode = "dark" | "light";
+export type ThemePreference = "auto" | ThemeMode;
+
+export interface SyntaxPalette {
+  keyword: string;
+  string: string;
+  number: string;
+  comment: string;
+  function: string;
+  type: string;
+  variable: string;
+  constant: string;
+  operator: string;
+  punctuation: string;
+}
+
 export type LevelKey = "error" | "fatal" | "info" | "warning" | "sample" | "unknown";
 
 /** pink.dark.1000 — the ramp's brand anchor step, named once so the two roles that wear it can't drift. */
 const PINK = "#FF45A8";
 
 export const darkTheme: Theme = {
+  mode: "dark",
   bg: "#0D0A10", // neutral.dark.100
   panel: "#1B1821", // neutral.dark.300
   panelAlt: "#24202B", // neutral.dark.400
@@ -112,6 +133,19 @@ export const darkTheme: Theme = {
   highlight: PINK,
   hotkey: PINK,
 
+  syntax: {
+    keyword: "#F6938C",
+    string: "#5ECE73",
+    number: "#FF9838",
+    comment: "#A49EAE",
+    function: "#9A94F1",
+    type: "#FFCE00",
+    variable: "#E7E5EA",
+    constant: "#FF9838",
+    operator: "#A49EAE",
+    punctuation: "#A49EAE",
+  },
+
   // errorLevel.tsx: sample/info -> accent, warning -> meh, error -> orange,
   // fatal -> bad, unknown -> other.
   level: {
@@ -134,7 +168,78 @@ export const darkTheme: Theme = {
   },
 };
 
-export const theme = darkTheme;
+export const lightTheme: Theme = {
+  mode: "light",
+  bg: "#FFFFFF",
+  panel: "#F8F8F9", // neutral.light.opaque100
+  // The official 200 step lands just under the surface-separation threshold.
+  panelAlt: "#EEEEF0",
+  chip: {
+    // Between neutral 200 and 300: light enough for subText, dark enough to
+    // remain a distinct control on white.
+    surface: "#E8E8EB",
+    rim: "#CDCCD2", // neutral.light.opaque500
+    rimShadow: "#B1AFB8", // neutral.light.opaque700
+  },
+  selected: "#E8E8EB",
+  border: "#C0BEC6", // neutral.light.opaque600
+  borderFocused: "#5827D6", // blue.light.opaque1200
+
+  text: "#302E36", // neutral.light.opaque1500
+  muted: "#5B5864", // neutral.light.opaque1200
+  subText: "#6A6772", // neutral.light.opaque1100
+  accent: "#5827D6", // blue.light.opaque1200
+
+  danger: "#C10000", // red.light.opaque1200
+  warning: "#813100", // yellow.light.opaque1300
+  success: "#007800", // green.light.opaque1200
+  highlight: "#9F005F", // pink.light.opaque1300
+  hotkey: "#9F005F",
+
+  syntax: {
+    keyword: "#C10000",
+    string: "#007800",
+    number: "#934100",
+    comment: "#5B5864",
+    function: "#5533B2",
+    type: "#813100",
+    variable: "#302E36",
+    constant: "#C10000",
+    operator: "#5B5864",
+    punctuation: "#5B5864",
+  },
+
+  level: {
+    fatal: "#780000",
+    error: "#C10000",
+    warning: "#813100",
+    info: "#5827D6",
+    sample: "#5827D6",
+    unknown: "#5B5864",
+  },
+
+  status: {
+    resolved: "#007800",
+    regressed: "#5533B2",
+    escalating: "#C10000",
+    new: "#813100",
+    ongoing: "#5B5864",
+    archived: "#5B5864",
+  },
+};
+
+/** Resolve a process-level theme preference. */
+export function parseThemePreference(value: string | undefined): ThemePreference {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || normalized === "auto") return "auto";
+  if (normalized === "light" || normalized === "dark") return normalized;
+  throw new Error("SENTRY_TUI_THEME must be auto, light, or dark");
+}
+
+/** The immutable palette for a detected or forced mode. */
+export function themeFor(mode: ThemeMode): Theme {
+  return mode === "light" ? lightTheme : darkTheme;
+}
 
 /**
  * Tree-sitter token styles for `<code>`, in Sentry's palette.
@@ -143,24 +248,26 @@ export const theme = darkTheme;
  * renderer, so it must not run at module load (importing this file in a plain
  * unit test would then require a renderer).
  */
-let syntaxStyle: import("@opentui/core").SyntaxStyle | undefined;
+const syntaxStyles = new Map<ThemeMode, import("@opentui/core").SyntaxStyle>();
 
-export async function getSyntaxStyle() {
-  if (!syntaxStyle) {
-    const { SyntaxStyle } = await import("@opentui/core");
-    syntaxStyle = SyntaxStyle.fromStyles({
-      default: { fg: theme.text },
-      keyword: { fg: "#F6938C" },
-      string: { fg: "#5ECE73" },
-      number: { fg: "#FF9838" },
-      comment: { fg: theme.muted, italic: true },
-      function: { fg: "#9A94F1" },
-      type: { fg: "#FFCE00" },
-      variable: { fg: theme.text },
-      constant: { fg: "#FF9838" },
-      operator: { fg: theme.muted },
-      punctuation: { fg: theme.muted },
-    });
-  }
-  return syntaxStyle;
+export async function getSyntaxStyle(selectedTheme: Theme) {
+  const cached = syntaxStyles.get(selectedTheme.mode);
+  if (cached) return cached;
+
+  const { SyntaxStyle } = await import("@opentui/core");
+  const style = SyntaxStyle.fromStyles({
+    default: { fg: selectedTheme.text },
+    keyword: { fg: selectedTheme.syntax.keyword },
+    string: { fg: selectedTheme.syntax.string },
+    number: { fg: selectedTheme.syntax.number },
+    comment: { fg: selectedTheme.syntax.comment, italic: true },
+    function: { fg: selectedTheme.syntax.function },
+    type: { fg: selectedTheme.syntax.type },
+    variable: { fg: selectedTheme.syntax.variable },
+    constant: { fg: selectedTheme.syntax.constant },
+    operator: { fg: selectedTheme.syntax.operator },
+    punctuation: { fg: selectedTheme.syntax.punctuation },
+  });
+  syntaxStyles.set(selectedTheme.mode, style);
+  return style;
 }

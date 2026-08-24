@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { fitText } from "~/lib/text";
 
 export interface HighlightedLabelProps {
@@ -21,6 +21,7 @@ export interface HighlightedLabelProps {
  * ellipsis swallowed simply stops being highlighted.
  */
 export function HighlightedLabel({ text, positions, width, fg }: HighlightedLabelProps) {
+  const theme = useTheme();
   const fitted = fitText(text, width);
   const visible = fitted === text ? fitted.length : Math.max(0, fitted.length - 1);
   const matched = new Set(positions);

@@ -9,7 +9,7 @@ import {
   SEER_STATUS_GLYPH,
   SEER_SUGGESTED_QUESTIONS,
 } from "~/core/seer";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { wrapText } from "~/lib/text";
 import { useSpinnerFrame } from "~/ui/components/Spinner";
 import { BOLD, DIM, ITALIC, NONE } from "~/ui/lib/attributes";
@@ -49,6 +49,7 @@ export function SeerExplorer({
   onInputFocus,
   onInputBlur,
 }: SeerExplorerProps) {
+  const theme = useTheme();
   const inner = Math.max(10, width - 2);
   const transcriptHeight = Math.max(1, height - COMPOSER_HEIGHT);
   const spinner = useSpinnerFrame(chat.thinking);
@@ -170,6 +171,7 @@ function SeerBlockView({
 
 /** The user's own message, marked with a caret so turns are scannable. */
 function UserBlock({ block, width }: { block: SeerBlock; width: number }) {
+  const theme = useTheme();
   const lines = wrapText(block.message.content ?? "", Math.max(1, width - 3));
   return (
     <box style={{ flexDirection: "column", paddingLeft: 1, paddingTop: 1 }}>
@@ -195,6 +197,7 @@ function AssistantBlock({
   width: number;
   spinner: string;
 }) {
+  const theme = useTheme();
   const content = block.message.content ?? "";
   const lines = wrapText(content, Math.max(1, width - 3));
 
@@ -223,6 +226,7 @@ function AssistantBlock({
  * user Seer is making progress rather than hanging.
  */
 function ToolUseBlock({ block, spinner }: { block: SeerBlock; spinner: string }) {
+  const theme = useTheme();
   const status = getBlockStatus(block);
   const glyph = status === "loading" ? spinner : SEER_STATUS_GLYPH[status];
   const color =
@@ -263,6 +267,7 @@ function ToolUseBlock({ block, spinner }: { block: SeerBlock; spinner: string })
 const SEER_MARK = ["   ▄▄▄   ", " ▄█████▄ ", "███ ● ███", " ▀█████▀ ", "  ▀▀▀▀▀  "];
 
 function SeerEmptyState({ width }: { width: number }) {
+  const theme = useTheme();
   return (
     <box style={{ flexDirection: "column", paddingLeft: 1, paddingTop: 1 }}>
       {SEER_MARK.map((line, i) => (

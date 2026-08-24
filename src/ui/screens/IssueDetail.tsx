@@ -14,7 +14,7 @@ import {
 } from "~/api/types";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { matchesCommand } from "~/core/commands";
-import { theme } from "~/core/theme";
+import type { Theme } from "~/core/theme";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { countLabel, sparklineBlock, timeAgo } from "~/lib/sparkline";
 import { buildStackRows } from "~/lib/stacktrace";
@@ -36,6 +36,7 @@ import { ExceptionSection, stackFrameKey } from "~/ui/components/StackTrace";
 import { BOLD } from "~/ui/lib/attributes";
 import { consumeKey } from "~/ui/lib/keyRouting";
 import { useIssueEvent } from "~/ui/hooks/useIssueEvent";
+import { useTheme } from "~/ui/theme";
 
 /** Section ids, mirroring `views/issueDetails/context.tsx`'s SectionKey. */
 export type SectionKey = "exception" | "breadcrumbs" | "request" | "tags" | "contexts" | "sdk";
@@ -84,6 +85,7 @@ export function IssueDetail({
   /** Bump to refetch the issue's event — the app's global refresh. */
   reloadToken?: number;
 }) {
+  const theme = useTheme();
   const status = useIssueEvent(client, { org, issueId: group.id, reloadToken });
   const event = valueOf(status);
   const error = errorOf(status);
@@ -252,7 +254,7 @@ export function IssueDetail({
 // ---------------------------------------------------------------------------
 
 /** Status label and color, collapsing status + substatus the way the web badge does. */
-function statusBadge(group: Group): { label: string; color: string } {
+function statusBadge(group: Group, theme: Theme): { label: string; color: string } {
   if (group.status === GroupStatus.RESOLVED) {
     return { label: "resolved", color: theme.status.resolved };
   }
@@ -312,8 +314,9 @@ function headerSparkline(group: Group): string[] {
 }
 
 function IssueHeader({ group, width }: { group: Group; width: number }) {
+  const theme = useTheme();
   const level = theme.level[group.level] ?? theme.level.unknown;
-  const badge = statusBadge(group);
+  const badge = statusBadge(group, theme);
   const titleWidth = Math.max(12, width - 2);
   const chart = headerSparkline(group);
   // Pinned rather than left to the content: the rows are equal length by
@@ -444,6 +447,7 @@ function SectionBody({
   selectedFrameId: string;
   onFrameClick: (key: string) => void;
 }) {
+  const theme = useTheme();
   switch (sectionKey) {
     case "exception": {
       const exception = findEntry(event.entries, "exception");
@@ -543,6 +547,7 @@ function SectionBody({
  * twelve cells every entry from a Python logger truncated to the same prefix.
  */
 function Crumb({ crumb, width }: { crumb: Breadcrumb; width: number }) {
+  const theme = useTheme();
   const time = crumb.timestamp ? crumb.timestamp.slice(11, 19) : "--:--:--";
   const category = crumb.category ?? crumb.type;
   const message = crumb.message ?? summarize(crumb.data ?? {});

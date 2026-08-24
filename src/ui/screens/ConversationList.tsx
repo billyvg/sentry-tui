@@ -24,12 +24,13 @@ import {
   type Conversation,
 } from "~/api/aiConversations";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
+import type { Theme } from "~/core/theme";
 import {
   CONVERSATION_CHART,
   CONVERSATION_NOUN,
   conversationEmptyLines,
 } from "~/core/conversations";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { countLabel, formatCount, timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
@@ -57,85 +58,87 @@ const UNTITLED = "Untitled conversation";
  * one most often empty. Cost and messages hold out longest, because they are
  * the two numbers people open this screen to add up.
  */
-const COLUMNS: ReadonlyArray<Column<Conversation>> = [
-  {
-    key: "conversation",
-    label: "Conversation",
-    width: "flex",
-    render: (conversation, _selected, width) => {
-      const title = conversationTitle(conversation);
-      return (
-        <text fg={title ? theme.text : theme.subText}>{padText(title ?? UNTITLED, width)}</text>
-      );
+function conversationColumns(theme: Theme): ReadonlyArray<Column<Conversation>> {
+  return [
+    {
+      key: "conversation",
+      label: "Conversation",
+      width: "flex",
+      render: (conversation, _selected, width) => {
+        const title = conversationTitle(conversation);
+        return (
+          <text fg={title ? theme.text : theme.subText}>{padText(title ?? UNTITLED, width)}</text>
+        );
+      },
     },
-  },
-  {
-    key: "duration",
-    label: "Duration",
-    width: 9,
-    align: "right",
-    priority: 2,
-    render: (conversation, _selected, width) => (
-      <text fg={theme.text}>
-        {padText(formatDuration(conversation.generationDurationMs), width, "right")}
-      </text>
-    ),
-  },
-  {
-    key: "messages",
-    label: "Msgs",
-    width: 5,
-    align: "right",
-    priority: 5,
-    render: (conversation, _selected, width) => (
-      <text fg={theme.text}>{padText(formatCount(conversation.llmCalls), width, "right")}</text>
-    ),
-  },
-  {
-    key: "errors",
-    label: "Errs",
-    width: 5,
-    align: "right",
-    priority: 3,
-    render: (conversation, _selected, width) => {
-      const errors = conversation.errors;
-      return (
-        <text fg={errors > 0 ? theme.danger : theme.subText} attributes={errors > 0 ? BOLD : 0}>
-          {padText(errors > 0 ? formatCount(errors) : "·", width, "right")}
+    {
+      key: "duration",
+      label: "Duration",
+      width: 9,
+      align: "right",
+      priority: 2,
+      render: (conversation, _selected, width) => (
+        <text fg={theme.text}>
+          {padText(formatDuration(conversation.generationDurationMs), width, "right")}
         </text>
-      );
+      ),
     },
-  },
-  {
-    key: "cost",
-    label: "Cost",
-    width: 9,
-    align: "right",
-    priority: 6,
-    render: (conversation, _selected, width) => (
-      <text fg={theme.accent}>{padText(formatCost(conversation.totalCost), width, "right")}</text>
-    ),
-  },
-  {
-    key: "tools",
-    label: "Tools",
-    width: 20,
-    priority: 1,
-    render: (conversation, _selected, width) => (
-      <text fg={theme.subText}>{padText(toolSummary(conversation, width), width)}</text>
-    ),
-  },
-  {
-    key: "age",
-    label: "Age",
-    width: 5,
-    align: "right",
-    priority: 4,
-    render: (conversation, _selected, width) => (
-      <text fg={theme.muted}>{padText(timeAgo(conversation.endedAt), width, "right")}</text>
-    ),
-  },
-];
+    {
+      key: "messages",
+      label: "Msgs",
+      width: 5,
+      align: "right",
+      priority: 5,
+      render: (conversation, _selected, width) => (
+        <text fg={theme.text}>{padText(formatCount(conversation.llmCalls), width, "right")}</text>
+      ),
+    },
+    {
+      key: "errors",
+      label: "Errs",
+      width: 5,
+      align: "right",
+      priority: 3,
+      render: (conversation, _selected, width) => {
+        const errors = conversation.errors;
+        return (
+          <text fg={errors > 0 ? theme.danger : theme.subText} attributes={errors > 0 ? BOLD : 0}>
+            {padText(errors > 0 ? formatCount(errors) : "·", width, "right")}
+          </text>
+        );
+      },
+    },
+    {
+      key: "cost",
+      label: "Cost",
+      width: 9,
+      align: "right",
+      priority: 6,
+      render: (conversation, _selected, width) => (
+        <text fg={theme.accent}>{padText(formatCost(conversation.totalCost), width, "right")}</text>
+      ),
+    },
+    {
+      key: "tools",
+      label: "Tools",
+      width: 20,
+      priority: 1,
+      render: (conversation, _selected, width) => (
+        <text fg={theme.subText}>{padText(toolSummary(conversation, width), width)}</text>
+      ),
+    },
+    {
+      key: "age",
+      label: "Age",
+      width: 5,
+      align: "right",
+      priority: 4,
+      render: (conversation, _selected, width) => (
+        <text fg={theme.muted}>{padText(timeAgo(conversation.endedAt), width, "right")}</text>
+      ),
+    },
+  ];
+}
 
 /**
  * The tools a conversation called, as many as fit, then `+N`.
@@ -176,6 +179,7 @@ export function ConversationList({
   registerActions,
   activateRow,
 }: ScreenProps) {
+  const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
     state;
 
@@ -271,7 +275,7 @@ export function ConversationList({
 
       <DataTable
         rows={rows}
-        columns={COLUMNS}
+        columns={conversationColumns(theme)}
         width={width}
         selectedIndex={state.selected}
         focused={focused}
@@ -283,7 +287,9 @@ export function ConversationList({
         onRowClick={activateRow}
         // The web's second line: which conversation, in which project, with
         // whom. `DataTable` makes every row two lines tall, skeleton included.
-        renderDetail={renderIdentity}
+        renderDetail={(conversation, selected, rowWidth) =>
+          renderIdentity(conversation, selected, rowWidth, theme)
+        }
         empty={{
           title: "No conversations found.",
           lines: conversationEmptyLines(query),
@@ -301,7 +307,12 @@ export function ConversationList({
  * the web's `ConversationCell` metadata row (`conversationsTable.tsx:359-374`)
  * without the avatar a terminal has no room for.
  */
-function renderIdentity(conversation: Conversation, _selected: boolean, width: number) {
+function renderIdentity(
+  conversation: Conversation,
+  _selected: boolean,
+  width: number,
+  theme: Theme,
+) {
   const parts = [
     conversationIdLabel(conversation.id),
     conversation.projectId ? `project ${conversation.projectId}` : undefined,
@@ -326,6 +337,7 @@ function ConversationDetail({
   conversation: Conversation;
   width: number;
 }) {
+  const theme = useTheme();
   const inner = Math.max(10, width - 2);
   return (
     <box

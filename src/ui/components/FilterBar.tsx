@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import { listEnvironments, type Environment } from "~/api/issues";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { fitText, measureTextWidth } from "~/lib/text";
 import {
   ChipRow,
@@ -140,6 +140,7 @@ export function FilterBar({
   onDropdownClose,
   onDropdownOpen,
 }: FilterBarProps) {
+  const theme = useTheme();
   // What has been typed into the project picker, held here rather than inside
   // the dropdown because the search that answers it goes to the API.
   const [projectQuery, setProjectQuery] = useState("");

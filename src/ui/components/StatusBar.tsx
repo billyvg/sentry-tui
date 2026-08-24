@@ -1,5 +1,6 @@
 import { primaryKey } from "~/core/commands";
-import { theme } from "~/core/theme";
+import type { Theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { KeyHint } from "~/ui/components/KeyHint";
 import { SentryLogo } from "~/ui/components/NavIcon";
 import { useSpinnerFrame } from "~/ui/components/Spinner";
@@ -31,12 +32,13 @@ export type Notice =
  * same color as every routine "loading issues…", the only thing distinguishing
  * it would be reading it, which is precisely what nobody does with a status bar.
  */
-function noticeColor(kind: Notice["kind"]): string {
+function noticeColor(kind: Notice["kind"], theme: Theme): string {
   return kind === "error" ? theme.danger : theme.highlight;
 }
 
 /** Rendered hint item: parenthesised key + label in muted. */
 function HintItem({ commandId, label }: { commandId: string; label?: string }) {
+  const theme = useTheme();
   if (!primaryKey(commandId)) return null;
   return (
     <>
@@ -56,6 +58,7 @@ function HintItem({ commandId, label }: { commandId: string; label?: string }) {
  * mistaken for another "loading issues…".
  */
 function UpdatePill({ onPress }: { onPress: () => void }) {
+  const theme = useTheme();
   return (
     <box style={{ flexDirection: "row", flexShrink: 0 }} onMouseDown={onPress}>
       <text fg={theme.highlight} attributes={BOLD}>
@@ -83,6 +86,7 @@ export function StatusBar({
   /** Present only when a newer build is downloaded and ready to restart into. */
   onUpdate?: () => void;
 }) {
+  const theme = useTheme();
   const loading = notice.kind === "loading";
   const frame = useSpinnerFrame(loading);
 
@@ -111,7 +115,7 @@ export function StatusBar({
       }}
     >
       {onUpdate ? <UpdatePill onPress={onUpdate} /> : null}
-      <text fg={noticeColor(notice.kind)}>{text}</text>
+      <text fg={noticeColor(notice.kind, theme)}>{text}</text>
       <box style={{ flexGrow: 1 }} />
       {hints.map(({ command, label }, i) => {
         const key = primaryKey(command);

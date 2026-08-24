@@ -22,7 +22,7 @@ import { widgetRenderKind } from "~/api/dashboardWidgets";
 import type { DashboardListItem, DashboardWidget } from "~/api/dashboards";
 import { errorOf, valueOf } from "~/core/async";
 import { DASHBOARD_DETAIL_STATE_KEY } from "~/core/screens";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { fitText } from "~/lib/text";
 import { FilterBar } from "~/ui/components/FilterBar";
 import { WidgetCard } from "~/ui/components/WidgetCard";
@@ -88,6 +88,7 @@ export function DashboardWidgetGrid({
   reloadToken,
   dashboard,
 }: DashboardWidgetGridProps) {
+  const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown, setStatsPeriod } = state;
   const listRef = useRef<ScrollBoxRenderable>(null);
 

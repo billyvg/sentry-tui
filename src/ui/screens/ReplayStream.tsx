@@ -30,7 +30,8 @@ import {
 } from "~/api/replays";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { REPLAY_DETAIL_STATE_KEY } from "~/core/screens";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
+import type { Theme } from "~/core/theme";
 import { countLabel, timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
@@ -74,98 +75,100 @@ const MIN_SESSION_WIDTH = 15;
  * clicks go first and Activity second, which is the order the web's container
  * queries drop them in, read backwards.
  */
-const COLUMNS: ReadonlyArray<Column<ReplayRow>> = [
-  {
-    key: "session",
-    label: "Replay",
-    width: "flex",
-    render: (replay, selected, width) => {
-      if (replay.isArchived) {
-        return <text fg={theme.subText}>{padText("Deleted Replay", width)}</text>;
-      }
-      // The unread dot is the web's, moved out of the checkbox column that a
-      // read-only table has no reason to draw.
-      const marker = replay.hasViewed ? "  " : "● ";
-      const name = replay.user.displayName ?? "Anonymous User";
-      const nameWidth = width - marker.length;
-      return (
-        <>
-          <text fg={theme.accent}>{marker}</text>
-          {nameWidth > 0 ? (
-            <text fg={theme.text} attributes={selected ? BOLD : 0}>
-              {padText(name, nameWidth)}
-            </text>
-          ) : null}
-        </>
-      );
+function replayColumns(theme: Theme): ReadonlyArray<Column<ReplayRow>> {
+  return [
+    {
+      key: "session",
+      label: "Replay",
+      width: "flex",
+      render: (replay, selected, width) => {
+        if (replay.isArchived) {
+          return <text fg={theme.subText}>{padText("Deleted Replay", width)}</text>;
+        }
+        // The unread dot is the web's, moved out of the checkbox column that a
+        // read-only table has no reason to draw.
+        const marker = replay.hasViewed ? "  " : "● ";
+        const name = replay.user.displayName ?? "Anonymous User";
+        const nameWidth = width - marker.length;
+        return (
+          <>
+            <text fg={theme.accent}>{marker}</text>
+            {nameWidth > 0 ? (
+              <text fg={theme.text} attributes={selected ? BOLD : 0}>
+                {padText(name, nameWidth)}
+              </text>
+            ) : null}
+          </>
+        );
+      },
     },
-  },
-  {
-    key: "os",
-    label: "OS",
-    width: 11,
-    render: (replay, _selected, width) => (
-      <text fg={theme.subText}>{padText(formatAgent(replay.os), width)}</text>
-    ),
-  },
-  {
-    key: "browser",
-    label: "Browser",
-    width: 11,
-    render: (replay, _selected, width) => (
-      <text fg={theme.subText}>{padText(formatAgent(replay.browser), width)}</text>
-    ),
-  },
-  {
-    key: "duration",
-    label: "Duration",
-    width: 8,
-    align: "right",
-    render: (replay, _selected, width) => (
-      <text fg={theme.text}>
-        {padText(formatReplayDuration(replay.durationSec), width, "right")}
-      </text>
-    ),
-  },
-  {
-    // "Dead clicks" upstream; the count is what the column is for, and the
-    // word fits where the phrase does not.
-    key: "dead",
-    label: "Dead",
-    width: 5,
-    align: "right",
-    priority: 1,
-    render: (replay, _selected, width) => (
-      <CountCell value={replay.countDeadClicks} width={width} color={theme.warning} />
-    ),
-  },
-  {
-    key: "rage",
-    label: "Rage",
-    width: 5,
-    align: "right",
-    priority: 1,
-    render: (replay, _selected, width) => (
-      <CountCell value={replay.countRageClicks} width={width} color={theme.danger} />
-    ),
-  },
-  {
-    key: "errors",
-    label: "Errors",
-    width: 6,
-    align: "right",
-    render: (replay, _selected, width) => (
-      <CountCell value={replay.countErrors} width={width} color={theme.danger} />
-    ),
-  },
-  {
-    key: "activity",
-    label: "Activity",
-    width: ACTIVITY_STEPS,
-    priority: 2,
-    render: (replay, _selected, width) => <ActivityBar score={replay.activity} width={width} />,
-  },
-];
+    {
+      key: "os",
+      label: "OS",
+      width: 11,
+      render: (replay, _selected, width) => (
+        <text fg={theme.subText}>{padText(formatAgent(replay.os), width)}</text>
+      ),
+    },
+    {
+      key: "browser",
+      label: "Browser",
+      width: 11,
+      render: (replay, _selected, width) => (
+        <text fg={theme.subText}>{padText(formatAgent(replay.browser), width)}</text>
+      ),
+    },
+    {
+      key: "duration",
+      label: "Duration",
+      width: 8,
+      align: "right",
+      render: (replay, _selected, width) => (
+        <text fg={theme.text}>
+          {padText(formatReplayDuration(replay.durationSec), width, "right")}
+        </text>
+      ),
+    },
+    {
+      // "Dead clicks" upstream; the count is what the column is for, and the
+      // word fits where the phrase does not.
+      key: "dead",
+      label: "Dead",
+      width: 5,
+      align: "right",
+      priority: 1,
+      render: (replay, _selected, width) => (
+        <CountCell value={replay.countDeadClicks} width={width} color={theme.warning} />
+      ),
+    },
+    {
+      key: "rage",
+      label: "Rage",
+      width: 5,
+      align: "right",
+      priority: 1,
+      render: (replay, _selected, width) => (
+        <CountCell value={replay.countRageClicks} width={width} color={theme.danger} />
+      ),
+    },
+    {
+      key: "errors",
+      label: "Errors",
+      width: 6,
+      align: "right",
+      render: (replay, _selected, width) => (
+        <CountCell value={replay.countErrors} width={width} color={theme.danger} />
+      ),
+    },
+    {
+      key: "activity",
+      label: "Activity",
+      width: ACTIVITY_STEPS,
+      priority: 2,
+      render: (replay, _selected, width) => <ActivityBar score={replay.activity} width={width} />,
+    },
+  ];
+}
 
 export function ReplayStream({
   client,
@@ -180,6 +183,7 @@ export function ReplayStream({
   registerActions,
   activateRow,
 }: ScreenProps) {
+  const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown } = state;
 
   const query = state.committedQuery;
@@ -262,7 +266,7 @@ export function ReplayStream({
 
       <DataTable
         rows={rows}
-        columns={COLUMNS}
+        columns={replayColumns(theme)}
         width={width}
         selectedIndex={state.selected}
         focused={focused}
@@ -271,7 +275,9 @@ export function ReplayStream({
         error={error}
         errorTitle="Failed to load replays"
         onRowClick={activateRow}
-        renderDetail={renderSessionDetail}
+        renderDetail={(replay, selected, rowWidth) =>
+          renderSessionDetail(replay, selected, rowWidth, theme)
+        }
         minFlex={MIN_SESSION_WIDTH}
         empty={{
           title: "No replays found.",
@@ -291,7 +297,7 @@ export function ReplayStream({
  * The second line of a replay row: project, replay id, and how long ago the
  * session started — the lower half of the web's session badge.
  */
-function renderSessionDetail(replay: ReplayRow, _selected: boolean, width: number) {
+function renderSessionDetail(replay: ReplayRow, _selected: boolean, width: number, theme: Theme) {
   const parts = [replay.projectSlug, shortReplayId(replay.id)].filter(Boolean);
   const started = timeAgo(replay.startedAt);
   if (started) parts.push(`${started} ago`);
@@ -312,6 +318,7 @@ function CountCell({
   width: number;
   color: string;
 }) {
+  const theme = useTheme();
   const known = value !== undefined;
   return (
     <text fg={known && value > 0 ? color : theme.subText}>
@@ -327,6 +334,7 @@ function CountCell({
  * real ones; as a bar it reads as an intensity, which is what it is.
  */
 function ActivityBar({ score, width }: { score: number | undefined; width: number }) {
+  const theme = useTheme();
   if (width <= 0) return null;
   if (score === undefined) return <text fg={theme.subText}>{padText("—", width)}</text>;
   const clamped = Math.max(0, Math.min(ACTIVITY_STEPS, Math.round(score)));
@@ -378,43 +386,47 @@ function replayDetailView(
 }
 
 /** Columns of the replay's error list. Title survives any width. */
-const ERROR_COLUMNS: ReadonlyArray<Column<ReplayError>> = [
-  {
-    key: "time",
-    label: "Time",
-    width: 8,
-    render: (event, _selected, width) => (
-      <text fg={theme.muted}>{padText(clockOf(event.timestamp), width)}</text>
-    ),
-  },
-  {
-    key: "level",
-    label: "Level",
-    width: 5,
-    priority: 1,
-    render: (event, _selected, width) => (
-      <text fg={event.level === "error" || event.level === "fatal" ? theme.danger : theme.muted}>
-        {padText(event.level ?? "", width)}
-      </text>
-    ),
-  },
-  {
-    key: "issue",
-    label: "Issue",
-    // Real short ids run to `JAVASCRIPT-2XYZ` and beyond; 14 clipped them.
-    width: 16,
-    priority: 2,
-    render: (event, _selected, width) => (
-      <text fg={theme.subText}>{padText(event.issue ?? "", width)}</text>
-    ),
-  },
-  {
-    key: "title",
-    label: "Title",
-    width: "flex",
-    render: (event, _selected, width) => <text fg={theme.text}>{padText(event.title, width)}</text>,
-  },
-];
+function replayErrorColumns(theme: Theme): ReadonlyArray<Column<ReplayError>> {
+  return [
+    {
+      key: "time",
+      label: "Time",
+      width: 8,
+      render: (event, _selected, width) => (
+        <text fg={theme.muted}>{padText(clockOf(event.timestamp), width)}</text>
+      ),
+    },
+    {
+      key: "level",
+      label: "Level",
+      width: 5,
+      priority: 1,
+      render: (event, _selected, width) => (
+        <text fg={event.level === "error" || event.level === "fatal" ? theme.danger : theme.muted}>
+          {padText(event.level ?? "", width)}
+        </text>
+      ),
+    },
+    {
+      key: "issue",
+      label: "Issue",
+      // Real short ids run to `JAVASCRIPT-2XYZ` and beyond; 14 clipped them.
+      width: 16,
+      priority: 2,
+      render: (event, _selected, width) => (
+        <text fg={theme.subText}>{padText(event.issue ?? "", width)}</text>
+      ),
+    },
+    {
+      key: "title",
+      label: "Title",
+      width: "flex",
+      render: (event, _selected, width) => (
+        <text fg={theme.text}>{padText(event.title, width)}</text>
+      ),
+    },
+  ];
+}
 
 interface ReplayDetailProps extends DetailContext {
   state: ScreenState;
@@ -431,6 +443,7 @@ function ReplayDetail({
   height,
   reloadToken,
 }: ReplayDetailProps) {
+  const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown } = state;
 
   const status = useReplayErrors(client, {
@@ -550,7 +563,7 @@ function ReplayDetail({
 
       <DataTable
         rows={errors}
-        columns={ERROR_COLUMNS}
+        columns={replayErrorColumns(theme)}
         width={width - 1}
         selectedIndex={state.selected}
         focused={focused}
@@ -567,6 +580,7 @@ function ReplayDetail({
 
 /** One `label  value` line of the metadata block, aligned on a fixed gutter. */
 function Field({ label, value, width }: { label: string; value: string; width: number }) {
+  const theme = useTheme();
   const gutter = 10;
   return (
     <box style={{ flexDirection: "row", flexShrink: 0 }}>
@@ -627,6 +641,7 @@ function SearchInputPlaceholder({
   width: number;
   placeholder: string;
 }) {
+  const theme = useTheme();
   const { focusSearch, handleSearchBlur } = state;
   const inputRef = useRef<InputRenderable>(null);
 

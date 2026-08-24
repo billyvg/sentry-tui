@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { useKeyboard } from "@opentui/react";
 
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { reportError } from "~/telemetry/index";
 
 interface ErrorBoundaryProps {
@@ -52,6 +52,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
  * without this there is nothing left listening for a way out.
  */
 function CrashScreen({ error, onQuit }: { error: Error; onQuit: () => void }) {
+  const theme = useTheme();
   useKeyboard((key) => {
     if (key.name === "q" || (key.ctrl && key.name === "c")) onQuit();
   });

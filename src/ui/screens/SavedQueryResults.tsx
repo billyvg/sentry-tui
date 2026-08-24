@@ -20,7 +20,8 @@ import type { DiscoverRow } from "~/api/discover";
 import type { SavedQuery } from "~/api/savedQueries";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { SAVED_QUERY_RESULTS_STATE_KEY } from "~/core/savedQueryScreens";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
+import type { Theme } from "~/core/theme";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
@@ -65,6 +66,7 @@ function SavedQueryResults({
   reloadToken,
   query: savedQuery,
 }: DetailContext & { state: ScreenState; query: SavedQuery }) {
+  const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
 
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
@@ -101,7 +103,7 @@ function SavedQueryResults({
     });
   }, [loading, since, error, status, setStatus]);
 
-  const columns = useMemo(() => columnsFor(savedQuery.fields), [savedQuery.fields]);
+  const columns = useMemo(() => columnsFor(savedQuery.fields, theme), [savedQuery.fields, theme]);
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
@@ -214,7 +216,7 @@ export const MIN_PROSE_WIDTH = 24;
  * every other column can shed, rightmost first, because the leading field of a
  * saved query is as often an opaque id as it is a name.
  */
-function columnsFor(fields: readonly string[]): ReadonlyArray<Column<DiscoverRow>> {
+function columnsFor(fields: readonly string[], theme: Theme): ReadonlyArray<Column<DiscoverRow>> {
   const shapes = fields.map((field) => {
     const match = FIELD_WIDTHS.find((candidate) => candidate.test.test(field));
     return {

@@ -19,7 +19,7 @@ import { useCallback, useState } from "react";
 import { useKeyboard } from "@opentui/react";
 
 import { matchesCommand } from "~/core/commands";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
 import { BOLD } from "~/ui/lib/attributes";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
@@ -38,11 +38,13 @@ export const KEY_COLUMN = 18;
 
 /** The ` · ` that separates metadata items, dimmer than what it separates. */
 export function Divider() {
+  const theme = useTheme();
   return <text fg={theme.subText}>{" · "}</text>;
 }
 
 /** An indented "there is nothing here" line, in the one place that decides how. */
 export function Empty({ children }: { children: string }) {
+  const theme = useTheme();
   return <text fg={theme.subText}>{`${BODY_INDENT}${children}`}</text>;
 }
 
@@ -64,6 +66,7 @@ export function keyCell(name: string): string {
  * eye follows the bright column and treats the dim one as a ruler.
  */
 export function Field({ name, value, width }: { name: string; value: string; width: number }) {
+  const theme = useTheme();
   return (
     <box style={{ flexDirection: "row", width }}>
       <text fg={theme.muted}>{`${BODY_INDENT}${keyCell(name)}`}</text>
@@ -92,6 +95,7 @@ export function Section({
   onToggle: () => void;
   children: ReactNode;
 }) {
+  const theme = useTheme();
   const label = count === undefined ? title : `${title} (${count})`;
   const prefix = `${collapsed ? "▸" : "▾"} ${index} `;
   // The rule runs the header out to the full width, which is what separates one

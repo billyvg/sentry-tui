@@ -39,7 +39,7 @@ import {
   type ExploreQueryState,
 } from "~/core/exploreQuery";
 import type { ExploreTable } from "~/core/exploreTables";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { measureTextWidth } from "~/lib/text";
 import { Chip, CHIP_GAP, CHIP_HEIGHT, chipWidth, type ChipSpec } from "~/ui/components/Chip";
 import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
@@ -107,6 +107,7 @@ export function ExploreQueryBar({
   onOpen,
   onClose,
 }: ExploreQueryBarProps) {
+  const theme = useTheme();
   const sort = effectiveSort(query, table);
   const kind = argumentKind(query.aggregate);
   // `count` and the no-argument aggregates have exactly one field between

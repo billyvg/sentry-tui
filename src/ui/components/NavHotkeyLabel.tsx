@@ -1,4 +1,4 @@
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import type { Hotkey } from "~/lib/hotkeys";
 import { BOLD, NONE, UNDERLINE } from "~/ui/lib/attributes";
 
@@ -31,6 +31,7 @@ export function NavHotkeyLabel({
   fg: string;
   bold?: boolean;
 }) {
+  const theme = useTheme();
   const attributes = bold ? BOLD : NONE;
 
   if (!hotkey) {

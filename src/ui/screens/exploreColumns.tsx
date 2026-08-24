@@ -17,8 +17,8 @@
 import { rowNumber, rowString } from "~/api/discover";
 import type { ExploreEvent } from "~/api/exploreEvents";
 import { parseAggregateExpression } from "~/core/exploreQuery";
-import { theme } from "~/core/theme";
 import type { ScreenId } from "~/core/screens";
+import type { Theme } from "~/core/theme";
 import { formatCount, proportionalBar } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { clockTime } from "~/lib/time";
@@ -44,6 +44,8 @@ export const EXPLORE_MIN_FLEX = 24;
 
 /** What a column needs to know about the rest of the page it is drawn on. */
 export interface ExploreColumnContext {
+  /** Palette active for the render that owns these column callbacks. */
+  theme: Theme;
   /**
    * Longest span duration on the page, in milliseconds. The duration bars are
    * scaled to it, so a row's bar is read against its neighbours rather than
@@ -61,9 +63,9 @@ export function exploreColumnsFor(
     case "explore.traces":
       return traceColumns(context);
     case "explore.metrics":
-      return METRIC_COLUMNS;
+      return metricColumns(context.theme);
     case "explore.errors":
-      return ERROR_COLUMNS;
+      return errorColumns(context.theme);
     default:
       return [];
   }
@@ -82,6 +84,7 @@ export function exploreColumnsFor(
  * information is usually a prefix of the description.
  */
 function traceColumns(context: ExploreColumnContext): ReadonlyArray<Column<ExploreEvent>> {
+  const { theme } = context;
   return [
     {
       key: "id",
@@ -117,6 +120,7 @@ function traceColumns(context: ExploreColumnContext): ReadonlyArray<Column<Explo
         <DurationCell
           durationMs={rowNumber(event.row, "span.duration")}
           maxMs={context.maxDurationMs}
+          theme={theme}
           width={width}
         />
       ),
@@ -156,10 +160,12 @@ const DURATION_VALUE_WIDTH = 7;
 function DurationCell({
   durationMs,
   maxMs,
+  theme,
   width,
 }: {
   durationMs: number | undefined;
   maxMs: number;
+  theme: Theme;
   width: number;
 }) {
   const valueWidth = Math.min(DURATION_VALUE_WIDTH, width);
@@ -228,6 +234,7 @@ export function aggregateColumns(
   groupBys: readonly string[],
   yAxis: string,
   maxValue: number,
+  theme: Theme,
 ): ReadonlyArray<Column<ExploreEvent>> {
   const { aggregate, argument } = parseAggregateExpression(yAxis);
   return [
@@ -254,6 +261,7 @@ export function aggregateColumns(
           value={rowNumber(event.row, yAxis)}
           maxValue={maxValue}
           text={formatAggregate(aggregate, argument, rowNumber(event.row, yAxis))}
+          theme={theme}
           width={width}
         />
       ),
@@ -266,11 +274,13 @@ function AggregateCell({
   value,
   maxValue,
   text,
+  theme,
   width,
 }: {
   value: number | undefined;
   maxValue: number;
   text: string;
+  theme: Theme;
   width: number;
 }) {
   const valueWidth = Math.min(AGGREGATE_VALUE_WIDTH, width);
@@ -344,58 +354,60 @@ function isDurationField(field: string): boolean {
  *
  * The metric's name and its value are the row; everything else annotates them.
  */
-const METRIC_COLUMNS: ReadonlyArray<Column<ExploreEvent>> = [
-  {
-    key: "metric.name",
-    label: "Metric",
-    width: "flex",
-    render: (event, _selected, width) => (
-      <text fg={theme.text}>{padText(field(event, "metric.name"), width)}</text>
-    ),
-  },
-  {
-    key: "metric.type",
-    label: "Type",
-    width: 12,
-    priority: 2,
-    render: (event, _selected, width) => (
-      <text fg={theme.subText}>{padText(field(event, "metric.type"), width)}</text>
-    ),
-  },
-  {
-    key: "value",
-    label: "Value",
-    width: 14,
-    align: "right",
-    render: (event, _selected, width) => (
-      <text fg={theme.accent}>
-        {padText(
-          formatMetricValue(rowNumber(event.row, "value"), rowString(event.row, "metric.unit")),
-          width,
-          "right",
-        )}
-      </text>
-    ),
-  },
-  {
-    key: "project",
-    label: "Project",
-    width: 14,
-    priority: 1,
-    render: (event, _selected, width) => (
-      <text fg={theme.subText}>{padText(field(event, "project"), width)}</text>
-    ),
-  },
-  {
-    key: "timestamp",
-    label: "Time",
-    width: 8,
-    priority: 3,
-    render: (event, _selected, width) => (
-      <text fg={theme.muted}>{padText(clockTime(rowString(event.row, "timestamp")), width)}</text>
-    ),
-  },
-];
+function metricColumns(theme: Theme): ReadonlyArray<Column<ExploreEvent>> {
+  return [
+    {
+      key: "metric.name",
+      label: "Metric",
+      width: "flex",
+      render: (event, _selected, width) => (
+        <text fg={theme.text}>{padText(field(event, "metric.name"), width)}</text>
+      ),
+    },
+    {
+      key: "metric.type",
+      label: "Type",
+      width: 12,
+      priority: 2,
+      render: (event, _selected, width) => (
+        <text fg={theme.subText}>{padText(field(event, "metric.type"), width)}</text>
+      ),
+    },
+    {
+      key: "value",
+      label: "Value",
+      width: 14,
+      align: "right",
+      render: (event, _selected, width) => (
+        <text fg={theme.accent}>
+          {padText(
+            formatMetricValue(rowNumber(event.row, "value"), rowString(event.row, "metric.unit")),
+            width,
+            "right",
+          )}
+        </text>
+      ),
+    },
+    {
+      key: "project",
+      label: "Project",
+      width: 14,
+      priority: 1,
+      render: (event, _selected, width) => (
+        <text fg={theme.subText}>{padText(field(event, "project"), width)}</text>
+      ),
+    },
+    {
+      key: "timestamp",
+      label: "Time",
+      width: 8,
+      priority: 3,
+      render: (event, _selected, width) => (
+        <text fg={theme.muted}>{padText(clockTime(rowString(event.row, "timestamp")), width)}</text>
+      ),
+    },
+  ];
+}
 
 /**
  * Symbols for the units Sentry's metrics API spells out in full.
@@ -448,15 +460,6 @@ export function formatMetricValue(value: number | undefined, unit: string | unde
 // Errors
 // ---------------------------------------------------------------------------
 
-/** Level colours, mirroring the issue stream's `theme.level` map. */
-const LEVELS: Record<string, string> = {
-  fatal: theme.level.fatal,
-  error: theme.level.error,
-  warning: theme.level.warning,
-  info: theme.level.info,
-  sample: theme.level.sample,
-};
-
 /**
  * Event ID · Time · Level · Title · Project · User.
  *
@@ -468,68 +471,77 @@ const LEVELS: Record<string, string> = {
  * web's columns title-first; the id goes ahead of it here because it is the
  * thing you copy out of a terminal.
  */
-const ERROR_COLUMNS: ReadonlyArray<Column<ExploreEvent>> = [
-  {
-    key: "id",
-    label: "Event ID",
-    width: 8,
-    priority: 3,
-    render: (event, _selected, width) => (
-      <text fg={theme.muted}>{padText(shortId(event.id), width)}</text>
-    ),
-  },
-  {
-    key: "timestamp",
-    label: "Time",
-    width: 8,
-    render: (event, _selected, width) => (
-      <text fg={theme.muted}>{padText(clockTime(rowString(event.row, "timestamp")), width)}</text>
-    ),
-  },
-  {
-    // Sheds last of the optional columns: the colour is worth a lot per cell,
-    // but not more than the title it is colouring.
-    key: "level",
-    label: "Level",
-    width: 7,
-    priority: 4,
-    render: (event, _selected, width) => {
-      const level = field(event, "level").toLowerCase();
-      const colour = LEVELS[level] ?? theme.level.unknown;
-      return (
-        <text fg={colour} attributes={level === "error" || level === "fatal" ? BOLD : 0}>
-          {padText(level ? level.toUpperCase() : "", width)}
-        </text>
-      );
+function errorColumns(theme: Theme): ReadonlyArray<Column<ExploreEvent>> {
+  const levels: Record<string, string> = {
+    fatal: theme.level.fatal,
+    error: theme.level.error,
+    warning: theme.level.warning,
+    info: theme.level.info,
+    sample: theme.level.sample,
+  };
+  return [
+    {
+      key: "id",
+      label: "Event ID",
+      width: 8,
+      priority: 3,
+      render: (event, _selected, width) => (
+        <text fg={theme.muted}>{padText(shortId(event.id), width)}</text>
+      ),
     },
-  },
-  {
-    key: "title",
-    label: "Title",
-    width: "flex",
-    render: (event, _selected, width) => (
-      <text fg={theme.text}>{padText(field(event, "title"), width)}</text>
-    ),
-  },
-  {
-    key: "project",
-    label: "Project",
-    width: 14,
-    priority: 2,
-    render: (event, _selected, width) => (
-      <text fg={theme.subText}>{padText(field(event, "project"), width)}</text>
-    ),
-  },
-  {
-    key: "user.display",
-    label: "User",
-    width: 18,
-    priority: 1,
-    render: (event, _selected, width) => (
-      <text fg={theme.subText}>{padText(field(event, "user.display"), width)}</text>
-    ),
-  },
-];
+    {
+      key: "timestamp",
+      label: "Time",
+      width: 8,
+      render: (event, _selected, width) => (
+        <text fg={theme.muted}>{padText(clockTime(rowString(event.row, "timestamp")), width)}</text>
+      ),
+    },
+    {
+      // Sheds last of the optional columns: the colour is worth a lot per cell,
+      // but not more than the title it is colouring.
+      key: "level",
+      label: "Level",
+      width: 7,
+      priority: 4,
+      render: (event, _selected, width) => {
+        const level = field(event, "level").toLowerCase();
+        const colour = levels[level] ?? theme.level.unknown;
+        return (
+          <text fg={colour} attributes={level === "error" || level === "fatal" ? BOLD : 0}>
+            {padText(level ? level.toUpperCase() : "", width)}
+          </text>
+        );
+      },
+    },
+    {
+      key: "title",
+      label: "Title",
+      width: "flex",
+      render: (event, _selected, width) => (
+        <text fg={theme.text}>{padText(field(event, "title"), width)}</text>
+      ),
+    },
+    {
+      key: "project",
+      label: "Project",
+      width: 14,
+      priority: 2,
+      render: (event, _selected, width) => (
+        <text fg={theme.subText}>{padText(field(event, "project"), width)}</text>
+      ),
+    },
+    {
+      key: "user.display",
+      label: "User",
+      width: 18,
+      priority: 1,
+      render: (event, _selected, width) => (
+        <text fg={theme.subText}>{padText(field(event, "user.display"), width)}</text>
+      ),
+    },
+  ];
+}
 
 /**
  * A token cost in dollars.

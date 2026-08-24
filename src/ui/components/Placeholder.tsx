@@ -1,4 +1,4 @@
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { padText } from "~/lib/text";
 import { ITALIC, NONE } from "~/ui/lib/attributes";
 
@@ -18,7 +18,7 @@ export function Placeholder({
   text,
   fallback,
   width,
-  fg = theme.text,
+  fg,
   attributes = NONE,
 }: {
   text: string | null | undefined;
@@ -29,10 +29,11 @@ export function Placeholder({
   fg?: string;
   attributes?: number;
 }) {
+  const theme = useTheme();
   const empty = !text || text.trim().length === 0;
   return (
     <text
-      fg={empty ? theme.subText : fg}
+      fg={empty ? theme.subText : (fg ?? theme.text)}
       attributes={empty ? ITALIC : attributes}
       style={{ flexShrink: 0 }}
     >

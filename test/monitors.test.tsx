@@ -4,7 +4,7 @@ import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import type { Detector } from "~/api/detectors";
 import type { ScreenId } from "~/core/screens";
-import { theme } from "~/core/theme";
+import { darkTheme } from "~/core/theme";
 import { DataTable } from "~/ui/components/DataTable";
 import { layoutColumns } from "~/ui/lib/tableLayout";
 import {
@@ -162,8 +162,8 @@ test("a disabled monitor renders muted", async () => {
 
     const disabled = h.spanContaining("android download size");
     const enabled = h.spanContaining("marketing site uptime");
-    expect(String(disabled?.fg)).toBe(rgbaOf(theme.muted));
-    expect(String(enabled?.fg)).not.toBe(rgbaOf(theme.muted));
+    expect(String(disabled?.fg)).toBe(rgbaOf(darkTheme.muted));
+    expect(String(enabled?.fg)).not.toBe(rgbaOf(darkTheme.muted));
   } finally {
     await h.cleanup();
   }
@@ -380,7 +380,7 @@ function renderRows(rows: Detector[] | undefined, width: number, loading = false
     <box style={{ width, height: 24, flexDirection: "column" }}>
       <DataTable<Detector>
         rows={rows}
-        columns={monitorColumns()}
+        columns={monitorColumns(darkTheme)}
         width={width}
         minFlex={MONITOR_MIN_FLEX}
         selectedIndex={0}
@@ -389,7 +389,10 @@ function renderRows(rows: Detector[] | undefined, width: number, loading = false
         loading={loading}
         skeletonRows={detectorListFixture.length}
         renderDetail={(detector, _selected, detailWidth) =>
-          renderDetectorDetail(detector, detailWidth, { projectSlugs: PROJECT_SLUGS })
+          renderDetectorDetail(detector, detailWidth, {
+            projectSlugs: PROJECT_SLUGS,
+            theme: darkTheme,
+          })
         }
       />
     </box>,
@@ -426,7 +429,7 @@ test("a skeleton row holds the two-line row's geometry exactly", async () => {
   // is padding first, and how much depends on the value. Ink *runs* can't be
   // compared the way `dataTable.test.tsx` compares them either — a real
   // monitor name has spaces in it and a skeleton bar does not.
-  const resolved = layoutColumns(monitorColumns(), WIDTH - 2, {
+  const resolved = layoutColumns(monitorColumns(darkTheme), WIDTH - 2, {
     gap: 1,
     minFlex: MONITOR_MIN_FLEX,
   });

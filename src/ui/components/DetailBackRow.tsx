@@ -14,7 +14,7 @@
  */
 
 import { formatKey, primaryKey } from "~/core/commands";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { fitText, measureTextWidth } from "~/lib/text";
 import { KeyHint } from "~/ui/components/KeyHint";
 
@@ -73,6 +73,7 @@ export function DetailBackRow({
   right: number;
   paneWidth: number;
 }) {
+  const theme = useTheme();
   const label = backLabel(parent, paneWidth);
   if (!label) return null;
   const boxWidth = detailBackWidth(parent, paneWidth);

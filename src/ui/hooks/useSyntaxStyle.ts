@@ -2,6 +2,7 @@ import type { SyntaxStyle } from "@opentui/core";
 import { useEffect, useState } from "react";
 
 import { getSyntaxStyle } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 
 /**
  * Resolve the shared syntax style.
@@ -10,17 +11,23 @@ import { getSyntaxStyle } from "~/core/theme";
  * highlighting is an enhancement and must never gate showing the source line.
  */
 export function useSyntaxStyle(): SyntaxStyle | undefined {
+  const theme = useTheme();
   const [style, setStyle] = useState<SyntaxStyle>();
 
   useEffect(() => {
     let cancelled = false;
-    void getSyntaxStyle().then((resolved) => {
-      if (!cancelled) setStyle(resolved);
-    });
+    setStyle(undefined);
+    void getSyntaxStyle(theme)
+      .then((resolved) => {
+        if (!cancelled) setStyle(resolved);
+      })
+      .catch(() => {
+        if (!cancelled) setStyle(undefined);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [theme]);
 
   return style;
 }

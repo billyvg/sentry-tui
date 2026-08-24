@@ -1,6 +1,6 @@
 import type { AsyncError } from "~/core/async";
 import { formatKey, primaryKey } from "~/core/commands";
-import { theme } from "~/core/theme";
+import { useTheme } from "~/ui/theme";
 import { IssueRowSkeleton, ROW_HEIGHT } from "~/ui/components/IssueRow";
 
 /** Skeleton rows sized to the page, so the list has its final height at once. */
@@ -19,6 +19,7 @@ export function IssueListSkeleton({ width, rows }: { width: number; rows: number
  * classic flash-of-empty-state bug.
  */
 export function IssueListEmpty({ query }: { query: string }) {
+  const theme = useTheme();
   return (
     <box style={{ flexDirection: "column", padding: 1 }}>
       <text fg={theme.text}>No issues match this search.</text>
@@ -32,6 +33,7 @@ export function IssueListEmpty({ query }: { query: string }) {
 
 /** An error renders in place with a bound retry, rather than crashing the screen. */
 export function IssueListError({ error }: { error: AsyncError }) {
+  const theme = useTheme();
   return (
     <box style={{ flexDirection: "column", padding: 1 }}>
       <text fg={theme.danger}>Failed to load issues</text>
