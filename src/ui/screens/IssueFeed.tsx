@@ -13,6 +13,7 @@
 
 import { useCallback } from "react";
 
+import { issueSort } from "~/api/issues";
 import type { Group } from "~/api/types";
 import { getIssueView } from "~/core/issueViews";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
@@ -105,6 +106,7 @@ export function IssueStreamView({
       onProjectChange={onProjectChange ?? state.setSelectedProjects}
       onEnvChange={state.setSelectedEnvs}
       onPeriodChange={state.setStatsPeriod}
+      onSortChange={state.setSort}
       onDropdownClose={closeDropdown}
       onDropdownOpen={state.setOpenDropdown}
       query={state.committedQuery}
@@ -115,7 +117,7 @@ export function IssueStreamView({
       onSearchBlur={state.handleSearchBlur}
       reloadToken={reloadToken}
       onRowClick={activateRow}
-      sort={state.sort}
+      sort={issueSort(state.sort)}
       title={title}
       description={description}
     />

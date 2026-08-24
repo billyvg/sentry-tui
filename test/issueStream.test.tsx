@@ -191,7 +191,8 @@ test("renders the header chrome regardless of load state", async () => {
   try {
     const frame = h.frame();
     expect(frame).toContain("is:unresolved"); // default query
-    expect(frame).toContain("Sort: Last Seen");
+    expect(frame).toContain("S Last Seen");
+    expect(frame).not.toContain("Sort:");
     expect(frame).toContain("14d");
   } finally {
     await h.cleanup();

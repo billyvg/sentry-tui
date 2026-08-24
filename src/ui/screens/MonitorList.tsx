@@ -18,12 +18,14 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import type { Detector } from "~/api/detectors";
+import { DETECTOR_SORT_OPTIONS, detectorSort, type Detector } from "~/api/detectors";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { buildDetectorQuery, getMonitorListView, type MonitorListView } from "~/core/monitors";
 import { useTheme } from "~/ui/theme";
 import { DataTable } from "~/ui/components/DataTable";
+import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInput } from "~/ui/components/SearchInput";
+import { SortBar } from "~/ui/components/SortBar";
 import { useCheckInStats } from "~/ui/hooks/useCheckInStats";
 import { useDetectors } from "~/ui/hooks/useDetectors";
 import { useProjects } from "~/ui/hooks/useProjects";
@@ -44,7 +46,7 @@ import {
 import type { ScreenProps } from "~/ui/screens/types";
 
 /** The two lines of screen heading between the search box and the table. */
-const HEADING_ROWS = 2;
+const HEADING_ROWS = 4;
 
 /**
  * What a screen falls back to when its id has no configuration.
@@ -70,10 +72,17 @@ export function MonitorList(props: ScreenProps) {
 
   const view = getMonitorListView(screen.id) ?? fallbackView(screen.item);
   const query = buildDetectorQuery(view, state.committedQuery);
+  const sort = detectorSort(state.sort);
 
   // `resetKey` is the screen: the seven share a slice *and* a component
   // instance, so without it this screen opens showing the last one's rows.
-  const status = useDetectors(client, { org, query, reloadToken, resetKey: screen.id });
+  const status = useDetectors(client, {
+    org,
+    query,
+    sortBy: sort,
+    reloadToken,
+    resetKey: screen.id,
+  });
   const rows = valueOf(status);
   const error = errorOf(status);
   const loading = status.state === "loading";
@@ -86,23 +95,6 @@ export function MonitorList(props: ScreenProps) {
   useEffect(() => {
     setStatus({ loading, since, error: error?.message, noun: "monitors" });
   }, [loading, since, error, setStatus]);
-
-  /**
-   * Make `P` / `E` / `D` no-ops instead of a soft keyboard lock.
-   *
-   * The app's key router opens a filter dropdown for any list screen, and only
-   * the `Dropdown` component's own listener closes one — so a screen that
-   * renders no `FilterBar` has nothing to close what the router just opened,
-   * and every key after it goes to a dropdown that isn't on screen.
-   *
-   * The detector list takes neither an environment nor a period, and the one
-   * page filter it does take (project) has nowhere to live until `FilterBar`
-   * can render a subset of its chips — so, as on the dashboards list, the
-   * three keys do nothing rather than do damage.
-   */
-  useEffect(() => {
-    if (state.openDropdown) setOpenDropdown(null);
-  }, [state.openDropdown, setOpenDropdown]);
 
   // Project slugs for the detail line: a detector carries a numeric
   // `projectId`, and only the projects list knows what that is called.
@@ -230,9 +222,17 @@ export function MonitorList(props: ScreenProps) {
         </text>
         <text fg={theme.muted}>{`  ${view.description}`}</text>
       </box>
-      <box style={{ flexDirection: "row", width, flexShrink: 0, paddingLeft: 1 }}>
-        <text fg={theme.subText}>{rows ? countLabel(rows.length) : ""}</text>
-      </box>
+      <SortBar
+        value={sort}
+        items={DETECTOR_SORT_OPTIONS}
+        summaryLabel={rows ? countLabel(rows.length) : ""}
+        open={state.openDropdown === "sort"}
+        width={width}
+        anchorTop={SEARCH_ROWS + 1}
+        onChange={state.setSort}
+        onOpen={() => setOpenDropdown("sort")}
+        onClose={() => setOpenDropdown(null)}
+      />
 
       <DataTable
         rows={rows}

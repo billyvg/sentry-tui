@@ -21,21 +21,29 @@
 import { useEffect, useMemo } from "react";
 
 import type { Detector } from "~/api/detectors";
-import { actionTypeLabel, workflowActionTypes, type Workflow } from "~/api/workflows";
+import {
+  WORKFLOW_SORT_OPTIONS,
+  actionTypeLabel,
+  workflowActionTypes,
+  workflowSort,
+  type Workflow,
+} from "~/api/workflows";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { useTheme } from "~/ui/theme";
 import type { Theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
+import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInput } from "~/ui/components/SearchInput";
+import { SortBar } from "~/ui/components/SortBar";
 import { useProjects } from "~/ui/hooks/useProjects";
 import { useWorkflowDetectors, useWorkflows } from "~/ui/hooks/useWorkflows";
 import { BOLD } from "~/ui/lib/attributes";
 import type { ScreenProps } from "~/ui/screens/types";
 
 /** The two lines of screen heading between the search box and the table. */
-const HEADING_ROWS = 2;
+const HEADING_ROWS = 4;
 
 /**
  * Narrowest a workflow name may be squeezed to before the table sheds a column
@@ -126,7 +134,13 @@ export function WorkflowList(props: ScreenProps) {
   const { client, org, state, focused, width, height, reloadToken } = props;
   const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
 
-  const status = useWorkflows(client, { org, query: state.committedQuery, reloadToken });
+  const sort = workflowSort(state.sort);
+  const status = useWorkflows(client, {
+    org,
+    query: state.committedQuery,
+    sortBy: sort,
+    reloadToken,
+  });
 
   const workflows = valueOf(status);
   const error = errorOf(status);
@@ -157,20 +171,6 @@ export function WorkflowList(props: ScreenProps) {
   useEffect(() => {
     setStatus({ loading, since, error: error?.message, noun: "alerts" });
   }, [loading, since, error, setStatus]);
-
-  /**
-   * Make `P` / `E` / `D` no-ops rather than a soft keyboard lock.
-   *
-   * The app's key router opens a filter dropdown for any list screen, and only
-   * the `Dropdown` component closes one. A screen with no `FilterBar` has
-   * nothing mounted to answer, so the key that opens it leaves the app relying
-   * on Escape's rescue. The workflows list filters by name, not by project,
-   * environment or period, so closing the dropdown as soon as it opens is what
-   * makes those keys do nothing instead.
-   */
-  useEffect(() => {
-    if (state.openDropdown) setOpenDropdown(null);
-  }, [state.openDropdown, setOpenDropdown]);
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
@@ -205,18 +205,17 @@ export function WorkflowList(props: ScreenProps) {
         </text>
         <text fg={theme.muted}>{"  Automations that run when a monitor fires."}</text>
       </box>
-      <box
-        style={{
-          flexDirection: "row",
-          width,
-          height: 1,
-          flexShrink: 0,
-          overflow: "hidden",
-          paddingLeft: 1,
-        }}
-      >
-        <text fg={theme.subText}>{rows ? countLabel(rows.length) : ""}</text>
-      </box>
+      <SortBar
+        value={sort}
+        items={WORKFLOW_SORT_OPTIONS}
+        summaryLabel={rows ? countLabel(rows.length) : ""}
+        open={state.openDropdown === "sort"}
+        width={width}
+        anchorTop={SEARCH_ROWS + 1}
+        onChange={state.setSort}
+        onOpen={() => setOpenDropdown("sort")}
+        onClose={() => setOpenDropdown(null)}
+      />
 
       <DataTable
         rows={rows}

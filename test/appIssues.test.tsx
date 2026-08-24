@@ -85,10 +85,10 @@ test("status bar is blank once issues settle", async () => {
   try {
     // Wait for the stream to finish loading so the status bar is idle.
     await h.waitForFrame((f) => f.includes("TypeError"));
-    const frame = h.frame();
+    const statusBar = h.frame().trimEnd().split("\n").at(-1) ?? "";
     // No issue count, no org slug — just the key hints on the right.
-    expect(frame).not.toMatch(/\d+ issues/);
-    expect(frame).not.toContain("Ready");
+    expect(statusBar).not.toMatch(/\d+ issues/);
+    expect(statusBar).not.toContain("Ready");
   } finally {
     await h.cleanup();
   }

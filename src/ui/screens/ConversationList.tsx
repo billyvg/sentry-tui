@@ -253,7 +253,7 @@ export function ConversationList({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={rows ? countLabel(rows.length, "conversation") : ""}
+        summaryLabel={rows ? countLabel(rows.length, "conversation") : ""}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}

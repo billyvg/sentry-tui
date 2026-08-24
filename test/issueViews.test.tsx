@@ -109,6 +109,32 @@ test("Inbox carries its own sort as well as its query", async () => {
   }
 });
 
+test("S opens the issue sort dropdown and applies the selected order", async () => {
+  const { urls, client } = recordingClient();
+  const h = await renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
+    width: WIDTH,
+    height: HEIGHT,
+  });
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+
+    await h.press((i) => i.pressKey("S"));
+    await h.waitForFrame((frame) => frame.includes("Sort By"));
+    expect(h.frame()).toContain("Last Seen");
+    expect(h.frame()).toContain("Age");
+
+    // The dropdown opens on Last Seen; the next row is Age (`sort=new`).
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame(() => lastSort(urls) === "new");
+
+    expect(lastSort(urls)).toBe("new");
+    expect(h.frame()).toContain("S Age");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("reaching a view through the command palette applies its query too", async () => {
   const { urls, client } = recordingClient();
   const h = await renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {

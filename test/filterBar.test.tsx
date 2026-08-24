@@ -16,7 +16,15 @@ function renderFilterBar(width: number, projects: string[], environments: string
       selectedProjects={projects}
       selectedEnvs={environments}
       statsPeriod="14d"
-      sortLabel="Last Seen"
+      summaryLabel="25 issues"
+      sort={{
+        value: "date",
+        items: [
+          { label: "Last Seen", value: "date" },
+          { label: "Age", value: "new" },
+        ],
+        onChange: () => {},
+      }}
       width={width}
       anchorTop={0}
       onProjectChange={() => {}}
@@ -28,9 +36,9 @@ function renderFilterBar(width: number, projects: string[], environments: string
   );
 }
 
-/** The middle line of the chips, where their labels and Sort are printed. */
+/** The middle line of the chips, where their labels and summary are printed. */
 function filterLine(frame: string): string {
-  return frame.split("\n").find((line) => line.includes("Sort: Last Seen")) ?? "";
+  return frame.split("\n").find((line) => line.includes("25 issues")) ?? "";
 }
 
 test("multiple selections list every project slug and environment name when they fit", async () => {
@@ -39,7 +47,9 @@ test("multiple selections list every project slug and environment name when they
     const line = filterLine(h.frame());
     expect(line).toContain("backend, frontend");
     expect(line).toContain("production, staging");
-    expect(line).toContain("Sort: Last Seen");
+    expect(line).toContain("Last Seen");
+    expect(line).toContain("25 issues");
+    expect(line).not.toContain("Sort:");
     expect(line).not.toContain("2 projects");
     expect(line).not.toContain("2 envs");
   } finally {
@@ -47,7 +57,7 @@ test("multiple selections list every project slug and environment name when they
   }
 });
 
-test("long selection lists ellipsize before they can displace Sort", async () => {
+test("long selection lists ellipsize before they can displace sort and summary", async () => {
   const width = 80;
   const h = await renderFilterBar(
     width,
@@ -56,7 +66,8 @@ test("long selection lists ellipsize before they can displace Sort", async () =>
   );
   try {
     const line = filterLine(h.frame());
-    expect(line).toContain("Sort: Last Seen");
+    expect(line).toContain("Last Seen");
+    expect(line).toContain("25 issues");
     expect(line.match(/…/g)).toHaveLength(2);
     expect(line).not.toContain("billing-worker");
     expect(line).not.toContain("staging-us-west");

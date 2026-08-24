@@ -32,6 +32,13 @@ export const SORT_OPTIONS = [
 export type SortOption = (typeof SORT_OPTIONS)[number]["value"];
 export const DEFAULT_SORT: SortOption = "date";
 
+/** Narrow persisted screen state to one of the issue endpoint's sort values. */
+export function issueSort(value: string): SortOption {
+  return SORT_OPTIONS.some((option) => option.value === value)
+    ? (value as SortOption)
+    : DEFAULT_SORT;
+}
+
 export interface ListIssuesParams {
   org: string;
   query?: string;

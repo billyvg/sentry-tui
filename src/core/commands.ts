@@ -267,6 +267,13 @@ export const COMMANDS: readonly Command[] = [
     description: "Open the date range selector",
     palette: "stream",
   },
+  {
+    id: "sentry.view.sort",
+    title: "Sort by",
+    category: "view",
+    defaultKeys: ["S"],
+    description: "Choose sort order",
+  },
   // explore query builder — the toolbar beside the web's Traces table
   {
     id: "sentry.explore.visualize",
@@ -290,13 +297,6 @@ export const COMMANDS: readonly Command[] = [
     category: "view",
     defaultKeys: ["B"],
     description: "Group results by an attribute",
-  },
-  {
-    id: "sentry.explore.sortField",
-    title: "Sort by",
-    category: "view",
-    defaultKeys: ["S"],
-    description: "Choose the column results sort on",
   },
   {
     id: "sentry.explore.sortDirection",

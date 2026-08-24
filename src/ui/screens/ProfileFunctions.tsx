@@ -15,7 +15,11 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
-import type { ProfileFunction } from "~/api/profileFunctions";
+import {
+  PROFILE_FUNCTION_SORT_OPTIONS,
+  profileFunctionSort,
+  type ProfileFunction,
+} from "~/api/profileFunctions";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { useTheme } from "~/ui/theme";
 import type { Theme } from "~/core/theme";
@@ -160,6 +164,7 @@ export function ProfileFunctions({
   );
 
   const query = state.committedQuery;
+  const sort = profileFunctionSort(state.sort);
 
   const { functions: status } = useProfileFunctions(client, {
     org,
@@ -167,6 +172,7 @@ export function ProfileFunctions({
     statsPeriod: state.statsPeriod,
     project: state.selectedProjects.length > 0 ? state.selectedProjects : undefined,
     environment: state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined,
+    sort,
     reloadToken,
   });
 
@@ -254,7 +260,8 @@ export function ProfileFunctions({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={functions ? `${functions.length} functions` : ""}
+        summaryLabel={functions ? `${functions.length} functions` : ""}
+        sort={{ value: sort, items: PROFILE_FUNCTION_SORT_OPTIONS, onChange: state.setSort }}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}

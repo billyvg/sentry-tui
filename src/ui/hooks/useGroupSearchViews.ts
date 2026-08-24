@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listGroupSearchViews, type GroupSearchView } from "~/api/groupSearchViews";
+import { listGroupSearchViews, type GroupSearchView, type ViewSort } from "~/api/groupSearchViews";
 import {
   type AsyncStatus,
   idle,
@@ -29,7 +29,7 @@ export interface ViewSection {
  */
 export function useGroupSearchViews(
   client: SentryClient | null,
-  { org, reloadToken = 0 }: { org: string; reloadToken?: number },
+  { org, sort, reloadToken = 0 }: { org: string; sort?: ViewSort; reloadToken?: number },
 ): AsyncStatus<ViewSection[]> {
   const [sections, setSections] = useState<AsyncStatus<ViewSection[]>>(idle);
 
@@ -48,8 +48,8 @@ export function useGroupSearchViews(
     void (async () => {
       try {
         const [mine, others] = await Promise.all([
-          listGroupSearchViews(client, { org, createdBy: "me", signal }),
-          listGroupSearchViews(client, { org, createdBy: "others", signal }),
+          listGroupSearchViews(client, { org, createdBy: "me", sort, signal }),
+          listGroupSearchViews(client, { org, createdBy: "others", sort, signal }),
         ]);
         if (cancelled) return;
         setSections(
@@ -71,7 +71,7 @@ export function useGroupSearchViews(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, reloadToken]);
+  }, [client, org, sort, reloadToken]);
 
   return sections;
 }

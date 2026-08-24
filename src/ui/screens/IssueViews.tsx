@@ -44,6 +44,11 @@ export function IssueViews(props: ScreenProps) {
       height={height}
       focused={focused}
       selectedIndex={state.selected}
+      sort={state.sort}
+      openDropdown={state.openDropdown}
+      onSortChange={state.setSort}
+      onDropdownOpen={() => state.setOpenDropdown("sort")}
+      onDropdownClose={() => state.setOpenDropdown(null)}
       onRowsChange={state.setEntries}
       onStatusChange={handleStatus}
       reloadToken={reloadToken}

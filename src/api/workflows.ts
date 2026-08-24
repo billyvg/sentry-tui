@@ -86,7 +86,7 @@ export interface Workflow {
  * Sort fields `SORT_COL_MAP` accepts
  * (`organization_workflow_index.py:78-86`), `-` prefixed for descending.
  */
-export type WorkflowSort =
+type WorkflowSortField =
   | "name"
   | "id"
   | "dateCreated"
@@ -94,6 +94,19 @@ export type WorkflowSort =
   | "connectedDetectors"
   | "actions"
   | "lastTriggered";
+
+export type WorkflowSort = WorkflowSortField | `-${WorkflowSortField}`;
+
+export const WORKFLOW_SORT_OPTIONS = [
+  { value: "-lastTriggered", label: "Last Triggered (newest)" },
+  { value: "lastTriggered", label: "Last Triggered (oldest)" },
+  { value: "name", label: "Name (A-Z)" },
+  { value: "-name", label: "Name (Z-A)" },
+  { value: "-actions", label: "Most Actions" },
+  { value: "actions", label: "Fewest Actions" },
+  { value: "-connectedDetectors", label: "Most Monitors" },
+  { value: "connectedDetectors", label: "Fewest Monitors" },
+] as const satisfies ReadonlyArray<{ value: WorkflowSort; label: string }>;
 
 /**
  * What the list opens on.
@@ -103,7 +116,14 @@ export type WorkflowSort =
  * (`useAutomationListDetectors.ts:31`), which is the order that answers
  * "what has been going off".
  */
-export const DEFAULT_WORKFLOW_SORT = "-lastTriggered";
+export const DEFAULT_WORKFLOW_SORT: WorkflowSort = "-lastTriggered";
+
+/** Resolve alert-list state to a workflow endpoint sort. */
+export function workflowSort(value: string): WorkflowSort {
+  return WORKFLOW_SORT_OPTIONS.some((option) => option.value === value)
+    ? (value as WorkflowSort)
+    : DEFAULT_WORKFLOW_SORT;
+}
 
 /**
  * Rows fetched in one go.
@@ -126,7 +146,7 @@ export interface ListWorkflowsParams {
   /** Free text, or `name:` / `action:` / `created_by:` — the endpoint's
    * `workflow_search_config` allows those three keys and free text on name. */
   query?: string;
-  sortBy?: string;
+  sortBy?: WorkflowSort;
   limit?: number;
   cursor?: string;
   signal?: AbortSignal;

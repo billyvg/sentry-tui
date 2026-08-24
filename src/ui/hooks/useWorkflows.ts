@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import { listDetectorsByIds, type Detector } from "~/api/detectors";
-import { listWorkflows, type Workflow } from "~/api/workflows";
+import { listWorkflows, type Workflow, type WorkflowSort } from "~/api/workflows";
 import {
   idle,
   rejected,
@@ -16,7 +16,7 @@ export interface WorkflowsQuery {
   org: string;
   /** Committed search query; the endpoint matches it against the name. */
   query?: string;
-  sortBy?: string;
+  sortBy?: WorkflowSort;
   /** Bump to refetch an unchanged query — the app's global refresh. */
   reloadToken?: number;
 }

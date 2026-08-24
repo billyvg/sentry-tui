@@ -12,9 +12,9 @@
  * here can change it.
  */
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
-import type { DashboardListItem } from "~/api/dashboards";
+import { dashboardSort, dashboardSortOptions, type DashboardListItem } from "~/api/dashboards";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { getDashboardListView, type DashboardListView } from "~/core/dashboards";
 import { useTheme } from "~/ui/theme";
@@ -22,7 +22,9 @@ import type { Theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
+import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInput } from "~/ui/components/SearchInput";
+import { SortBar } from "~/ui/components/SortBar";
 import { useDashboards } from "~/ui/hooks/useDashboards";
 import { rowsOf } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -31,7 +33,7 @@ import { dashboardDetailView } from "~/ui/screens/DashboardDetail";
 import type { ScreenProps } from "~/ui/screens/types";
 
 /** Header row plus the two lines of screen heading above the table. */
-const HEADING_ROWS = 2;
+const HEADING_ROWS = 4;
 
 /**
  * Narrowest a dashboard title may be squeezed to before the table gives up a
@@ -157,7 +159,7 @@ function dashboardColumns(theme: Theme): {
 export function DashboardList(props: ScreenProps) {
   const theme = useTheme();
   const { client, org, screen, state, focused, width, height, reloadToken } = props;
-  const { setEntries, setStatus, focusSearch, handleSearchBlur } = state;
+  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
 
   const view = getDashboardListView(screen.id);
   // Every id in `SCREEN_COMPONENTS` pointing here has an entry, and
@@ -172,11 +174,15 @@ export function DashboardList(props: ScreenProps) {
     emptyLines: [],
   };
 
+  const isPrebuilt = config.filter === "onlyPrebuilt";
+  const sortItems = useMemo(() => dashboardSortOptions(isPrebuilt), [isPrebuilt]);
+  const sort = dashboardSort(state.sort, config.sort, isPrebuilt);
+
   const status = useDashboards(client, {
     org,
     filter: config.filter,
     query: state.committedQuery,
-    sort: config.sort,
+    sort,
     reloadToken,
   });
 
@@ -202,7 +208,6 @@ export function DashboardList(props: ScreenProps) {
   );
   useScreenActions(props.registerActions, { open });
 
-  const isPrebuilt = config.filter === "onlyPrebuilt";
   const columnSets = dashboardColumns(theme);
   const columns = isPrebuilt ? columnSets.prebuilt : columnSets.standard;
 
@@ -224,9 +229,17 @@ export function DashboardList(props: ScreenProps) {
         </text>
         <text fg={theme.muted}>{`  ${config.description}`}</text>
       </box>
-      <box style={{ flexDirection: "row", width, flexShrink: 0, paddingLeft: 1 }}>
-        <text fg={theme.subText}>{rows ? countLabel(rows.length) : ""}</text>
-      </box>
+      <SortBar
+        value={sort}
+        items={sortItems}
+        summaryLabel={rows ? countLabel(rows.length) : ""}
+        open={state.openDropdown === "sort"}
+        width={width}
+        anchorTop={SEARCH_ROWS + 1}
+        onChange={state.setSort}
+        onOpen={() => setOpenDropdown("sort")}
+        onClose={() => setOpenDropdown(null)}
+      />
 
       <DataTable
         rows={rows}

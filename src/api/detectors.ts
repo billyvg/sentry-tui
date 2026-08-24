@@ -273,7 +273,26 @@ export const DETECTORS_PAGE_SIZE = 50;
  * `{kind: 'desc', field: 'latestGroup'}` — the monitors that fired most
  * recently first, which is the order that makes the list worth reading.
  */
-export const DEFAULT_DETECTOR_SORT = "-latestGroup";
+export const DETECTOR_SORT_OPTIONS = [
+  { value: "-latestGroup", label: "Latest Issue (newest)" },
+  { value: "latestGroup", label: "Latest Issue (oldest)" },
+  { value: "name", label: "Name (A-Z)" },
+  { value: "-name", label: "Name (Z-A)" },
+  { value: "type", label: "Type (A-Z)" },
+  { value: "-type", label: "Type (Z-A)" },
+  { value: "-connectedWorkflows", label: "Most Alerts" },
+  { value: "connectedWorkflows", label: "Fewest Alerts" },
+] as const;
+
+export type DetectorSort = (typeof DETECTOR_SORT_OPTIONS)[number]["value"];
+export const DEFAULT_DETECTOR_SORT: DetectorSort = "-latestGroup";
+
+/** Resolve shared monitor state to a detector endpoint sort. */
+export function detectorSort(value: string): DetectorSort {
+  return DETECTOR_SORT_OPTIONS.some((option) => option.value === value)
+    ? (value as DetectorSort)
+    : DEFAULT_DETECTOR_SORT;
+}
 
 /**
  * Ids per request when resolving detectors by id, matching
@@ -288,7 +307,7 @@ export interface ListDetectorsParams {
   /** The whole search query, base filter included — see `core/monitors.ts`. */
   query?: string;
   /** A key from `SORT_MAP` (`organization_detector_index.py:104-118`). */
-  sortBy?: string;
+  sortBy?: DetectorSort;
   /** Project ids or slugs; the endpoint accepts either. */
   project?: string[];
   limit?: number;

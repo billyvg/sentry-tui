@@ -16,6 +16,7 @@ import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { assigneeAvatarUrl } from "~/core/avatars";
 import { useTheme } from "~/ui/theme";
 import { fitText, measureTextWidth } from "~/lib/text";
+import { countLabel } from "~/lib/sparkline";
 import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
@@ -70,6 +71,7 @@ export interface IssueStreamProps {
   onProjectChange?: (projects: string[]) => void;
   onEnvChange?: (envs: string[]) => void;
   onPeriodChange?: (period: string) => void;
+  onSortChange?: (sort: SortOption) => void;
   onDropdownClose?: () => void;
   onDropdownOpen?: (which: FilterDropdownType) => void;
   /** The committed query sent to the API for fetching. */
@@ -120,6 +122,7 @@ export function IssueStream({
   onProjectChange,
   onEnvChange,
   onPeriodChange,
+  onSortChange,
   onDropdownClose,
   onDropdownOpen,
   query: queryProp,
@@ -207,11 +210,6 @@ export function IssueStream({
   );
   const avatars = useMemberAvatars(client, org, hasAssignee);
 
-  const sortLabel = useMemo(
-    () => SORT_OPTIONS.find((o) => o.value === sort)?.label ?? sort,
-    [sort],
-  );
-
   const listWidth = Math.max(20, width - SCROLLBAR_GUTTER);
 
   return (
@@ -278,7 +276,12 @@ export function IssueStream({
         selectedProjects={selectedProjects}
         selectedEnvs={selectedEnvs}
         statsPeriod={statsPeriod}
-        sortLabel={sortLabel}
+        summaryLabel={rows ? countLabel(rows.length, "issue") : ""}
+        sort={{
+          value: sort,
+          items: SORT_OPTIONS,
+          onChange: (value) => onSortChange?.(value as SortOption),
+        }}
         width={width}
         anchorTop={SEARCH_ROWS + (title ? TITLE_ROWS : 0)}
         onProjectChange={onProjectChange ?? (() => {})}

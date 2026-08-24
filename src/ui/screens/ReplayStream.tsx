@@ -23,6 +23,8 @@ import { RenderableEvents, type InputRenderable } from "@opentui/core";
 import {
   formatAgent,
   formatReplayDuration,
+  REPLAY_SORT_OPTIONS,
+  replaySort,
   replayUrl,
   shortReplayId,
   type Replay,
@@ -189,6 +191,7 @@ export function ReplayStream({
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
+  const sort = replaySort(state.sort);
 
   const { replays } = useReplays(client, {
     org,
@@ -196,6 +199,7 @@ export function ReplayStream({
     statsPeriod: state.statsPeriod,
     project,
     environment,
+    sort,
     reloadToken,
   });
 
@@ -254,7 +258,8 @@ export function ReplayStream({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={rows ? countLabel(rows.length, "replay") : ""}
+        summaryLabel={rows ? countLabel(rows.length, "replay") : ""}
+        sort={{ value: sort, items: REPLAY_SORT_OPTIONS, onChange: state.setSort }}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
@@ -493,7 +498,7 @@ function ReplayDetail({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={errors ? countLabel(errors.length, "error") : ""}
+        summaryLabel={errors ? countLabel(errors.length, "error") : ""}
         width={inner}
         // The filter row is this view's first row now that the app draws the
         // breadcrumb in the pane's border rather than the screen printing one.

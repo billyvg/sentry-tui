@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listDetectors, type Detector } from "~/api/detectors";
+import { listDetectors, type Detector, type DetectorSort } from "~/api/detectors";
 import {
   idle,
   rejected,
@@ -16,7 +16,7 @@ export interface DetectorsQuery {
   /** The whole query, base filter included — built by `buildDetectorQuery`. */
   query?: string;
   /** Sort key, e.g. `-latestGroup`. */
-  sortBy?: string;
+  sortBy?: DetectorSort;
   /** Project slugs or ids; empty means every project. */
   project?: string[];
   /** Bump to refetch an unchanged query — the app's global refresh. */

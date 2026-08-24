@@ -13,7 +13,12 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 
-import { savedQueryProjectSlugs, type SavedQuery } from "~/api/savedQueries";
+import {
+  savedQueryListSort,
+  savedQueryProjectSlugs,
+  savedQuerySortOptions,
+  type SavedQuery,
+} from "~/api/savedQueries";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { savedQueryScreen, type SavedQueryScreenConfig } from "~/core/savedQueryScreens";
 import { useTheme } from "~/ui/theme";
@@ -21,7 +26,9 @@ import type { Theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
+import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInput } from "~/ui/components/SearchInput";
+import { SortBar } from "~/ui/components/SortBar";
 import { useProjects } from "~/ui/hooks/useProjects";
 import { useSavedQueries } from "~/ui/hooks/useSavedQueries";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -135,16 +142,19 @@ export function SavedQueries(props: ScreenProps) {
     registerActions,
     activateRow,
   } = props;
-  const { setEntries, setStatus, focusSearch, handleSearchBlur } = state;
+  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
 
   // Every screen pointed at this component has an entry; the fallback keeps a
   // mis-wired registry line rendering an empty table rather than throwing.
   const config = savedQueryScreen(screen.id) ?? savedQueryScreen("explore.all-queries")!;
+  const sortItems = savedQuerySortOptions(config.source);
+  const sort = savedQueryListSort(state.sort, config.source);
 
   const status = useSavedQueries(client, {
     org,
     source: config.source,
     search: state.committedQuery || undefined,
+    sort,
     reloadToken,
   });
 
@@ -207,6 +217,18 @@ export function SavedQueries(props: ScreenProps) {
         </text>
         <text fg={theme.muted}>{`  ${config.description}`}</text>
       </box>
+
+      <SortBar
+        value={sort}
+        items={sortItems}
+        summaryLabel={queries ? `${queries.length} queries` : ""}
+        open={state.openDropdown === "sort"}
+        width={width}
+        anchorTop={SEARCH_ROWS + 1}
+        onChange={state.setSort}
+        onOpen={() => setOpenDropdown("sort")}
+        onClose={() => setOpenDropdown(null)}
+      />
 
       <DataTable
         rows={queries}

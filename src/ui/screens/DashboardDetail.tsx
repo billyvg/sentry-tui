@@ -214,7 +214,7 @@ export function DashboardWidgetGrid({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={widgetCountLabel(showing.length)}
+        summaryLabel={widgetCountLabel(showing.length)}
         // Without this the chip row and the sort label together overflow below
         // about 90 cells and wrap into a column of fragments that pushes the
         // widget stack off screen.

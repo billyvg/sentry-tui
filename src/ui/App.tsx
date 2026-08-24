@@ -30,6 +30,7 @@ import {
 } from "~/ui/components/NavRail";
 import { OrgPicker } from "~/ui/components/OrgPicker";
 import { SecondaryNav, SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
+import { isSortSelectorMounted } from "~/ui/components/SortSelector";
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
 import { useNavigationTrace } from "~/ui/hooks/useNavigationTrace";
@@ -735,6 +736,10 @@ export function App({
             for (const [commandId, which] of FILTER_COMMAND_ENTRIES) {
               if (!matchesCommand(commandId, key)) continue;
               if (isFilterBarMounted()) state.setOpenDropdown(which);
+              return "mine";
+            }
+            if (matchesCommand("sentry.view.sort", key) && isSortSelectorMounted()) {
+              state.setOpenDropdown("sort");
               return "mine";
             }
           }

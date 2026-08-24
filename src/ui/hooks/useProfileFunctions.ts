@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listProfileFunctions, type ProfileFunction } from "~/api/profileFunctions";
+import {
+  listProfileFunctions,
+  type ProfileFunction,
+  type ProfileFunctionSort,
+} from "~/api/profileFunctions";
 import {
   type AsyncStatus,
   idle,
@@ -17,6 +21,7 @@ export interface ProfileFunctionsQuery {
   statsPeriod: string;
   project?: string[];
   environment?: string[];
+  sort?: ProfileFunctionSort;
   /** Bump to refetch an unchanged query — the app's global refresh. */
   reloadToken?: number;
 }
@@ -34,7 +39,7 @@ export interface ProfileFunctionsState {
  */
 export function useProfileFunctions(
   client: SentryClient | null,
-  { org, query, statsPeriod, project, environment, reloadToken = 0 }: ProfileFunctionsQuery,
+  { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ProfileFunctionsQuery,
 ): ProfileFunctionsState {
   const [functions, setFunctions] = useState<AsyncStatus<ProfileFunction[]>>(idle);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -59,6 +64,7 @@ export function useProfileFunctions(
           statsPeriod,
           project,
           environment,
+          sort,
           signal,
         });
         if (cancelled) return;
@@ -74,7 +80,7 @@ export function useProfileFunctions(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
+  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
 
   return { functions, nextCursor };
 }

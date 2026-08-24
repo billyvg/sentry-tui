@@ -21,6 +21,8 @@ interface StubOptions {
   healthGate?: Promise<void>;
   /** Fail the health request while the list succeeds. */
   healthStatus?: number;
+  /** Record release requests so sort parameters can be asserted. */
+  calls?: string[];
 }
 
 function stubClient({
@@ -28,6 +30,7 @@ function stubClient({
   health = rawReleasesWithHealthFixture,
   healthGate,
   healthStatus,
+  calls,
 }: StubOptions = {}) {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -37,6 +40,7 @@ function stubClient({
 
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
+    calls?.push(url);
     if (url.includes("/releases/")) {
       // The two requests differ only by `health=1` — the same distinction the
       // screen relies on to keep one page of releases described twice.
@@ -118,6 +122,30 @@ test("the deploy environment is shown only for a release that has one", async ()
     // its timestamp.
     expect(frame).toContain("production");
     expect(frame).toContain("1.4.1");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("S applies release-specific sorts and the required flattened request", async () => {
+  const calls: string[] = [];
+  const h = await openReleases(stubClient({ calls }));
+  try {
+    await h.waitForFrame((f) => f.includes("1.4.2"));
+
+    await h.press((i) => i.pressKey("S"));
+    await h.waitForFrame((frame) => frame.includes("Sort By"));
+    expect(h.frame()).toContain("Total Sessions");
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+
+    await h.waitForFrame(() =>
+      calls.some((url) => {
+        const query = new URL(url).searchParams;
+        return query.get("sort") === "sessions" && query.get("flatten") === "1";
+      }),
+    );
+    expect(h.frame()).toContain("S Total Sessions");
   } finally {
     await h.cleanup();
   }

@@ -28,8 +28,10 @@ import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { matchesCommand } from "~/core/commands";
 import {
   defaultExploreQuery,
+  parseSort,
   resolveExploreQuery,
   sumsOverTime,
+  withSort,
   withToggledDirection,
   type ExploreQueryState,
 } from "~/core/exploreQuery";
@@ -51,6 +53,7 @@ import {
 } from "~/ui/components/ExploreQueryBar";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInput } from "~/ui/components/SearchInput";
+import { fieldSortItems } from "~/ui/components/SortSelector";
 import { useExploreEvents } from "~/ui/hooks/useExploreEvents";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { useTraceItemAttributes } from "~/ui/hooks/useTraceItemAttributes";
@@ -113,6 +116,7 @@ function ExploreTableScreen({
   const hasBuilder = table.traceItemType !== undefined;
 
   const resolved = useMemo(() => resolveExploreQuery(table, builder), [table, builder]);
+  const fixedSortItems = useMemo(() => fieldSortItems(table.fields), [table.fields]);
 
   const attributes = useTraceItemAttributes(client, {
     org,
@@ -193,7 +197,7 @@ function ExploreTableScreen({
         openQueryDropdown("groupBy");
         return true;
       }
-      if (matchesCommand("sentry.explore.sortField", key)) {
+      if (matchesCommand("sentry.view.sort", key)) {
         openQueryDropdown("sort");
         return true;
       }
@@ -248,7 +252,16 @@ function ExploreTableScreen({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={rows ? countLabel(rows.length, rowNoun(table)) : ""}
+        summaryLabel={rows ? countLabel(rows.length, rowNoun(table)) : ""}
+        sort={
+          hasBuilder
+            ? undefined
+            : {
+                value: resolved.sort,
+                items: fixedSortItems,
+                onChange: (value) => setBuilder((current) => withSort(current, parseSort(value))),
+              }
+        }
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}

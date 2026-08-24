@@ -20,6 +20,8 @@ import { RenderableEvents, type InputRenderable, type ScrollBoxRenderable } from
 
 import {
   healthKey,
+  releaseSort,
+  releaseSortOptions,
   type Release,
   type ReleaseHealth,
   type ReleaseHealthIndex,
@@ -193,7 +195,17 @@ export function ReleaseCards({
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
-  const params = { org, query, statsPeriod: state.statsPeriod, project, environment, reloadToken };
+  const sortItems = useMemo(() => releaseSortOptions(state.selectedEnvs), [state.selectedEnvs]);
+  const sort = releaseSort(state.sort, state.selectedEnvs);
+  const params = {
+    org,
+    query,
+    statsPeriod: state.statsPeriod,
+    project,
+    environment,
+    sort,
+    reloadToken,
+  };
 
   const { releases: releasesStatus } = useReleases(client, params);
   const healthStatus = useReleaseHealth(client, params);
@@ -310,7 +322,8 @@ export function ReleaseCards({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={releases ? `${releases.length} releases` : ""}
+        summaryLabel={releases ? `${releases.length} releases` : ""}
+        sort={{ value: sort, items: sortItems, onChange: state.setSort }}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}

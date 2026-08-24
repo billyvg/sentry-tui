@@ -83,10 +83,44 @@ export const SAVED_QUERIES_PAGE_SIZE = 50;
  * viewed (`savedQueriesTable.tsx:66` sends `sortBy: ['starred', sort]` with
  * `sort` defaulting to `recentlyViewed`).
  */
-const EXPLORE_SORT = ["starred", "recentlyViewed"];
+export const EXPLORE_SAVED_QUERY_SORT_OPTIONS = [
+  { value: "mostStarred", label: "Most Starred" },
+  { value: "recentlyViewed", label: "Recently Viewed" },
+  { value: "name", label: "Name (A-Z)" },
+  { value: "-name", label: "Name (Z-A)" },
+  { value: "-dateAdded", label: "Created (Newest)" },
+  { value: "dateAdded", label: "Created (Oldest)" },
+] as const;
 
 /** `landing.tsx:63` — the Discover list's default sort. */
-const DISCOVER_SORT = "myqueries";
+export const DISCOVER_SAVED_QUERY_SORT_OPTIONS = [
+  { value: "myqueries", label: "My Queries" },
+  { value: "-dateUpdated", label: "Recently Edited" },
+  { value: "name", label: "Name (A-Z)" },
+  { value: "-dateCreated", label: "Created (Newest)" },
+  { value: "dateCreated", label: "Created (Oldest)" },
+  { value: "dateUpdated", label: "Most Outdated" },
+  { value: "mostPopular", label: "Most Popular" },
+  { value: "recentlyViewed", label: "Recently Viewed" },
+] as const;
+
+export type SavedQueryListSort =
+  | (typeof EXPLORE_SAVED_QUERY_SORT_OPTIONS)[number]["value"]
+  | (typeof DISCOVER_SAVED_QUERY_SORT_OPTIONS)[number]["value"];
+
+/** Sort options belonging to one of the two saved-query endpoints. */
+export function savedQuerySortOptions(source: SavedQuerySource) {
+  return source === "explore"
+    ? EXPLORE_SAVED_QUERY_SORT_OPTIONS
+    : DISCOVER_SAVED_QUERY_SORT_OPTIONS;
+}
+
+/** Resolve shared state to a sort supported by the active saved-query endpoint. */
+export function savedQueryListSort(value: string, source: SavedQuerySource): SavedQueryListSort {
+  const options = savedQuerySortOptions(source);
+  if (options.some((option) => option.value === value)) return value as SavedQueryListSort;
+  return source === "explore" ? "mostStarred" : "myqueries";
+}
 
 // ---------------------------------------------------------------------------
 // Explore saved queries
@@ -156,6 +190,7 @@ export interface ListSavedQueriesParams {
   starred?: boolean;
   /** Free-text filter on the query's name. */
   search?: string;
+  sort?: SavedQueryListSort;
   limit?: number;
   cursor?: string;
   signal?: AbortSignal;
@@ -170,13 +205,21 @@ export interface ListSavedQueriesParams {
  */
 export async function listExploreSavedQueries(
   client: SentryClient,
-  { org, starred, search, limit = SAVED_QUERIES_PAGE_SIZE, cursor, signal }: ListSavedQueriesParams,
+  {
+    org,
+    starred,
+    search,
+    sort = "recentlyViewed",
+    limit = SAVED_QUERIES_PAGE_SIZE,
+    cursor,
+    signal,
+  }: ListSavedQueriesParams,
 ): Promise<SavedQuery[]> {
   const page = await client.request<RawExploreSavedQuery[]>(
     `/organizations/${org}/explore/saved/`,
     {
       query: {
-        sortBy: EXPLORE_SORT,
+        sortBy: ["starred", sort],
         per_page: limit,
         starred: starred ? 1 : undefined,
         query: search || undefined,
@@ -273,7 +316,14 @@ interface RawDiscoverSavedQuery {
  */
 export async function listDiscoverSavedQueries(
   client: SentryClient,
-  { org, search, limit = SAVED_QUERIES_PAGE_SIZE, cursor, signal }: ListSavedQueriesParams,
+  {
+    org,
+    search,
+    sort = "myqueries",
+    limit = SAVED_QUERIES_PAGE_SIZE,
+    cursor,
+    signal,
+  }: ListSavedQueriesParams,
 ): Promise<SavedQuery[]> {
   const trimmed = search?.trim();
   const page = await client.request<RawDiscoverSavedQuery[]>(
@@ -281,7 +331,7 @@ export async function listDiscoverSavedQueries(
     {
       query: {
         query: trimmed ? `version:2 name:"${trimmed}"` : "version:2",
-        sortBy: DISCOVER_SORT,
+        sortBy: sort,
         per_page: limit,
         cursor,
       },

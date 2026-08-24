@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listSavedQueries, type SavedQuery, type SavedQuerySource } from "~/api/savedQueries";
+import {
+  listSavedQueries,
+  type SavedQuery,
+  type SavedQueryListSort,
+  type SavedQuerySource,
+} from "~/api/savedQueries";
 import {
   idle,
   rejected,
@@ -19,6 +24,7 @@ export interface SavedQueriesQuery {
   starred?: boolean;
   /** Free-text filter on the query name. */
   search?: string;
+  sort?: SavedQueryListSort;
   limit?: number;
   /**
    * Skip the fetch entirely and stay idle. The nav uses it so the sidebar for
@@ -37,7 +43,7 @@ export interface SavedQueriesQuery {
  */
 export function useSavedQueries(
   client: SentryClient | null,
-  { org, source, starred, search, limit, enabled = true, reloadToken = 0 }: SavedQueriesQuery,
+  { org, source, starred, search, sort, limit, enabled = true, reloadToken = 0 }: SavedQueriesQuery,
 ): AsyncStatus<SavedQuery[]> {
   const [status, setStatus] = useState<AsyncStatus<SavedQuery[]>>(idle);
   const statusRef = useRef(status);
@@ -58,6 +64,7 @@ export function useSavedQueries(
           org,
           starred,
           search,
+          sort,
           limit,
           signal,
         });
@@ -73,7 +80,7 @@ export function useSavedQueries(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, source, starred, search, limit, enabled, reloadToken]);
+  }, [client, org, source, starred, search, sort, limit, enabled, reloadToken]);
 
   return status;
 }

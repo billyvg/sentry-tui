@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listReplayErrors, listReplays, type Replay, type ReplayError } from "~/api/replays";
+import {
+  listReplayErrors,
+  listReplays,
+  type Replay,
+  type ReplayError,
+  type ReplaySort,
+} from "~/api/replays";
 import {
   idle,
   rejected,
@@ -17,6 +23,7 @@ export interface ReplaysQuery {
   statsPeriod: string;
   project?: string[];
   environment?: string[];
+  sort?: ReplaySort;
   /** Bump to refetch an unchanged query — the app's global refresh. */
   reloadToken?: number;
 }
@@ -35,7 +42,7 @@ export interface ReplaysState {
  */
 export function useReplays(
   client: SentryClient | null,
-  { org, query, statsPeriod, project, environment, reloadToken = 0 }: ReplaysQuery,
+  { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ReplaysQuery,
 ): ReplaysState {
   const [replays, setReplays] = useState<AsyncStatus<Replay[]>>(idle);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -60,6 +67,7 @@ export function useReplays(
           statsPeriod,
           project,
           environment,
+          sort,
           signal,
         });
         if (cancelled) return;
@@ -75,7 +83,7 @@ export function useReplays(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
+  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
 
   return { replays, nextCursor };
 }

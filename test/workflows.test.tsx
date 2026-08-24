@@ -223,6 +223,33 @@ test("a disabled workflow's name is faded rather than accented", async () => {
   }
 });
 
+test("S changes the alert sort using workflow fields", async () => {
+  const calls: string[] = [];
+  const h = await renderAlerts(stubClient({ calls }));
+  try {
+    await h.waitForFrame((f) => f.includes("Page on-call"));
+
+    await h.press((i) => i.pressKey("S"));
+    await h.waitForFrame((frame) => frame.includes("Sort By"));
+    expect(h.frame()).toContain("Last Triggered (newest)");
+    expect(h.frame()).toContain("Most Monitors");
+
+    // Newest → oldest → Name (A-Z).
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame(() =>
+      calls
+        .filter((url) => url.includes("/workflows/"))
+        .some((url) => new URL(url).searchParams.get("sortBy") === "name"),
+    );
+
+    expect(h.frame()).toContain("S Name (A-Z)");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("the list is read-only: no key on it writes", async () => {
   const calls: string[] = [];
   const h = await renderAlerts(stubClient({ calls }));
