@@ -75,7 +75,7 @@ function dashboardColumns(theme: Theme): {
     align: "right",
     priority: 4,
     render: (row, _selected, width) => (
-      <text fg={theme.text}>{padText(String(row.widgetDisplay?.length ?? 0), width, "right")}</text>
+      <text fg={theme.text}>{padText(widgetCountLabel(row), width, "right")}</text>
     ),
   };
 
@@ -262,6 +262,16 @@ export function DashboardList(props: ScreenProps) {
       <ResultFooter count={rows?.length} noun="dashboard" hasMore={nextCursor !== null} />
     </box>
   );
+}
+
+/**
+ * A custom dashboard with no widget rows really is empty. An unknown prebuilt
+ * is different: its widgets live only in Web's bundled config, so zero would
+ * be a confidently wrong count.
+ */
+function widgetCountLabel(row: DashboardListItem): string {
+  if (row.widgetDisplay.length > 0) return String(row.widgetDisplay.length);
+  return row.prebuiltId == null ? "0" : "—";
 }
 
 /**
