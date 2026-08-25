@@ -17,7 +17,6 @@ import { issueSort } from "~/api/issues";
 import type { Group } from "~/api/types";
 import { getIssueView } from "~/core/issueViews";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
-import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { IssueDetail } from "~/ui/screens/IssueDetail";
 import { IssueStream } from "~/ui/screens/IssueStream";
 import type { DetailContext, ScreenProps, ViewStackEntry } from "~/ui/screens/types";
@@ -75,8 +74,6 @@ export function IssueStreamView({
     },
     [state, pushView, client, org],
   );
-  useScreenActions(registerActions, { open });
-
   const handleStatus = useCallback(
     (status: { loading: boolean; since?: number; error?: string }) =>
       setStatus({ ...status, noun: "issues" }),
@@ -116,6 +113,9 @@ export function IssueStreamView({
       onSearchFocus={state.focusSearch}
       onSearchBlur={state.handleSearchBlur}
       reloadToken={reloadToken}
+      registerActions={registerActions}
+      onOpenRow={open}
+      onPageChange={() => state.setSelected(0)}
       onRowClick={activateRow}
       sort={issueSort(state.sort)}
       title={title}

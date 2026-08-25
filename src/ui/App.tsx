@@ -873,6 +873,12 @@ export function App({
           if (!listActive) return "notMine";
           if (focus.focusedRef.current !== "content") return "notMine";
           const last = Math.max(0, state.entries.length - 1);
+          if (matchesCommand("sentry.nav.pageDown", key)) {
+            return screenActions.current?.nextPage?.() ? "mine" : "notMine";
+          }
+          if (matchesCommand("sentry.nav.pageUp", key)) {
+            return screenActions.current?.previousPage?.() ? "mine" : "notMine";
+          }
           if (matchesCommand("sentry.nav.open", key)) {
             const open = screenActions.current?.open;
             if (!open) return "notMine";

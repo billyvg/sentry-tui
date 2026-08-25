@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import { fetchIssueStats, listIssues, type IssueStats, type SortOption } from "~/api/issues";
@@ -28,6 +28,13 @@ export interface IssuesState {
   /** Tracked separately so rows can render before sparklines arrive. */
   statsLoading: boolean;
   nextCursor: string | null;
+  prevCursor: string | null;
+  /** One-based page number, for the footer between the cursor controls. */
+  page: number;
+  /** Request the page named by the most recent `rel="next"` cursor. */
+  nextPage: () => boolean;
+  /** Request the page named by the most recent `rel="previous"` cursor. */
+  previousPage: () => boolean;
 }
 
 /**
@@ -44,69 +51,138 @@ export function useIssues(
   const [issues, setIssues] = useState<AsyncStatus<Group[]>>(idle);
   const [statsLoading, setStatsLoading] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [prevCursor, setPrevCursor] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   // Read the live value in async callbacks without re-subscribing the effect.
   const issuesRef = useRef(issues);
   issuesRef.current = issues;
 
-  useEffect(() => {
-    if (!client) return;
+  // The cursor which produced the page on screen. Refresh reuses it, while a
+  // query/filter change deliberately resets it to the first page.
+  const pageCursorRef = useRef<string | undefined>(undefined);
+  const pageRef = useRef(1);
+  const requestRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
+  /**
+   * Fetch one issue page, then fill that page's rows with phase-two stats.
+   *
+   * One request owns both phases. Moving again while stats are in flight
+   * aborts that work so data from the abandoned page cannot land on the next.
+   */
+  const requestPage = useCallback(
+    (cursor: string | undefined, targetPage: number): boolean => {
+      if (!client) return false;
 
-    setIssues(startLoading(issuesRef.current, Date.now()));
+      requestRef.current?.abort();
+      const controller = new AbortController();
+      requestRef.current = controller;
+      const { signal } = controller;
+      const requestId = ++requestIdRef.current;
 
-    void (async () => {
-      try {
-        const page = await listIssues(client, {
-          org,
-          query,
-          sort,
-          statsPeriod,
-          project,
-          environment,
-          signal,
-        });
-        if (cancelled) return;
+      setIssues(startLoading(issuesRef.current, Date.now()));
+      setStatsLoading(false);
 
-        setIssues(resolved(page.data, Date.now()));
-        setNextCursor(page.nextCursor);
-
-        // Phase two: sparklines for the ids we just rendered.
-        if (page.data.length === 0) return;
-        setStatsLoading(true);
+      void (async () => {
         try {
-          const stats = await fetchIssueStats(client, {
+          const result = await listIssues(client, {
             org,
-            groups: page.data.map((g) => g.id),
+            query,
+            sort,
             statsPeriod,
+            project,
+            environment,
+            cursor,
             signal,
           });
-          if (cancelled) return;
-          setIssues((current) =>
-            current.state === "ready"
-              ? resolved(mergeStats(current.value, stats), current.fetchedAt)
-              : current,
-          );
-        } finally {
-          if (!cancelled) setStatsLoading(false);
+          if (signal.aborted || requestId !== requestIdRef.current) return;
+
+          pageCursorRef.current = cursor;
+          pageRef.current = targetPage;
+          setPage(targetPage);
+          setNextCursor(result.nextCursor);
+          setPrevCursor(result.prevCursor);
+          setIssues(resolved(result.data, Date.now()));
+
+          // Phase two: sparklines for the ids we just rendered.
+          if (result.data.length === 0) return;
+          setStatsLoading(true);
+          try {
+            const stats = await fetchIssueStats(client, {
+              org,
+              groups: result.data.map((group) => group.id),
+              statsPeriod,
+              signal,
+            });
+            if (signal.aborted || requestId !== requestIdRef.current) return;
+            setIssues((current) =>
+              current.state === "ready"
+                ? resolved(mergeStats(current.value, stats), current.fetchedAt)
+                : current,
+            );
+          } finally {
+            if (!signal.aborted && requestId === requestIdRef.current) setStatsLoading(false);
+          }
+        } catch (error) {
+          if (signal.aborted || requestId !== requestIdRef.current) return;
+          setIssues((current) => rejected(current, toAsyncError(error)));
         }
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setIssues(rejected(issuesRef.current, toAsyncError(error)));
-      }
-    })();
+      })();
 
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- serialized arrays are stable references
-  }, [client, org, query, sort, statsPeriod, project?.join(), environment?.join(), reloadToken]);
+      return true;
+    },
+    [client, org, query, sort, statsPeriod, project, environment],
+  );
 
-  return { issues, statsLoading, nextCursor };
+  const previousRequestPage = useRef<typeof requestPage | null>(null);
+
+  const nextPage = useCallback(
+    () =>
+      nextCursor === null || issuesRef.current.state === "loading"
+        ? false
+        : requestPage(nextCursor, pageRef.current + 1),
+    [nextCursor, requestPage],
+  );
+
+  const previousPage = useCallback(
+    () =>
+      pageRef.current <= 1 || prevCursor === null || issuesRef.current.state === "loading"
+        ? false
+        : requestPage(prevCursor, Math.max(1, pageRef.current - 1)),
+    [prevCursor, requestPage],
+  );
+
+  useEffect(() => {
+    if (!client) {
+      requestIdRef.current++;
+      requestRef.current?.abort();
+      return;
+    }
+
+    // `requestPage` changes for query/filter changes, so those start over.
+    // `reloadToken` alone reuses the current page cursor and page number.
+    const queryChanged = previousRequestPage.current !== requestPage;
+    previousRequestPage.current = requestPage;
+    if (queryChanged) {
+      pageCursorRef.current = undefined;
+      pageRef.current = 1;
+      setPage(1);
+      setNextCursor(null);
+      setPrevCursor(null);
+    }
+    requestPage(pageCursorRef.current, pageRef.current);
+  }, [client, requestPage, reloadToken]);
+
+  useEffect(
+    () => () => {
+      requestIdRef.current++;
+      requestRef.current?.abort();
+    },
+    [],
+  );
+
+  return { issues, statsLoading, nextCursor, prevCursor, page, nextPage, previousPage };
 }
 
 /**

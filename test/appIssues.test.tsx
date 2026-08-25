@@ -34,6 +34,44 @@ function stubClient(body: unknown = groupsFixture, hasMore = false) {
   return new SentryClient({ auth, fetchImpl });
 }
 
+const NEXT_CURSOR = "0:25:0";
+const PREVIOUS_CURSOR = "0:0:1";
+const FIRST_PAGE_PREVIOUS_CURSOR = "0:0:2";
+const nextPageGroup = {
+  ...groupFixture,
+  id: "26",
+  shortId: "PUMP-STATION-26",
+  metadata: { type: "SecondPageError", value: "loaded from the next cursor" },
+};
+
+/** A two-page issue endpoint which records the cursors the UI follows. */
+function paginatedClient() {
+  const cursors: Array<string | null> = [];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    if (url.pathname.includes("issues-stats")) {
+      return new Response("[]", { headers: { "Content-Type": "application/json" } });
+    }
+    if (!url.pathname.endsWith("/issues/")) {
+      return new Response("[]", { headers: { "Content-Type": "application/json" } });
+    }
+
+    const cursor = url.searchParams.get("cursor");
+    cursors.push(cursor);
+    const secondPage = cursor === NEXT_CURSOR;
+    const nextLink = `<https://sentry.io/api/0/organizations/acme/issues/?cursor=${NEXT_CURSOR}>; rel="next"; results="true"; cursor="${NEXT_CURSOR}"`;
+    const link = secondPage
+      ? `<https://sentry.io/api/0/organizations/acme/issues/?cursor=${PREVIOUS_CURSOR}>; rel="previous"; results="true"; cursor="${PREVIOUS_CURSOR}"`
+      : cursor === PREVIOUS_CURSOR
+        ? `<https://sentry.io/api/0/organizations/acme/issues/?cursor=${FIRST_PAGE_PREVIOUS_CURSOR}>; rel="previous"; results="true"; cursor="${FIRST_PAGE_PREVIOUS_CURSOR}", ${nextLink}`
+        : nextLink;
+    return new Response(JSON.stringify(secondPage ? [nextPageGroup] : groupsFixture), {
+      headers: { "Content-Type": "application/json", Link: link },
+    });
+  }) as unknown as typeof fetch;
+  return { client: new SentryClient({ auth, fetchImpl }), cursors };
+}
+
 async function renderApp(client: SentryClient | null = stubClient()) {
   return renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
     width: WIDTH,
@@ -60,6 +98,58 @@ test("the footer marks a partial issue page using the API Link header", async ()
     await h.waitForFrame((frame) => frame.includes("3+ issues"));
     const frame = h.frame();
     expect(rowOf(frame, "3+ issues")).toBeGreaterThan(rowOf(frame, "Slow database query"));
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("page keys follow the issue cursors in both directions", async () => {
+  const { client, cursors } = paginatedClient();
+  const h = await renderApp(client);
+  try {
+    await h.waitForFrame((frame) => frame.includes("TypeError") && frame.includes("pgdn"));
+    await h.press((input) => input.pressKey("j"));
+
+    await h.press((input) => input.pressKey("d", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("SecondPageError"));
+
+    const second = h.frame();
+    expect(second).not.toContain("TypeError");
+    expect(lineWith(second, "SecondPageError")).toContain("▸");
+    expect(lineWith(second, "1 issue")).toMatch(/pgup.*2/);
+    expect(cursors).toEqual([null, NEXT_CURSOR]);
+
+    await h.press((input) => input.pressKey("u", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("TypeError"));
+
+    expect(cursors).toEqual([null, NEXT_CURSOR, PREVIOUS_CURSOR]);
+    expect(lineWith(h.frame(), "TypeError")).toContain("▸");
+    expect(lineWith(h.frame(), "3+ issues")).not.toContain("pgup");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("refresh keeps the current issue page while a new search starts from the first", async () => {
+  const { client, cursors } = paginatedClient();
+  const h = await renderApp(client);
+  try {
+    await h.waitForFrame((frame) => frame.includes("TypeError"));
+    await h.press((input) => input.pressKey("d", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("SecondPageError"));
+
+    await h.press((input) => input.pressKey("r", { ctrl: true }));
+    await h.waitForFrame(() => cursors.length === 3);
+    expect(cursors.at(-1)).toBe(NEXT_CURSOR);
+
+    await h.press((input) => input.pressKey("/"));
+    await h.press((input) => input.pressKey("a", { meta: true }));
+    await h.press((input) => input.pressKey("is:resolved"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame(() => cursors.length === 4);
+
+    expect(cursors.at(-1)).toBeNull();
+    expect(h.frame()).toContain("TypeError");
   } finally {
     await h.cleanup();
   }
