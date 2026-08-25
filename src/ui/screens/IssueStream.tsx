@@ -23,7 +23,9 @@ import { ResultFooter } from "~/ui/components/ResultFooter";
 import { useIssues } from "~/ui/hooks/useIssues";
 import { useMemberAvatars } from "~/ui/hooks/useMemberAvatars";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
+import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
+import type { ScreenActions } from "~/ui/screens/types";
 
 /**
  * Column the scrollbox's vertical scrollbar takes out of its own viewport.
@@ -36,6 +38,9 @@ const SCROLLBAR_GUTTER = 1;
 
 /** Rows the view-title line occupies when a `title` is given. */
 const TITLE_ROWS = 1;
+
+/** Ignore action registration when the stream is rendered as a standalone component. */
+const IGNORE_ACTIONS = (_actions: ScreenActions | null): void => {};
 
 export interface IssueStreamProps {
   client: SentryClient | null;
@@ -88,6 +93,12 @@ export interface IssueStreamProps {
   onSearchBlur?: () => void;
   /** Bump to refetch the current query — the app's global refresh. */
   reloadToken?: number;
+  /** Register Enter and cursor-pagination actions with the app key router. */
+  registerActions?: (actions: ScreenActions | null) => void;
+  /** Open the row at the app-owned cursor. */
+  onOpenRow?: (index: number) => void;
+  /** The selected API page changed; reset any page-local cursor state. */
+  onPageChange?: (page: number) => void;
   /**
    * A row was clicked. The row is reported with its index so the owner of the
    * cursor can both move it and act on the issue itself.
@@ -132,6 +143,9 @@ export function IssueStream({
   onSearchFocus,
   onSearchBlur,
   reloadToken,
+  registerActions,
+  onOpenRow,
+  onPageChange,
   onRowClick,
   sort = DEFAULT_SORT,
   title,
@@ -161,15 +175,31 @@ export function IssueStream({
     [onSearchFocus, onSearchBlur],
   );
 
-  const { issues, statsLoading, nextCursor } = useIssues(client, {
-    org,
-    query,
-    sort,
-    statsPeriod,
-    project: selectedProjects.length > 0 ? selectedProjects : undefined,
-    environment: selectedEnvs.length > 0 ? selectedEnvs : undefined,
-    reloadToken,
+  const { issues, statsLoading, nextCursor, prevCursor, page, nextPage, previousPage } = useIssues(
+    client,
+    {
+      org,
+      query,
+      sort,
+      statsPeriod,
+      project: selectedProjects.length > 0 ? selectedProjects : undefined,
+      environment: selectedEnvs.length > 0 ? selectedEnvs : undefined,
+      reloadToken,
+    },
+  );
+
+  useScreenActions(registerActions ?? IGNORE_ACTIONS, {
+    open: onOpenRow,
+    nextPage,
+    previousPage,
   });
+
+  const reportedPage = useRef(page);
+  useEffect(() => {
+    if (reportedPage.current === page) return;
+    reportedPage.current = page;
+    onPageChange?.(page);
+  }, [page, onPageChange]);
 
   const loading = issues.state === "loading";
   const since = loadingSince(issues);
@@ -341,7 +371,23 @@ export function IssueStream({
       {stale ? (
         <text fg={theme.muted}>{error ? ` ⚠ ${fitText(error.message, listWidth - 3)}` : ""}</text>
       ) : null}
-      <ResultFooter count={rows?.length} noun="issue" hasMore={nextCursor !== null} />
+      <ResultFooter
+        count={rows?.length}
+        noun="issue"
+        hasMore={nextCursor !== null}
+        pagination={
+          nextCursor !== null || prevCursor !== null || page > 1
+            ? {
+                page,
+                hasPrevious: page > 1 && prevCursor !== null,
+                hasNext: nextCursor !== null,
+                loading,
+                onPrevious: previousPage,
+                onNext: nextPage,
+              }
+            : undefined
+        }
+      />
     </box>
   );
 }

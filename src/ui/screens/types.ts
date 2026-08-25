@@ -27,6 +27,10 @@ import type { ScreenState, ScreenStateSeed } from "~/ui/hooks/useScreenState";
 export interface ScreenActions {
   /** Enter, or a second click on the cursor row. */
   open?: (index: number) => void;
+  /** PageDown / Ctrl+D when the current result page has a next cursor. */
+  nextPage?: () => boolean;
+  /** PageUp / Ctrl+U when the current result page has a previous cursor. */
+  previousPage?: () => boolean;
   /**
    * Escape, offered to the screen before anything else claims it. Return true
    * if it was used — closing an inline panel, say — and false to let the key
