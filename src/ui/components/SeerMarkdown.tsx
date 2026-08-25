@@ -1,6 +1,8 @@
 import { Fragment } from "react";
 
+import type { SentryClient } from "~/api/client";
 import { sparkline } from "~/lib/sparkline";
+import { SeerIssueEmbed } from "~/ui/components/SeerIssueEmbed";
 import { wrapText } from "~/lib/text";
 import { BOLD, DIM } from "~/ui/lib/attributes";
 import { useSyntaxStyle } from "~/ui/hooks/useSyntaxStyle";
@@ -166,12 +168,16 @@ function relativeTime(value: string): string {
 export function SeerMarkdown({
   content,
   width,
+  client = null,
+  org = "",
   streaming = false,
   embedsEnabled = false,
   structuredContent = null,
 }: {
   content: string;
   width: number;
+  client?: SentryClient | null;
+  org?: string;
   streaming?: boolean;
   embedsEnabled?: boolean;
   structuredContent?: Record<string, unknown> | null;
@@ -190,6 +196,8 @@ export function SeerMarkdown({
               name={segment.name}
               data={segment.data}
               width={width}
+              client={client}
+              org={org}
             />
           );
         }
@@ -237,32 +245,21 @@ function SeerEmbed({
   name,
   data,
   width,
+  client,
+  org,
 }: {
   name: string;
   data: Record<string, unknown>;
   width: number;
+  client: SentryClient | null;
+  org: string;
 }) {
   const theme = useTheme();
   const cardWidth = Math.max(8, width - 2);
 
   if (name === "issue") {
     const id = stringValue(data["id"]) ?? "Unknown issue";
-    return (
-      <box
-        style={{
-          flexDirection: "row",
-          width: cardWidth,
-          border: true,
-          borderColor: theme.border,
-          paddingLeft: 1,
-        }}
-      >
-        <text fg={theme.accent}>◆ </text>
-        <text fg={theme.text} attributes={BOLD}>
-          {id}
-        </text>
-      </box>
-    );
+    return <SeerIssueEmbed client={client} org={org} ids={[id]} width={cardWidth} />;
   }
 
   if (name === "dsn") {
@@ -275,21 +272,7 @@ function SeerEmbed({
 
   if (name === "issues") {
     const ids = stringArray(data["ids"]);
-    return (
-      <box
-        style={{
-          flexDirection: "column",
-          width: cardWidth,
-          border: true,
-          borderColor: theme.border,
-        }}
-      >
-        <text fg={theme.text} attributes={BOLD}>{` Issues (${ids.length})`}</text>
-        {ids.map((id) => (
-          <text key={id} fg={theme.accent}>{`  ◆ ${id}`}</text>
-        ))}
-      </box>
-    );
+    return <SeerIssueEmbed client={client} org={org} ids={ids} width={cardWidth} />;
   }
 
   if (name === "chart") return <ChartEmbed data={data} width={cardWidth} />;

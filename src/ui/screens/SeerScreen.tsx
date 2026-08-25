@@ -44,6 +44,8 @@ function pendingQuestions(data: Record<string, unknown> | undefined): Question[]
  * conversation itself stays in `App` so navigation never discards it.
  */
 export function SeerScreen({
+  client,
+  org,
   state,
   width,
   height,
@@ -429,6 +431,8 @@ export function SeerScreen({
   return (
     <SeerExplorer
       chat={chat}
+      client={client}
+      org={org}
       width={width}
       height={height}
       focused={focused}

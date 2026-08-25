@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
+import type { SentryClient } from "~/api/client";
 import type { SeerBlock, SeerCallRecord, SeerPendingUserInput, SeerToolLink } from "~/api/seer";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { formatKey, primaryKey } from "~/core/commands";
@@ -30,6 +31,8 @@ const COMPOSER_HEIGHT = 3;
 
 export interface SeerExplorerProps {
   chat: SeerChatState;
+  client: SentryClient | null;
+  org: string;
   width: number;
   height: number;
   focused: boolean;
@@ -53,6 +56,8 @@ export interface SeerExplorerProps {
 /** The Seer Agent conversation as a full terminal screen. */
 export function SeerExplorer({
   chat,
+  client,
+  org,
   width,
   height,
   focused,
@@ -166,6 +171,8 @@ export function SeerExplorer({
                 width={inner}
                 spinner={spinner}
                 chat={chat}
+                client={client}
+                org={org}
                 showTodos={latestTodos?.blockId === block.id ? latestTodos.todos : []}
               />
             ))
@@ -399,12 +406,16 @@ function SeerBlockView({
   width,
   spinner,
   chat,
+  client,
+  org,
   showTodos,
 }: {
   block: SeerBlock;
   width: number;
   spinner: string;
   chat: SeerChatState;
+  client: SentryClient | null;
+  org: string;
   showTodos: NonNullable<SeerBlock["todos"]>;
 }) {
   if (block.message.role === "user") return <UserBlock block={block} width={width} />;
@@ -415,11 +426,22 @@ function SeerBlockView({
         width={width}
         spinner={spinner}
         chat={chat}
+        client={client}
+        org={org}
         showTodos={showTodos}
       />
     );
   }
-  return <AssistantBlock block={block} width={width} spinner={spinner} chat={chat} />;
+  return (
+    <AssistantBlock
+      block={block}
+      width={width}
+      spinner={spinner}
+      chat={chat}
+      client={client}
+      org={org}
+    />
+  );
 }
 
 /** The user's own message, marked with a caret so turns are scannable. */
@@ -443,11 +465,15 @@ function AssistantBlock({
   width,
   spinner,
   chat,
+  client,
+  org,
 }: {
   block: SeerBlock;
   width: number;
   spinner: string;
   chat: SeerChatState;
+  client: SentryClient | null;
+  org: string;
 }) {
   const theme = useTheme();
   const content = block.message.content ?? "";
@@ -473,6 +499,8 @@ function AssistantBlock({
         width={Math.max(1, width - 3)}
         streaming={block.loading && chat.capabilities.streaming}
         embedsEnabled={chat.capabilities.embeds}
+        client={client}
+        org={org}
       />
     </box>
   );
@@ -484,12 +512,16 @@ function ToolUseBlock({
   width,
   spinner,
   chat,
+  client,
+  org,
   showTodos,
 }: {
   block: SeerBlock;
   width: number;
   spinner: string;
   chat: SeerChatState;
+  client: SentryClient | null;
+  org: string;
   showTodos: NonNullable<SeerBlock["todos"]>;
 }) {
   const theme = useTheme();
@@ -515,6 +547,8 @@ function ToolUseBlock({
             content={block.message.thinking_content}
             width={Math.max(1, width - 4)}
             embedsEnabled={chat.capabilities.embeds}
+            client={client}
+            org={org}
           />
         </box>
       ) : null}
@@ -577,6 +611,8 @@ function ToolUseBlock({
                   width={Math.max(1, width - 3)}
                   embedsEnabled={chat.capabilities.embeds}
                   structuredContent={result?.structuredContent ?? null}
+                  client={client}
+                  org={org}
                 />,
               ]
             : []),

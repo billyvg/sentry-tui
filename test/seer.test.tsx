@@ -2,7 +2,9 @@ import { expect, test } from "bun:test";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
+import type { Group } from "~/api/types";
 import { App, type AppProps } from "~/ui/App";
+import { groupFixture } from "./fixtures";
 import { seerSessionFixture } from "./seer-fixtures";
 import { renderHarness } from "./helpers";
 
@@ -18,6 +20,8 @@ interface SeerStub {
   sent: Array<Record<string, unknown>>;
   /** Bodies POSTed to the update (interrupt / PR) endpoint. */
   updates: Array<Record<string, unknown>>;
+  /** Issue-search queries made by rich Seer embeds. */
+  issueQueries: string[];
 }
 
 interface SeerStubOptions {
@@ -29,15 +33,17 @@ interface SeerStubOptions {
     lastTriggeredAt: string;
   }>;
   holdPost?: boolean;
+  issues?: Group[];
 }
 
 function stubClient(
   session = seerSessionFixture,
-  { features, runs = [], holdPost = false }: SeerStubOptions = {},
+  { features, runs = [], holdPost = false, issues = [] }: SeerStubOptions = {},
 ): SeerStub {
   const sent: Array<Record<string, unknown>> = [];
   const updates: Array<Record<string, unknown>> = [];
   const approvals: Array<Record<string, unknown>> = [];
+  const issueQueries: string[] = [];
 
   const json = (payload: unknown, status = 200) =>
     new Response(JSON.stringify(payload), {
@@ -67,6 +73,15 @@ function stubClient(
       }
       return json({ session, sentry_run_id: "run-uuid" });
     }
+    if (url.includes("/issues-stats/")) return json([]);
+    if (new URL(url).pathname.endsWith("/organizations/acme/issues/")) {
+      const query = new URL(url).searchParams.get("query") ?? "";
+      if (query.startsWith("issue:")) {
+        issueQueries.push(query);
+        return json(issues);
+      }
+      return json([]);
+    }
     if (new URL(url).pathname.endsWith("/organizations/acme/") && features !== undefined) {
       return json({ id: "1", slug: "acme", name: "Acme", features });
     }
@@ -74,7 +89,13 @@ function stubClient(
     return json([]);
   }) as unknown as typeof fetch;
 
-  return { client: new SentryClient({ auth, fetchImpl }), approvals, sent, updates };
+  return {
+    client: new SentryClient({ auth, fetchImpl }),
+    approvals,
+    sent,
+    updates,
+    issueQueries,
+  };
 }
 
 async function renderApp(client: SentryClient) {
@@ -407,6 +428,8 @@ test("assistant Markdown, rich embeds, and Code Mode call records render as UI",
             "",
             "- `total` is undefined",
             "",
+            '{% issue %}{"id":"PUMP-STATION-1"}{% /issue %}',
+            "",
             '{% chart %}{"title":"Error volume","series":[{"label":"Errors","data":[{"x":"a","y":1},{"x":"b","y":4},{"x":"c","y":2}]}]}{% /chart %}',
           ].join("\n"),
         },
@@ -416,6 +439,7 @@ test("assistant Markdown, rich embeds, and Code Mode call records render as UI",
   };
   const stub = stubClient(richSession, {
     features: ["seer-explorer", "seer-explorer-code-mode-tools", "seer-explorer-embeds"],
+    issues: [groupFixture],
   });
   const h = await renderSeer(stub.client);
   try {
@@ -427,8 +451,45 @@ test("assistant Markdown, rich embeds, and Code Mode call records render as UI",
     expect(frame).toContain("Root cause");
     expect(frame).toContain("checkout");
     expect(frame).toContain("total");
+    expect(frame).toContain("TypeError");
+    expect(frame).toContain("Cannot read properties of undefined");
+    expect(frame).toContain("javascript");
+    expect(frame).toContain("1.4k");
     expect(frame).toContain("Error volume");
     expect(frame).not.toContain("{% chart %}");
+    expect(frame).not.toContain("{% issue %}");
+    expect(stub.issueQueries).toEqual(["issue:PUMP-STATION-1"]);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("issue embeds stay compact and make no issue request without the embed feature", async () => {
+  const session = {
+    ...seerSessionFixture,
+    blocks: [
+      seerSessionFixture.blocks[0]!,
+      {
+        id: "issue-answer",
+        message: {
+          role: "assistant" as const,
+          content: '{% issue %}{"id":"PUMP-STATION-1"}{% /issue %}',
+        },
+        timestamp: "2026-08-20T12:00:03Z",
+      },
+    ],
+  };
+  const stub = stubClient(session, {
+    features: ["seer-explorer"],
+    issues: [groupFixture],
+  });
+  const h = await renderSeer(stub.client);
+  try {
+    await h.press((input) => input.pressKey("show issue"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("PUMP-STATION-1"));
+    expect(h.frame()).not.toContain("Cannot read properties of undefined");
+    expect(stub.issueQueries).toEqual([]);
   } finally {
     await h.cleanup();
   }
