@@ -25,6 +25,7 @@ import type { Theme } from "~/core/theme";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { fieldSortItems } from "~/ui/components/SortSelector";
 import { useDiscoverRows } from "~/ui/hooks/useDiscoverRows";
@@ -78,7 +79,7 @@ function SavedQueryResults({
     ? state.sort
     : (savedQuery.sort ?? sortItems[0]?.value);
 
-  const status = useDiscoverRows(client, {
+  const { rows: status, nextCursor } = useDiscoverRows(client, {
     org,
     dataset: savedQuery.dataset,
     fields: savedQuery.fields,
@@ -137,7 +138,6 @@ function SavedQueryResults({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        summaryLabel={rows ? `${rows.length} results` : ""}
         sort={sort ? { value: sort, items: sortItems, onChange: state.setSort } : undefined}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
@@ -169,6 +169,7 @@ function SavedQueryResults({
         }}
         layout={[height]}
       />
+      <ResultFooter count={rows?.length} noun="result" hasMore={nextCursor !== null} />
     </box>
   );
 }

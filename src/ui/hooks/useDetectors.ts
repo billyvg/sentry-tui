@@ -36,6 +36,11 @@ export interface DetectorsQuery {
   resetKey?: string;
 }
 
+export interface DetectorsState {
+  detectors: AsyncStatus<Detector[]>;
+  nextCursor: string | null;
+}
+
 /**
  * Fetch the detectors one Monitors screen lists.
  *
@@ -46,8 +51,9 @@ export interface DetectorsQuery {
 export function useDetectors(
   client: SentryClient | null,
   { org, query, sortBy, project, reloadToken = 0, resetKey }: DetectorsQuery,
-): AsyncStatus<Detector[]> {
+): DetectorsState {
   const [status, setStatus] = useState<AsyncStatus<Detector[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -62,6 +68,7 @@ export function useDetectors(
 
     // Carry the rows forward, unless they belong to another screen.
     const carried = resetRef.current === resetKey ? statusRef.current : undefined;
+    if (resetRef.current !== resetKey) setNextCursor(null);
     resetRef.current = resetKey;
     setStatus(startLoading(carried, Date.now()));
 
@@ -70,6 +77,7 @@ export function useDetectors(
         const page = await listDetectors(client, { org, query, sortBy, project, signal });
         if (cancelled) return;
         setStatus(resolved(Array.isArray(page.data) ? page.data : [], Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setStatus(rejected(statusRef.current, toAsyncError(error)));
@@ -82,5 +90,5 @@ export function useDetectors(
     };
   }, [client, org, query, sortBy, project, reloadToken, resetKey]);
 
-  return status;
+  return { detectors: status, nextCursor };
 }

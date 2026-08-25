@@ -16,10 +16,10 @@ import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { assigneeAvatarUrl } from "~/core/avatars";
 import { useTheme } from "~/ui/theme";
 import { fitText, measureTextWidth } from "~/lib/text";
-import { countLabel } from "~/lib/sparkline";
 import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { useIssues } from "~/ui/hooks/useIssues";
 import { useMemberAvatars } from "~/ui/hooks/useMemberAvatars";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
@@ -161,7 +161,7 @@ export function IssueStream({
     [onSearchFocus, onSearchBlur],
   );
 
-  const { issues, statsLoading } = useIssues(client, {
+  const { issues, statsLoading, nextCursor } = useIssues(client, {
     org,
     query,
     sort,
@@ -276,7 +276,6 @@ export function IssueStream({
         selectedProjects={selectedProjects}
         selectedEnvs={selectedEnvs}
         statsPeriod={statsPeriod}
-        summaryLabel={rows ? countLabel(rows.length, "issue") : ""}
         sort={{
           value: sort,
           items: SORT_OPTIONS,
@@ -342,6 +341,7 @@ export function IssueStream({
       {stale ? (
         <text fg={theme.muted}>{error ? ` ⚠ ${fitText(error.message, listWidth - 3)}` : ""}</text>
       ) : null}
+      <ResultFooter count={rows?.length} noun="issue" hasMore={nextCursor !== null} />
     </box>
   );
 }

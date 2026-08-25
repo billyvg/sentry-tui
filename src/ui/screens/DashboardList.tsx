@@ -23,6 +23,7 @@ import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { SortBar } from "~/ui/components/SortBar";
 import { useDashboards } from "~/ui/hooks/useDashboards";
@@ -178,7 +179,7 @@ export function DashboardList(props: ScreenProps) {
   const sortItems = useMemo(() => dashboardSortOptions(isPrebuilt), [isPrebuilt]);
   const sort = dashboardSort(state.sort, config.sort, isPrebuilt);
 
-  const status = useDashboards(client, {
+  const { dashboards: status, nextCursor } = useDashboards(client, {
     org,
     filter: config.filter,
     query: state.committedQuery,
@@ -232,7 +233,6 @@ export function DashboardList(props: ScreenProps) {
       <SortBar
         value={sort}
         items={sortItems}
-        summaryLabel={rows ? countLabel(rows.length) : ""}
         open={state.openDropdown === "sort"}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
@@ -259,13 +259,9 @@ export function DashboardList(props: ScreenProps) {
         }}
         layout={[height, HEADING_ROWS]}
       />
+      <ResultFooter count={rows?.length} noun="dashboard" hasMore={nextCursor !== null} />
     </box>
   );
-}
-
-/** `3 dashboards`, agreeing in number. */
-function countLabel(count: number): string {
-  return `${count} ${count === 1 ? "dashboard" : "dashboards"}`;
 }
 
 /**

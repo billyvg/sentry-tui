@@ -19,6 +19,7 @@ import { clockTime } from "~/lib/time";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { useLogs, useLogTimeseries } from "~/ui/hooks/useLogs";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -120,7 +121,7 @@ export function LogStream({
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
   const sort = logSort(state.sort);
 
-  const { logs } = useLogs(client, {
+  const { logs, nextCursor } = useLogs(client, {
     org,
     query,
     statsPeriod: state.statsPeriod,
@@ -209,7 +210,6 @@ export function LogStream({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        summaryLabel={entries ? `${entries.length} logs` : ""}
         sort={{ value: sort, items: LOG_SORT_OPTIONS, onChange: state.setSort }}
         width={width}
         anchorTop={SEARCH_ROWS}
@@ -255,6 +255,7 @@ export function LogStream({
       />
 
       {showDetail && selectedEntry ? <LogDetail entry={selectedEntry} width={inner} /> : null}
+      <ResultFooter count={entries?.length} noun="log" hasMore={nextCursor !== null} />
     </box>
   );
 }

@@ -27,6 +27,7 @@ import { timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { SortBar } from "~/ui/components/SortBar";
 import { useProjects } from "~/ui/hooks/useProjects";
@@ -150,7 +151,7 @@ export function SavedQueries(props: ScreenProps) {
   const sortItems = savedQuerySortOptions(config.source);
   const sort = savedQueryListSort(state.sort, config.source);
 
-  const status = useSavedQueries(client, {
+  const { queries: status, nextCursor } = useSavedQueries(client, {
     org,
     source: config.source,
     search: state.committedQuery || undefined,
@@ -221,7 +222,6 @@ export function SavedQueries(props: ScreenProps) {
       <SortBar
         value={sort}
         items={sortItems}
-        summaryLabel={queries ? `${queries.length} queries` : ""}
         open={state.openDropdown === "sort"}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
@@ -251,6 +251,7 @@ export function SavedQueries(props: ScreenProps) {
         }}
         layout={[height]}
       />
+      <ResultFooter count={queries?.length} noun="query" hasMore={nextCursor !== null} />
     </box>
   );
 }

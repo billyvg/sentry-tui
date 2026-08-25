@@ -273,7 +273,7 @@ export async function listReplayErrors(
     environment,
     signal,
   }: ListReplayErrorsParams,
-): Promise<ReplayError[]> {
+): Promise<{ data: ReplayError[]; nextCursor: string | null }> {
   const page = await queryDiscover(client, {
     org,
     dataset: "errors",
@@ -287,7 +287,7 @@ export async function listReplayErrors(
     signal,
   });
 
-  return page.rows.map(normaliseError);
+  return { data: page.rows.map(normaliseError), nextCursor: page.nextCursor };
 }
 
 /**

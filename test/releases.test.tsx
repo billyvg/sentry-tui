@@ -265,7 +265,7 @@ test("the status bar names what enter does to a card", async () => {
   }
 });
 
-test("the status bar counts the releases on screen", async () => {
+test("the footer counts the releases on screen", async () => {
   const h = await openReleases();
   try {
     await h.waitForFrame((f) => f.includes("3 releases"));

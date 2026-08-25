@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import {
-  listSavedQueries,
+  listSavedQueriesPage,
   type SavedQuery,
   type SavedQueryListSort,
   type SavedQuerySource,
@@ -35,6 +35,11 @@ export interface SavedQueriesQuery {
   reloadToken?: number;
 }
 
+export interface SavedQueriesState {
+  queries: AsyncStatus<SavedQuery[]>;
+  nextCursor: string | null;
+}
+
 /**
  * Fetch saved queries and expose them as async state.
  *
@@ -44,8 +49,9 @@ export interface SavedQueriesQuery {
 export function useSavedQueries(
   client: SentryClient | null,
   { org, source, starred, search, sort, limit, enabled = true, reloadToken = 0 }: SavedQueriesQuery,
-): AsyncStatus<SavedQuery[]> {
+): SavedQueriesState {
   const [status, setStatus] = useState<AsyncStatus<SavedQuery[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
 
@@ -60,7 +66,7 @@ export function useSavedQueries(
 
     void (async () => {
       try {
-        const queries = await listSavedQueries(client, source, {
+        const page = await listSavedQueriesPage(client, source, {
           org,
           starred,
           search,
@@ -69,7 +75,8 @@ export function useSavedQueries(
           signal,
         });
         if (cancelled) return;
-        setStatus(resolved(queries, Date.now()));
+        setStatus(resolved(page.data, Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setStatus(rejected(statusRef.current, toAsyncError(error)));
@@ -82,5 +89,5 @@ export function useSavedQueries(
     };
   }, [client, org, source, starred, search, sort, limit, enabled, reloadToken]);
 
-  return status;
+  return { queries: status, nextCursor };
 }

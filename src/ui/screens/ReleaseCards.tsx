@@ -34,6 +34,7 @@ import { formatCount, timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import type { Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { useCardScrollFollow } from "~/ui/hooks/useCardScrollFollow";
 import { useReleaseHealth, useReleases } from "~/ui/hooks/useReleases";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -207,7 +208,7 @@ export function ReleaseCards({
     reloadToken,
   };
 
-  const { releases: releasesStatus } = useReleases(client, params);
+  const { releases: releasesStatus, nextCursor } = useReleases(client, params);
   const healthStatus = useReleaseHealth(client, params);
 
   const releases = valueOf(releasesStatus);
@@ -322,7 +323,6 @@ export function ReleaseCards({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        summaryLabel={releases ? `${releases.length} releases` : ""}
         sort={{ value: sort, items: sortItems, onChange: state.setSort }}
         width={width}
         anchorTop={SEARCH_ROWS}
@@ -382,6 +382,7 @@ export function ReleaseCards({
           </box>
         ) : null}
       </scrollbox>
+      <ResultFooter count={releases?.length} noun="release" hasMore={nextCursor !== null} />
     </box>
   );
 }

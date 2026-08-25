@@ -21,6 +21,11 @@ export interface WorkflowsQuery {
   reloadToken?: number;
 }
 
+export interface WorkflowsState {
+  workflows: AsyncStatus<Workflow[]>;
+  nextCursor: string | null;
+}
+
 /**
  * Fetch the org's workflows for `Monitors › Alerts`.
  *
@@ -31,8 +36,9 @@ export interface WorkflowsQuery {
 export function useWorkflows(
   client: SentryClient | null,
   { org, query = "", sortBy, reloadToken = 0 }: WorkflowsQuery,
-): AsyncStatus<Workflow[]> {
+): WorkflowsState {
   const [status, setStatus] = useState<AsyncStatus<Workflow[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -51,6 +57,7 @@ export function useWorkflows(
         const page = await listWorkflows(client, { org, query, sortBy, signal });
         if (cancelled) return;
         setStatus(resolved(Array.isArray(page.data) ? page.data : [], Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setStatus(rejected(statusRef.current, toAsyncError(error)));
@@ -63,7 +70,7 @@ export function useWorkflows(
     };
   }, [client, org, query, sortBy, reloadToken]);
 
-  return status;
+  return { workflows: status, nextCursor };
 }
 
 /** What the Projects column knows so far. */

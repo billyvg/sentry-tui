@@ -35,6 +35,7 @@ import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { SortBar } from "~/ui/components/SortBar";
 import { useProjects } from "~/ui/hooks/useProjects";
@@ -135,7 +136,7 @@ export function WorkflowList(props: ScreenProps) {
   const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
 
   const sort = workflowSort(state.sort);
-  const status = useWorkflows(client, {
+  const { workflows: status, nextCursor } = useWorkflows(client, {
     org,
     query: state.committedQuery,
     sortBy: sort,
@@ -208,7 +209,6 @@ export function WorkflowList(props: ScreenProps) {
       <SortBar
         value={sort}
         items={WORKFLOW_SORT_OPTIONS}
-        summaryLabel={rows ? countLabel(rows.length) : ""}
         open={state.openDropdown === "sort"}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
@@ -244,13 +244,9 @@ export function WorkflowList(props: ScreenProps) {
         }}
         layout={[height, HEADING_ROWS]}
       />
+      <ResultFooter count={rows?.length} noun="alert" hasMore={nextCursor !== null} />
     </box>
   );
-}
-
-/** `3 alerts`, agreeing in number. */
-function countLabel(count: number): string {
-  return `${count} ${count === 1 ? "alert" : "alerts"}`;
 }
 
 /**

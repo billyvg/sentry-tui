@@ -42,7 +42,6 @@ import {
   type ExploreTable as ExploreTableConfig,
 } from "~/core/exploreTables";
 import { useTheme } from "~/ui/theme";
-import { countLabel } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
 import { DataTable } from "~/ui/components/DataTable";
@@ -52,6 +51,7 @@ import {
   type ExploreQueryDropdown,
 } from "~/ui/components/ExploreQueryBar";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { fieldSortItems } from "~/ui/components/SortSelector";
 import { useExploreEvents } from "~/ui/hooks/useExploreEvents";
@@ -126,7 +126,7 @@ function ExploreTableScreen({
     environment,
   });
 
-  const { events, timeseries } = useExploreEvents(client, table, {
+  const { events, timeseries, nextCursor } = useExploreEvents(client, table, {
     org,
     query,
     request: resolved,
@@ -252,7 +252,6 @@ function ExploreTableScreen({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        summaryLabel={rows ? countLabel(rows.length, rowNoun(table)) : ""}
         sort={
           hasBuilder
             ? undefined
@@ -326,6 +325,7 @@ function ExploreTableScreen({
       {showDetail && selected ? (
         <EventDetail event={selected} fields={resolved.fields} width={inner} />
       ) : null}
+      <ResultFooter count={rows?.length} noun={rowNoun(table)} hasMore={nextCursor !== null} />
     </box>
   );
 }
@@ -401,8 +401,8 @@ function longestDuration(rows: readonly ExploreEvent[] | undefined): number {
 /**
  * The singular of the table's noun, for the row count.
  *
- * `countLabel` pluralises, and the config's noun is already plural because the
- * status bar says "loading spans…".
+ * `ResultFooter` pluralises, and the config's noun is already plural because
+ * the status bar says "loading spans…".
  */
 function rowNoun(table: ExploreTableConfig): string {
   return table.noun.endsWith("s") ? table.noun.slice(0, -1) : table.noun;

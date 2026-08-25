@@ -24,6 +24,7 @@ import { buildDetectorQuery, getMonitorListView, type MonitorListView } from "~/
 import { useTheme } from "~/ui/theme";
 import { DataTable } from "~/ui/components/DataTable";
 import { SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { SortBar } from "~/ui/components/SortBar";
 import { useCheckInStats } from "~/ui/hooks/useCheckInStats";
@@ -76,7 +77,7 @@ export function MonitorList(props: ScreenProps) {
 
   // `resetKey` is the screen: the seven share a slice *and* a component
   // instance, so without it this screen opens showing the last one's rows.
-  const status = useDetectors(client, {
+  const { detectors: status, nextCursor } = useDetectors(client, {
     org,
     query,
     sortBy: sort,
@@ -225,7 +226,6 @@ export function MonitorList(props: ScreenProps) {
       <SortBar
         value={sort}
         items={DETECTOR_SORT_OPTIONS}
-        summaryLabel={rows ? countLabel(rows.length) : ""}
         open={state.openDropdown === "sort"}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
@@ -253,11 +253,7 @@ export function MonitorList(props: ScreenProps) {
         }}
         layout={[height, HEADING_ROWS]}
       />
+      <ResultFooter count={rows?.length} noun="monitor" hasMore={nextCursor !== null} />
     </box>
   );
-}
-
-/** `3 monitors`, agreeing in number. */
-function countLabel(count: number): string {
-  return `${count} ${count === 1 ? "monitor" : "monitors"}`;
 }

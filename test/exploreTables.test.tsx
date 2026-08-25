@@ -435,7 +435,7 @@ describe("Explore › Traces", () => {
     }
   });
 
-  test("the status bar counts the rows", async () => {
+  test("the footer counts the rows", async () => {
     const h = await renderTable(stubClient(), "Traces");
     try {
       await h.waitForFrame((f) => f.includes("6 spans"));
@@ -590,7 +590,7 @@ describe("Explore › Errors", () => {
     }
   });
 
-  test("the status bar counts events, not issues", async () => {
+  test("the footer counts events, not issues", async () => {
     const h = await renderTable(stubClient(), "Errors");
     try {
       await h.waitForFrame((f) => f.includes("3 events"));
@@ -761,8 +761,12 @@ describe("narrow terminals", () => {
       await h.waitForFrame((f) => f.includes("6 spans"));
 
       const lines = h.frame().split("\n");
-      const chipRow = lines.findIndex((line) => line.includes("6 spans"));
+      const chipRow = lines.findIndex(
+        (line) => line.includes("all projects") && line.includes("all envs"),
+      );
+      const resultRow = lines.findIndex((line) => line.includes("6 spans"));
       expect(chipRow).toBeGreaterThan(-1);
+      expect(resultRow).toBeGreaterThan(chipRow);
       expect(lines[chipRow]).toContain("P");
       expect(lines[chipRow]).toContain("E");
       expect(lines[chipRow]).toContain("D");

@@ -217,7 +217,7 @@ test("an archived replay renders as a tombstone rather than a session", async ()
   }
 });
 
-test("the status bar counts the replays that loaded", async () => {
+test("the footer counts the replays that loaded", async () => {
   const h = await openReplays();
   try {
     await h.waitForFrame((f) => f.includes("6 replays"));

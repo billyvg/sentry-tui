@@ -105,7 +105,6 @@ test("enter on a dashboard opens its widgets, stacked in layout order", async ()
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
 
-    expect(frame).toContain("6 widgets");
     expect(frame).toContain("widget 1 of 6");
   } finally {
     await h.cleanup();
@@ -504,7 +503,7 @@ test("the grid holds its geometry before the dashboard has arrived", async () =>
     expect(frame).toContain("big_number");
     expect(frame).toContain("line");
     expect(frame).toContain("table");
-    expect(frame).toContain("3 widgets");
+    expect(frame).toContain("widget 1 of 3");
     expect(frame.split("\n").filter(Boolean)).toHaveLength(HEIGHT);
   } finally {
     await h.cleanup();

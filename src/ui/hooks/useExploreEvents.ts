@@ -42,6 +42,7 @@ export interface ExploreEventsQuery {
 export interface ExploreEventsState {
   events: AsyncStatus<ExploreEvent[]>;
   timeseries: AsyncStatus<TimeseriesBucket[]>;
+  nextCursor: string | null;
 }
 
 /**
@@ -58,6 +59,7 @@ export function useExploreEvents(
 ): ExploreEventsState {
   const [events, setEvents] = useState<AsyncStatus<ExploreEvent[]>>(idle);
   const [timeseries, setTimeseries] = useState<AsyncStatus<TimeseriesBucket[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const eventsRef = useRef(events);
   eventsRef.current = events;
@@ -97,6 +99,7 @@ export function useExploreEvents(
         });
         if (cancelled) return;
         setEvents(resolved(page.data, Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setEvents(rejected(eventsRef.current, toAsyncError(error)));
@@ -127,5 +130,5 @@ export function useExploreEvents(
     };
   }, [client, org, combined, request, statsPeriod, project, environment, reloadToken, table]);
 
-  return { events, timeseries };
+  return { events, timeseries, nextCursor };
 }

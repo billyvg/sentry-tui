@@ -105,6 +105,11 @@ export interface ReplayErrorsQuery {
   reloadToken?: number;
 }
 
+export interface ReplayErrorsState {
+  errors: AsyncStatus<ReplayError[]>;
+  nextCursor: string | null;
+}
+
 /**
  * Fetch the error events recorded during one replay.
  *
@@ -114,8 +119,9 @@ export interface ReplayErrorsQuery {
 export function useReplayErrors(
   client: SentryClient | null,
   { org, replayId, statsPeriod, environment, count, reloadToken = 0 }: ReplayErrorsQuery,
-): AsyncStatus<ReplayError[]> {
+): ReplayErrorsState {
   const [status, setStatus] = useState<AsyncStatus<ReplayError[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
 
@@ -123,6 +129,7 @@ export function useReplayErrors(
     if (!client) return;
     if (count <= 0) {
       setStatus(resolved([], Date.now()));
+      setNextCursor(null);
       return;
     }
 
@@ -134,7 +141,7 @@ export function useReplayErrors(
 
     void (async () => {
       try {
-        const errors = await listReplayErrors(client, {
+        const page = await listReplayErrors(client, {
           org,
           replayId,
           statsPeriod,
@@ -142,7 +149,8 @@ export function useReplayErrors(
           signal,
         });
         if (cancelled) return;
-        setStatus(resolved(errors, Date.now()));
+        setStatus(resolved(page.data, Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setStatus(rejected(statusRef.current, toAsyncError(error)));
@@ -155,5 +163,5 @@ export function useReplayErrors(
     };
   }, [client, org, replayId, statsPeriod, environment, count, reloadToken]);
 
-  return status;
+  return { errors: status, nextCursor };
 }

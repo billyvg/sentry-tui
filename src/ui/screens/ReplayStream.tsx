@@ -34,10 +34,11 @@ import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { REPLAY_DETAIL_STATE_KEY } from "~/core/screens";
 import { useTheme } from "~/ui/theme";
 import type { Theme } from "~/core/theme";
-import { countLabel, timeAgo } from "~/lib/sparkline";
+import { timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { useProjects } from "~/ui/hooks/useProjects";
 import { useReplayErrors, useReplays } from "~/ui/hooks/useReplays";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
@@ -193,7 +194,7 @@ export function ReplayStream({
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
   const sort = replaySort(state.sort);
 
-  const { replays } = useReplays(client, {
+  const { replays, nextCursor } = useReplays(client, {
     org,
     query,
     statsPeriod: state.statsPeriod,
@@ -258,7 +259,6 @@ export function ReplayStream({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        summaryLabel={rows ? countLabel(rows.length, "replay") : ""}
         sort={{ value: sort, items: REPLAY_SORT_OPTIONS, onChange: state.setSort }}
         width={width}
         anchorTop={SEARCH_ROWS}
@@ -294,6 +294,7 @@ export function ReplayStream({
         }}
         layout={[height]}
       />
+      <ResultFooter count={rows?.length} noun="replay" hasMore={nextCursor !== null} />
     </box>
   );
 }
@@ -451,7 +452,7 @@ function ReplayDetail({
   const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown } = state;
 
-  const status = useReplayErrors(client, {
+  const { errors: status, nextCursor } = useReplayErrors(client, {
     org,
     replayId: replay.id,
     statsPeriod: state.statsPeriod,
@@ -498,7 +499,6 @@ function ReplayDetail({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        summaryLabel={errors ? countLabel(errors.length, "error") : ""}
         width={inner}
         // The filter row is this view's first row now that the app draws the
         // breadcrumb in the pane's border rather than the screen printing one.
@@ -579,6 +579,7 @@ function ReplayDetail({
         empty={{ title: "No errors in this replay." }}
         layout={[height]}
       />
+      <ResultFooter count={errors?.length} noun="error" hasMore={nextCursor !== null} />
     </box>
   );
 }

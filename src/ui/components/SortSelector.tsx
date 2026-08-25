@@ -68,6 +68,7 @@ export function SortDropdown({
   items,
   anchorLeft,
   anchorTop,
+  availableWidth,
   onChange,
   onClose,
 }: {
@@ -75,6 +76,8 @@ export function SortDropdown({
   items: readonly SortItem[];
   anchorLeft: number;
   anchorTop: number;
+  /** Width of the pane the overlay must stay inside. */
+  availableWidth?: number;
   onChange: (value: string) => void;
   onClose: () => void;
 }) {
@@ -85,6 +88,7 @@ export function SortDropdown({
       selected={[value]}
       anchorLeft={anchorLeft}
       anchorTop={anchorTop}
+      availableWidth={availableWidth}
       showAll={false}
       onSelect={(values) => {
         const selected = values[0];

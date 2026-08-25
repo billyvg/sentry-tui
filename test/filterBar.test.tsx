@@ -16,7 +16,6 @@ function renderFilterBar(width: number, projects: string[], environments: string
       selectedProjects={projects}
       selectedEnvs={environments}
       statsPeriod="14d"
-      summaryLabel="25 issues"
       sort={{
         value: "date",
         items: [
@@ -36,28 +35,29 @@ function renderFilterBar(width: number, projects: string[], environments: string
   );
 }
 
-/** The middle line of the chips, where their labels and summary are printed. */
+/** The middle line of the chips, where their labels are printed. */
 function filterLine(frame: string): string {
-  return frame.split("\n").find((line) => line.includes("25 issues")) ?? "";
+  return frame.split("\n").find((line) => line.includes("Last Seen")) ?? "";
 }
 
-test("multiple selections list every project slug and environment name when they fit", async () => {
-  const h = await renderFilterBar(120, ["backend", "frontend"], ["production", "staging"]);
+test("multiple selections fit while sort stays against the right edge", async () => {
+  const width = 120;
+  const h = await renderFilterBar(width, ["backend", "frontend"], ["production", "staging"]);
   try {
     const line = filterLine(h.frame());
     expect(line).toContain("backend, frontend");
     expect(line).toContain("production, staging");
     expect(line).toContain("Last Seen");
-    expect(line).toContain("25 issues");
     expect(line).not.toContain("Sort:");
     expect(line).not.toContain("2 projects");
     expect(line).not.toContain("2 envs");
+    expect(line.indexOf("Last Seen")).toBeGreaterThan(width - 20);
   } finally {
     await h.cleanup();
   }
 });
 
-test("long selection lists ellipsize before they can displace sort and summary", async () => {
+test("long selection lists ellipsize before they can displace right-aligned sort", async () => {
   const width = 80;
   const h = await renderFilterBar(
     width,
@@ -67,11 +67,11 @@ test("long selection lists ellipsize before they can displace sort and summary",
   try {
     const line = filterLine(h.frame());
     expect(line).toContain("Last Seen");
-    expect(line).toContain("25 issues");
     expect(line.match(/…/g)).toHaveLength(2);
     expect(line).not.toContain("billing-worker");
     expect(line).not.toContain("staging-us-west");
     expect(measureTextWidth(line)).toBeLessThanOrEqual(width);
+    expect(line.indexOf("Last Seen")).toBeGreaterThan(width - 20);
   } finally {
     await h.cleanup();
   }

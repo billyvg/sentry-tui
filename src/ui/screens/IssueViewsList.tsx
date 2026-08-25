@@ -18,8 +18,9 @@ import { errorOf, isInitialLoad, valueOf } from "~/core/async";
 import { useTheme } from "~/ui/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
-import { SortBar } from "~/ui/components/SortBar";
 import type { FilterDropdownType } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
+import { SortBar } from "~/ui/components/SortBar";
 import { useGroupSearchViews } from "~/ui/hooks/useGroupSearchViews";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
 import { BOLD } from "~/ui/lib/attributes";
@@ -90,7 +91,11 @@ export function IssueViewsList({
   const theme = useTheme();
   const listRef = useRef<ScrollBoxRenderable>(null);
   const sort = viewSort(sortValue);
-  const status = useGroupSearchViews(client, { org, sort, reloadToken });
+  const { sections: status, nextCursors } = useGroupSearchViews(client, {
+    org,
+    sort,
+    reloadToken,
+  });
 
   const sections = valueOf(status);
   const error = errorOf(status);
@@ -143,7 +148,6 @@ export function IssueViewsList({
       <SortBar
         value={sort}
         items={VIEW_SORT_OPTIONS}
-        summaryLabel={rows.length > 0 ? `${rows.length} views` : ""}
         open={openDropdown === "sort"}
         width={width}
         anchorTop={1}
@@ -194,6 +198,11 @@ export function IssueViewsList({
           </box>
         ))}
       </scrollbox>
+      <ResultFooter
+        count={sections === undefined ? undefined : rows.length}
+        noun="view"
+        hasMore={nextCursors.mine !== null || nextCursors.others !== null}
+      />
     </box>
   );
 }

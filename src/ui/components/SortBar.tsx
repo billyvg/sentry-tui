@@ -1,4 +1,4 @@
-import { CHIP_GAP, CHIP_HEIGHT, chipWidth } from "~/ui/components/Chip";
+import { CHIP_HEIGHT, chipWidth } from "~/ui/components/Chip";
 import {
   SORT_COMMAND,
   SortDropdown,
@@ -6,13 +6,10 @@ import {
   sortLabel,
   type SortItem,
 } from "~/ui/components/SortSelector";
-import { measureTextWidth } from "~/lib/text";
-import { useTheme } from "~/ui/theme";
 
 export interface SortBarProps {
   value: string;
   items: readonly SortItem[];
-  summaryLabel: string;
   open: boolean;
   width: number;
   /** Row where the chip starts, relative to the screen. */
@@ -22,11 +19,10 @@ export interface SortBarProps {
   onClose: () => void;
 }
 
-/** A sort chip and right-aligned row count for lists without a filter bar. */
+/** A right-aligned sort chip for lists without a filter bar. */
 export function SortBar({
   value,
   items,
-  summaryLabel,
   open,
   width,
   anchorTop,
@@ -34,11 +30,10 @@ export function SortBar({
   onOpen,
   onClose,
 }: SortBarProps) {
-  const theme = useTheme();
-  const label = sortLabel(items, value);
-  const controlWidth = chipWidth({ command: SORT_COMMAND, label, caret: true });
-  const showSummary =
-    summaryLabel.length > 0 && width >= controlWidth + CHIP_GAP + measureTextWidth(summaryLabel);
+  const anchorLeft = Math.max(
+    0,
+    width - chipWidth({ command: SORT_COMMAND, label: sortLabel(items, value), caret: true }),
+  );
 
   return (
     <>
@@ -52,16 +47,16 @@ export function SortBar({
           overflow: "hidden",
         }}
       >
-        <SortSelector value={value} items={items} open={open} onOpen={onOpen} />
         <box style={{ flexGrow: 1 }} />
-        {showSummary ? <text fg={theme.subText}>{summaryLabel}</text> : null}
+        <SortSelector value={value} items={items} open={open} onOpen={onOpen} />
       </box>
       {open ? (
         <SortDropdown
           value={value}
           items={items}
-          anchorLeft={0}
+          anchorLeft={anchorLeft}
           anchorTop={anchorTop + CHIP_HEIGHT}
+          availableWidth={width}
           onChange={onChange}
           onClose={onClose}
         />

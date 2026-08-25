@@ -31,6 +31,11 @@ export interface DiscoverRowsQuery {
   reloadToken?: number;
 }
 
+export interface DiscoverRowsState {
+  rows: AsyncStatus<DiscoverRow[]>;
+  nextCursor: string | null;
+}
+
 /**
  * Run a Discover query and expose the raw rows as async state.
  *
@@ -52,8 +57,9 @@ export function useDiscoverRows(
     referrer,
     reloadToken = 0,
   }: DiscoverRowsQuery,
-): AsyncStatus<DiscoverRow[]> {
+): DiscoverRowsState {
   const [status, setStatus] = useState<AsyncStatus<DiscoverRow[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
 
@@ -82,6 +88,7 @@ export function useDiscoverRows(
         });
         if (cancelled) return;
         setStatus(resolved(page.rows, Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setStatus(rejected(statusRef.current, toAsyncError(error)));
@@ -106,5 +113,5 @@ export function useDiscoverRows(
     reloadToken,
   ]);
 
-  return status;
+  return { rows: status, nextCursor };
 }

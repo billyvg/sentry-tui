@@ -17,6 +17,11 @@ export interface ViewSection {
   views: GroupSearchView[];
 }
 
+export interface GroupSearchViewsState {
+  sections: AsyncStatus<ViewSection[]>;
+  nextCursors: { mine: string | null; others: string | null };
+}
+
 /**
  * Fetch the org's saved issue views, grouped the way the web page groups them.
  *
@@ -30,8 +35,12 @@ export interface ViewSection {
 export function useGroupSearchViews(
   client: SentryClient | null,
   { org, sort, reloadToken = 0 }: { org: string; sort?: ViewSort; reloadToken?: number },
-): AsyncStatus<ViewSection[]> {
+): GroupSearchViewsState {
   const [sections, setSections] = useState<AsyncStatus<ViewSection[]>>(idle);
+  const [nextCursors, setNextCursors] = useState({ mine: null, others: null } as {
+    mine: string | null;
+    others: string | null;
+  });
 
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
@@ -52,6 +61,7 @@ export function useGroupSearchViews(
           listGroupSearchViews(client, { org, createdBy: "others", sort, signal }),
         ]);
         if (cancelled) return;
+        setNextCursors({ mine: mine.nextCursor, others: others.nextCursor });
         setSections(
           resolved(
             [
@@ -73,5 +83,5 @@ export function useGroupSearchViews(
     };
   }, [client, org, sort, reloadToken]);
 
-  return sections;
+  return { sections, nextCursors };
 }

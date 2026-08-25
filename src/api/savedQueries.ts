@@ -16,7 +16,7 @@
  * renaming and deleting are all writes and none of them live here.
  */
 
-import type { SentryClient } from "~/api/client";
+import type { Page, SentryClient } from "~/api/client";
 import type { DiscoverDataset } from "~/api/discover";
 
 // ---------------------------------------------------------------------------
@@ -205,6 +205,14 @@ export interface ListSavedQueriesParams {
  */
 export async function listExploreSavedQueries(
   client: SentryClient,
+  params: ListSavedQueriesParams,
+): Promise<SavedQuery[]> {
+  return (await exploreSavedQueriesPage(client, params)).data;
+}
+
+/** Fetch and normalise an Explore saved-query page without losing its cursors. */
+async function exploreSavedQueriesPage(
+  client: SentryClient,
   {
     org,
     starred,
@@ -214,7 +222,7 @@ export async function listExploreSavedQueries(
     cursor,
     signal,
   }: ListSavedQueriesParams,
-): Promise<SavedQuery[]> {
+): Promise<Page<SavedQuery[]>> {
   const page = await client.request<RawExploreSavedQuery[]>(
     `/organizations/${org}/explore/saved/`,
     {
@@ -229,7 +237,10 @@ export async function listExploreSavedQueries(
     },
   );
 
-  return asArray(page.data).map(normaliseExplore).filter(isRunnable);
+  return {
+    ...page,
+    data: asArray(page.data).map(normaliseExplore).filter(isRunnable),
+  };
 }
 
 function normaliseExplore(raw: RawExploreSavedQuery, index: number): SavedQuery {
@@ -316,6 +327,14 @@ interface RawDiscoverSavedQuery {
  */
 export async function listDiscoverSavedQueries(
   client: SentryClient,
+  params: ListSavedQueriesParams,
+): Promise<SavedQuery[]> {
+  return (await discoverSavedQueriesPage(client, params)).data;
+}
+
+/** Fetch and normalise a Discover saved-query page without losing its cursors. */
+async function discoverSavedQueriesPage(
+  client: SentryClient,
   {
     org,
     search,
@@ -324,7 +343,7 @@ export async function listDiscoverSavedQueries(
     cursor,
     signal,
   }: ListSavedQueriesParams,
-): Promise<SavedQuery[]> {
+): Promise<Page<SavedQuery[]>> {
   const trimmed = search?.trim();
   const page = await client.request<RawDiscoverSavedQuery[]>(
     `/organizations/${org}/discover/saved/`,
@@ -339,7 +358,10 @@ export async function listDiscoverSavedQueries(
     },
   );
 
-  return asArray(page.data).map(normaliseDiscover).filter(isRunnable);
+  return {
+    ...page,
+    data: asArray(page.data).map(normaliseDiscover).filter(isRunnable),
+  };
 }
 
 function normaliseDiscover(raw: RawDiscoverSavedQuery, index: number): SavedQuery {
@@ -380,6 +402,17 @@ export function listSavedQueries(
   return source === "explore"
     ? listExploreSavedQueries(client, params)
     : listDiscoverSavedQueries(client, params);
+}
+
+/** List a saved-query page while preserving pagination metadata for the UI. */
+export function listSavedQueriesPage(
+  client: SentryClient,
+  source: SavedQuerySource,
+  params: ListSavedQueriesParams,
+): Promise<Page<SavedQuery[]>> {
+  return source === "explore"
+    ? exploreSavedQueriesPage(client, params)
+    : discoverSavedQueriesPage(client, params);
 }
 
 /**
