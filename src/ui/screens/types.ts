@@ -102,6 +102,8 @@ export interface ScreenProps {
    * `useScreenActions`, which handles registering and unregistering.
    */
   registerActions: (actions: ScreenActions | null) => void;
+  /** Update metadata learned after a URL-addressed detail view was pushed. */
+  updateView: (id: string, update: { label?: string; issue?: Group }) => void;
 }
 
 /**

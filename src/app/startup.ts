@@ -11,6 +11,12 @@ import {
 } from "~/api/config";
 import { listOrganizations } from "~/api/issues";
 import { autoLogin, type LoginOptions } from "~/app/login";
+import {
+  parseSentryUrl,
+  recordSentryUrlFailure,
+  type SentryUrlFailure,
+  type SentryUrlLocation,
+} from "~/core/sentryUrl";
 import { identify, traceStartupStep } from "~/telemetry/index";
 import * as readline from "node:readline";
 
@@ -19,6 +25,16 @@ export interface AppContext {
   org: string;
   tokenSource: string;
   projectsByOrg: Record<string, string[]>;
+  initialLocation?: SentryUrlLocation;
+}
+
+/** Expected CLI input failure, already counted and safe to print plainly. */
+export class SentryUrlInputError extends Error {
+  constructor(failure: SentryUrlFailure) {
+    const prefix = failure.kind === "invalid" ? "Invalid Sentry URL" : "Not implemented";
+    super(`${prefix}: ${failure.message}`);
+    this.name = "SentryUrlInputError";
+  }
 }
 
 export class MissingOrgError extends Error {
@@ -97,6 +113,8 @@ export interface CliArgs {
   version: boolean;
   /** Print the login URL instead of launching a browser, wherever we log in. */
   noBrowser: boolean;
+  /** Production web URL to open after startup. */
+  url?: string;
 }
 
 const isCommand = (value: string | undefined): value is Command =>
@@ -113,6 +131,7 @@ export function parseArgs(argv: string[]): CliArgs {
       // Only take the next token as the value — never swallow the flag after it.
       if (argv[i + 1] && !argv[i + 1]!.startsWith("-")) args.org = argv[++i];
     } else if (isCommand(arg)) args.command = arg;
+    else if (arg?.includes("://") && args.url === undefined) args.url = arg;
   }
   return args;
 }
@@ -121,6 +140,7 @@ export const HELP_TEXT = `sentry-tui — sentry.io in your terminal
 
 Usage:
   sentry-tui [--org <slug>]        Open the TUI
+  sentry-tui <url> [--org <slug>]  Open a sentry.io URL in the TUI
   sentry-tui login [--no-browser]  Sign in again, or switch accounts
   sentry-tui logout                Forget the stored credentials
   sentry-tui status                Show who you're signed in as
@@ -179,6 +199,25 @@ async function resolveCredentials(options: LoginOptions = {}): Promise<AuthProvi
 export async function bootstrap(args: CliArgs): Promise<AppContext> {
   const config = await readConfig();
 
+  let initialLocation: SentryUrlLocation | undefined;
+  if (args.url) {
+    const result = parseSentryUrl(args.url);
+    if (result.kind !== "location") {
+      recordSentryUrlFailure(result, "cli");
+      throw new SentryUrlInputError(result);
+    }
+    initialLocation = result.location;
+    if (args.org && args.org !== initialLocation.org) {
+      const failure: SentryUrlFailure = {
+        kind: "invalid",
+        reason: "organization_mismatch",
+        message: `--org ${args.org} conflicts with organization ${initialLocation.org} in the URL.`,
+      };
+      recordSentryUrlFailure(failure, "cli");
+      throw new SentryUrlInputError(failure);
+    }
+  }
+
   const auth = await traceStartupStep("resolve credentials", async () => {
     const provider = await resolveCredentials({ noBrowser: args.noBrowser });
     // Surface a missing or unrenewable token now rather than mid-render.
@@ -186,7 +225,7 @@ export async function bootstrap(args: CliArgs): Promise<AppContext> {
     return provider;
   });
 
-  let org = args.org ?? process.env["SENTRY_ORG"] ?? config.org;
+  let org = initialLocation?.org ?? args.org ?? process.env["SENTRY_ORG"] ?? config.org;
 
   const client = new SentryClient({ auth });
 
@@ -204,6 +243,7 @@ export async function bootstrap(args: CliArgs): Promise<AppContext> {
     org,
     tokenSource: auth.describe(),
     projectsByOrg: normalizeProjectsByOrg(config.projectsByOrg),
+    initialLocation,
   };
 }
 

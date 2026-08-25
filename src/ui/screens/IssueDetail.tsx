@@ -4,6 +4,7 @@ import { useKeyboard } from "@opentui/react";
 import type { ScrollBoxRenderable } from "@opentui/core";
 
 import type { SentryClient } from "~/api/client";
+import type { EventSelector } from "~/api/issues";
 import {
   findEntry,
   GroupStatus,
@@ -74,6 +75,7 @@ export function IssueDetail({
   width,
   height,
   focused,
+  eventId,
   reloadToken,
 }: {
   client: SentryClient | null;
@@ -82,11 +84,13 @@ export function IssueDetail({
   width: number;
   height: number;
   focused: boolean;
+  /** Exact event selected by a copied web URL; defaults to the latest. */
+  eventId?: EventSelector;
   /** Bump to refetch the issue's event — the app's global refresh. */
   reloadToken?: number;
 }) {
   const theme = useTheme();
-  const status = useIssueEvent(client, { org, issueId: group.id, reloadToken });
+  const status = useIssueEvent(client, { org, issueId: group.id, eventId, reloadToken });
   const event = valueOf(status);
   const error = errorOf(status);
   const loading = isInitialLoad(status);

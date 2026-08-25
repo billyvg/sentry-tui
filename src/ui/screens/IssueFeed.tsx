@@ -11,11 +11,14 @@
  * search's results can be pushed as a view and behave identically.
  */
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 
-import { issueSort } from "~/api/issues";
+import { fetchIssue, issueSort } from "~/api/issues";
 import type { Group } from "~/api/types";
+import { valueOf } from "~/core/async";
 import { getIssueView } from "~/core/issueViews";
+import { DirectDetailStatus } from "~/ui/components/DirectDetailStatus";
+import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { IssueDetail } from "~/ui/screens/IssueDetail";
@@ -148,4 +151,52 @@ function issueView(group: Group, client: ScreenProps["client"], org: string): Vi
       />
     ),
   };
+}
+
+const loadIssue: DirectResourceLoader<Group> = (client, { org, id, signal }) =>
+  fetchIssue(client, { org, issueId: id, signal });
+
+/** An issue detail addressed by a copied URL rather than a loaded list row. */
+export function issueUrlView(issueId: string, eventId?: string): ViewStackEntry {
+  return {
+    id: `issue:${issueId}`,
+    label: `Issue ${issueId}`,
+    render: (ctx) => <IssueFromUrl {...ctx} issueId={issueId} eventId={eventId} />,
+  };
+}
+
+/** Resolve the issue record before handing it to the existing detail pane. */
+function IssueFromUrl({
+  client,
+  org,
+  issueId,
+  eventId,
+  reloadToken,
+  width,
+  height,
+  focused,
+  updateView,
+}: DetailContext & { issueId: string; eventId?: string }) {
+  const status = useDirectResource(client, { org, id: issueId, reloadToken, load: loadIssue });
+  const group = valueOf(status);
+
+  useEffect(() => {
+    if (group) updateView(`issue:${issueId}`, { label: group.shortId, issue: group });
+  }, [group, issueId, updateView]);
+
+  if (!group) {
+    return <DirectDetailStatus status={status} noun="issue" width={width} height={height} />;
+  }
+  return (
+    <IssueDetail
+      client={client}
+      org={org}
+      group={group}
+      eventId={eventId}
+      width={width}
+      height={height}
+      focused={focused}
+      reloadToken={reloadToken}
+    />
+  );
 }

@@ -10,6 +10,12 @@ import { buildGotoHotkeys } from "~/core/goto";
 import { getNavGroup, NAV_GROUPS, soleNavItem, type NavGroupId } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { findScreen, getScreen, stateKeyOf, type ScreenId } from "~/core/screens";
+import {
+  parseSentryUrl,
+  recordSentryUrlFailure,
+  type SentryUrlFailure,
+  type SentryUrlLocation,
+} from "~/core/sentryUrl";
 import { useTheme } from "~/ui/theme";
 import { findTriageAction, TRIAGE_ACTIONS } from "~/core/triage";
 import { breadcrumbTrail } from "~/lib/breadcrumb";
@@ -21,6 +27,7 @@ import { DetailBackRow, detailBackWidth } from "~/ui/components/DetailBackRow";
 import { isDropdownMounted } from "~/ui/components/Dropdown";
 import { isFilterBarMounted, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { HelpDialog } from "~/ui/components/HelpDialog";
+import { OpenSentryUrlDialog } from "~/ui/components/OpenSentryUrlDialog";
 import {
   COLLAPSED_NAV_RAIL_WIDTH,
   NavRail,
@@ -43,6 +50,7 @@ import { navItemsFor, navTargetOf, type NavItemSpec } from "~/ui/lib/navSections
 import { SCREEN_COMPONENTS } from "~/ui/screens/registry";
 import type { ScreenActions, ViewStackEntry } from "~/ui/screens/types";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
+import { viewForSentryUrl } from "~/ui/sentryUrl";
 
 /**
  * Cells the pane's frame costs a border title: one border cell each side, plus
@@ -64,6 +72,8 @@ export interface AppProps {
    * render pass per keystroke, and at ~29ms each that dwarfed the assertions.
    */
   initialScreen?: ScreenId;
+  /** Parsed CLI destination, including filters and an optional detail. */
+  initialLocation?: SentryUrlLocation;
   /** Remembered project selections, keyed by organization slug. */
   initialProjectsByOrg?: Readonly<Record<string, readonly string[]>>;
   /**
@@ -101,6 +111,7 @@ export function App({
   client = null,
   org: initialOrg = "",
   initialScreen = DEFAULT_SCREEN,
+  initialLocation,
   initialProjectsByOrg = {},
   onRestart,
 }: AppProps) {
@@ -117,10 +128,10 @@ export function App({
   // The open organization. Sourced from the CLI at startup, then owned here so
   // the picker can repoint every screen at once — every fetch in the tree takes
   // it as a dependency.
-  const [org, setOrg] = useState(initialOrg);
+  const [org, setOrg] = useState(initialLocation?.org ?? initialOrg);
 
   // Rail cursor: which group is highlighted on the nav rail.
-  const initial = getScreen(initialScreen);
+  const initial = getScreen(initialLocation?.screen ?? initialScreen);
 
   const [railGroup, setRailGroup] = useState<NavGroupId>(initial.group);
 
@@ -139,6 +150,7 @@ export function App({
 
   const [showHelp, setShowHelp] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  const [showOpenUrl, setShowOpenUrl] = useState(false);
   const [showOrgPicker, setShowOrgPicker] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
 
@@ -172,7 +184,12 @@ export function App({
 
   // A view stack rather than a router: Enter pushes a view, Esc pops. Entries
   // carry their own renderer, so a new detail screen costs nothing here.
-  const [viewStack, setViewStack] = useState<readonly ViewStackEntry[]>([]);
+  const [initialView] = useState(() =>
+    viewForSentryUrl(initialLocation?.detail, initialLocation?.state),
+  );
+  const [viewStack, setViewStack] = useState<readonly ViewStackEntry[]>(() =>
+    initialView ? [initialView] : [],
+  );
   const topView = viewStack.at(-1);
 
   /**
@@ -194,7 +211,11 @@ export function App({
     active: state,
     resetOrgScoped,
     seed,
-  } = useScreenState(activeKey, projectsByOrg[org] ?? []);
+  } = useScreenState(
+    activeKey,
+    projectsByOrg[org] ?? [],
+    initialView?.stateKey ? initialView.initialState : initialLocation?.state,
+  );
 
   /** Apply a dropdown selection and remember it as this organization's default. */
   const selectProjects = useCallback(
@@ -250,6 +271,11 @@ export function App({
     },
     [seed],
   );
+
+  /** Merge metadata learned after a URL-addressed detail has loaded. */
+  const updateView = useCallback((id: string, update: { label?: string; issue?: Group }) => {
+    setViewStack((stack) => stack.map((view) => (view.id === id ? { ...view, ...update } : view)));
+  }, []);
 
   const popView = useCallback(() => setViewStack((stack) => stack.slice(0, -1)), []);
 
@@ -359,6 +385,41 @@ export function App({
       focus.focus("content");
     },
     [focus, state],
+  );
+
+  /** Apply a parsed URL through the same navigation and view-stack paths as the UI. */
+  const openSentryLocation = useCallback(
+    (location: SentryUrlLocation) => {
+      const target = getScreen(location.screen);
+      if (location.org !== org) switchOrg(location.org);
+      navigateTo(target.group, target.item);
+
+      const view = viewForSentryUrl(location.detail, location.state);
+      if (view) {
+        // Stateless details leave their filters on the list underneath them;
+        // stateful ones carry the seed on the view itself.
+        if (!view.stateKey && location.state) seed(stateKeyOf(target), location.state);
+        pushView(view);
+      } else if (location.state) {
+        seed(stateKeyOf(target), location.state);
+      }
+    },
+    [navigateTo, org, pushView, seed, switchOrg],
+  );
+
+  /** Parse one dialog submission, keeping expected failures inside the dialog. */
+  const submitSentryUrl = useCallback(
+    (url: string): SentryUrlFailure | undefined => {
+      const result = parseSentryUrl(url);
+      if (result.kind !== "location") {
+        recordSentryUrlFailure(result, "command_palette");
+        return result;
+      }
+      openSentryLocation(result.location);
+      setShowOpenUrl(false);
+      return undefined;
+    },
+    [openSentryLocation],
   );
 
   /**
@@ -501,6 +562,9 @@ export function App({
         case "sentry.app.switchOrg":
           setShowOrgPicker(true);
           return;
+        case "sentry.app.openUrl":
+          setShowOpenUrl(true);
+          return;
         case "sentry.app.update":
           runUpdate();
           return;
@@ -553,6 +617,8 @@ export function App({
   useKeyboard((key) => {
     routeKeyOwnership(
       [
+        // 0. The URL prompt owns the keyboard while its input is focused.
+        () => (showOpenUrl ? "focused" : "notMine"),
         // 0. The palette owns every key while open. It runs its own listener
         // for the cursor and Enter, and everything it doesn't claim is text
         // for its query input — so this handler only has to end the chain.
@@ -608,7 +674,16 @@ export function App({
           setShowPalette(true);
           return "mine";
         },
-        // 1d. A screen's own text input — Seer's composer — owns Enter (send)
+        // 1d. Opening a URL is global too, including while a text input owns
+        // focus. A modifier chord cannot be useful input in either field.
+        () => {
+          if (!matchesCommand("sentry.app.openUrl", key)) return "notMine";
+          if (state.searchFocused) state.cancelSearch();
+          if (screenActions.current?.inputFocused?.()) screenActions.current.blurInput?.();
+          setShowOpenUrl(true);
+          return "mine";
+        },
+        // 1e. A screen's own text input — Seer's composer — owns Enter (send)
         // and Escape (release). It sits above the app's search handler because
         // the two are different inputs, and above the global commands because
         // otherwise `r` would resolve an issue mid-sentence. Tab still moves
@@ -1018,6 +1093,7 @@ export function App({
     notify: showNotice,
     activateRow,
     registerActions,
+    updateView,
   };
 
   return (
@@ -1125,6 +1201,10 @@ export function App({
           onRun={runPaletteAction}
           onClose={() => setShowPalette(false)}
         />
+      ) : null}
+
+      {showOpenUrl ? (
+        <OpenSentryUrlDialog onSubmit={submitSentryUrl} onClose={() => setShowOpenUrl(false)} />
       ) : null}
 
       {showOrgPicker ? (

@@ -15,7 +15,12 @@ import { resolveInitialTheme, ThemeProvider } from "~/ui/theme";
  * Owns the renderer lifecycle. `renderer.destroy()` must run on every exit path
  * or the terminal is left in `-echo`/`-icanon` and the user has to run `reset`.
  */
-export async function runApp({ client, org, projectsByOrg }: AppContext): Promise<void> {
+export async function runApp({
+  client,
+  org,
+  projectsByOrg,
+  initialLocation,
+}: AppContext): Promise<void> {
   const preference = parseThemePreference(process.env["SENTRY_TUI_THEME"]);
   const renderer = await createCliRenderer({
     screenMode: "alternate-screen",
@@ -87,6 +92,7 @@ export async function runApp({ client, org, projectsByOrg }: AppContext): Promis
           onRestart={(path) => void restart(path)}
           client={client}
           org={org}
+          initialLocation={initialLocation}
           initialProjectsByOrg={projectsByOrg}
         />
       </ErrorBoundary>

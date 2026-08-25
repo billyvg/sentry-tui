@@ -146,6 +146,21 @@ function initialData(key: string, selectedProjects: readonly string[] = []): Scr
   };
 }
 
+/** Apply a route or pushed-view seed to a fresh slice. */
+function seededData(base: ScreenStateData, values: ScreenStateSeed): ScreenStateData {
+  const query = values.query ?? base.searchQuery;
+  return {
+    ...base,
+    searchQuery: query,
+    committedQuery: query,
+    queryBeforeEdit: query,
+    sort: values.sort ?? base.sort,
+    statsPeriod: values.statsPeriod ?? base.statsPeriod,
+    selectedProjects: values.selectedProjects ?? base.selectedProjects,
+    selectedEnvs: values.selectedEnvs ?? base.selectedEnvs,
+  };
+}
+
 function sameStatus(a: ScreenStatus, b: ScreenStatus): boolean {
   return a.loading === b.loading && a.since === b.since && a.error === b.error && a.noun === b.noun;
 }
@@ -161,9 +176,14 @@ function sameStatus(a: ScreenStatus, b: ScreenStatus): boolean {
 export function useScreenState(
   stateKey: string | undefined,
   initialSelectedProjects: readonly string[] = [],
+  initialSeed?: ScreenStateSeed,
 ): ScreenStateStore {
-  const [states, setStates] = useState<ReadonlyMap<string, ScreenStateData>>(() => new Map());
   const key = stateKey ?? UNREGISTERED_KEY;
+  const [states, setStates] = useState<ReadonlyMap<string, ScreenStateData>>(() =>
+    initialSeed
+      ? new Map([[key, seededData(initialData(key, initialSelectedProjects), initialSeed)]])
+      : new Map(),
+  );
   const initialSelectedProjectsRef = useRef(initialSelectedProjects);
   initialSelectedProjectsRef.current = initialSelectedProjects;
 
@@ -234,19 +254,8 @@ export function useScreenState(
 
   const seed = useCallback((target: string, values: ScreenStateSeed) => {
     setStates((previous) => {
-      const base = initialData(target);
-      const query = values.query ?? base.searchQuery;
       const map = new Map(previous);
-      map.set(target, {
-        ...base,
-        searchQuery: query,
-        committedQuery: query,
-        queryBeforeEdit: query,
-        sort: values.sort ?? base.sort,
-        statsPeriod: values.statsPeriod ?? base.statsPeriod,
-        selectedProjects: values.selectedProjects ?? base.selectedProjects,
-        selectedEnvs: values.selectedEnvs ?? base.selectedEnvs,
-      });
+      map.set(target, seededData(initialData(target), values));
       return map;
     });
   }, []);
