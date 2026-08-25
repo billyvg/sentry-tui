@@ -123,7 +123,7 @@ test("a dashboard keeps its own project scope instead of the remembered org defa
     );
     expect(widgetCalls.length).toBeGreaterThan(0);
     for (const url of widgetCalls) {
-      expect(new URL(url).searchParams.getAll("project")).toEqual([]);
+      expect(new URL(url).searchParams.getAll("project")).toEqual(["-1"]);
     }
   } finally {
     await h.cleanup();

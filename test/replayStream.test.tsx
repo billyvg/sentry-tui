@@ -251,6 +251,7 @@ test("the index is fetched from the replays endpoint, newest first", async () =>
     expect(request).toContain("sort=-started_at");
     expect(request).toContain("statsPeriod=14d");
     expect(request).toContain("queryReferrer=replayList");
+    expect(new URL(request!).searchParams.getAll("project")).toEqual(["-1"]);
     // Compound fields are collapsed to their root: the backend cannot be asked
     // for `os.name`, only `os`.
     expect(request).toContain("field=os");

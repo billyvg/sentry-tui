@@ -127,8 +127,8 @@ test("o opens the picker and lists the token's organizations by slug", async () 
   }
 });
 
-test("selecting an org refetches the stream against it and stores the default", async () => {
-  const { client, listedOrgs } = stubClient();
+test("selecting an org refetches all accessible projects and stores the default", async () => {
+  const { client, listedOrgs, projectQueries } = stubClient();
   const h = await renderApp(client);
   try {
     await h.waitForFrame((f) => f.includes("acmeError"));
@@ -148,6 +148,7 @@ test("selecting an org refetches the stream against it and stores the default", 
     // The old org's rows are gone rather than left behind under the new slug.
     expect(frame).not.toContain("acmeError");
     expect(listedOrgs).toContain("globex");
+    expect(projectQueries.findLast((query) => query.org === "globex")?.projects).toEqual(["-1"]);
 
     expect((await readConfig()).org).toBe("globex");
   } finally {
