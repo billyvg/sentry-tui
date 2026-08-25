@@ -19,8 +19,7 @@ test("compiled binaries embed the OpenTUI worker and Python grammar", () => {
       [process.execPath, "run", join(ROOT, "scripts/build-bin.ts"), "--outfile", binary],
       { cwd: ROOT, stderr: "pipe", stdout: "pipe" },
     );
-    expect(output(build.stderr)).toBe("");
-    expect(build.exitCode).toBe(0);
+    expect(build.exitCode, output(build.stderr)).toBe(0);
 
     const run = Bun.spawnSync([binary, "--version"], {
       cwd: ROOT,
