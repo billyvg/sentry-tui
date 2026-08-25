@@ -5,6 +5,7 @@ import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
 import {
   dashboardListFixture,
+  defaultStarredPrebuiltDashboardsFixture,
   prebuiltDashboardsFixture,
   starredDashboardsFixture,
 } from "./dashboard-fixtures";
@@ -140,50 +141,24 @@ test("All Dashboards pins favorites so they cannot fall past the first page", as
   }
 });
 
-test("the API's empty default-starred prebuilt rows show Web's seven widgets", async () => {
+test("the API's empty default-starred prebuilt rows show Web's widget counts", async () => {
   const h = await renderDashboards(
-    stubClient({
-      dashboards: [
-        {
-          id: "906",
-          title: "Web Vitals",
-          widgetDisplay: [],
-          prebuiltId: 6,
-          isFavorited: true,
-          projects: [],
-          environment: [],
-        },
-        {
-          id: "912",
-          title: "Backend Overview",
-          widgetDisplay: [],
-          prebuiltId: 12,
-          isFavorited: true,
-          projects: [],
-          environment: [],
-        },
-        {
-          id: "916",
-          title: "AI Agents Overview",
-          widgetDisplay: [],
-          prebuiltId: 16,
-          isFavorited: true,
-          projects: [],
-          environment: [],
-        },
-      ],
-    }),
+    stubClient({ dashboards: defaultStarredPrebuiltDashboardsFixture }),
   );
   try {
     await h.waitForFrame((f) => f.includes("AI Agents Overview"));
 
-    for (const title of ["Web Vitals", "Backend Overview", "AI Agents Overview"]) {
+    for (const [title, count] of [
+      ["Web Vitals", 8],
+      ["Backend Overview", 7],
+      ["AI Agents Overview", 7],
+    ] as const) {
       const row = h
         .frame()
         .split("\n")
         .find((line) => line.includes(title));
       expect(row).toBeDefined();
-      expect(row).toMatch(new RegExp(`${title}\\s+7\\s+`));
+      expect(row).toMatch(new RegExp(`${title}\\s+${count}\\s+`));
     }
   } finally {
     await h.cleanup();

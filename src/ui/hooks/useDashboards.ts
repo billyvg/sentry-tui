@@ -16,6 +16,7 @@ import {
   toAsyncError,
   type AsyncStatus,
 } from "~/core/async";
+import { withPrebuiltListMetadata } from "~/core/prebuiltDashboards";
 import { NO_NAV_EXTRAS, type SecondaryNavExtras } from "~/ui/lib/navSections";
 
 export interface DashboardsQuery {
@@ -64,7 +65,12 @@ export function useDashboards(
       try {
         const page = await listDashboards(client, { org, filter, query, sort, signal });
         if (cancelled) return;
-        setStatus(resolved(Array.isArray(page.data) ? page.data : [], Date.now()));
+        setStatus(
+          resolved(
+            Array.isArray(page.data) ? page.data.map(withPrebuiltListMetadata) : [],
+            Date.now(),
+          ),
+        );
         setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
@@ -109,7 +115,7 @@ export function useStarredDashboards(
 
     void listStarredDashboards(client, { org, signal: controller.signal })
       .then((data) => {
-        if (!cancelled) setDashboards(data);
+        if (!cancelled) setDashboards(data.map(withPrebuiltListMetadata));
       })
       .catch(() => {
         if (!cancelled) setDashboards([]);

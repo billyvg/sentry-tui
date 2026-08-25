@@ -6,6 +6,7 @@ import { App } from "~/ui/App";
 import {
   dashboardDetailFixture,
   dashboardListFixture,
+  defaultStarredPrebuiltDashboardsFixture,
   widgetBarRowsFixture,
   widgetCountRowsFixture,
   widgetTableRowsFixture,
@@ -19,6 +20,7 @@ const WIDTH = 120;
 const HEIGHT = 44;
 
 interface StubOptions {
+  dashboards?: unknown;
   detail?: unknown;
   detailStatus?: number;
   /** Every URL the client asked for, in order. */
@@ -26,6 +28,7 @@ interface StubOptions {
 }
 
 function stubClient({
+  dashboards = dashboardListFixture,
   detail = dashboardDetailFixture,
   detailStatus = 200,
   calls,
@@ -44,7 +47,7 @@ function stubClient({
     if (/\/dashboards\/\d+\//.test(url)) {
       return detailStatus === 200 ? json(detail) : json({ detail: "nope" }, detailStatus);
     }
-    if (url.includes("/dashboards/")) return json(dashboardListFixture);
+    if (url.includes("/dashboards/")) return json(dashboards);
 
     if (url.includes("/events-stats/")) return json({ data: widgetTimeseriesFixture });
     if (url.includes("/events/")) {
@@ -351,21 +354,54 @@ test("a dashboard with no widgets says so", async () => {
   }
 });
 
-test("a Sentry Built dashboard says why the API has no widgets for it", async () => {
-  // Prebuilt dashboards keep their widgets in the web app's own
-  // `prebuiltConfigs`, so the detail endpoint answers with the shell alone —
-  // which must not read as "somebody emptied this dashboard".
+test("a Sentry Built dashboard hydrates the widgets its API shell omits", async () => {
+  const aiAgents = defaultStarredPrebuiltDashboardsFixture[2]!;
+  const calls: string[] = [];
   const h = await renderApp(
     stubClient({
-      detail: { ...dashboardDetailFixture, widgets: [], prebuiltId: 16 },
+      dashboards: [aiAgents],
+      detail: {
+        id: aiAgents.id,
+        title: aiAgents.title,
+        widgets: [],
+        projects: [],
+        environment: [],
+        prebuiltId: aiAgents.prebuiltId,
+      },
+      calls,
+    }),
+  );
+  try {
+    await h.waitForFrame((f) => f.includes("AI Agents Overview"));
+    await h.press((i) => i.pressEnter());
+
+    await h.waitForFrame((f) => f.includes("Agent Runs"));
+    expect(h.frame()).toContain("Estimated Cost");
+    expect(h.frame()).toContain("widget 1 of 7");
+    expect(h.frame()).not.toContain("no widgets");
+
+    await h.waitForFrame(() => calls.some((url) => url.includes("/events-stats/")));
+    const firstWidgetCall = calls.find((url) => url.includes("/events-stats/"));
+    expect(firstWidgetCall).toBeDefined();
+    expect(new URL(firstWidgetCall!).searchParams.get("dataset")).toBe("spans");
+    expect(new URL(firstWidgetCall!).searchParams.get("query")).toBe("gen_ai.operation.type:agent");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("an unbundled Sentry Built dashboard explains the missing Web config", async () => {
+  const h = await renderApp(
+    stubClient({
+      detail: { ...dashboardDetailFixture, widgets: [], prebuiltId: 999 },
     }),
   );
   try {
     await h.waitForFrame((f) => f.includes("Checkout Health"));
     await h.press((i) => i.pressEnter());
 
-    await h.waitForFrame((f) => f.includes("Sentry Built dashboards have no widgets"));
-    expect(h.frame()).toContain("defined in the web app");
+    await h.waitForFrame((f) => f.includes("not bundled in this version"));
+    expect(h.frame()).toContain("widgets live in Sentry Web");
     expect(h.frame()).not.toContain("Add one on sentry.io");
   } finally {
     await h.cleanup();

@@ -16,6 +16,7 @@ import {
   toAsyncError,
   type AsyncStatus,
 } from "~/core/async";
+import { withPrebuiltDetails } from "~/core/prebuiltDashboards";
 
 /** Fetch a dashboard and its widget definitions. One request. */
 export function useDashboardDetail(
@@ -39,7 +40,7 @@ export function useDashboardDetail(
     void (async () => {
       try {
         const dashboard = await getDashboard(client, { org, id, signal });
-        if (!cancelled) setStatus(resolved(dashboard, Date.now()));
+        if (!cancelled) setStatus(resolved(withPrebuiltDetails(dashboard), Date.now()));
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setStatus(rejected(statusRef.current, toAsyncError(error)));

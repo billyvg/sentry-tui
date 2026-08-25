@@ -251,12 +251,12 @@ export function DashboardWidgetGrid({
         <box style={{ flexDirection: "column", padding: 1 }}>
           <text fg={theme.text}>
             {isPrebuilt
-              ? "Sentry Built dashboards have no widgets to fetch."
+              ? "This Sentry Built dashboard is not bundled in this version."
               : "This dashboard has no widgets."}
           </text>
           <text fg={theme.muted}>
             {isPrebuilt
-              ? "Their widgets are defined in the web app rather than stored on the dashboard (views/dashboards/utils/prebuiltConfigs/), so the API returns the dashboard without them."
+              ? "Its widgets live in Sentry Web rather than the API; open it on sentry.io to view them."
               : "Add one on sentry.io — this client is read-only."}
           </text>
         </box>

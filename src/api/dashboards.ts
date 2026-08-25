@@ -59,7 +59,7 @@ export interface DashboardPermissions {
 export interface DashboardListItem {
   id: string;
   title: string;
-  /** One entry per widget — its length is the table's Widgets column. */
+  /** One entry per widget; empty for prebuilts whose config lives in Sentry Web. */
   widgetDisplay: WidgetDisplayType[];
   description?: string;
   createdBy?: DashboardOwner | null;
@@ -140,33 +140,6 @@ export interface ListDashboardsParams {
   signal?: AbortSignal;
 }
 
-/**
- * Widget shapes for Sentry's three pre-favorited prebuilt dashboards.
- *
- * Prebuilt dashboard records intentionally contain no widgets: Web replaces
- * the API's empty `widgetDisplay` from its own `PREBUILT_DASHBOARDS` configs.
- * These are the three entries the backend marks `pre_favorited`, so they are
- * the ones every user sees mixed into All Dashboards by default.
- */
-const PRE_FAVORITED_PREBUILT_WIDGET_DISPLAYS: Readonly<
-  Partial<Record<number, readonly WidgetDisplayType[]>>
-> = {
-  // PrebuiltDashboardId.WEB_VITALS
-  6: ["area", "big_number", "big_number", "big_number", "big_number", "table", "table"],
-  // PrebuiltDashboardId.BACKEND_OVERVIEW
-  12: ["line", "line", "bar", "line", "line", "line", "table"],
-  // PrebuiltDashboardId.AI_AGENTS_OVERVIEW
-  16: ["bar", "bar", "line", "bar", "bar", "bar", "agents_traces_table"],
-};
-
-/** Fill the widget metadata the dashboard API deliberately omits for prebuilts. */
-function withPrebuiltWidgetDisplays(dashboard: DashboardListItem): DashboardListItem {
-  if (dashboard.widgetDisplay.length > 0 || dashboard.prebuiltId == null) return dashboard;
-
-  const widgetDisplay = PRE_FAVORITED_PREBUILT_WIDGET_DISPLAYS[dashboard.prebuiltId];
-  return widgetDisplay ? { ...dashboard, widgetDisplay: [...widgetDisplay] } : dashboard;
-}
-
 /** List the org's dashboards. */
 export async function listDashboards(
   client: SentryClient,
@@ -185,10 +158,7 @@ export async function listDashboards(
     },
     signal,
   });
-  return {
-    ...page,
-    data: Array.isArray(page.data) ? page.data.map(withPrebuiltWidgetDisplays) : [],
-  };
+  return page;
 }
 
 /**
@@ -210,7 +180,7 @@ export async function listStarredDashboards(
     `/organizations/${org}/dashboards/starred/`,
     { query: { per_page: limit }, signal },
   );
-  return Array.isArray(page.data) ? page.data.map(withPrebuiltWidgetDisplays) : [];
+  return Array.isArray(page.data) ? page.data : [];
 }
 
 // ---------------------------------------------------------------------------

@@ -76,6 +76,37 @@ export const starredDashboardsFixture: DashboardListItem[] = [
   },
 ];
 
+/** Raw API rows for Sentry's default-starred prebuilts: no bundled metadata. */
+export const defaultStarredPrebuiltDashboardsFixture: DashboardListItem[] = [
+  {
+    id: "906",
+    title: "Web Vitals",
+    widgetDisplay: [],
+    prebuiltId: 6,
+    isFavorited: true,
+    projects: [],
+    environment: [],
+  },
+  {
+    id: "912",
+    title: "Backend Overview",
+    widgetDisplay: [],
+    prebuiltId: 12,
+    isFavorited: true,
+    projects: [],
+    environment: [],
+  },
+  {
+    id: "916",
+    title: "AI Agents Overview",
+    widgetDisplay: [],
+    prebuiltId: 16,
+    isFavorited: true,
+    projects: [],
+    environment: [],
+  },
+];
+
 // ---------------------------------------------------------------------------
 // Dashboard detail and widgets
 // ---------------------------------------------------------------------------
