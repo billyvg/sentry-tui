@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,8 +10,8 @@ function output(stream: Uint8Array): string {
   return new TextDecoder().decode(stream);
 }
 
-test("compiled binaries embed the OpenTUI worker and Python grammar", () => {
-  const tempDir = mkdtempSync(join(tmpdir(), "sentry-tui-python-syntax-"));
+test("compiled binaries embed stack-frame grammars and omit Zig", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "sentry-tui-syntax-"));
   const binary = join(tempDir, process.platform === "win32" ? "probe.exe" : "probe");
 
   try {
@@ -20,6 +20,7 @@ test("compiled binaries embed the OpenTUI worker and Python grammar", () => {
       { cwd: ROOT, stderr: "pipe", stdout: "pipe" },
     );
     expect(build.exitCode, output(build.stderr)).toBe(0);
+    expect(readFileSync(binary).includes("tree-sitter-zig")).toBe(false);
 
     const run = Bun.spawnSync([binary, "--version"], {
       cwd: ROOT,
@@ -37,4 +38,4 @@ test("compiled binaries embed the OpenTUI worker and Python grammar", () => {
   } finally {
     rmSync(tempDir, { force: true, recursive: true });
   }
-}, 30_000);
+}, 60_000);

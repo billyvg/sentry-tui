@@ -149,6 +149,9 @@ describe("generated manifests", () => {
     const releasePackager = await read(".github/scripts/package-release.sh");
 
     expect(notice).toContain("tree-sitter-python");
+    expect(notice).toContain("tree-sitter-ruby");
+    expect(notice).toContain("tree-sitter-php");
+    expect(notice).toContain("tree-sitter-go");
     expect(notice).toContain("Copyright (c) 2016 Max Brunsfeld");
     expect(npmBuilder).toContain('join(dir, "THIRD_PARTY_NOTICES")');
     expect(npmBuilder).toContain('join(dir, "LICENSE")');

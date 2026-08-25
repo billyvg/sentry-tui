@@ -180,16 +180,19 @@ describe("frame helpers", () => {
     expect(frameIsExpandable(frame({ vars: {} }))).toBe(false);
   });
 
-  test("maps filenames to bundled grammars only", () => {
+  test("maps filenames to built-in grammars only", () => {
     expect(filetypeFor(frame({ filename: "a.tsx" }))).toBe("tsx");
     expect(filetypeFor(frame({ filename: "a.ts" }))).toBe("typescript");
     expect(filetypeFor(frame({ filename: "a.js" }))).toBe("javascript");
     // No bundled grammar — renders unhighlighted rather than failing.
-    expect(filetypeFor(frame({ filename: "a.rb" }))).toBeUndefined();
+    expect(filetypeFor(frame({ filename: "a.zig" }))).toBeUndefined();
   });
 
-  test("maps Python frames to the Python grammar", () => {
+  test("maps server-language frames to bundled grammars", () => {
     expect(filetypeFor(frame({ filename: "worker.py" }))).toBe("python");
     expect(filetypeFor(frame({ filename: "worker.pyi" }))).toBe("python");
+    expect(filetypeFor(frame({ filename: "worker.rb" }))).toBe("ruby");
+    expect(filetypeFor(frame({ filename: "worker.php" }))).toBe("php");
+    expect(filetypeFor(frame({ filename: "worker.go" }))).toBe("go");
   });
 });

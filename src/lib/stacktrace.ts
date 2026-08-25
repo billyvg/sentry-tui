@@ -175,6 +175,9 @@ export function filetypeFor(frame: FrameLike): string | undefined {
   if (name.endsWith(".js") || name.endsWith(".jsx")) return "javascript";
   if (name.endsWith(".md")) return "markdown";
   if (name.endsWith(".py") || name.endsWith(".pyi")) return "python";
+  if (name.endsWith(".rb")) return "ruby";
+  if (name.endsWith(".php")) return "php";
+  if (name.endsWith(".go")) return "go";
   // Languages without a bundled grammar render unhighlighted rather than
   // failing.
   return undefined;
