@@ -27,6 +27,7 @@ test("starts with the primary navigation collapsed around its glyphs", async () 
     expect(frame).not.toContain("Dashboards");
     expect(frame).not.toContain("Explore");
     expect(frame).toContain("│ D  │");
+    expect(frame).toContain("│ S  │");
   } finally {
     await h.cleanup();
   }

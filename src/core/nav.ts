@@ -67,7 +67,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     id: "seer",
     label: "Seer",
-    glyph: "?",
+    glyph: "S",
     sections: [{ items: ["Ask Seer"] }],
   },
   {

@@ -33,11 +33,9 @@ test("n expands the collapsed rail and escape leaves its labels open", async () 
   }
 });
 
-test("Settings is absent from the compact rail and goto mode", async () => {
+test("Settings is absent from goto mode", async () => {
   const h = await renderApp();
   try {
-    expect(h.frame()).not.toContain("│ S  │");
-
     await h.press((i) => i.pressKey("n"));
     expect(h.frame()).not.toContain("Settings");
   } finally {
