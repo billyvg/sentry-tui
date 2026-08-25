@@ -233,6 +233,8 @@ export interface Organization {
   slug: string;
   name: string;
   avatar?: Avatar;
+  /** API-exposed organization feature flags, without the `organizations:` prefix. */
+  features?: string[];
 }
 
 /**

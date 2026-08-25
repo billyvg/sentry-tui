@@ -1,5 +1,5 @@
 import { formatKey, primaryKey } from "~/core/commands";
-import { NAV_GROUPS, type NavGroupId } from "~/core/nav";
+import { NAV_GROUPS, type NavGroup, type NavGroupId } from "~/core/nav";
 import { useTheme } from "~/ui/theme";
 import type { Hotkey } from "~/lib/hotkeys";
 import { fitText, measureTextWidth } from "~/lib/text";
@@ -105,6 +105,8 @@ interface NavRailProps {
   onExpand?: () => void;
   /** Open the organization picker — the header is a control, not a caption. */
   onOrgPress?: () => void;
+  /** Feature-filtered primary destinations. */
+  groups?: readonly NavGroup[];
 }
 
 /** Primary navigation rail — shows icons (when supported) plus text labels. */
@@ -118,6 +120,7 @@ export function NavRail({
   onSelect,
   onExpand,
   onOrgPress,
+  groups = NAV_GROUPS,
 }: NavRailProps) {
   const theme = useTheme();
   /** Usable content width: total minus borders (left+right) and horizontal padding. */
@@ -195,7 +198,7 @@ export function NavRail({
       ) : null}
 
       <box style={{ flexDirection: "column", gap: hasImages ? NAV_ITEM_GAP : 0 }}>
-        {NAV_GROUPS.map((group) => {
+        {groups.map((group) => {
           const isActive = group.id === active;
 
           // The row wrapper exists even without icons: it stretches to the

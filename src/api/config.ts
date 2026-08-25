@@ -29,6 +29,12 @@ export interface StoredConfig {
   org?: string;
   /** Last explicit project selection for each organization. */
   projectsByOrg?: Record<string, string[]>;
+  /** Seer Code Mode selection, matching the web client's persisted override. */
+  seerCodeModeByOrg?: Record<string, "off" | "on" | "only">;
+  /** Whether the employee-only Seer bash tools are enabled. */
+  seerBashModeByOrg?: Record<string, boolean>;
+  /** Whether feature-flagged Seer reasoning text is expanded. */
+  seerShowThinkingByOrg?: Record<string, boolean>;
   /**
    * Pre-0.2 installs kept the token here. Read for one last time by
    * {@link migrateLegacyToken}, then removed.
@@ -60,6 +66,28 @@ export function normalizeProjectsByOrg(value: unknown): Record<string, string[]>
   for (const [org, projects] of Object.entries(value)) {
     if (!Array.isArray(projects)) continue;
     normalized[org] = projects.filter((project): project is string => typeof project === "string");
+  }
+  return normalized;
+}
+
+/** Keep only valid per-organization Seer Code Mode choices from editable config. */
+export function normalizeSeerCodeModeByOrg(value: unknown): Record<string, "off" | "on" | "only"> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const normalized: Record<string, "off" | "on" | "only"> = {};
+  for (const [org, mode] of Object.entries(value)) {
+    if (mode === "off" || mode === "on" || mode === "only") normalized[org] = mode;
+  }
+  return normalized;
+}
+
+/** Keep only boolean per-organization preferences from editable config. */
+export function normalizeBooleansByOrg(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const normalized: Record<string, boolean> = {};
+  for (const [org, enabled] of Object.entries(value)) {
+    if (typeof enabled === "boolean") normalized[org] = enabled;
   }
   return normalized;
 }

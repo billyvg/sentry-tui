@@ -19,6 +19,10 @@ export async function runApp({
   client,
   org,
   projectsByOrg,
+  seerCodeModeByOrg,
+  seerBashModeByOrg,
+  seerShowThinkingByOrg,
+  user,
   initialLocation,
 }: AppContext): Promise<void> {
   const preference = parseThemePreference(process.env["SENTRY_TUI_THEME"]);
@@ -92,8 +96,12 @@ export async function runApp({
           onRestart={(path) => void restart(path)}
           client={client}
           org={org}
+          user={user}
           initialLocation={initialLocation}
           initialProjectsByOrg={projectsByOrg}
+          initialSeerCodeModeByOrg={seerCodeModeByOrg}
+          initialSeerBashModeByOrg={seerBashModeByOrg}
+          initialSeerShowThinkingByOrg={seerShowThinkingByOrg}
         />
       </ErrorBoundary>
     </ThemeProvider>,
