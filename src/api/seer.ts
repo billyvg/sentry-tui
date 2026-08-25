@@ -19,6 +19,9 @@ export const SEER_STALE_TIMEOUT_MS = 120_000;
 /** Runs are keyed by a UUID (`sentry_run_id`) or a legacy numeric id. */
 export type SeerRunId = string | number;
 
+/** The server-side tool selection exposed by Seer's employee slash commands. */
+export type SeerCodeMode = "off" | "on" | "only";
+
 export type SeerRole = "user" | "assistant" | "tool_use";
 
 export type SeerSessionStatus = "processing" | "completed" | "error" | "awaiting_user_input";
@@ -56,9 +59,71 @@ export interface SeerToolLink {
   } | null;
 }
 
+/** One Sentry API or library call made inside a Code Mode execute. */
+export interface SeerCallRecord {
+  id: number;
+  kind: "api" | "lib";
+  body?: string;
+  body_truncated?: boolean;
+  error?: string;
+  method?: string;
+  name?: string;
+  params?: Record<string, unknown>;
+  parent?: number | null;
+  path?: string;
+  path_params?: Record<string, string>;
+  resolved_path?: string;
+  status?: number;
+  title?: string;
+}
+
+/** An artifact created by either a classic tool or Code Mode. */
+export interface SeerArtifact {
+  data: Record<string, unknown> | null;
+  key: string;
+  reason: string;
+}
+
+export interface SeerFilePatch {
+  diff: string;
+  repo_name: string;
+  patch: {
+    path: string;
+    added: number;
+    removed: number;
+    [key: string]: unknown;
+  };
+}
+
+export interface SeerRepoPRState {
+  branch_name: string | null;
+  commit_sha: string | null;
+  pr_creation_error: string | null;
+  pr_creation_status: "creating" | "completed" | "error" | (string & {}) | null;
+  pr_id: number | null;
+  pr_number: number | null;
+  pr_url: string | null;
+  repo_name: string;
+  title: string | null;
+}
+
 export interface SeerTodoItem {
   content: string;
   status: "pending" | "in_progress" | "completed";
+}
+
+/** Result aligned to a tool call by id, including Code Mode's effects bus. */
+export interface SeerToolResult {
+  content: string;
+  tool_call_function: string;
+  tool_call_id: string;
+  structuredContent?: {
+    agentWriteApproval?: Record<string, unknown>;
+    artifacts?: SeerArtifact[];
+    calls?: SeerCallRecord[];
+    links?: SeerToolLink[];
+    todos?: SeerTodoItem[];
+  } | null;
 }
 
 /** One turn in the conversation. */
@@ -70,6 +135,24 @@ export interface SeerBlock {
   todos?: SeerTodoItem[] | null;
   /** Positionally aligned with `message.tool_calls`. */
   tool_links?: Array<SeerToolLink | null> | null;
+  /** In-flight calls mirrored before a Code Mode execute returns its result. */
+  live_calls?: SeerCallRecord[] | null;
+  /** Positionally independent results correlated through `tool_call_id`. */
+  tool_results?: Array<SeerToolResult | null> | null;
+  artifacts?: SeerArtifact[] | null;
+  file_patches?: SeerFilePatch[] | null;
+  merged_file_patches?: SeerFilePatch[] | null;
+  pr_commit_shas?: Record<string, string> | null;
+}
+
+export interface SeerPendingUserInput {
+  id: string;
+  input_type:
+    | "file_change_approval"
+    | "agent_write_approval"
+    | "ask_user_question"
+    | "reauth_monitoring_provider";
+  data: Record<string, unknown>;
 }
 
 export interface SeerSession {
@@ -77,6 +160,16 @@ export interface SeerSession {
   status: SeerSessionStatus;
   updated_at: string;
   owner_user_id?: number | null;
+  pending_user_input?: SeerPendingUserInput | null;
+  repo_pr_states?: Record<string, SeerRepoPRState>;
+}
+
+/** One recent Explorer run returned by the shared Seer run index. */
+export interface SeerRun {
+  id: string;
+  title: string | null;
+  dateCreated: string;
+  lastTriggeredAt: string;
 }
 
 /** GET response — `session` is null (with a 404) for an unknown run. */
@@ -113,6 +206,12 @@ export interface SendSeerMessageParams {
   runId?: SeerRunId | null;
   /** Route the user is "on", surfaced to the agent as context. */
   pageName?: string;
+  /** Display timestamps, local first and UTC second, matching the web request. */
+  sentAt?: string[];
+  /** Feature-gated employee override; omitted when the flag is unavailable. */
+  codeMode?: SeerCodeMode;
+  /** Feature-gated employee override; omitted when the flag is unavailable. */
+  bashMode?: boolean;
   signal?: AbortSignal;
 }
 
@@ -122,7 +221,17 @@ export interface SendSeerMessageParams {
  */
 export async function sendSeerMessage(
   client: SentryClient,
-  { org, query, insertIndex, runId, pageName, signal }: SendSeerMessageParams,
+  {
+    org,
+    query,
+    insertIndex,
+    runId,
+    pageName,
+    sentAt,
+    codeMode,
+    bashMode,
+    signal,
+  }: SendSeerMessageParams,
 ): Promise<SeerRunId> {
   const page = await client.request<SeerChatResponse>(
     runId == null ? basePath(org) : runPath(org, runId),
@@ -132,11 +241,26 @@ export async function sendSeerMessage(
         query,
         insert_index: insertIndex,
         page_name: pageName,
+        sent_at: sentAt,
+        override_code_mode_enable: codeMode,
+        override_bash_mode_enabled: bashMode,
       },
       signal,
     },
   );
   return pickRunId(page.data);
+}
+
+/** List the current user's recent Explorer conversations. */
+export async function listSeerRuns(
+  client: SentryClient,
+  { org, signal, limit = 20 }: { org: string; signal?: AbortSignal; limit?: number },
+): Promise<SeerRun[]> {
+  const page = await client.request<SeerRun[]>(`/organizations/${org}/seer/runs/`, {
+    query: { per_page: limit, query: "is:mine type:explorer" },
+    signal,
+  });
+  return page.data;
 }
 
 /** Poll a run's current state. Returns null when the run no longer exists. */
@@ -166,6 +290,77 @@ export async function interruptSeerRun(
       signal,
     },
   );
+}
+
+/** Respond to an approval or question that paused the current run. */
+export async function respondToSeerInput(
+  client: SentryClient,
+  {
+    org,
+    runId,
+    inputId,
+    responseData,
+    signal,
+  }: {
+    org: string;
+    runId: SeerRunId;
+    inputId: string;
+    responseData?: Record<string, unknown>;
+    signal?: AbortSignal;
+  },
+): Promise<void> {
+  await client.request(
+    `/organizations/${org}/seer/explorer-update/${encodeURIComponent(String(runId))}/`,
+    {
+      method: "POST",
+      body: {
+        payload: {
+          type: "user_input_response",
+          input_id: inputId,
+          response_data: responseData,
+        },
+      },
+      signal,
+    },
+  );
+}
+
+/** Create or update a pull request for one repository's accepted Code Mode patches. */
+export async function createSeerPR(
+  client: SentryClient,
+  {
+    org,
+    runId,
+    repoName,
+    signal,
+  }: { org: string; runId: SeerRunId; repoName: string; signal?: AbortSignal },
+): Promise<void> {
+  await client.request(
+    `/organizations/${org}/seer/explorer-update/${encodeURIComponent(String(runId))}/`,
+    {
+      method: "POST",
+      body: { payload: { type: "create_pr", repo_name: repoName } },
+      signal,
+    },
+  );
+}
+
+/** Request the short-lived capability scopes required for a Code Mode write. */
+export async function approveSeerWrite(
+  client: SentryClient,
+  {
+    org,
+    sessionId,
+    scopes,
+    signal,
+  }: { org: string; sessionId: string; scopes: string[]; signal?: AbortSignal },
+): Promise<string[]> {
+  const page = await client.request<{ scopes: string[] }>(`/organizations/${org}/agent/approve/`, {
+    method: "POST",
+    body: { sessionId, scopes },
+    signal,
+  });
+  return page.data.scopes;
 }
 
 /**

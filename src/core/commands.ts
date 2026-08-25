@@ -249,6 +249,20 @@ export const COMMANDS: readonly Command[] = [
     defaultKeys: ["x"],
     description: "Ask Seer to stop the current turn",
   },
+  {
+    id: "sentry.seer.history",
+    title: "Conversation history",
+    category: "seer",
+    defaultKeys: ["H"],
+    description: "Open recent Seer conversations",
+  },
+  {
+    id: "sentry.seer.pushChanges",
+    title: "Create or update pull requests",
+    category: "seer",
+    defaultKeys: ["p"],
+    description: "Push accepted Seer Code Mode changes",
+  },
 
   // view / filter
   {

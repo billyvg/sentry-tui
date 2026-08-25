@@ -132,6 +132,19 @@ test("startup ignores malformed project selections in the user config", async ()
   expect(context.projectsByOrg).toEqual({ acme: ["backend"], empty: [] });
 });
 
+test("startup keeps only valid Seer preferences from editable config", async () => {
+  const context = await bootstrapWithConfig({
+    org: "acme",
+    seerCodeModeByOrg: { acme: "on", globex: "sometimes" },
+    seerBashModeByOrg: { acme: true, globex: "yes" },
+    seerShowThinkingByOrg: { acme: false, globex: 1 },
+  });
+
+  expect(context.seerCodeModeByOrg).toEqual({ acme: "on" });
+  expect(context.seerBashModeByOrg).toEqual({ acme: true });
+  expect(context.seerShowThinkingByOrg).toEqual({ acme: false });
+});
+
 test("a CLI URL supplies the startup organization and initial location", async () => {
   const context = await bootstrapWithConfig({ org: "globex" }, [
     "https://sentry.io/organizations/acme/explore/logs/?query=level%3Aerror",

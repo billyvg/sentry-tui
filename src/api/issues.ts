@@ -214,6 +214,29 @@ export async function getOrganization(
   return page.data;
 }
 
+export interface CurrentUser {
+  id?: string;
+  name?: string;
+  email?: string;
+}
+
+/** Fetch the authenticated account for ownership and employee-only controls. */
+export async function getCurrentUser(
+  client: SentryClient,
+  signal?: AbortSignal,
+): Promise<CurrentUser> {
+  const page = await client.request<Record<string, unknown>>("/users/me/", { signal });
+  const value =
+    page.data && typeof page.data === "object"
+      ? (page.data as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
+  return {
+    ...(typeof value["id"] === "string" ? { id: value["id"] } : {}),
+    ...(typeof value["name"] === "string" ? { name: value["name"] } : {}),
+    ...(typeof value["email"] === "string" ? { email: value["email"] } : {}),
+  };
+}
+
 export async function listOrganizations(
   client: SentryClient,
   signal?: AbortSignal,

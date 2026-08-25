@@ -10,7 +10,7 @@
  */
 
 import { primaryKey } from "~/core/commands";
-import { getNavGroup, NAV_GROUPS, type NavGroupId } from "~/core/nav";
+import { getNavGroup, NAV_GROUPS, type NavGroup, type NavGroupId } from "~/core/nav";
 import { assignHotkeys, type Hotkey } from "~/lib/hotkeys";
 
 /** Where a goto key leads. */
@@ -47,10 +47,13 @@ const RESERVED_KEYS = [primaryKey("sentry.nav.goto"), primaryKey("sentry.app.swi
  * Recomputed per group rather than cached: the item half changes with the group,
  * and the assignment is a handful of string scans.
  */
-export function buildGotoHotkeys(group: NavGroupId): GotoHotkeys {
+export function buildGotoHotkeys(
+  group: NavGroupId,
+  navGroups: readonly NavGroup[] = NAV_GROUPS,
+): GotoHotkeys {
   const items = getNavGroup(group).sections.flatMap((section) => section.items);
   const assigned = assignHotkeys(
-    [...NAV_GROUPS.map((navGroup) => navGroup.label), ...items],
+    [...navGroups.map((navGroup) => navGroup.label), ...items],
     RESERVED_KEYS,
   );
 
@@ -58,7 +61,7 @@ export function buildGotoHotkeys(group: NavGroupId): GotoHotkeys {
   const itemKeys = new Map<string, Hotkey>();
   const byKey = new Map<string, GotoTarget>();
 
-  NAV_GROUPS.forEach((navGroup, index) => {
+  navGroups.forEach((navGroup, index) => {
     const hotkey = assigned[index];
     if (!hotkey) return;
     groups.set(navGroup.id, hotkey);
@@ -66,7 +69,7 @@ export function buildGotoHotkeys(group: NavGroupId): GotoHotkeys {
   });
 
   items.forEach((item, index) => {
-    const hotkey = assigned[NAV_GROUPS.length + index];
+    const hotkey = assigned[navGroups.length + index];
     if (!hotkey) return;
     // Keyed by label because that is what the pane renders; two items in one
     // group sharing a label would share a hint, which is a nav bug either way.

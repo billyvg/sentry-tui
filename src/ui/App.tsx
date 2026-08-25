@@ -3,7 +3,8 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import type { SentryClient } from "~/api/client";
 import { writeConfig } from "~/api/config";
-import { getOrganization } from "~/api/issues";
+import { getCurrentUser, getOrganization, type CurrentUser } from "~/api/issues";
+import type { SeerCodeMode } from "~/api/seer";
 import type { Group } from "~/api/types";
 import { matchesCommand } from "~/core/commands";
 import { buildGotoHotkeys } from "~/core/goto";
@@ -43,7 +44,12 @@ import { useFocusRing } from "~/ui/hooks/useFocusRing";
 import { useNavigationTrace } from "~/ui/hooks/useNavigationTrace";
 import { SeerChatContext, useSeerChat } from "~/ui/hooks/useSeerChat";
 import { useUpdateCheck } from "~/ui/hooks/useUpdateCheck";
-import { rowsOf, useScreenState, type ScreenStatus } from "~/ui/hooks/useScreenState";
+import {
+  rowsOf,
+  useScreenState,
+  type ScreenStateSeed,
+  type ScreenStatus,
+} from "~/ui/hooks/useScreenState";
 import { useSecondaryNavExtras } from "~/ui/hooks/useSecondaryNavExtras";
 import { useTriage } from "~/ui/hooks/useTriage";
 import { navItemsFor, navTargetOf, type NavItemSpec } from "~/ui/lib/navSections";
@@ -76,6 +82,11 @@ export interface AppProps {
   initialLocation?: SentryUrlLocation;
   /** Remembered project selections, keyed by organization slug. */
   initialProjectsByOrg?: Readonly<Record<string, readonly string[]>>;
+  /** Signed-in account metadata for ownership and employee-gated Seer controls. */
+  user?: CurrentUser;
+  initialSeerCodeModeByOrg?: Readonly<Record<string, SeerCodeMode>>;
+  initialSeerBashModeByOrg?: Readonly<Record<string, boolean>>;
+  initialSeerShowThinkingByOrg?: Readonly<Record<string, boolean>>;
   /**
    * Hand the terminal to a newly downloaded build and exit.
    *
@@ -113,6 +124,10 @@ export function App({
   initialScreen = DEFAULT_SCREEN,
   initialLocation,
   initialProjectsByOrg = {},
+  user,
+  initialSeerCodeModeByOrg = {},
+  initialSeerBashModeByOrg = {},
+  initialSeerShowThinkingByOrg = {},
   onRestart,
 }: AppProps) {
   const theme = useTheme();
@@ -124,6 +139,15 @@ export function App({
     ),
   );
   const projectsByOrgRef = useRef(projectsByOrg);
+  const [seerCodeModeByOrg, setSeerCodeModeByOrg] = useState<Record<string, SeerCodeMode>>(() => ({
+    ...initialSeerCodeModeByOrg,
+  }));
+  const [seerBashModeByOrg, setSeerBashModeByOrg] = useState<Record<string, boolean>>(() => ({
+    ...initialSeerBashModeByOrg,
+  }));
+  const [seerShowThinkingByOrg, setSeerShowThinkingByOrg] = useState<Record<string, boolean>>(
+    () => ({ ...initialSeerShowThinkingByOrg }),
+  );
 
   // The open organization. Sourced from the CLI at startup, then owned here so
   // the picker can repoint every screen at once — every fetch in the tree takes
@@ -153,6 +177,13 @@ export function App({
   const [showOpenUrl, setShowOpenUrl] = useState(false);
   const [showOrgPicker, setShowOrgPicker] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
+  const [orgFeatures, setOrgFeatures] = useState<readonly string[] | undefined>();
+  const [currentUser, setCurrentUser] = useState<CurrentUser | undefined>(user);
+  const seerAvailable = orgFeatures === undefined || orgFeatures.includes("seer-explorer");
+  const availableNavGroups = useMemo(
+    () => NAV_GROUPS.filter((group) => group.id !== "seer" || seerAvailable),
+    [seerAvailable],
+  );
 
   // One counter drives every fetch on screen: bumping it re-runs the data
   // hooks' effects, so refresh stays a single command rather than one
@@ -165,15 +196,68 @@ export function App({
     // Drop the previous org's avatar immediately — the wrong face in the rail
     // is worse than none while the new one loads.
     setAvatarUrl(undefined);
+    setOrgFeatures(undefined);
     if (!client || !org) return;
     const controller = new AbortController();
     getOrganization(client, { org, signal: controller.signal })
       .then((orgData) => {
         if (orgData.avatar?.avatarUrl) setAvatarUrl(orgData.avatar.avatarUrl);
+        // An explicit empty list is meaningful: none of the API-exposed
+        // features are enabled. `undefined` above means only "still loading".
+        if (Array.isArray(orgData.features)) setOrgFeatures(orgData.features);
       })
       .catch(() => {});
     return () => controller.abort();
   }, [client, org]);
+
+  // Environment and manually supplied tokens have no account metadata in the
+  // credentials file. Resolve it once so Code Mode employee gates and run
+  // ownership do not silently depend on how the same user authenticated.
+  useEffect(() => {
+    if (user?.email || !client) {
+      setCurrentUser(user);
+      return;
+    }
+    if (activeGroup !== "seer") return;
+    const controller = new AbortController();
+    getCurrentUser(client, controller.signal)
+      .then(setCurrentUser)
+      .catch(() => {});
+    return () => controller.abort();
+  }, [activeGroup, client, user]);
+
+  const setSeerCodeMode = useCallback(
+    (mode: SeerCodeMode) => {
+      setSeerCodeModeByOrg((current) => {
+        const next = { ...current, [org]: mode };
+        void writeConfig({ seerCodeModeByOrg: next }).catch(() => {});
+        return next;
+      });
+    },
+    [org],
+  );
+
+  const setSeerBashMode = useCallback(
+    (enabled: boolean) => {
+      setSeerBashModeByOrg((current) => {
+        const next = { ...current, [org]: enabled };
+        void writeConfig({ seerBashModeByOrg: next }).catch(() => {});
+        return next;
+      });
+    },
+    [org],
+  );
+
+  const setSeerShowThinking = useCallback(
+    (enabled: boolean) => {
+      setSeerShowThinkingByOrg((current) => {
+        const next = { ...current, [org]: enabled };
+        void writeConfig({ seerShowThinkingByOrg: next }).catch(() => {});
+        return next;
+      });
+    },
+    [org],
+  );
 
   const focus = useFocusRing<Region>(REGIONS, "content");
 
@@ -237,7 +321,18 @@ export function App({
   // Seer's conversation outlives its screen: navigating to Issues and back is
   // not a reason to lose the transcript. The hook is inert until the first
   // message, so it costs nothing while the user is anywhere else.
-  const seerChat = useSeerChat(client, org);
+  const seerChat = useSeerChat(client, org, {
+    features: orgFeatures,
+    isEmployee: currentUser?.email?.toLowerCase().endsWith("@sentry.io") === true,
+    userId: currentUser?.id,
+    pageName: screen?.id,
+    codeMode: seerCodeModeByOrg[org] ?? "only",
+    bashMode: seerBashModeByOrg[org] ?? false,
+    showThinking: seerShowThinkingByOrg[org] ?? false,
+    onCodeModeChange: setSeerCodeMode,
+    onBashModeChange: setSeerBashMode,
+    onShowThinkingChange: setSeerShowThinking,
+  });
 
   // What Enter means on the screen that is mounted, registered by the screen
   // itself. Held in a ref because the key router reads it during a keystroke,
@@ -387,6 +482,23 @@ export function App({
     [focus, state],
   );
 
+  /** Navigate to a registered screen from inside another screen. */
+  const navigateToScreen = useCallback(
+    (screenId: ScreenId, initialState?: ScreenStateSeed) => {
+      const target = getScreen(screenId);
+      if (!availableNavGroups.some((group) => group.id === target.group)) return;
+      if (initialState) seed(stateKeyOf(target), initialState);
+      navigateTo(target.group, target.item);
+    },
+    [availableNavGroups, navigateTo, seed],
+  );
+
+  // Feature revocation is authoritative even if Seer was open from a deep
+  // link or while organization details were still loading.
+  useEffect(() => {
+    if (activeGroup === "seer" && !seerAvailable) navigateToScreen(DEFAULT_SCREEN);
+  }, [activeGroup, navigateToScreen, seerAvailable]);
+
   /** Apply a parsed URL through the same navigation and view-stack paths as the UI. */
   const openSentryLocation = useCallback(
     (location: SentryUrlLocation) => {
@@ -476,8 +588,8 @@ export function App({
   // Keys for goto mode, for the group whose items are on screen. Computed only
   // while the mode is open so nothing else can accidentally print them.
   const gotoHotkeys = useMemo(
-    () => (gotoMode ? buildGotoHotkeys(railGroup) : null),
-    [gotoMode, railGroup],
+    () => (gotoMode ? buildGotoHotkeys(railGroup, availableNavGroups) : null),
+    [gotoMode, railGroup, availableNavGroups],
   );
 
   /**
@@ -526,12 +638,15 @@ export function App({
 
   const paletteActions = useMemo(
     () =>
-      buildPaletteActions({
-        streamView: listActive,
-        hasIssue: Boolean(activeIssue),
-        updateReady,
-      }),
-    [listActive, activeIssue, updateReady],
+      buildPaletteActions(
+        {
+          streamView: listActive,
+          hasIssue: Boolean(activeIssue),
+          updateReady,
+        },
+        availableNavGroups,
+      ),
+    [listActive, activeIssue, updateReady, availableNavGroups],
   );
 
   /**
@@ -698,6 +813,7 @@ export function App({
           if (matchesCommand("sentry.nav.open", key)) {
             return actions.submitInput?.() ? "mine" : "focused";
           }
+          if (actions.handleInputKey?.(key)) return "mine";
           if (
             matchesCommand("sentry.app.focusNext", key) ||
             matchesCommand("sentry.app.focusPrev", key)
@@ -890,14 +1006,17 @@ export function App({
             openNavGroup(railGroup);
             return "mine";
           }
-          const index = NAV_GROUPS.findIndex((g) => g.id === railGroup);
+          const index = availableNavGroups.findIndex((g) => g.id === railGroup);
           const step = matchesCommand("sentry.nav.down", key)
             ? 1
             : matchesCommand("sentry.nav.up", key)
               ? -1
               : 0;
           if (step === 0) return "notMine";
-          const next = NAV_GROUPS[(index + step + NAV_GROUPS.length) % NAV_GROUPS.length]!;
+          const next =
+            availableNavGroups[
+              (index + step + availableNavGroups.length) % availableNavGroups.length
+            ]!;
           setRailGroup(next.id);
           return "mine";
         },
@@ -1100,6 +1219,7 @@ export function App({
     activateRow,
     registerActions,
     updateView,
+    navigateToScreen,
   };
 
   return (
@@ -1118,6 +1238,7 @@ export function App({
           focused={focus.isFocused("nav")}
           avatarUrl={avatarUrl}
           orgSlug={org}
+          groups={availableNavGroups}
           hotkeys={gotoHotkeys?.groups}
           onSelect={openNavGroup}
           onExpand={expandNav}

@@ -4,7 +4,9 @@ import {
   configPath,
   credentialsPath,
   migrateLegacyToken,
+  normalizeBooleansByOrg,
   normalizeProjectsByOrg,
+  normalizeSeerCodeModeByOrg,
   readConfig,
   readCredentials,
   writeConfig,
@@ -25,6 +27,10 @@ export interface AppContext {
   org: string;
   tokenSource: string;
   projectsByOrg: Record<string, string[]>;
+  seerCodeModeByOrg: Record<string, "off" | "on" | "only">;
+  seerBashModeByOrg: Record<string, boolean>;
+  seerShowThinkingByOrg: Record<string, boolean>;
+  user?: { id?: string; name?: string; email?: string };
   initialLocation?: SentryUrlLocation;
 }
 
@@ -236,13 +242,18 @@ export async function bootstrap(args: CliArgs): Promise<AppContext> {
   // Who this is, for the crash reports. An OAuth login already stored the
   // account, so this costs no request; an environment-token user has no stored
   // account and is known only by the organization they opened.
-  identify({ user: (await readCredentials())?.user, org });
+  const user = (await readCredentials())?.user;
+  identify({ user, org });
 
   return {
     client,
     org,
     tokenSource: auth.describe(),
     projectsByOrg: normalizeProjectsByOrg(config.projectsByOrg),
+    seerCodeModeByOrg: normalizeSeerCodeModeByOrg(config.seerCodeModeByOrg),
+    seerBashModeByOrg: normalizeBooleansByOrg(config.seerBashModeByOrg),
+    seerShowThinkingByOrg: normalizeBooleansByOrg(config.seerShowThinkingByOrg),
+    user,
     initialLocation,
   };
 }
