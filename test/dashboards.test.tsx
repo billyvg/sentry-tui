@@ -124,6 +124,102 @@ test("All Dashboards lists the org's dashboards with the web's columns", async (
   }
 });
 
+test("All Dashboards pins favorites so they cannot fall past the first page", async () => {
+  const calls: string[] = [];
+  const h = await renderDashboards(stubClient({ calls }));
+  try {
+    await h.waitForFrame((f) => f.includes("Checkout Health"));
+
+    const request = calls.find(
+      (url) => url.includes("/dashboards/") && !url.includes("/dashboards/starred/"),
+    );
+    expect(request).toBeDefined();
+    expect(new URL(request!).searchParams.get("pin")).toBe("favorites");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the API's empty default-starred prebuilt rows show Web's seven widgets", async () => {
+  const h = await renderDashboards(
+    stubClient({
+      dashboards: [
+        {
+          id: "906",
+          title: "Web Vitals",
+          widgetDisplay: [],
+          prebuiltId: 6,
+          isFavorited: true,
+          projects: [],
+          environment: [],
+        },
+        {
+          id: "912",
+          title: "Backend Overview",
+          widgetDisplay: [],
+          prebuiltId: 12,
+          isFavorited: true,
+          projects: [],
+          environment: [],
+        },
+        {
+          id: "916",
+          title: "AI Agents Overview",
+          widgetDisplay: [],
+          prebuiltId: 16,
+          isFavorited: true,
+          projects: [],
+          environment: [],
+        },
+      ],
+    }),
+  );
+  try {
+    await h.waitForFrame((f) => f.includes("AI Agents Overview"));
+
+    for (const title of ["Web Vitals", "Backend Overview", "AI Agents Overview"]) {
+      const row = h
+        .frame()
+        .split("\n")
+        .find((line) => line.includes(title));
+      expect(row).toBeDefined();
+      expect(row).toMatch(new RegExp(`${title}\\s+7\\s+`));
+    }
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("an unknown prebuilt widget count is not reported as zero", async () => {
+  const h = await renderDashboards(
+    stubClient({
+      dashboards: [
+        {
+          id: "999",
+          title: "Future Sentry Dashboard",
+          widgetDisplay: [],
+          prebuiltId: 999,
+          isFavorited: false,
+          projects: [],
+          environment: [],
+        },
+      ],
+    }),
+  );
+  try {
+    await h.waitForFrame((f) => f.includes("Future Sentry Dashboard"));
+
+    const row = h
+      .frame()
+      .split("\n")
+      .find((line) => line.includes("Future Sentry Dashboard"));
+    expect(row).toBeDefined();
+    expect(row).toMatch(/Future Sentry Dashboard\s+—\s+/);
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("the row shows widget count, owner, and access", async () => {
   const h = await renderDashboards();
   try {

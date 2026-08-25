@@ -55,7 +55,7 @@ export const prebuiltDashboardsFixture: DashboardListItem[] = [
     title: "Frontend Overview",
     description: "Web Vitals, errors and throughput for your frontend projects.",
     widgetDisplay: ["big_number", "area", "table"],
-    prebuiltId: "frontend-overview",
+    prebuiltId: 14,
     dateCreated: "2026-01-01T00:00:00Z",
     lastVisited: "2026-08-20T08:00:00Z",
     isFavorited: false,

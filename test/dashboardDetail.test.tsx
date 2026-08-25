@@ -357,7 +357,7 @@ test("a Sentry Built dashboard says why the API has no widgets for it", async ()
   // which must not read as "somebody emptied this dashboard".
   const h = await renderApp(
     stubClient({
-      detail: { ...dashboardDetailFixture, widgets: [], prebuiltId: "ai-agents-overview" },
+      detail: { ...dashboardDetailFixture, widgets: [], prebuiltId: 16 },
     }),
   );
   try {

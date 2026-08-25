@@ -70,7 +70,7 @@ export interface DashboardListItem {
   isFavorited?: boolean;
   permissions?: DashboardPermissions | null;
   /** Set on Sentry-built (prebuilt) dashboards; absent on the org's own. */
-  prebuiltId?: string | null;
+  prebuiltId?: number | null;
   projects?: number[];
   environment?: string[];
 }
@@ -140,21 +140,55 @@ export interface ListDashboardsParams {
   signal?: AbortSignal;
 }
 
+/**
+ * Widget shapes for Sentry's three pre-favorited prebuilt dashboards.
+ *
+ * Prebuilt dashboard records intentionally contain no widgets: Web replaces
+ * the API's empty `widgetDisplay` from its own `PREBUILT_DASHBOARDS` configs.
+ * These are the three entries the backend marks `pre_favorited`, so they are
+ * the ones every user sees mixed into All Dashboards by default.
+ */
+const PRE_FAVORITED_PREBUILT_WIDGET_DISPLAYS: Readonly<
+  Partial<Record<number, readonly WidgetDisplayType[]>>
+> = {
+  // PrebuiltDashboardId.WEB_VITALS
+  6: ["area", "big_number", "big_number", "big_number", "big_number", "table", "table"],
+  // PrebuiltDashboardId.BACKEND_OVERVIEW
+  12: ["line", "line", "bar", "line", "line", "line", "table"],
+  // PrebuiltDashboardId.AI_AGENTS_OVERVIEW
+  16: ["bar", "bar", "line", "bar", "bar", "bar", "agents_traces_table"],
+};
+
+/** Fill the widget metadata the dashboard API deliberately omits for prebuilts. */
+function withPrebuiltWidgetDisplays(dashboard: DashboardListItem): DashboardListItem {
+  if (dashboard.widgetDisplay.length > 0 || dashboard.prebuiltId == null) return dashboard;
+
+  const widgetDisplay = PRE_FAVORITED_PREBUILT_WIDGET_DISPLAYS[dashboard.prebuiltId];
+  return widgetDisplay ? { ...dashboard, widgetDisplay: [...widgetDisplay] } : dashboard;
+}
+
 /** List the org's dashboards. */
 export async function listDashboards(
   client: SentryClient,
   { org, filter, query, sort, limit = DASHBOARDS_PAGE_SIZE, cursor, signal }: ListDashboardsParams,
 ): Promise<Page<DashboardListItem[]>> {
-  return client.request<DashboardListItem[]>(`/organizations/${org}/dashboards/`, {
+  const page = await client.request<DashboardListItem[]>(`/organizations/${org}/dashboards/`, {
     query: {
       filter,
       query: query || undefined,
       sort,
+      // Match Web's manage list: favorites must stay on the loaded page even
+      // when an organization has more dashboards than `per_page` can hold.
+      pin: "favorites",
       per_page: limit,
       cursor,
     },
     signal,
   });
+  return {
+    ...page,
+    data: Array.isArray(page.data) ? page.data.map(withPrebuiltWidgetDisplays) : [],
+  };
 }
 
 /**
@@ -176,7 +210,7 @@ export async function listStarredDashboards(
     `/organizations/${org}/dashboards/starred/`,
     { query: { per_page: limit }, signal },
   );
-  return Array.isArray(page.data) ? page.data : [];
+  return Array.isArray(page.data) ? page.data.map(withPrebuiltWidgetDisplays) : [];
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +306,7 @@ export interface DashboardDetails {
   end?: string;
   isFavorited?: boolean;
   permissions?: DashboardPermissions | null;
-  prebuiltId?: string | null;
+  prebuiltId?: number | null;
 }
 
 /** Fetch a dashboard and its widgets. One request; the widgets fetch their own data. */
