@@ -335,7 +335,10 @@ export function Dropdown({
           height: termHeight,
           zIndex: DROPDOWN_Z - 1,
         }}
-        onMouseUp={onClose}
+        // Chips open on mouse-down. Closing the newly mounted scrim on the
+        // matching mouse-up would turn every ordinary click into an immediate
+        // open-close; a fresh press outside is the action that dismisses it.
+        onMouseDown={onClose}
       />
 
       <box
