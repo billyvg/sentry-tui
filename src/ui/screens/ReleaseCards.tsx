@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { RenderableEvents, type InputRenderable, type ScrollBoxRenderable } from "@opentui/core";
 
+import { projectParams } from "~/api/projectParams";
 import {
   healthKey,
   releaseSort,
@@ -194,7 +195,7 @@ export function ReleaseCards({
   );
 
   const query = state.committedQuery;
-  const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
+  const project = useMemo(() => projectParams(state.selectedProjects), [state.selectedProjects]);
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
   const sortItems = useMemo(() => releaseSortOptions(state.selectedEnvs), [state.selectedEnvs]);
   const sort = releaseSort(state.sort, state.selectedEnvs);

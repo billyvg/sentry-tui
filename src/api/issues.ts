@@ -1,4 +1,5 @@
 import type { Page, SentryClient } from "~/api/client";
+import { projectParams } from "~/api/projectParams";
 import type {
   Group,
   GroupStatus,
@@ -78,7 +79,7 @@ export async function listIssues(
       limit,
       shortIdLookup: 1,
       cursor,
-      project,
+      project: projectParams(project),
       environment,
       expand: ["owners", "inbox"],
       collapse: ["stats", "unhandled"],
@@ -118,12 +119,14 @@ export async function fetchIssueStats(
     groups,
     statsPeriod = DEFAULT_STATS_PERIOD,
     groupStatsPeriod = DEFAULT_GRAPH_STATS_PERIOD,
+    project,
     signal,
   }: {
     org: string;
     groups: string[];
     statsPeriod?: string;
     groupStatsPeriod?: string;
+    project?: string[];
     signal?: AbortSignal;
   },
 ): Promise<IssueStats> {
@@ -131,7 +134,7 @@ export async function fetchIssueStats(
   // The endpoint returns an array of entries carrying their own `id`, not an
   // object keyed by issue id — key it here so callers can merge by lookup.
   const page = await client.request<IssueStatsEntry[]>(`/organizations/${org}/issues-stats/`, {
-    query: { groups, statsPeriod, groupStatsPeriod },
+    query: { groups, statsPeriod, groupStatsPeriod, project: projectParams(project) },
     signal,
   });
   const entries = Array.isArray(page.data) ? page.data : [];

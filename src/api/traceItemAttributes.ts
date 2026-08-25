@@ -16,6 +16,7 @@
  */
 
 import type { SentryClient } from "~/api/client";
+import { projectParams } from "~/api/projectParams";
 
 /** Trace item types the endpoint knows about. Left open — Sentry adds them. */
 export type TraceItemType = "spans" | "logs" | "tracemetrics" | (string & {});
@@ -70,7 +71,13 @@ export async function listTraceItemAttributes(
   const page = await client.request<RawAttribute[]>(
     `/organizations/${org}/trace-items/attributes/`,
     {
-      query: { itemType, attributeType, project, environment, statsPeriod },
+      query: {
+        itemType,
+        attributeType,
+        project: projectParams(project),
+        environment,
+        statsPeriod,
+      },
       signal,
     },
   );

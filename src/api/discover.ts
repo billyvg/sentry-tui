@@ -12,6 +12,7 @@
  */
 
 import type { SentryClient } from "~/api/client";
+import { projectParams } from "~/api/projectParams";
 import { chartInterval } from "~/lib/interval";
 
 /**
@@ -96,7 +97,7 @@ export async function queryDiscover(
       statsPeriod,
       per_page: limit,
       cursor,
-      project,
+      project: projectParams(project),
       environment,
       referrer,
     },
@@ -162,7 +163,7 @@ export async function queryDiscoverTimeseries(
         query: query || undefined,
         statsPeriod,
         interval,
-        project,
+        project: projectParams(project),
         environment,
         referrer,
       },

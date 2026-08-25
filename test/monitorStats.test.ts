@@ -93,7 +93,8 @@ test("fetchMonitorStats asks for the monitors, the window, and the resolution", 
 });
 
 test("fetchMonitorStats keeps the buckets nested by environment", async () => {
-  const stats = await fetchMonitorStats(stubClient(monitorStatsFixture(SINCE)), {
+  const calls: string[] = [];
+  const stats = await fetchMonitorStats(stubClient(monitorStatsFixture(SINCE), calls), {
     org: "acme",
     monitors: [NIGHTLY_ROLLUP_ID],
     ...WINDOW,
@@ -101,6 +102,7 @@ test("fetchMonitorStats keeps the buckets nested by environment", async () => {
 
   expect(stats[NIGHTLY_ROLLUP_ID]).toHaveLength(24);
   expect(stats[NIGHTLY_ROLLUP_ID]![0]).toEqual([SINCE, { production: { ok: 1 } }]);
+  expect(new URL(calls[0]!).searchParams.getAll("project")).toEqual(["-1"]);
 });
 
 test("an empty monitor list makes no request", async () => {

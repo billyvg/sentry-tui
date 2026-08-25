@@ -25,6 +25,7 @@
  */
 
 import type { Page, SentryClient } from "~/api/client";
+import { projectParams } from "~/api/projectParams";
 
 // ---------------------------------------------------------------------------
 // Domain types
@@ -332,7 +333,7 @@ export async function listDetectors(
     query: {
       query: query || undefined,
       sortBy,
-      project,
+      project: projectParams(project),
       per_page: limit,
       cursor,
     },

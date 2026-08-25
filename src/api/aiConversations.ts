@@ -19,6 +19,7 @@
  */
 
 import type { SentryClient } from "~/api/client";
+import { projectParams } from "~/api/projectParams";
 
 /** Who the conversation was with, when the SDK reported a user at all. */
 export interface ConversationUser {
@@ -93,7 +94,7 @@ export async function listConversations(
     query: {
       query: query || undefined,
       statsPeriod,
-      project,
+      project: projectParams(project),
       environment,
       cursor,
       per_page: limit,

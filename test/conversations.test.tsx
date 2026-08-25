@@ -121,7 +121,9 @@ describe("listConversations", () => {
   test("hits the conversation endpoint, not events/", async () => {
     const { client, calls } = stubClient();
     await listConversations(client, { org: "acme", statsPeriod: "1h" });
-    expect(calls.some((url) => url.includes("/ai-conversations/"))).toBe(true);
+    const request = calls.find((url) => url.includes("/ai-conversations/"));
+    expect(request).toBeDefined();
+    expect(new URL(request!).searchParams.getAll("project")).toEqual(["-1"]);
     expect(calls.some((url) => url.includes("/events/"))).toBe(false);
   });
 

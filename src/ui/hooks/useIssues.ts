@@ -113,6 +113,7 @@ export function useIssues(
               org,
               groups: result.data.map((group) => group.id),
               statsPeriod,
+              project,
               signal,
             });
             if (signal.aborted || requestId !== requestIdRef.current) return;
