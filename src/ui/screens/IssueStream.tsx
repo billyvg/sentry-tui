@@ -19,6 +19,7 @@ import { fitText, measureTextWidth } from "~/lib/text";
 import { FilterBar, SEARCH_ROWS, type FilterDropdownType } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { useIssues } from "~/ui/hooks/useIssues";
 import { useMemberAvatars } from "~/ui/hooks/useMemberAvatars";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
@@ -70,6 +71,7 @@ export interface IssueStreamProps {
   onProjectChange?: (projects: string[]) => void;
   onEnvChange?: (envs: string[]) => void;
   onPeriodChange?: (period: string) => void;
+  onSortChange?: (sort: SortOption) => void;
   onDropdownClose?: () => void;
   onDropdownOpen?: (which: FilterDropdownType) => void;
   /** The committed query sent to the API for fetching. */
@@ -120,6 +122,7 @@ export function IssueStream({
   onProjectChange,
   onEnvChange,
   onPeriodChange,
+  onSortChange,
   onDropdownClose,
   onDropdownOpen,
   query: queryProp,
@@ -158,7 +161,7 @@ export function IssueStream({
     [onSearchFocus, onSearchBlur],
   );
 
-  const { issues, statsLoading } = useIssues(client, {
+  const { issues, statsLoading, nextCursor } = useIssues(client, {
     org,
     query,
     sort,
@@ -206,11 +209,6 @@ export function IssueStream({
     [rows],
   );
   const avatars = useMemberAvatars(client, org, hasAssignee);
-
-  const sortLabel = useMemo(
-    () => SORT_OPTIONS.find((o) => o.value === sort)?.label ?? sort,
-    [sort],
-  );
 
   const listWidth = Math.max(20, width - SCROLLBAR_GUTTER);
 
@@ -278,7 +276,11 @@ export function IssueStream({
         selectedProjects={selectedProjects}
         selectedEnvs={selectedEnvs}
         statsPeriod={statsPeriod}
-        sortLabel={sortLabel}
+        sort={{
+          value: sort,
+          items: SORT_OPTIONS,
+          onChange: (value) => onSortChange?.(value as SortOption),
+        }}
         width={width}
         anchorTop={SEARCH_ROWS + (title ? TITLE_ROWS : 0)}
         onProjectChange={onProjectChange ?? (() => {})}
@@ -339,6 +341,7 @@ export function IssueStream({
       {stale ? (
         <text fg={theme.muted}>{error ? ` ⚠ ${fitText(error.message, listWidth - 3)}` : ""}</text>
       ) : null}
+      <ResultFooter count={rows?.length} noun="issue" hasMore={nextCursor !== null} />
     </box>
   );
 }

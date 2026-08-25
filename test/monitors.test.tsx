@@ -278,6 +278,33 @@ test("the list is sorted by the most recently fired monitor, as the web is", asy
   }
 });
 
+test("S changes the monitor sort using the screen's own options", async () => {
+  const calls: string[] = [];
+  const h = await renderMonitors(stubClient({ calls }));
+  try {
+    await h.waitForFrame((f) => f.includes("checkout p95 latency"));
+
+    await h.press((i) => i.pressKey("S"));
+    await h.waitForFrame((frame) => frame.includes("Sort By"));
+    expect(h.frame()).toContain("Latest Issue (newest)");
+    expect(h.frame()).toContain("Name (A-Z)");
+
+    // Newest → oldest → Name (A-Z).
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame(() =>
+      calls
+        .filter((url) => url.includes("/detectors/"))
+        .some((url) => new URL(url).searchParams.get("sortBy") === "name"),
+    );
+
+    expect(h.frame()).toContain("S Name (A-Z)");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 // ---------------------------------------------------------------------------
 // States
 // ---------------------------------------------------------------------------

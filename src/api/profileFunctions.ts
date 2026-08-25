@@ -60,11 +60,31 @@ const FUNCTION_FIELDS = [
   "function",
   "count()",
   "sum()",
+  "avg()",
+  "p50()",
   "p75()",
+  "p95()",
+  "p99()",
 ] as const;
 
-/** `sum()` descending — the widget's `DEFAULT_SORTING_OPTION` (`:72`). */
-const FUNCTION_SORT = "-sum()";
+export const PROFILE_FUNCTION_SORT_OPTIONS = [
+  { value: "-sum()", label: "Total self time" },
+  { value: "-avg()", label: "Average self time" },
+  { value: "-p50()", label: "p50 self time" },
+  { value: "-p75()", label: "p75 self time" },
+  { value: "-p95()", label: "p95 self time" },
+  { value: "-p99()", label: "p99 self time" },
+] as const;
+
+export type ProfileFunctionSort = (typeof PROFILE_FUNCTION_SORT_OPTIONS)[number]["value"];
+export const DEFAULT_PROFILE_FUNCTION_SORT: ProfileFunctionSort = "-sum()";
+
+/** Resolve shared screen state to one of the profiling widget's sort modes. */
+export function profileFunctionSort(value: string): ProfileFunctionSort {
+  return PROFILE_FUNCTION_SORT_OPTIONS.some((option) => option.value === value)
+    ? (value as ProfileFunctionSort)
+    : DEFAULT_PROFILE_FUNCTION_SORT;
+}
 
 export const PROFILE_FUNCTION_PAGE_SIZE = 50;
 
@@ -78,6 +98,7 @@ export interface ListProfileFunctionsParams {
   statsPeriod?: string;
   project?: string[];
   environment?: string[];
+  sort?: ProfileFunctionSort;
   cursor?: string;
   limit?: number;
   signal?: AbortSignal;
@@ -92,6 +113,7 @@ export async function listProfileFunctions(
     statsPeriod,
     project,
     environment,
+    sort = DEFAULT_PROFILE_FUNCTION_SORT,
     cursor,
     limit = PROFILE_FUNCTION_PAGE_SIZE,
     signal,
@@ -101,7 +123,7 @@ export async function listProfileFunctions(
     org,
     dataset: "profileFunctions",
     fields: FUNCTION_FIELDS,
-    sort: FUNCTION_SORT,
+    sort,
     query,
     statsPeriod,
     project,

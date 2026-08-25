@@ -50,7 +50,42 @@ export interface GroupSearchView {
  * `issueViewsList.tsx` sends the two extra sorts as tiebreakers. The endpoint
  * also chains starred views ahead of unstarred ones regardless of sort.
  */
-const DEFAULT_VIEW_SORT = ["-popularity", "-visited", "-created"];
+export const VIEW_SORT_OPTIONS = [
+  { value: "popularity", label: "Most Starred" },
+  { value: "visited", label: "Recently Viewed" },
+  { value: "name", label: "Name (A-Z)" },
+  { value: "-name", label: "Name (Z-A)" },
+  { value: "-created", label: "Created (Newest)" },
+  { value: "created", label: "Created (Oldest)" },
+] as const;
+
+export type ViewSort = (typeof VIEW_SORT_OPTIONS)[number]["value"];
+export const DEFAULT_VIEW_SORT: ViewSort = "popularity";
+
+/** Resolve the All Views state to one of the frontend's simplified sorts. */
+export function viewSort(value: string): ViewSort {
+  return VIEW_SORT_OPTIONS.some((option) => option.value === value)
+    ? (value as ViewSort)
+    : DEFAULT_VIEW_SORT;
+}
+
+/** Add the frontend's stable tiebreakers to a simplified view sort. */
+function endpointSort(sort: ViewSort): string[] {
+  switch (sort) {
+    case "popularity":
+      return ["-popularity", "-visited", "-created"];
+    case "visited":
+      return ["-visited", "-popularity", "-created"];
+    case "name":
+      return ["name", "-visited", "-created"];
+    case "-name":
+      return ["-name", "-visited", "-created"];
+    case "created":
+      return ["created", "-popularity", "-visited"];
+    case "-created":
+      return ["-created", "-popularity", "-visited"];
+  }
+}
 
 export const VIEWS_PAGE_SIZE = 20;
 
@@ -66,14 +101,14 @@ export async function listGroupSearchViews(
   }: {
     org: string;
     createdBy: ViewCreatedBy;
-    sort?: string[];
+    sort?: ViewSort;
     limit?: number;
     cursor?: string;
     signal?: AbortSignal;
   },
 ): Promise<Page<GroupSearchView[]>> {
   return client.request<GroupSearchView[]>(`/organizations/${org}/group-search-views/`, {
-    query: { createdBy, sort, per_page: limit, cursor },
+    query: { createdBy, sort: endpointSort(sort), per_page: limit, cursor },
     signal,
   });
 }

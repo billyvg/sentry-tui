@@ -25,7 +25,9 @@ import type { Theme } from "~/core/theme";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
+import { fieldSortItems } from "~/ui/components/SortSelector";
 import { useDiscoverRows } from "~/ui/hooks/useDiscoverRows";
 import type { ScreenState } from "~/ui/hooks/useScreenState";
 import { BOLD } from "~/ui/lib/attributes";
@@ -47,6 +49,7 @@ export function savedQueryResultsView(query: SavedQuery, projectSlugs: string[])
     // the shared slice.
     initialState: {
       query: query.query,
+      sort: query.sort,
       statsPeriod: query.statsPeriod,
       selectedProjects: projectSlugs,
       selectedEnvs: query.environment,
@@ -71,12 +74,16 @@ function SavedQueryResults({
 
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
+  const sortItems = useMemo(() => fieldSortItems(savedQuery.fields), [savedQuery.fields]);
+  const sort = sortItems.some((item) => item.value === state.sort)
+    ? state.sort
+    : (savedQuery.sort ?? sortItems[0]?.value);
 
-  const status = useDiscoverRows(client, {
+  const { rows: status, nextCursor } = useDiscoverRows(client, {
     org,
     dataset: savedQuery.dataset,
     fields: savedQuery.fields,
-    sort: savedQuery.sort,
+    sort,
     query: state.committedQuery,
     statsPeriod: state.statsPeriod,
     project,
@@ -131,7 +138,7 @@ function SavedQueryResults({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={rows ? `${rows.length} results` : ""}
+        sort={sort ? { value: sort, items: sortItems, onChange: state.setSort } : undefined}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
         onProjectChange={state.setSelectedProjects}
@@ -162,6 +169,7 @@ function SavedQueryResults({
         }}
         layout={[height]}
       />
+      <ResultFooter count={rows?.length} noun="result" hasMore={nextCursor !== null} />
     </box>
   );
 }

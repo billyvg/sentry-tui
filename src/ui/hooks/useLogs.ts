@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listLogs, listLogTimeseries, type LogEntry, type LogTimeseriesBucket } from "~/api/logs";
+import {
+  listLogs,
+  listLogTimeseries,
+  type LogEntry,
+  type LogSort,
+  type LogTimeseriesBucket,
+} from "~/api/logs";
 import {
   type AsyncStatus,
   idle,
@@ -17,6 +23,7 @@ export interface LogsQuery {
   statsPeriod: string;
   project?: string[];
   environment?: string[];
+  sort?: LogSort;
   /** Bump to refetch an unchanged query — the app's global refresh. */
   reloadToken?: number;
 }
@@ -34,7 +41,7 @@ export interface LogsState {
  */
 export function useLogs(
   client: SentryClient | null,
-  { org, query, statsPeriod, project, environment, reloadToken = 0 }: LogsQuery,
+  { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: LogsQuery,
 ): LogsState {
   const [logs, setLogs] = useState<AsyncStatus<LogEntry[]>>(idle);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -59,6 +66,7 @@ export function useLogs(
           statsPeriod,
           project,
           environment,
+          sort,
           signal,
         });
         if (cancelled) return;
@@ -74,7 +82,7 @@ export function useLogs(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
+  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
 
   return { logs, nextCursor };
 }

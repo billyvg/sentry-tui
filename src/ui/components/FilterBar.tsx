@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import { listEnvironments, type Environment } from "~/api/issues";
-import { useTheme } from "~/ui/theme";
 import { fitText, measureTextWidth } from "~/lib/text";
 import {
   ChipRow,
@@ -13,6 +12,13 @@ import {
   type ChipSpec,
 } from "~/ui/components/Chip";
 import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
+import {
+  SORT_COMMAND,
+  SortDropdown,
+  SortSelector,
+  sortLabel,
+  type SortItem,
+} from "~/ui/components/SortSelector";
 import { useProjectSearch } from "~/ui/hooks/useProjects";
 
 /**
@@ -31,15 +37,12 @@ const DATE_OPTIONS: readonly DropdownItem[] = [
   { label: "90 days", value: "90d" },
 ];
 
-export type FilterDropdownType = "project" | "env" | "date" | null;
+export type FilterDropdownType = "project" | "env" | "date" | "sort" | null;
 
 /** Chip order in the filter row, so a click and the open state agree. */
 const CHIP_ORDER = ["project", "env", "date"] as const satisfies ReadonlyArray<
   Exclude<FilterDropdownType, null>
 >;
-
-/** One ellipsis cell for each dynamic filter label. */
-const MIN_FITTED_LABEL_WIDTH = 1;
 
 /**
  * Share a cell budget fairly, then give any cells a short label did not need
@@ -80,7 +83,12 @@ export interface FilterBarProps {
   selectedEnvs: string[];
   /** Selected stats period. */
   statsPeriod: string;
-  sortLabel: string;
+  /** Screen-specific sort control. Omit when the screen has one fixed order. */
+  sort?: {
+    value: string;
+    items: readonly SortItem[];
+    onChange: (value: string) => void;
+  };
   /** Cells the row has, used to fit its labels without overflowing. */
   width: number;
   /**
@@ -121,8 +129,8 @@ export function isFilterBarMounted(): boolean {
 
 /**
  * The filter row below the search bar: project / environment / date selectors,
- * plus the sort indicator. When a dropdown is active, it renders as an
- * absolutely-positioned overlay.
+ * and an optional screen-specific sort selector floated to the right. When a
+ * dropdown is active, it renders as an absolutely-positioned overlay.
  */
 export function FilterBar({
   client,
@@ -131,7 +139,7 @@ export function FilterBar({
   selectedProjects,
   selectedEnvs,
   statsPeriod,
-  sortLabel,
+  sort,
   width,
   anchorTop,
   onProjectChange,
@@ -140,7 +148,6 @@ export function FilterBar({
   onDropdownClose,
   onDropdownOpen,
 }: FilterBarProps) {
-  const theme = useTheme();
   // What has been typed into the project picker, held here rather than inside
   // the dropdown because the search that answers it goes to the API.
   const [projectQuery, setProjectQuery] = useState("");
@@ -232,25 +239,32 @@ export function FilterBar({
     caret: true,
   };
 
-  // The chip frames, keys, gaps and date are fixed. Sort gets the next claim
-  // on the row; the two org-owned labels fairly share what remains.
+  const sortChip: ChipSpec | undefined = sort
+    ? {
+        command: SORT_COMMAND,
+        label: sortLabel(sort.items, sort.value),
+        caret: true,
+      }
+    : undefined;
+
+  // The chip frames, keys, gaps, date and optional sort are fixed. The two
+  // org-owned labels fairly share what remains.
+  const chipCount = sortChip ? 4 : 3;
   const fixedWidth =
     chipWidth({ ...projectChip, label: "" }) +
     chipWidth({ ...envChip, label: "" }) +
     chipWidth(dateChip) +
-    CHIP_GAP * 2;
-  const sortText = `Sort: ${sortLabel}`;
-  const sortWidth = sortLabel.length > 0 ? CHIP_GAP + measureTextWidth(sortText) : 0;
-  const showSort =
-    sortLabel.length > 0 && width >= fixedWidth + sortWidth + MIN_FITTED_LABEL_WIDTH * 2;
-  const labelBudget = width - fixedWidth - (showSort ? sortWidth : 0);
+    (sortChip ? chipWidth(sortChip) : 0) +
+    CHIP_GAP * (chipCount - 1);
+  const labelBudget = width - fixedWidth;
   const [projectLabelWidth, envLabelWidth] = filterLabelWidths(
     fullProjectLabel,
     fullEnvLabel,
     labelBudget,
   );
 
-  // The filter row is three chips; each dropdown drops from its own left edge.
+  // The three filter dropdowns drop from their chip's left edge. Sort is
+  // separately pinned to the row's right edge.
   const chips: ChipSpec[] = [
     { ...projectChip, label: fitText(fullProjectLabel, projectLabelWidth) },
     { ...envChip, label: fitText(fullEnvLabel, envLabelWidth) },
@@ -258,6 +272,7 @@ export function FilterBar({
   ];
   const offsets = chipOffsets(chips);
   const [projectAnchorLeft = 0, envAnchorLeft = 0, dateAnchorLeft = 0] = offsets;
+  const sortAnchorLeft = sortChip ? Math.max(0, width - chipWidth(sortChip)) : 0;
   // A dropdown hangs off the bottom edge of its chip. The chip's own height
   // now covers the whole row, sliver edges included, so clearing it clears
   // everything — an overlay pinned any higher would paint over the pill's
@@ -290,15 +305,11 @@ export function FilterBar({
     <>
       {/*
        * Pinned to one line and clipped. The two org-owned labels are fitted to
-       * the measured row before rendering; on a terminal too narrow for even
-       * their ellipses plus Sort, Sort is the part that yields.
+       * the measured row before rendering.
        */}
       <box
         style={{
           flexDirection: "row",
-          // The sort label is one row and the chips are three; centering sits
-          // it on the row their text is on rather than up against the pills'
-          // top edges.
           alignItems: "center",
           flexShrink: 0,
           height: CHIP_HEIGHT,
@@ -307,11 +318,23 @@ export function FilterBar({
       >
         <ChipRow
           chips={chips}
-          activeIndex={openDropdown ? CHIP_ORDER.indexOf(openDropdown) : undefined}
+          activeIndex={
+            openDropdown && openDropdown !== "sort" ? CHIP_ORDER.indexOf(openDropdown) : undefined
+          }
           onPress={(_chip, index) => onDropdownOpen?.(CHIP_ORDER[index] ?? null)}
         />
         <box style={{ flexGrow: 1 }} />
-        {showSort ? <text fg={theme.muted}>{sortText}</text> : null}
+        {sort && sortChip ? (
+          <box style={{ flexDirection: "row", flexShrink: 0 }}>
+            <text>{" ".repeat(CHIP_GAP)}</text>
+            <SortSelector
+              value={sort.value}
+              items={sort.items}
+              open={openDropdown === "sort"}
+              onOpen={() => onDropdownOpen?.("sort")}
+            />
+          </box>
+        ) : null}
       </box>
 
       {openDropdown === "project" ? (
@@ -321,6 +344,7 @@ export function FilterBar({
           selected={selectedSlugs}
           anchorLeft={projectAnchorLeft}
           anchorTop={dropdownTop}
+          availableWidth={width}
           // An org's project list runs to hundreds of rows — more than one
           // page holds, so this box searches the API rather than only what
           // came back. The environment and date lists are a handful each, so
@@ -343,6 +367,7 @@ export function FilterBar({
           selected={selectedEnvs}
           anchorLeft={envAnchorLeft}
           anchorTop={dropdownTop}
+          availableWidth={width}
           multiple
           onSelect={handleEnvSelect}
           onClose={onDropdownClose}
@@ -356,8 +381,21 @@ export function FilterBar({
           selected={[statsPeriod]}
           anchorLeft={dateAnchorLeft}
           anchorTop={dropdownTop}
+          availableWidth={width}
           showAll={false}
           onSelect={handleDateSelect}
+          onClose={onDropdownClose}
+        />
+      ) : null}
+
+      {openDropdown === "sort" && sort ? (
+        <SortDropdown
+          value={sort.value}
+          items={sort.items}
+          anchorLeft={sortAnchorLeft}
+          anchorTop={dropdownTop}
+          availableWidth={width}
+          onChange={sort.onChange}
           onClose={onDropdownClose}
         />
       ) : null}

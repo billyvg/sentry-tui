@@ -11,7 +11,7 @@
  * `scripts/nav-coverage.test.ts` fails if the two files drift apart.
  */
 
-import { DEFAULT_STATS_PERIOD, type SortOption } from "~/api/issues";
+import { DEFAULT_STATS_PERIOD } from "~/api/issues";
 import { DEFAULT_LOG_PERIOD } from "~/api/logs";
 import { DEFAULT_RELEASE_PERIOD } from "~/api/releases";
 import { DEFAULT_REPLAY_PERIOD } from "~/api/replays";
@@ -69,7 +69,7 @@ export interface ScreenDefaults {
   /** Initial stats period, e.g. `"14d"`. */
   statsPeriod?: string;
   /** Initial sort. */
-  sort?: SortOption;
+  sort?: string;
 }
 
 export interface ScreenDef {

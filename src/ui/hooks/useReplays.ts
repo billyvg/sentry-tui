@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listReplayErrors, listReplays, type Replay, type ReplayError } from "~/api/replays";
+import {
+  listReplayErrors,
+  listReplays,
+  type Replay,
+  type ReplayError,
+  type ReplaySort,
+} from "~/api/replays";
 import {
   idle,
   rejected,
@@ -17,6 +23,7 @@ export interface ReplaysQuery {
   statsPeriod: string;
   project?: string[];
   environment?: string[];
+  sort?: ReplaySort;
   /** Bump to refetch an unchanged query — the app's global refresh. */
   reloadToken?: number;
 }
@@ -35,7 +42,7 @@ export interface ReplaysState {
  */
 export function useReplays(
   client: SentryClient | null,
-  { org, query, statsPeriod, project, environment, reloadToken = 0 }: ReplaysQuery,
+  { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ReplaysQuery,
 ): ReplaysState {
   const [replays, setReplays] = useState<AsyncStatus<Replay[]>>(idle);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -60,6 +67,7 @@ export function useReplays(
           statsPeriod,
           project,
           environment,
+          sort,
           signal,
         });
         if (cancelled) return;
@@ -75,7 +83,7 @@ export function useReplays(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
+  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
 
   return { replays, nextCursor };
 }
@@ -97,6 +105,11 @@ export interface ReplayErrorsQuery {
   reloadToken?: number;
 }
 
+export interface ReplayErrorsState {
+  errors: AsyncStatus<ReplayError[]>;
+  nextCursor: string | null;
+}
+
 /**
  * Fetch the error events recorded during one replay.
  *
@@ -106,8 +119,9 @@ export interface ReplayErrorsQuery {
 export function useReplayErrors(
   client: SentryClient | null,
   { org, replayId, statsPeriod, environment, count, reloadToken = 0 }: ReplayErrorsQuery,
-): AsyncStatus<ReplayError[]> {
+): ReplayErrorsState {
   const [status, setStatus] = useState<AsyncStatus<ReplayError[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
 
@@ -115,6 +129,7 @@ export function useReplayErrors(
     if (!client) return;
     if (count <= 0) {
       setStatus(resolved([], Date.now()));
+      setNextCursor(null);
       return;
     }
 
@@ -126,7 +141,7 @@ export function useReplayErrors(
 
     void (async () => {
       try {
-        const errors = await listReplayErrors(client, {
+        const page = await listReplayErrors(client, {
           org,
           replayId,
           statsPeriod,
@@ -134,7 +149,8 @@ export function useReplayErrors(
           signal,
         });
         if (cancelled) return;
-        setStatus(resolved(errors, Date.now()));
+        setStatus(resolved(page.data, Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setStatus(rejected(statusRef.current, toAsyncError(error)));
@@ -147,5 +163,5 @@ export function useReplayErrors(
     };
   }, [client, org, replayId, statsPeriod, environment, count, reloadToken]);
 
-  return status;
+  return { errors: status, nextCursor };
 }

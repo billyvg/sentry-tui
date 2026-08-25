@@ -157,7 +157,7 @@ test("an empty result names the possibility that profiling is not enabled", asyn
   }
 });
 
-test("the status bar counts the functions on screen", async () => {
+test("the footer counts the functions on screen", async () => {
   const h = await openProfiles();
   try {
     await h.waitForFrame((f) => f.includes("4 functions"));

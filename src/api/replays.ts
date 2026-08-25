@@ -108,8 +108,34 @@ export const REPLAY_PAGE_SIZE = 50;
  */
 export const DEFAULT_REPLAY_PERIOD = "14d";
 
-/** `useReplayTableSort.tsx:14` — newest session first. */
-const REPLAY_SORT = "-started_at";
+export const REPLAY_SORT_OPTIONS = [
+  { value: "-started_at", label: "Newest" },
+  { value: "started_at", label: "Oldest" },
+  { value: "-activity", label: "Activity (high-low)" },
+  { value: "activity", label: "Activity (low-high)" },
+  { value: "-duration", label: "Longest duration" },
+  { value: "duration", label: "Shortest duration" },
+  { value: "-count_errors", label: "Most errors" },
+  { value: "count_errors", label: "Fewest errors" },
+  { value: "-count_dead_clicks", label: "Most dead clicks" },
+  { value: "count_dead_clicks", label: "Fewest dead clicks" },
+  { value: "-count_rage_clicks", label: "Most rage clicks" },
+  { value: "count_rage_clicks", label: "Fewest rage clicks" },
+  { value: "browser.name", label: "Browser (A-Z)" },
+  { value: "-browser.name", label: "Browser (Z-A)" },
+  { value: "os.name", label: "OS (A-Z)" },
+  { value: "-os.name", label: "OS (Z-A)" },
+] as const;
+
+export type ReplaySort = (typeof REPLAY_SORT_OPTIONS)[number]["value"];
+export const DEFAULT_REPLAY_SORT: ReplaySort = "-started_at";
+
+/** Resolve persisted state to one of the replay table's sortable columns. */
+export function replaySort(value: string): ReplaySort {
+  return REPLAY_SORT_OPTIONS.some((option) => option.value === value)
+    ? (value as ReplaySort)
+    : DEFAULT_REPLAY_SORT;
+}
 
 /**
  * Columns requested from the replay index.
@@ -177,6 +203,7 @@ export interface ListReplaysParams {
   statsPeriod?: string;
   project?: string[];
   environment?: string[];
+  sort?: ReplaySort;
   cursor?: string;
   limit?: number;
   signal?: AbortSignal;
@@ -200,6 +227,7 @@ export async function listReplays(
     statsPeriod = DEFAULT_REPLAY_PERIOD,
     project,
     environment,
+    sort = DEFAULT_REPLAY_SORT,
     cursor,
     limit = REPLAY_PAGE_SIZE,
     signal,
@@ -208,7 +236,7 @@ export async function listReplays(
   const page = await client.request<ReplayIndexResponse>(`/organizations/${org}/replays/`, {
     query: {
       field: [...REPLAY_FIELDS],
-      sort: REPLAY_SORT,
+      sort,
       query: query || undefined,
       statsPeriod,
       per_page: limit,
@@ -245,7 +273,7 @@ export async function listReplayErrors(
     environment,
     signal,
   }: ListReplayErrorsParams,
-): Promise<ReplayError[]> {
+): Promise<{ data: ReplayError[]; nextCursor: string | null }> {
   const page = await queryDiscover(client, {
     org,
     dataset: "errors",
@@ -259,7 +287,7 @@ export async function listReplayErrors(
     signal,
   });
 
-  return page.rows.map(normaliseError);
+  return { data: page.rows.map(normaliseError), nextCursor: page.nextCursor };
 }
 
 /**

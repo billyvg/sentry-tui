@@ -37,6 +37,8 @@ export interface DropdownProps {
   anchorLeft: number;
   /** Position the dropdown relative to its anchor (rows from top). */
   anchorTop: number;
+  /** Width of the containing pane when it is narrower than the terminal. */
+  availableWidth?: number;
   /** Whether "All" is a valid meta-option at the top. */
   showAll?: boolean;
   /** Toggle values without closing the list after each selection. */
@@ -124,6 +126,7 @@ export function Dropdown({
   selected,
   anchorLeft,
   anchorTop,
+  availableWidth,
   showAll = true,
   multiple = false,
   filterable = false,
@@ -307,7 +310,8 @@ export function Dropdown({
     ...allItems.map((i) => i.label.length + rowChrome),
     placeholderRow ? placeholderRow.length + rowChrome : 0,
   );
-  const dropdownWidth = Math.min(maxLabelWidth, maxWidth ?? Infinity, termWidth - 2);
+  const horizontalLimit = Math.min(termWidth, availableWidth ?? termWidth);
+  const dropdownWidth = Math.min(maxLabelWidth, maxWidth ?? Infinity, horizontalLimit - 2);
   const visibleRows = Math.max(
     1,
     Math.min(rowCount, MAX_VISIBLE, termHeight - anchorTop - 3 - filterRows),
@@ -316,7 +320,7 @@ export function Dropdown({
   const windowStart = listWindowStart(cursor, visibleItems.length, visibleRows);
 
   // Clamp horizontal position so it doesn't overflow the terminal.
-  const left = Math.max(0, Math.min(anchorLeft, termWidth - dropdownWidth - 1));
+  const left = Math.max(0, Math.min(anchorLeft, horizontalLimit - dropdownWidth - 1));
   const top = Math.min(anchorTop, termHeight - dropdownHeight - 1);
 
   return (

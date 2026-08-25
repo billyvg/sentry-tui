@@ -148,7 +148,7 @@ export function ExploreQueryBar({
       gapBefore: LABEL_GAP,
       opens: "sort",
       onPress: () => onOpen("sort"),
-      chip: { command: "sentry.explore.sortField", label: sort.field, caret: true },
+      chip: { command: "sentry.view.sort", label: sort.field, caret: true },
     },
     {
       kind: "chip",

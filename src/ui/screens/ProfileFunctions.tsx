@@ -15,7 +15,11 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
-import type { ProfileFunction } from "~/api/profileFunctions";
+import {
+  PROFILE_FUNCTION_SORT_OPTIONS,
+  profileFunctionSort,
+  type ProfileFunction,
+} from "~/api/profileFunctions";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { useTheme } from "~/ui/theme";
 import type { Theme } from "~/core/theme";
@@ -23,6 +27,7 @@ import { formatCount } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { useProfileFunctions } from "~/ui/hooks/useProfileFunctions";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
@@ -160,13 +165,15 @@ export function ProfileFunctions({
   );
 
   const query = state.committedQuery;
+  const sort = profileFunctionSort(state.sort);
 
-  const { functions: status } = useProfileFunctions(client, {
+  const { functions: status, nextCursor } = useProfileFunctions(client, {
     org,
     query,
     statsPeriod: state.statsPeriod,
     project: state.selectedProjects.length > 0 ? state.selectedProjects : undefined,
     environment: state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined,
+    sort,
     reloadToken,
   });
 
@@ -254,7 +261,7 @@ export function ProfileFunctions({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={functions ? `${functions.length} functions` : ""}
+        sort={{ value: sort, items: PROFILE_FUNCTION_SORT_OPTIONS, onChange: state.setSort }}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
@@ -292,6 +299,7 @@ export function ProfileFunctions({
       />
 
       {showDetail && selected ? <FunctionDetail fn={selected} width={inner} /> : null}
+      <ResultFooter count={functions?.length} noun="function" hasMore={nextCursor !== null} />
     </box>
   );
 }

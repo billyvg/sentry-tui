@@ -83,7 +83,7 @@ function useExploreNavSections(
   enabled: boolean,
   reloadToken: number,
 ): readonly NavSectionSpec[] {
-  const status = useSavedQueries(client, {
+  const { queries: status } = useSavedQueries(client, {
     org,
     source: "explore",
     starred: true,

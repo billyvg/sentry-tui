@@ -28,8 +28,10 @@ import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { matchesCommand } from "~/core/commands";
 import {
   defaultExploreQuery,
+  parseSort,
   resolveExploreQuery,
   sumsOverTime,
+  withSort,
   withToggledDirection,
   type ExploreQueryState,
 } from "~/core/exploreQuery";
@@ -40,7 +42,6 @@ import {
   type ExploreTable as ExploreTableConfig,
 } from "~/core/exploreTables";
 import { useTheme } from "~/ui/theme";
-import { countLabel } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
 import { DataTable } from "~/ui/components/DataTable";
@@ -50,7 +51,9 @@ import {
   type ExploreQueryDropdown,
 } from "~/ui/components/ExploreQueryBar";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
+import { fieldSortItems } from "~/ui/components/SortSelector";
 import { useExploreEvents } from "~/ui/hooks/useExploreEvents";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { useTraceItemAttributes } from "~/ui/hooks/useTraceItemAttributes";
@@ -113,6 +116,7 @@ function ExploreTableScreen({
   const hasBuilder = table.traceItemType !== undefined;
 
   const resolved = useMemo(() => resolveExploreQuery(table, builder), [table, builder]);
+  const fixedSortItems = useMemo(() => fieldSortItems(table.fields), [table.fields]);
 
   const attributes = useTraceItemAttributes(client, {
     org,
@@ -122,7 +126,7 @@ function ExploreTableScreen({
     environment,
   });
 
-  const { events, timeseries } = useExploreEvents(client, table, {
+  const { events, timeseries, nextCursor } = useExploreEvents(client, table, {
     org,
     query,
     request: resolved,
@@ -193,7 +197,7 @@ function ExploreTableScreen({
         openQueryDropdown("groupBy");
         return true;
       }
-      if (matchesCommand("sentry.explore.sortField", key)) {
+      if (matchesCommand("sentry.view.sort", key)) {
         openQueryDropdown("sort");
         return true;
       }
@@ -248,7 +252,15 @@ function ExploreTableScreen({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={rows ? countLabel(rows.length, rowNoun(table)) : ""}
+        sort={
+          hasBuilder
+            ? undefined
+            : {
+                value: resolved.sort,
+                items: fixedSortItems,
+                onChange: (value) => setBuilder((current) => withSort(current, parseSort(value))),
+              }
+        }
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
@@ -313,6 +325,7 @@ function ExploreTableScreen({
       {showDetail && selected ? (
         <EventDetail event={selected} fields={resolved.fields} width={inner} />
       ) : null}
+      <ResultFooter count={rows?.length} noun={rowNoun(table)} hasMore={nextCursor !== null} />
     </box>
   );
 }
@@ -388,8 +401,8 @@ function longestDuration(rows: readonly ExploreEvent[] | undefined): number {
 /**
  * The singular of the table's noun, for the row count.
  *
- * `countLabel` pluralises, and the config's noun is already plural because the
- * status bar says "loading spans…".
+ * `ResultFooter` pluralises, and the config's noun is already plural because
+ * the status bar says "loading spans…".
  */
 function rowNoun(table: ExploreTableConfig): string {
   return table.noun.endsWith("s") ? table.noun.slice(0, -1) : table.noun;

@@ -29,6 +29,11 @@ export interface DashboardsQuery {
   reloadToken?: number;
 }
 
+export interface DashboardsState {
+  dashboards: AsyncStatus<DashboardListItem[]>;
+  nextCursor: string | null;
+}
+
 /**
  * Fetch the org's dashboards for a list screen.
  *
@@ -39,8 +44,9 @@ export interface DashboardsQuery {
 export function useDashboards(
   client: SentryClient | null,
   { org, filter, query = "", sort, reloadToken = 0 }: DashboardsQuery,
-): AsyncStatus<DashboardListItem[]> {
+): DashboardsState {
   const [status, setStatus] = useState<AsyncStatus<DashboardListItem[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -59,6 +65,7 @@ export function useDashboards(
         const page = await listDashboards(client, { org, filter, query, sort, signal });
         if (cancelled) return;
         setStatus(resolved(Array.isArray(page.data) ? page.data : [], Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setStatus(rejected(statusRef.current, toAsyncError(error)));
@@ -71,7 +78,7 @@ export function useDashboards(
     };
   }, [client, org, filter, query, sort, reloadToken]);
 
-  return status;
+  return { dashboards: status, nextCursor };
 }
 
 /**

@@ -13,7 +13,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { DEFAULT_SORT, DEFAULT_STATS_PERIOD, type SortOption } from "~/api/issues";
+import { DEFAULT_SORT, DEFAULT_STATS_PERIOD } from "~/api/issues";
 import { defaultsForStateKey } from "~/core/screens";
 import type { FilterDropdownType } from "~/ui/components/FilterBar";
 
@@ -42,8 +42,8 @@ interface ScreenStateData {
   selectedProjects: string[];
   selectedEnvs: string[];
   statsPeriod: string;
-  /** Sort sent with the query. A view can carry its own — see `issueViews.ts`. */
-  sort: SortOption;
+  /** Sort sent with the query. Each screen validates it against its own options. */
+  sort: string;
   /** The screen's inline detail panel is open, below its list. */
   detailOpen: boolean;
   /** Live value of the search input, which may differ from what was submitted. */
@@ -77,7 +77,7 @@ export interface ScreenState extends ScreenStateData {
   setSelectedProjects: (next: string[]) => void;
   setSelectedEnvs: (next: string[]) => void;
   setStatsPeriod: (next: string) => void;
-  setSort: (next: SortOption) => void;
+  setSort: (next: string) => void;
   setDetailOpen: (next: boolean | ((previous: boolean) => boolean)) => void;
   setSearchQuery: (next: string) => void;
   /** Focus the search input, stashing the current value for Escape to revert to. */
@@ -113,7 +113,7 @@ export interface ScreenStateStore {
 /** Filters a slice can be started from. */
 export interface ScreenStateSeed {
   query?: string;
-  sort?: SortOption;
+  sort?: string;
   statsPeriod?: string;
   selectedProjects?: string[];
   selectedEnvs?: string[];

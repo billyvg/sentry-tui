@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listSavedQueries, type SavedQuery, type SavedQuerySource } from "~/api/savedQueries";
+import {
+  listSavedQueriesPage,
+  type SavedQuery,
+  type SavedQueryListSort,
+  type SavedQuerySource,
+} from "~/api/savedQueries";
 import {
   idle,
   rejected,
@@ -19,6 +24,7 @@ export interface SavedQueriesQuery {
   starred?: boolean;
   /** Free-text filter on the query name. */
   search?: string;
+  sort?: SavedQueryListSort;
   limit?: number;
   /**
    * Skip the fetch entirely and stay idle. The nav uses it so the sidebar for
@@ -29,6 +35,11 @@ export interface SavedQueriesQuery {
   reloadToken?: number;
 }
 
+export interface SavedQueriesState {
+  queries: AsyncStatus<SavedQuery[]>;
+  nextCursor: string | null;
+}
+
 /**
  * Fetch saved queries and expose them as async state.
  *
@@ -37,9 +48,10 @@ export interface SavedQueriesQuery {
  */
 export function useSavedQueries(
   client: SentryClient | null,
-  { org, source, starred, search, limit, enabled = true, reloadToken = 0 }: SavedQueriesQuery,
-): AsyncStatus<SavedQuery[]> {
+  { org, source, starred, search, sort, limit, enabled = true, reloadToken = 0 }: SavedQueriesQuery,
+): SavedQueriesState {
   const [status, setStatus] = useState<AsyncStatus<SavedQuery[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
 
@@ -54,15 +66,17 @@ export function useSavedQueries(
 
     void (async () => {
       try {
-        const queries = await listSavedQueries(client, source, {
+        const page = await listSavedQueriesPage(client, source, {
           org,
           starred,
           search,
+          sort,
           limit,
           signal,
         });
         if (cancelled) return;
-        setStatus(resolved(queries, Date.now()));
+        setStatus(resolved(page.data, Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setStatus(rejected(statusRef.current, toAsyncError(error)));
@@ -73,7 +87,7 @@ export function useSavedQueries(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, source, starred, search, limit, enabled, reloadToken]);
+  }, [client, org, source, starred, search, sort, limit, enabled, reloadToken]);
 
-  return status;
+  return { queries: status, nextCursor };
 }

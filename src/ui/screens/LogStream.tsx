@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect } from "react";
 
-import type { LogEntry, LogSeverity } from "~/api/logs";
+import { LOG_SORT_OPTIONS, logSort, type LogEntry, type LogSeverity } from "~/api/logs";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import type { Theme } from "~/core/theme";
 import { useTheme } from "~/ui/theme";
@@ -19,6 +19,7 @@ import { clockTime } from "~/lib/time";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { useLogs, useLogTimeseries } from "~/ui/hooks/useLogs";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -118,13 +119,15 @@ export function LogStream({
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
+  const sort = logSort(state.sort);
 
-  const { logs } = useLogs(client, {
+  const { logs, nextCursor } = useLogs(client, {
     org,
     query,
     statsPeriod: state.statsPeriod,
     project,
     environment,
+    sort,
     reloadToken,
   });
   const timeseries = valueOf(
@@ -207,7 +210,7 @@ export function LogStream({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={entries ? `${entries.length} logs` : ""}
+        sort={{ value: sort, items: LOG_SORT_OPTIONS, onChange: state.setSort }}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
@@ -252,6 +255,7 @@ export function LogStream({
       />
 
       {showDetail && selectedEntry ? <LogDetail entry={selectedEntry} width={inner} /> : null}
+      <ResultFooter count={entries?.length} noun="log" hasMore={nextCursor !== null} />
     </box>
   );
 }

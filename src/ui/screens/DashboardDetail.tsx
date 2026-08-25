@@ -214,10 +214,8 @@ export function DashboardWidgetGrid({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={widgetCountLabel(showing.length)}
-        // Without this the chip row and the sort label together overflow below
-        // about 90 cells and wrap into a column of fragments that pushes the
-        // widget stack off screen.
+        // Keep the chip row clipped below about 90 cells rather than letting
+        // it wrap into fragments that push the widget stack off screen.
         width={width}
         anchorTop={HEADER_ROWS}
         onProjectChange={state.setSelectedProjects}
@@ -273,7 +271,7 @@ export function DashboardWidgetGrid({
         ))}
       </scrollbox>
 
-      {details && showing.length > 0 ? (
+      {showing.length > 0 ? (
         <text fg={theme.subText} attributes={DIM}>
           {fitText(
             ` widget ${Math.min(state.selected + 1, showing.length)} of ${showing.length} · j/k to move · esc to go back`,
@@ -283,9 +281,4 @@ export function DashboardWidgetGrid({
       ) : null}
     </box>
   );
-}
-
-/** `4 widgets`, agreeing in number. */
-function widgetCountLabel(count: number): string {
-  return `${count} ${count === 1 ? "widget" : "widgets"}`;
 }

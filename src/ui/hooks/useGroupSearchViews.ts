@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listGroupSearchViews, type GroupSearchView } from "~/api/groupSearchViews";
+import { listGroupSearchViews, type GroupSearchView, type ViewSort } from "~/api/groupSearchViews";
 import {
   type AsyncStatus,
   idle,
@@ -17,6 +17,11 @@ export interface ViewSection {
   views: GroupSearchView[];
 }
 
+export interface GroupSearchViewsState {
+  sections: AsyncStatus<ViewSection[]>;
+  nextCursors: { mine: string | null; others: string | null };
+}
+
 /**
  * Fetch the org's saved issue views, grouped the way the web page groups them.
  *
@@ -29,9 +34,13 @@ export interface ViewSection {
  */
 export function useGroupSearchViews(
   client: SentryClient | null,
-  { org, reloadToken = 0 }: { org: string; reloadToken?: number },
-): AsyncStatus<ViewSection[]> {
+  { org, sort, reloadToken = 0 }: { org: string; sort?: ViewSort; reloadToken?: number },
+): GroupSearchViewsState {
   const [sections, setSections] = useState<AsyncStatus<ViewSection[]>>(idle);
+  const [nextCursors, setNextCursors] = useState({ mine: null, others: null } as {
+    mine: string | null;
+    others: string | null;
+  });
 
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
@@ -48,10 +57,11 @@ export function useGroupSearchViews(
     void (async () => {
       try {
         const [mine, others] = await Promise.all([
-          listGroupSearchViews(client, { org, createdBy: "me", signal }),
-          listGroupSearchViews(client, { org, createdBy: "others", signal }),
+          listGroupSearchViews(client, { org, createdBy: "me", sort, signal }),
+          listGroupSearchViews(client, { org, createdBy: "others", sort, signal }),
         ]);
         if (cancelled) return;
+        setNextCursors({ mine: mine.nextCursor, others: others.nextCursor });
         setSections(
           resolved(
             [
@@ -71,7 +81,7 @@ export function useGroupSearchViews(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, reloadToken]);
+  }, [client, org, sort, reloadToken]);
 
-  return sections;
+  return { sections, nextCursors };
 }

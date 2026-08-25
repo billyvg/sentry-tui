@@ -157,7 +157,7 @@ test("the log list scrolls to follow the cursor past the bottom of the viewport"
   }
 });
 
-test("status bar shows log count after loading", async () => {
+test("the footer shows the log count after loading", async () => {
   const h = await renderLogs();
   try {
     await h.waitForFrame((f) => f.includes("20 logs"));

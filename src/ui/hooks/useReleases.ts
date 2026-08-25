@@ -16,6 +16,7 @@ import {
   listReleases,
   type Release,
   type ReleaseHealthIndex,
+  type ReleaseSort,
 } from "~/api/releases";
 import {
   type AsyncStatus,
@@ -32,6 +33,7 @@ export interface ReleasesQuery {
   statsPeriod: string;
   project?: string[];
   environment?: string[];
+  sort?: ReleaseSort;
   /** Bump to refetch an unchanged query — the app's global refresh. */
   reloadToken?: number;
 }
@@ -44,7 +46,7 @@ export interface ReleasesState {
 /** Fetch the release list, without health data. */
 export function useReleases(
   client: SentryClient | null,
-  { org, query, statsPeriod, project, environment, reloadToken = 0 }: ReleasesQuery,
+  { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ReleasesQuery,
 ): ReleasesState {
   const [releases, setReleases] = useState<AsyncStatus<Release[]>>(idle);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export function useReleases(
           statsPeriod,
           project,
           environment,
+          sort,
           signal,
         });
         if (cancelled) return;
@@ -84,7 +87,7 @@ export function useReleases(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
+  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
 
   return { releases, nextCursor };
 }
@@ -100,7 +103,7 @@ export function useReleases(
  */
 export function useReleaseHealth(
   client: SentryClient | null,
-  { org, query, statsPeriod, project, environment, reloadToken = 0 }: ReleasesQuery,
+  { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ReleasesQuery,
 ): AsyncStatus<ReleaseHealthIndex> {
   const [health, setHealth] = useState<AsyncStatus<ReleaseHealthIndex>>(idle);
 
@@ -124,6 +127,7 @@ export function useReleaseHealth(
           statsPeriod,
           project,
           environment,
+          sort,
           signal,
         });
         if (cancelled) return;
@@ -138,7 +142,7 @@ export function useReleaseHealth(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
+  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
 
   return health;
 }

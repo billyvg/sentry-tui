@@ -16,12 +16,19 @@ const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
 const HEIGHT = 30;
 
-function stubClient(body: unknown = groupsFixture) {
+function stubClient(body: unknown = groupsFixture, hasMore = false) {
   const fetchImpl = (async (input: RequestInfo | URL) => {
-    const payload = String(input).includes("issues-stats") ? {} : body;
+    const url = String(input);
+    const isStats = url.includes("issues-stats");
+    const payload = isStats ? {} : body;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (hasMore && url.includes("/issues/") && !isStats) {
+      headers["Link"] =
+        '<https://sentry.io/api/0/organizations/acme/issues/?cursor=0:25:0>; rel="next"; results="true"; cursor="0:25:0"';
+    }
     return new Response(JSON.stringify(payload), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers,
     });
   }) as unknown as typeof fetch;
   return new SentryClient({ auth, fetchImpl });
@@ -42,6 +49,17 @@ test("issue stream is the default view and lists issues", async () => {
     expect(frame).toContain("TypeError");
     expect(frame).toContain("ValueError");
     expect(frame).toContain("PUMP-STATION-1");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the footer marks a partial issue page using the API Link header", async () => {
+  const h = await renderApp(stubClient(groupsFixture, true));
+  try {
+    await h.waitForFrame((frame) => frame.includes("3+ issues"));
+    const frame = h.frame();
+    expect(rowOf(frame, "3+ issues")).toBeGreaterThan(rowOf(frame, "Slow database query"));
   } finally {
     await h.cleanup();
   }
@@ -85,10 +103,10 @@ test("status bar is blank once issues settle", async () => {
   try {
     // Wait for the stream to finish loading so the status bar is idle.
     await h.waitForFrame((f) => f.includes("TypeError"));
-    const frame = h.frame();
+    const statusBar = h.frame().trimEnd().split("\n").at(-1) ?? "";
     // No issue count, no org slug — just the key hints on the right.
-    expect(frame).not.toMatch(/\d+ issues/);
-    expect(frame).not.toContain("Ready");
+    expect(statusBar).not.toMatch(/\d+ issues/);
+    expect(statusBar).not.toContain("Ready");
   } finally {
     await h.cleanup();
   }

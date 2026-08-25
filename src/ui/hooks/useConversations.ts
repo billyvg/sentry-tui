@@ -37,6 +37,7 @@ export interface ConversationsQuery {
 export interface ConversationsState {
   conversations: AsyncStatus<Conversation[]>;
   timeseries: AsyncStatus<TimeseriesBucket[]>;
+  nextCursor: string | null;
 }
 
 export function useConversations(
@@ -45,6 +46,7 @@ export function useConversations(
 ): ConversationsState {
   const [conversations, setConversations] = useState<AsyncStatus<Conversation[]>>(idle);
   const [timeseries, setTimeseries] = useState<AsyncStatus<TimeseriesBucket[]>>(idle);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
@@ -68,6 +70,7 @@ export function useConversations(
         const page = await listConversations(client, { ...filters, query });
         if (cancelled) return;
         setConversations(resolved(page.data, Date.now()));
+        setNextCursor(page.nextCursor);
       } catch (error) {
         if (cancelled || signal.aborted) return;
         setConversations(rejected(conversationsRef.current, toAsyncError(error)));
@@ -100,5 +103,5 @@ export function useConversations(
     };
   }, [client, org, query, statsPeriod, project, environment, reloadToken]);
 
-  return { conversations, timeseries };
+  return { conversations, timeseries, nextCursor };
 }

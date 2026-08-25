@@ -60,7 +60,26 @@ const LOG_FIELDS = [
   "project",
 ] as const;
 
-const LOG_SORT = "-timestamp";
+export const LOG_SORT_OPTIONS = [
+  { value: "-timestamp", label: "Newest" },
+  { value: "timestamp", label: "Oldest" },
+  { value: "sentry.severity", label: "Level (A-Z)" },
+  { value: "-sentry.severity", label: "Level (Z-A)" },
+  { value: "project", label: "Project (A-Z)" },
+  { value: "-project", label: "Project (Z-A)" },
+  { value: "message", label: "Message (A-Z)" },
+  { value: "-message", label: "Message (Z-A)" },
+] as const;
+
+export type LogSort = (typeof LOG_SORT_OPTIONS)[number]["value"];
+export const DEFAULT_LOG_SORT: LogSort = "-timestamp";
+
+/** Resolve shared screen state to an order the fixed log columns support. */
+export function logSort(value: string): LogSort {
+  return LOG_SORT_OPTIONS.some((option) => option.value === value)
+    ? (value as LogSort)
+    : DEFAULT_LOG_SORT;
+}
 
 // ---------------------------------------------------------------------------
 // Fetch
@@ -72,6 +91,7 @@ export interface ListLogsParams {
   statsPeriod?: string;
   project?: string[];
   environment?: string[];
+  sort?: LogSort;
   cursor?: string;
   limit?: number;
   signal?: AbortSignal;
@@ -86,6 +106,7 @@ export async function listLogs(
     statsPeriod = DEFAULT_LOG_PERIOD,
     project,
     environment,
+    sort = DEFAULT_LOG_SORT,
     cursor,
     limit = LOG_PAGE_SIZE,
     signal,
@@ -95,7 +116,7 @@ export async function listLogs(
     org,
     dataset: "logs",
     fields: LOG_FIELDS,
-    sort: LOG_SORT,
+    sort,
     query,
     statsPeriod,
     project,

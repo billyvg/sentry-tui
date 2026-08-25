@@ -87,12 +87,35 @@ export type DashboardListFilter = "onlyPrebuilt" | "onlyFavorites" | "owned" | (
  * to the org-wide last-visited when `dashboards-user-last-visited` is off — so
  * neither depends on a feature flag we cannot read.
  */
-export type DashboardSort =
-  | "recentlyViewed"
-  | "mostPopular"
-  | "mydashboards"
-  | "title"
-  | "dateCreated";
+export const DASHBOARD_SORT_OPTIONS = [
+  { value: "mydashboards", label: "My Dashboards" },
+  { value: "title", label: "Name (A-Z)" },
+  { value: "-title", label: "Name (Z-A)" },
+  { value: "-dateCreated", label: "Newest Created" },
+  { value: "dateCreated", label: "Oldest Created" },
+  { value: "mostPopular", label: "Most Popular" },
+  { value: "recentlyViewed", label: "Recently Viewed" },
+] as const;
+
+export type DashboardSort = (typeof DASHBOARD_SORT_OPTIONS)[number]["value"];
+
+/** Sort choices for an ordinary or Sentry-built dashboard list. */
+export function dashboardSortOptions(prebuilt: boolean) {
+  return prebuilt
+    ? DASHBOARD_SORT_OPTIONS.filter((option) => option.value !== "mydashboards")
+    : DASHBOARD_SORT_OPTIONS;
+}
+
+/** Resolve shared screen state to a sort supported by this dashboard list. */
+export function dashboardSort(
+  value: string,
+  fallback: DashboardSort,
+  prebuilt: boolean,
+): DashboardSort {
+  return dashboardSortOptions(prebuilt).some((option) => option.value === value)
+    ? (value as DashboardSort)
+    : fallback;
+}
 
 /**
  * Rows fetched per list screen.

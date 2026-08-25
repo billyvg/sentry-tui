@@ -36,6 +36,7 @@ import { fitText, padText } from "~/lib/text";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { useConversations } from "~/ui/hooks/useConversations";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -187,7 +188,7 @@ export function ConversationList({
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
 
-  const { conversations, timeseries } = useConversations(client, {
+  const { conversations, timeseries, nextCursor } = useConversations(client, {
     org,
     query,
     statsPeriod: state.statsPeriod,
@@ -253,7 +254,6 @@ export function ConversationList({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sortLabel={rows ? countLabel(rows.length, "conversation") : ""}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
@@ -298,6 +298,7 @@ export function ConversationList({
       />
 
       {showDetail && selected ? <ConversationDetail conversation={selected} width={inner} /> : null}
+      <ResultFooter count={rows?.length} noun="conversation" hasMore={nextCursor !== null} />
     </box>
   );
 }

@@ -129,6 +129,30 @@ test("navigating to Explore > Replays shows the replay table", async () => {
   }
 });
 
+test("S applies replay-specific sorts", async () => {
+  const seen: string[] = [];
+  const h = await openReplays(stubClient({ seen }));
+  try {
+    await h.waitForFrame((f) => f.includes("Alice Nguyen"));
+
+    await h.press((i) => i.pressKey("S"));
+    await h.waitForFrame((frame) => frame.includes("Sort By"));
+    expect(h.frame()).toContain("Longest duration");
+    // Newest → Oldest → Activity high → Activity low → Longest duration.
+    for (let step = 0; step < 4; step++) await h.press((i) => i.pressKey("j"));
+    await h.press((i) => i.pressEnter());
+
+    await h.waitForFrame(() =>
+      seen
+        .filter((url) => url.includes("/replays/"))
+        .some((url) => new URL(url).searchParams.get("sort") === "-duration"),
+    );
+    expect(h.frame()).toContain("S Longest duration");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("the session cell is two lines: user above project, id and age", async () => {
   const h = await openReplays();
   try {
@@ -193,7 +217,7 @@ test("an archived replay renders as a tombstone rather than a session", async ()
   }
 });
 
-test("the status bar counts the replays that loaded", async () => {
+test("the footer counts the replays that loaded", async () => {
   const h = await openReplays();
   try {
     await h.waitForFrame((f) => f.includes("6 replays"));

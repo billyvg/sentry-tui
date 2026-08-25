@@ -16,7 +16,14 @@ function renderFilterBar(width: number, projects: string[], environments: string
       selectedProjects={projects}
       selectedEnvs={environments}
       statsPeriod="14d"
-      sortLabel="Last Seen"
+      sort={{
+        value: "date",
+        items: [
+          { label: "Last Seen", value: "date" },
+          { label: "Age", value: "new" },
+        ],
+        onChange: () => {},
+      }}
       width={width}
       anchorTop={0}
       onProjectChange={() => {}}
@@ -28,26 +35,29 @@ function renderFilterBar(width: number, projects: string[], environments: string
   );
 }
 
-/** The middle line of the chips, where their labels and Sort are printed. */
+/** The middle line of the chips, where their labels are printed. */
 function filterLine(frame: string): string {
-  return frame.split("\n").find((line) => line.includes("Sort: Last Seen")) ?? "";
+  return frame.split("\n").find((line) => line.includes("Last Seen")) ?? "";
 }
 
-test("multiple selections list every project slug and environment name when they fit", async () => {
-  const h = await renderFilterBar(120, ["backend", "frontend"], ["production", "staging"]);
+test("multiple selections fit while sort stays against the right edge", async () => {
+  const width = 120;
+  const h = await renderFilterBar(width, ["backend", "frontend"], ["production", "staging"]);
   try {
     const line = filterLine(h.frame());
     expect(line).toContain("backend, frontend");
     expect(line).toContain("production, staging");
-    expect(line).toContain("Sort: Last Seen");
+    expect(line).toContain("Last Seen");
+    expect(line).not.toContain("Sort:");
     expect(line).not.toContain("2 projects");
     expect(line).not.toContain("2 envs");
+    expect(line.indexOf("Last Seen")).toBeGreaterThan(width - 20);
   } finally {
     await h.cleanup();
   }
 });
 
-test("long selection lists ellipsize before they can displace Sort", async () => {
+test("long selection lists ellipsize before they can displace right-aligned sort", async () => {
   const width = 80;
   const h = await renderFilterBar(
     width,
@@ -56,11 +66,12 @@ test("long selection lists ellipsize before they can displace Sort", async () =>
   );
   try {
     const line = filterLine(h.frame());
-    expect(line).toContain("Sort: Last Seen");
+    expect(line).toContain("Last Seen");
     expect(line.match(/…/g)).toHaveLength(2);
     expect(line).not.toContain("billing-worker");
     expect(line).not.toContain("staging-us-west");
     expect(measureTextWidth(line)).toBeLessThanOrEqual(width);
+    expect(line.indexOf("Last Seen")).toBeGreaterThan(width - 20);
   } finally {
     await h.cleanup();
   }
