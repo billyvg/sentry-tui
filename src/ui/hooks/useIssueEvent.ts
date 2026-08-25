@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError, type SentryClient } from "~/api/client";
-import { fetchIssueEvent } from "~/api/issues";
+import { fetchIssueEvent, type EventSelector } from "~/api/issues";
 import type { SentryEvent } from "~/api/types";
 import { type AsyncStatus, idle, rejected, resolved, startLoading } from "~/core/async";
 
@@ -16,10 +16,13 @@ export function useIssueEvent(
   {
     org,
     issueId,
+    eventId = "latest",
     reloadToken = 0,
   }: {
     org: string;
     issueId: string | null;
+    /** Exact event carried by a copied issue URL; otherwise the latest event. */
+    eventId?: EventSelector;
     /** Bump to refetch the same issue — the app's global refresh. */
     reloadToken?: number;
   },
@@ -51,6 +54,7 @@ export function useIssueEvent(
         const result = await fetchIssueEvent(client, {
           org,
           issueId,
+          eventId,
           signal: controller.signal,
         });
         if (cancelled) return;
@@ -70,7 +74,7 @@ export function useIssueEvent(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, issueId, reloadToken]);
+  }, [client, org, issueId, eventId, reloadToken]);
 
   return event;
 }

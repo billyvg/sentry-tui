@@ -340,6 +340,17 @@ export async function listDetectors(
   });
 }
 
+/** Fetch one detector by id, for a monitor URL opened directly. */
+export async function fetchDetector(
+  client: SentryClient,
+  { org, detectorId, signal }: { org: string; detectorId: string; signal?: AbortSignal },
+): Promise<Detector> {
+  const page = await client.request<Detector>(`/organizations/${org}/detectors/${detectorId}/`, {
+    signal,
+  });
+  return page.data;
+}
+
 // ---------------------------------------------------------------------------
 // Open periods
 // ---------------------------------------------------------------------------

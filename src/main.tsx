@@ -11,6 +11,7 @@ import {
   migrateLegacyCredentials,
   MissingTokenError,
   parseArgs,
+  SentryUrlInputError,
 } from "~/app/startup";
 import { VERSION_LABEL } from "~/lib/version";
 import {
@@ -79,7 +80,7 @@ try {
     // Still worth a number — it is how often the app is opened by someone who
     // cannot get in, and whether they had a terminal to be prompted in.
     countMetric("auth.credentials.missing", { interactive: process.stdin.isTTY === true });
-  } else {
+  } else if (!(error instanceof SentryUrlInputError)) {
     reportError(error, { source: "app.startup.failed" });
   }
   await shutdownTelemetry();

@@ -72,6 +72,15 @@ export function dashboardDetailView(row: DashboardListItem): ViewStackEntry {
   };
 }
 
+/** A dashboard detail addressed by id before its list row has been fetched. */
+export function dashboardUrlView(dashboardId: string): ViewStackEntry {
+  return dashboardDetailView({
+    id: dashboardId,
+    title: `Dashboard ${dashboardId}`,
+    widgetDisplay: [],
+  });
+}
+
 interface DashboardWidgetGridProps extends DetailContext {
   state: ScreenState;
   /** The list row the view was opened from — its title and widget shapes. */
@@ -87,6 +96,7 @@ export function DashboardWidgetGrid({
   height,
   reloadToken,
   dashboard,
+  updateView,
 }: DashboardWidgetGridProps) {
   const theme = useTheme();
   const { setEntries, setStatus, setOpenDropdown, setStatsPeriod } = state;
@@ -96,6 +106,10 @@ export function DashboardWidgetGrid({
   const details = valueOf(detail);
   const error = errorOf(detail);
   const loading = detail.state === "loading";
+
+  useEffect(() => {
+    if (details) updateView(`dashboard:${dashboard.id}`, { label: details.title });
+  }, [details, dashboard.id, updateView]);
 
   const widgets = useMemo(() => orderWidgets(details?.widgets ?? []), [details]);
 

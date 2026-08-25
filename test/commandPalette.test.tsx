@@ -34,6 +34,13 @@ async function renderApp(onQuit: () => void = () => {}) {
 /** Open the palette the way a user does. */
 const openPalette = (h: Harness) => h.press((i) => i.pressKey("k", { ctrl: true }));
 
+/** Choose the URL command from the palette. */
+async function openUrlDialog(h: Harness): Promise<void> {
+  await openPalette(h);
+  await h.press((i) => i.pressKey("open sentry url"));
+  await h.press((i) => i.pressEnter());
+}
+
 test("ctrl+k opens the palette, escape closes it", async () => {
   const h = await renderApp();
   try {
@@ -189,6 +196,68 @@ test("selecting Help from the palette opens the help overlay", async () => {
     const frame = h.frame();
     expect(frame).not.toContain("Command palette");
     expect(frame).toContain("Keyboard shortcuts");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the palette URL command opens its paste prompt", async () => {
+  const h = await renderApp();
+  try {
+    await openUrlDialog(h);
+    const frame = h.frame();
+    expect(frame).not.toContain("Command palette");
+    expect(frame).toContain("Open Sentry URL");
+    expect(frame).toContain("Paste a sentry.io URL");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("ctrl+o opens the same URL prompt without the palette", async () => {
+  const h = await renderApp();
+  try {
+    await h.press((input) => input.pressKey("o", { ctrl: true }));
+    expect(h.frame()).toContain("Open Sentry URL");
+    expect(h.frame()).toContain("Paste a sentry.io URL");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the URL prompt distinguishes invalid URLs from unsupported Sentry pages", async () => {
+  const invalid = await renderApp();
+  try {
+    await openUrlDialog(invalid);
+    await invalid.press((i) => i.pressKey("https://example.com/issues/"));
+    await invalid.press((i) => i.pressEnter());
+    expect(invalid.frame()).toContain("Invalid URL: That URL is not hosted on sentry.io.");
+  } finally {
+    await invalid.cleanup();
+  }
+
+  const unsupported = await renderApp();
+  try {
+    await openUrlDialog(unsupported);
+    await unsupported.press((i) => i.pressKey("https://acme.sentry.io/settings/projects/"));
+    await unsupported.press((i) => i.pressEnter());
+    expect(unsupported.frame()).toContain("Not implemented: That Sentry page is not implemented");
+  } finally {
+    await unsupported.cleanup();
+  }
+});
+
+test("a supported URL switches organization and navigates to its screen", async () => {
+  const h = await renderApp();
+  try {
+    await openUrlDialog(h);
+    await h.press((i) => i.pressKey("https://globex.sentry.io/issues/inbox/"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("Inbox") && frame.includes("globex"));
+
+    expect(h.frame()).not.toContain("Open Sentry URL");
+    expect(h.frame()).toContain("Inbox");
+    expect(h.frame()).toContain("globex");
   } finally {
     await h.cleanup();
   }

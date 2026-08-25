@@ -134,6 +134,8 @@ The names in use today:
 | `api.response.unreadable`       | error       | `src/core/async.ts`                   |
 | `auth.credentials.missing`      | metric      | `src/main.tsx`                        |
 | `nav.screen.opened`             | log         | `src/telemetry/index.ts`              |
+| `nav.url.invalid`               | metric      | `src/core/sentryUrl.ts`               |
+| `nav.url.unsupported`           | metric      | `src/core/sentryUrl.ts`               |
 | `ui.org.switched`               | log         | `src/ui/App.tsx`                      |
 | `ui.render.crashed`             | error       | `src/ui/components/ErrorBoundary.tsx` |
 

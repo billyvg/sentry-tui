@@ -21,6 +21,8 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
 import {
+  DEFAULT_REPLAY_PERIOD,
+  fetchReplay,
   formatAgent,
   formatReplayDuration,
   REPLAY_SORT_OPTIONS,
@@ -37,9 +39,11 @@ import type { Theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
+import { DirectDetailStatus } from "~/ui/components/DirectDetailStatus";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { useProjects } from "~/ui/hooks/useProjects";
+import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useReplayErrors, useReplays } from "~/ui/hooks/useReplays";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
@@ -389,6 +393,62 @@ function replayDetailView(
     render: (ctx) =>
       ctx.state ? <ReplayDetail {...ctx} state={ctx.state} replay={replay} /> : null,
   };
+}
+
+const loadReplay: DirectResourceLoader<Replay> = (client, { org, id, signal }) =>
+  fetchReplay(client, { org, replayId: id, signal });
+
+/** A replay detail addressed by a copied URL rather than a loaded list row. */
+export function replayUrlView(replayId: string): ViewStackEntry {
+  return {
+    id: `replay:${replayId}`,
+    label: shortReplayId(replayId),
+    stateKey: REPLAY_DETAIL_STATE_KEY,
+    initialState: {
+      statsPeriod: DEFAULT_REPLAY_PERIOD,
+      selectedEnvs: [],
+      selectedProjects: [],
+    },
+    render: (ctx) =>
+      ctx.state ? <ReplayFromUrl {...ctx} state={ctx.state} replayId={replayId} /> : null,
+  };
+}
+
+/** Resolve the replay record before handing it to the existing detail pane. */
+function ReplayFromUrl({
+  client,
+  org,
+  state,
+  replayId,
+  reloadToken,
+  width,
+  height,
+  updateView,
+  ...ctx
+}: DetailContext & { state: ScreenState; replayId: string }) {
+  const status = useDirectResource(client, { org, id: replayId, reloadToken, load: loadReplay });
+  const replay = valueOf(status);
+
+  useEffect(() => {
+    if (replay) updateView(`replay:${replayId}`, { label: shortReplayId(replay.id) });
+  }, [replay, replayId, updateView]);
+
+  if (!replay) {
+    return <DirectDetailStatus status={status} noun="replay" width={width} height={height} />;
+  }
+  return (
+    <ReplayDetail
+      {...ctx}
+      client={client}
+      org={org}
+      state={state}
+      replay={replay}
+      reloadToken={reloadToken}
+      width={width}
+      height={height}
+      updateView={updateView}
+    />
+  );
 }
 
 /** Columns of the replay's error list. Title survives any width. */

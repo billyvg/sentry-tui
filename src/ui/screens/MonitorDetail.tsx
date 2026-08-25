@@ -14,10 +14,10 @@
  * client offers neither, so no chip pretends to.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import type { SentryClient } from "~/api/client";
-import type { Detector, DetectorOpenPeriod } from "~/api/detectors";
+import { fetchDetector, type Detector, type DetectorOpenPeriod } from "~/api/detectors";
 import { actionTypeLabel, workflowActionTypes, type Workflow } from "~/api/workflows";
 import { errorOf, valueOf, type AsyncStatus } from "~/core/async";
 import {
@@ -30,6 +30,7 @@ import { useTheme } from "~/ui/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { fitText } from "~/lib/text";
 import { dateTimeText, elapsedText } from "~/lib/time";
+import { DirectDetailStatus } from "~/ui/components/DirectDetailStatus";
 import {
   BODY_INDENT,
   Divider,
@@ -40,6 +41,7 @@ import {
 } from "~/ui/components/DetailSections";
 import type { Notice } from "~/ui/components/StatusBar";
 import { useDetectorOpenPeriods, useDetectorWorkflows } from "~/ui/hooks/useDetectorDetail";
+import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { BOLD } from "~/ui/lib/attributes";
 import { DetectorTimelineSection, hasDetectorTimeline } from "~/ui/screens/monitorTimelineSlot";
 import type { DetailContext, ViewStackEntry } from "~/ui/screens/types";
@@ -74,6 +76,59 @@ export function monitorDetailView(detector: Detector, projectSlug?: string): Vie
     label: detector.name,
     render: (ctx) => <MonitorDetail {...ctx} detector={detector} projectSlug={projectSlug} />,
   };
+}
+
+const loadDetector: DirectResourceLoader<Detector> = (client, { org, id, signal }) =>
+  fetchDetector(client, { org, detectorId: id, signal });
+
+/** A monitor detail addressed by a copied URL rather than a loaded list row. */
+export function monitorUrlView(detectorId: string): ViewStackEntry {
+  return {
+    id: `monitor:${detectorId}`,
+    label: `Monitor ${detectorId}`,
+    render: (ctx) => <MonitorFromUrl {...ctx} detectorId={detectorId} />,
+  };
+}
+
+/** Resolve the detector record before handing it to the existing detail pane. */
+function MonitorFromUrl({
+  client,
+  org,
+  detectorId,
+  reloadToken,
+  width,
+  height,
+  updateView,
+  ...ctx
+}: DetailContext & { detectorId: string }) {
+  const status = useDirectResource(client, {
+    org,
+    id: detectorId,
+    reloadToken,
+    load: loadDetector,
+  });
+  const detector = valueOf(status);
+
+  useEffect(() => {
+    if (detector) updateView(`monitor:${detectorId}`, { label: detector.name });
+  }, [detector, detectorId, updateView]);
+
+  if (!detector) {
+    return <DirectDetailStatus status={status} noun="monitor" width={width} height={height} />;
+  }
+  return (
+    <MonitorDetail
+      {...ctx}
+      client={client}
+      org={org}
+      detector={detector}
+      projectSlug={detector.latestGroup?.project?.slug}
+      reloadToken={reloadToken}
+      width={width}
+      height={height}
+      updateView={updateView}
+    />
+  );
 }
 
 interface MonitorDetailProps extends DetailContext {

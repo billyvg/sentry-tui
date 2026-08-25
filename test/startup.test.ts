@@ -7,7 +7,7 @@ import { bootstrap, HELP_TEXT, parseArgs } from "~/app/startup";
 import { APP_VERSION, VERSION_LABEL } from "~/lib/version";
 
 /** Bootstrap against one throwaway user config and restore the process env. */
-async function bootstrapWithConfig(config: unknown) {
+async function bootstrapWithConfig(config: unknown, argv: string[] = []) {
   const configDir = mkdtempSync(join(tmpdir(), "sentry-tui-startup-"));
   const previousConfigDir = process.env["SENTRY_TUI_CONFIG_DIR"];
   const previousToken = process.env["SENTRY_AUTH_TOKEN"];
@@ -16,7 +16,7 @@ async function bootstrapWithConfig(config: unknown) {
 
   try {
     await Bun.write(join(configDir, "config.json"), JSON.stringify(config));
-    return await bootstrap(parseArgs([]));
+    return await bootstrap(parseArgs(argv));
   } finally {
     if (previousConfigDir === undefined) delete process.env["SENTRY_TUI_CONFIG_DIR"];
     else process.env["SENTRY_TUI_CONFIG_DIR"] = previousConfigDir;
@@ -94,6 +94,17 @@ describe("parseArgs", () => {
     });
   });
 
+  test("takes a production URL as the TUI destination", () => {
+    expect(parseArgs(["https://acme.sentry.io/explore/logs/", "--org", "acme"])).toEqual({
+      command: "run",
+      org: "acme",
+      help: false,
+      version: false,
+      noBrowser: false,
+      url: "https://acme.sentry.io/explore/logs/",
+    });
+  });
+
   test("ignores an unknown word rather than treating it as a command", () => {
     expect(parseArgs(["nonsense"]).command).toBe("run");
   });
@@ -121,6 +132,31 @@ test("startup ignores malformed project selections in the user config", async ()
   expect(context.projectsByOrg).toEqual({ acme: ["backend"], empty: [] });
 });
 
+test("a CLI URL supplies the startup organization and initial location", async () => {
+  const context = await bootstrapWithConfig({ org: "globex" }, [
+    "https://sentry.io/organizations/acme/explore/logs/?query=level%3Aerror",
+  ]);
+
+  expect(context.org).toBe("acme");
+  expect(context.initialLocation).toEqual({
+    org: "acme",
+    screen: "explore.logs",
+    state: { query: "level:error" },
+  });
+});
+
+test("a conflicting explicit organization is rejected as URL input", async () => {
+  expect(
+    bootstrapWithConfig({ org: "acme" }, ["https://acme.sentry.io/issues/", "--org", "globex"]),
+  ).rejects.toThrow("Invalid Sentry URL: --org globex conflicts");
+});
+
+test("a valid unsupported Sentry URL is reported as not implemented", async () => {
+  expect(
+    bootstrapWithConfig({ org: "acme" }, ["https://acme.sentry.io/settings/projects/"]),
+  ).rejects.toThrow("Not implemented: That Sentry page is not implemented");
+});
+
 describe("help text", () => {
   test("documents the auth env vars", () => {
     expect(HELP_TEXT).toContain("SENTRY_AUTH_TOKEN");
@@ -138,6 +174,10 @@ describe("help text", () => {
     expect(HELP_TEXT).toContain("sentry-tui login");
     expect(HELP_TEXT).toContain("sentry-tui logout");
     expect(HELP_TEXT).toContain("sentry-tui status");
+  });
+
+  test("documents opening a production URL", () => {
+    expect(HELP_TEXT).toContain("sentry-tui <url>");
   });
 
   test("describes the preferences stored in config.json", () => {

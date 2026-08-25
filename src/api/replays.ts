@@ -251,6 +251,20 @@ export async function listReplays(
   return { data: unwrapReplays(page.data).map(normalise), nextCursor: page.nextCursor };
 }
 
+/** Fetch one replay by id, for a URL opened without first visiting the list. */
+export async function fetchReplay(
+  client: SentryClient,
+  { org, replayId, signal }: { org: string; replayId: string; signal?: AbortSignal },
+): Promise<Replay> {
+  const page = await client.request<{ data?: unknown }>(
+    `/organizations/${org}/replays/${replayId}/`,
+    { signal },
+  );
+  const raw = page.data?.data;
+  if (!isObject(raw)) throw new Error(`Replay ${replayId} was not found.`);
+  return normalise(raw, 0);
+}
+
 export interface ListReplayErrorsParams {
   org: string;
   replayId: string;

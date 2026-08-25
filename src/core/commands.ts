@@ -95,6 +95,14 @@ export const COMMANDS: readonly Command[] = [
     palette: "always",
   },
   {
+    id: "sentry.app.openUrl",
+    title: "Open Sentry URL…",
+    category: "app",
+    defaultKeys: ["ctrl+o"],
+    description: "Open a copied Sentry URL",
+    palette: "always",
+  },
+  {
     id: "sentry.app.focusNext",
     title: "Next pane",
     category: "app",
