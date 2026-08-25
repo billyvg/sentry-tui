@@ -74,8 +74,15 @@ export async function renderHarness(
   };
 
   const click = async (x: number, y: number) => {
+    // Settle mouse-down before release. A real terminal delivers these as
+    // separate events, and the first can mount an overlay that receives the
+    // second; batching both would hide event-order regressions in tests.
     await act(async () => {
-      await setup.mockMouse.click(x, y);
+      await setup.mockMouse.pressDown(x, y);
+    });
+    await setup.flush();
+    await act(async () => {
+      await setup.mockMouse.release(x, y);
     });
     await setup.flush();
   };
