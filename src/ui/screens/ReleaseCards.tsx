@@ -36,10 +36,11 @@ import { padText } from "~/lib/text";
 import type { Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
+import { SearchInputHint } from "~/ui/components/SearchInputHint";
 import { useCardScrollFollow } from "~/ui/hooks/useCardScrollFollow";
 import { useReleaseHealth, useReleases } from "~/ui/hooks/useReleases";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
-import { BOLD, ITALIC, UNDERLINE } from "~/ui/lib/attributes";
+import { BOLD, ITALIC } from "~/ui/lib/attributes";
 import { layoutColumns } from "~/ui/lib/tableLayout";
 import type { ScreenProps } from "~/ui/screens/types";
 
@@ -301,10 +302,7 @@ export function ReleaseCards({
           paddingRight: 1,
         }}
       >
-        <text fg={state.searchFocused ? theme.accent : theme.text} attributes={UNDERLINE}>
-          {"/"}
-        </text>
-        <text> </text>
+        <SearchInputHint />
         <input
           ref={inputRefCallback}
           value={state.searchQuery}

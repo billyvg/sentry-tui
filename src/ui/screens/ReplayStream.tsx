@@ -42,12 +42,13 @@ import { DataTable, type Column } from "~/ui/components/DataTable";
 import { DirectDetailStatus } from "~/ui/components/DirectDetailStatus";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
+import { SearchInputHint } from "~/ui/components/SearchInputHint";
 import { useProjects } from "~/ui/hooks/useProjects";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useReplayErrors, useReplays } from "~/ui/hooks/useReplays";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
-import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
+import { BOLD } from "~/ui/lib/attributes";
 import type { DetailContext, ScreenProps, ViewStackEntry } from "~/ui/screens/types";
 
 /**
@@ -759,10 +760,7 @@ function SearchInputPlaceholder({
         paddingRight: 1,
       }}
     >
-      <text fg={state.searchFocused ? theme.accent : theme.text} attributes={UNDERLINE}>
-        {"/"}
-      </text>
-      <text> </text>
+      <SearchInputHint />
       <input
         ref={inputRefCallback}
         value={state.searchQuery}

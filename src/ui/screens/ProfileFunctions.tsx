@@ -28,9 +28,10 @@ import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
+import { SearchInputHint } from "~/ui/components/SearchInputHint";
 import { useProfileFunctions } from "~/ui/hooks/useProfileFunctions";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
-import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
+import { BOLD } from "~/ui/lib/attributes";
 import type { ScreenProps } from "~/ui/screens/types";
 
 /**
@@ -238,10 +239,7 @@ export function ProfileFunctions({
           paddingRight: 1,
         }}
       >
-        <text fg={state.searchFocused ? theme.accent : theme.text} attributes={UNDERLINE}>
-          {"/"}
-        </text>
-        <text> </text>
+        <SearchInputHint />
         <input
           ref={inputRefCallback}
           value={state.searchQuery}
