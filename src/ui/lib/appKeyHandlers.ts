@@ -169,8 +169,7 @@ export function createGotoHandler({
   return (key) => {
     if (!navigation.gotoMode) {
       if (!matchesCommand("sentry.nav.goto", key)) return "notMine";
-      navigation.setNavExpanded(true);
-      navigation.setGotoMode(true);
+      navigation.dispatch({ type: "openGoto" });
       return "mine";
     }
     if (
@@ -180,11 +179,11 @@ export function createGotoHandler({
       key.meta ||
       key.shift
     ) {
-      navigation.setGotoMode(false);
+      navigation.dispatch({ type: "closeGoto" });
       return "mine";
     }
     if (matchesCommand("sentry.app.switchOrg", key)) {
-      navigation.setGotoMode(false);
+      navigation.dispatch({ type: "closeGoto" });
       setShowOrgPicker(true);
       return "mine";
     }
@@ -197,7 +196,7 @@ export function createGotoHandler({
       navigation.navigateTo(navigation.railGroup, target.item);
       return "mine";
     }
-    navigation.setGotoMode(false);
+    navigation.dispatch({ type: "closeGoto" });
     return "mine";
   };
 }
@@ -235,7 +234,7 @@ export function createSecondaryNavCloseHandler({
 }: Pick<AppKeyHandlerOptions, "navigation" | "focus">): KeyOwnerHandler {
   return (key) => {
     if (!navigation.showSecondary || !matchesCommand("sentry.nav.back", key)) return "notMine";
-    navigation.setShowSecondary(false);
+    navigation.dispatch({ type: "closeSecondary" });
     focus.focus("nav");
     return "mine";
   };
@@ -364,7 +363,7 @@ export function createNavRailHandler({
     if (step === 0) return "notMine";
     const next =
       availableNavGroups[(index + step + availableNavGroups.length) % availableNavGroups.length]!;
-    navigation.setRailGroup(next.id);
+    navigation.dispatch({ type: "selectRailGroup", group: next.id });
     return "mine";
   };
 }
@@ -391,7 +390,10 @@ export function createSecondaryNavHandler({
         : 0;
     if (step === 0) return "notMine";
     const next = Math.max(0, Math.min(index + step, navigation.secondaryItems.length - 1));
-    navigation.setSecondaryItem(navigation.secondaryItems[next]?.label ?? navigation.secondaryItem);
+    navigation.dispatch({
+      type: "selectSecondaryItem",
+      item: navigation.secondaryItems[next]?.label ?? navigation.secondaryItem,
+    });
     return "mine";
   };
 }
