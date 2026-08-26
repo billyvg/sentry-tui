@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { createTokenAuthProvider, MissingTokenError } from "~/api/auth";
 import { ApiError, parseLinkHeader, SentryClient } from "~/api/client";
-import { queryDiscoverTimeseries } from "~/api/discover";
+import { queryDiscover, queryDiscoverTimeseries } from "~/api/discover";
 import { fetchIssueStats, listIssues, updateIssue } from "~/api/issues";
 import { groupsFixture } from "./fixtures";
 
@@ -94,8 +94,7 @@ describe("SentryClient", () => {
     expect(page.nextCursor).toBe("0:25:0");
     expect(page.rateLimit.remaining).toBe(37);
 
-    const headers = calls[0]!.init.headers as Record<string, string>;
-    expect(headers["Authorization"]).toBe("Bearer sntryu_test");
+    expect(new Headers(calls[0]!.init.headers).get("Authorization")).toBe("Bearer sntryu_test");
   });
 
   test("omits stats from the list request so the first paint is fast", async () => {
@@ -146,6 +145,43 @@ describe("SentryClient", () => {
     await listIssues(client, { org: "acme", project: ["1", "2"] });
 
     expect(calls[0]!.url).toContain("project=1&project=2");
+  });
+
+  test("runs generated Discover requests through auth and pagination", async () => {
+    const { impl, calls } = stubFetch(() =>
+      json(
+        { data: [{ id: "event-1", message: "hello" }], meta: {} },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Link: '<https://x/?cursor=0:50:0>; rel="next"; results="true"; cursor="0:50:0"',
+            "X-Sentry-Rate-Limit-Remaining": "12",
+          },
+        },
+      ),
+    );
+    const client = new SentryClient({ auth, fetchImpl: impl });
+
+    const page = await queryDiscover(client, {
+      org: "acme",
+      dataset: "logs",
+      fields: ["id", "message"],
+      project: ["1", "2"],
+      limit: 50,
+      referrer: "sentry-tui.logs",
+    });
+
+    expect(page.rows).toEqual([{ id: "event-1", message: "hello" }]);
+    expect(page.nextCursor).toBe("0:50:0");
+    expect(client.rateLimit.remaining).toBe(12);
+    expect(new Headers(calls[0]!.init.headers).get("Authorization")).toBe("Bearer sntryu_test");
+
+    const url = new URL(calls[0]!.url);
+    expect(url.pathname).toBe("/api/0/organizations/acme/events/");
+    expect(url.searchParams.getAll("field")).toEqual(["id", "message"]);
+    expect(url.searchParams.getAll("project")).toEqual(["1", "2"]);
+    expect(url.searchParams.get("per_page")).toBe("50");
+    expect(url.searchParams.get("referrer")).toBe("sentry-tui.logs");
   });
 
   test("PUT sends a JSON body", async () => {

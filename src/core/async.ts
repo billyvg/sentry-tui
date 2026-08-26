@@ -98,6 +98,28 @@ export function valueOf<T>(status: AsyncStatus<T> | undefined): T | undefined {
   }
 }
 
+/**
+ * Transform every value carried by an async status without changing its
+ * lifecycle metadata. Useful when a request keeps pagination beside its data
+ * but a screen should only see the rows.
+ */
+export function mapAsyncStatus<T, U>(status: AsyncStatus<T>, map: (value: T) => U): AsyncStatus<U> {
+  switch (status.state) {
+    case "idle":
+      return status;
+    case "loading":
+      return status.previous === undefined
+        ? { state: "loading", since: status.since }
+        : { state: "loading", since: status.since, previous: map(status.previous) };
+    case "ready":
+      return { state: "ready", value: map(status.value), fetchedAt: status.fetchedAt };
+    case "error":
+      return status.previous === undefined
+        ? { state: "error", error: status.error }
+        : { state: "error", error: status.error, previous: map(status.previous) };
+  }
+}
+
 export function isLoading<T>(status: AsyncStatus<T> | undefined): boolean {
   return status?.state === "loading";
 }

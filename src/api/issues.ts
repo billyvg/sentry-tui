@@ -1,3 +1,10 @@
+import {
+  getOrganization as getOrganizationRequest,
+  listOrganizationEnvironments,
+  listOrganizationProjects,
+  listOrganizations as listOrganizationsRequest,
+} from "@sentry/api";
+
 import type { Page, SentryClient } from "~/api/client";
 import { projectParams } from "~/api/projectParams";
 import type {
@@ -211,10 +218,11 @@ export async function getOrganization(
   client: SentryClient,
   { org, signal }: { org: string; signal?: AbortSignal },
 ): Promise<Organization> {
-  const page = await client.request<Organization>(`/organizations/${org}/`, {
-    signal,
+  const { data } = await getOrganizationRequest({
+    ...client.generatedOptions(signal),
+    path: { organization_id_or_slug: org },
   });
-  return page.data;
+  return organizationFromResponse(data);
 }
 
 export interface CurrentUser {
@@ -244,10 +252,8 @@ export async function listOrganizations(
   client: SentryClient,
   signal?: AbortSignal,
 ): Promise<Organization[]> {
-  const page = await client.request<Organization[]>("/organizations/", {
-    signal,
-  });
-  return page.data;
+  const { data } = await listOrganizationsRequest(client.generatedOptions(signal));
+  return data.map(organizationFromResponse);
 }
 
 /**
@@ -294,11 +300,12 @@ export async function listProjects(
   client: SentryClient,
   { org, query, perPage = PROJECTS_PER_PAGE, signal }: ListProjectsOptions,
 ): Promise<Project[]> {
-  const page = await client.request<Project[]>(`/organizations/${org}/projects/`, {
+  const { data } = await listOrganizationProjects({
+    ...client.generatedOptions(signal),
+    path: { organization_id_or_slug: org },
     query: { query: query?.trim() || undefined, per_page: perPage },
-    signal,
   });
-  return page.data;
+  return data.map(({ id, slug, name, platform }) => ({ id, slug, name, platform }));
 }
 
 export interface Environment {
@@ -311,8 +318,35 @@ export async function listEnvironments(
   client: SentryClient,
   { org, signal }: { org: string; signal?: AbortSignal },
 ): Promise<Environment[]> {
-  const page = await client.request<Environment[]>(`/organizations/${org}/environments/`, {
-    signal,
+  const { data } = await listOrganizationEnvironments({
+    ...client.generatedOptions(signal),
+    path: { organization_id_or_slug: org },
   });
-  return page.data;
+  return data;
+}
+
+/** Keep the app's small organization model independent of generated extras. */
+function organizationFromResponse(value: {
+  id: string;
+  slug: string;
+  name: string;
+  features?: string[];
+  avatar?: { avatarType?: string; avatarUuid?: string | null; avatarUrl?: string | null };
+}): Organization {
+  const avatar = value.avatar;
+  return {
+    id: value.id,
+    slug: value.slug,
+    name: value.name,
+    features: value.features,
+    ...(avatar?.avatarType
+      ? {
+          avatar: {
+            avatarType: avatar.avatarType as NonNullable<Organization["avatar"]>["avatarType"],
+            avatarUuid: avatar.avatarUuid ?? null,
+            avatarUrl: avatar.avatarUrl,
+          },
+        }
+      : {}),
+  };
 }

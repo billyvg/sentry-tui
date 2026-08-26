@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -8,14 +8,8 @@ import {
   type LogSort,
   type LogTimeseriesBucket,
 } from "~/api/logs";
-import {
-  type AsyncStatus,
-  idle,
-  rejected,
-  resolved,
-  startLoading,
-  toAsyncError,
-} from "~/core/async";
+import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
+import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
 
 export interface LogsQuery {
   org: string;
@@ -43,48 +37,27 @@ export function useLogs(
   client: SentryClient | null,
   { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: LogsQuery,
 ): LogsState {
-  const [logs, setLogs] = useState<AsyncStatus<LogEntry[]>>(idle);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loader = useCallback(
+    (signal: AbortSignal) =>
+      client
+        ? listLogs(client, {
+            org,
+            query,
+            statsPeriod,
+            project,
+            environment,
+            sort,
+            signal,
+          })
+        : null,
+    [client, org, query, statsPeriod, project, environment, sort],
+  );
+  const { status } = useAsyncFetch(loader, { reloadKey: reloadToken });
 
-  const logsRef = useRef(logs);
-  logsRef.current = logs;
-
-  useEffect(() => {
-    if (!client) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    setLogs(startLoading(logsRef.current, Date.now()));
-
-    void (async () => {
-      try {
-        const result = await listLogs(client, {
-          org,
-          query,
-          statsPeriod,
-          project,
-          environment,
-          sort,
-          signal,
-        });
-        if (cancelled) return;
-        setLogs(resolved(result.data, Date.now()));
-        setNextCursor(result.nextCursor);
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setLogs(rejected(logsRef.current, toAsyncError(error)));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
-
-  return { logs, nextCursor };
+  return {
+    logs: mapAsyncStatus(status, (page) => page.data),
+    nextCursor: valueOf(status)?.nextCursor ?? null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -111,42 +84,20 @@ export function useLogTimeseries(
   client: SentryClient | null,
   { org, query, statsPeriod, project, environment, reloadToken = 0 }: LogTimeseriesQuery,
 ): AsyncStatus<LogTimeseriesBucket[]> {
-  const [status, setStatus] = useState<AsyncStatus<LogTimeseriesBucket[]>>(idle);
-  const statusRef = useRef(status);
-  statusRef.current = status;
+  const loader = useCallback(
+    (signal: AbortSignal) =>
+      client
+        ? listLogTimeseries(client, {
+            org,
+            query,
+            statsPeriod,
+            project,
+            environment,
+            signal,
+          })
+        : null,
+    [client, org, query, statsPeriod, project, environment],
+  );
 
-  useEffect(() => {
-    if (!client) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    setStatus(startLoading(statusRef.current, Date.now()));
-
-    void (async () => {
-      try {
-        const buckets = await listLogTimeseries(client, {
-          org,
-          query,
-          statsPeriod,
-          project,
-          environment,
-          signal,
-        });
-        if (cancelled) return;
-        setStatus(resolved(buckets, Date.now()));
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setStatus(rejected(statusRef.current, toAsyncError(error)));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
-
-  return status;
+  return useAsyncFetch(loader, { reloadKey: reloadToken }).status;
 }
