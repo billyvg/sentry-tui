@@ -27,6 +27,7 @@ import {
   rawMetricRowsFixture,
   rawSpanRowsFixture,
 } from "./explore-fixtures";
+import { rawLogRowsFixture } from "./log-fixtures";
 import { renderHarness } from "./helpers";
 
 /**
@@ -62,6 +63,7 @@ const EXPLORE_ITEM_INDEX: Record<string, number> = {
 function stubClient(
   rowsByDataset: Record<string, unknown> = {
     spans: rawSpanRowsFixture,
+    logs: rawLogRowsFixture,
     tracemetrics: rawMetricRowsFixture,
     errors: rawErrorRowsFixture,
   },
@@ -90,6 +92,7 @@ async function renderApp(client: SentryClient, width = WIDTH, height = HEIGHT) {
 /** Screen ids for the Explore tables these tests mount onto directly. */
 const EXPLORE_SCREEN = {
   Traces: "explore.traces",
+  Logs: "explore.logs",
   Metrics: "explore.metrics",
   Errors: "explore.errors",
   Discover: "explore.discover",
@@ -130,7 +133,7 @@ describe("registration", () => {
     for (const table of EXPLORE_TABLES) {
       expect(SCREEN_COMPONENTS[table.id]).toBeDefined();
     }
-    // The four share one component, so anything else pointing at it would be a
+    // The configured tables share one component, so anything else pointing at it would be a
     // screen with no config — which renders an error rather than a table.
     const shared = SCREEN_COMPONENTS["explore.traces"];
     const usingIt = Object.entries(SCREEN_COMPONENTS)
@@ -615,6 +618,7 @@ function inkLines(frame: string): number[] {
 
 const FIXTURES_BY_ID: Record<string, DiscoverRow[]> = {
   "explore.traces": rawSpanRowsFixture,
+  "explore.logs": rawLogRowsFixture,
   "explore.metrics": rawMetricRowsFixture,
   "explore.errors": rawErrorRowsFixture,
 };
@@ -628,8 +632,9 @@ function renderRows(
     id: String(row["id"] ?? index),
     row,
   }));
+  const height = Math.max(20, rows.length + 2);
   return renderHarness(
-    <box style={{ width, height: 20, flexDirection: "column" }}>
+    <box style={{ width, height, flexDirection: "column" }}>
       <DataTable<ExploreEvent>
         rows={rows}
         columns={exploreColumnsFor(id as never, { maxDurationMs: 9010, theme: darkTheme })}
@@ -642,7 +647,7 @@ function renderRows(
         {...props}
       />
     </box>,
-    { width, height: 20 },
+    { width, height },
   );
 }
 

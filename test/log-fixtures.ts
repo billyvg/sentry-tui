@@ -7,12 +7,13 @@
  */
 
 import type { LogEntry, LogSeverity, LogTimeseriesBucket } from "~/api/logs";
+import type { DiscoverRow } from "~/api/discover";
 
 // ---------------------------------------------------------------------------
 // Raw Discover rows (wire format)
 // ---------------------------------------------------------------------------
 
-interface RawLogRow {
+interface RawLogRow extends DiscoverRow {
   "sentry.item_id": string;
   timestamp: string;
   "sentry.severity": string;

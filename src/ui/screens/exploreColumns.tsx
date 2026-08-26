@@ -16,6 +16,7 @@
 
 import { rowNumber, rowString } from "~/api/discover";
 import type { ExploreEvent } from "~/api/exploreEvents";
+import type { LogSeverity } from "~/api/logs";
 import { parseAggregateExpression } from "~/core/exploreQuery";
 import type { ScreenId } from "~/core/screens";
 import type { Theme } from "~/core/theme";
@@ -62,6 +63,8 @@ export function exploreColumnsFor(
   switch (id) {
     case "explore.traces":
       return traceColumns(context);
+    case "explore.logs":
+      return logColumns(context.theme);
     case "explore.metrics":
       return metricColumns(context.theme);
     case "explore.errors":
@@ -69,6 +72,87 @@ export function exploreColumnsFor(
     default:
       return [];
   }
+}
+
+// ---------------------------------------------------------------------------
+// Logs
+// ---------------------------------------------------------------------------
+
+const LOG_SEVERITY_LABEL: Record<LogSeverity, string> = {
+  trace: "TRACE",
+  debug: "DEBUG",
+  info: " INFO",
+  warn: " WARN",
+  error: "ERROR",
+  fatal: "FATAL",
+};
+
+/** Time · Level · Project · Message, preserving the former Logs screen. */
+function logColumns(theme: Theme): ReadonlyArray<Column<ExploreEvent>> {
+  const severityColor: Record<LogSeverity, string> = {
+    trace: theme.subText,
+    debug: theme.muted,
+    info: theme.accent,
+    warn: theme.warning,
+    error: theme.danger,
+    fatal: theme.level.fatal,
+  };
+  return [
+    {
+      key: "timestamp",
+      label: "Time",
+      width: 10,
+      render: (event, _selected, width) => (
+        <text fg={theme.muted}>{padText(clockTime(rowString(event.row, "timestamp")), width)}</text>
+      ),
+    },
+    {
+      key: "sentry.severity",
+      label: "Level",
+      width: 6,
+      priority: 2,
+      render: (event, _selected, width) => {
+        const severity = logSeverity(event);
+        return (
+          <text
+            fg={severityColor[severity]}
+            attributes={severity === "error" || severity === "fatal" ? BOLD : 0}
+          >
+            {padText(LOG_SEVERITY_LABEL[severity], width)}
+          </text>
+        );
+      },
+    },
+    {
+      key: "project",
+      label: "Project",
+      width: 14,
+      priority: 1,
+      render: (event, _selected, width) => (
+        <text fg={theme.subText}>{padText(field(event, "project"), width)}</text>
+      ),
+    },
+    {
+      key: "message",
+      label: "Message",
+      width: "flex",
+      render: (event, _selected, width) => (
+        <text fg={theme.text}>{padText(field(event, "message"), width)}</text>
+      ),
+    },
+  ];
+}
+
+/** A Discover severity, falling back to info just as the former LogEntry did. */
+export function logSeverity(event: ExploreEvent): LogSeverity {
+  const value = field(event, "sentry.severity").toLowerCase();
+  return value === "trace" ||
+    value === "debug" ||
+    value === "warn" ||
+    value === "error" ||
+    value === "fatal"
+    ? value
+    : "info";
 }
 
 // ---------------------------------------------------------------------------

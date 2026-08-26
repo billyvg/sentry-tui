@@ -1,9 +1,9 @@
 /**
  * The attribute keys the query builder offers, as async state.
  *
- * Two requests — string and number — issued together and abandoned together,
- * because the visualize list needs one, the group-by list needs the other, and
- * a builder that filled in half at a time would offer a different menu
+ * Three requests — string, number and boolean — issued together and abandoned
+ * together, because the visualize list and group-by list need all three, and
+ * a builder that filled in part at a time would offer a different menu
  * depending on when it was opened.
  *
  * Both lists follow the same page filters as the table, so an attribute is
@@ -26,11 +26,13 @@ export interface TraceItemAttributes {
   string: readonly TraceItemAttribute[];
   /** Attributes holding numbers — what the numeric aggregates read. */
   number: readonly TraceItemAttribute[];
+  /** Boolean attributes — valid for `count_unique` and Group By. */
+  boolean: readonly TraceItemAttribute[];
   loading: boolean;
 }
 
 const NONE: readonly TraceItemAttribute[] = [];
-const IDLE: TraceItemAttributes = { string: NONE, number: NONE, loading: false };
+const IDLE: TraceItemAttributes = { string: NONE, number: NONE, boolean: NONE, loading: false };
 
 export interface TraceItemAttributesQuery {
   org: string;
@@ -62,7 +64,7 @@ export function useTraceItemAttributes(
     let cancelled = false;
     setAttributes((current) => ({ ...current, loading: true }));
 
-    const load = (attributeType: "string" | "number") =>
+    const load = (attributeType: "string" | "number" | "boolean") =>
       listTraceItemAttributes(client, {
         org,
         itemType,
@@ -73,10 +75,12 @@ export function useTraceItemAttributes(
         signal: controller.signal,
       }).catch(() => NONE);
 
-    void Promise.all([load("string"), load("number")]).then(([strings, numbers]) => {
-      if (cancelled) return;
-      setAttributes({ string: strings, number: numbers, loading: false });
-    });
+    void Promise.all([load("string"), load("number"), load("boolean")]).then(
+      ([strings, numbers, booleans]) => {
+        if (cancelled) return;
+        setAttributes({ string: strings, number: numbers, boolean: booleans, loading: false });
+      },
+    );
 
     return () => {
       cancelled = true;

@@ -12,8 +12,13 @@ import { describe, expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
-import { exploreTimeseriesFixture, rawSpanRowsFixture } from "./explore-fixtures";
+import {
+  exploreTimeseriesFixture,
+  rawMetricRowsFixture,
+  rawSpanRowsFixture,
+} from "./explore-fixtures";
 import { renderHarness } from "./helpers";
+import { rawLogRowsFixture } from "./log-fixtures";
 
 const SLOW_TEST_TIMEOUT_MS = 20_000;
 
@@ -44,7 +49,10 @@ interface Recorder {
   client: SentryClient;
   /** Every `events/` request the screen made, newest last. */
   events: URL[];
+  /** Every chart request, newest last. */
+  timeseries: URL[];
   last: () => URL;
+  lastTimeseries: () => URL;
 }
 
 /**
@@ -54,6 +62,7 @@ interface Recorder {
  */
 function recordingClient(): Recorder {
   const events: URL[] = [];
+  const timeseries: URL[] = [];
 
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "https://sentry.io");
@@ -64,16 +73,46 @@ function recordingClient(): Recorder {
       });
 
     if (url.pathname.endsWith("/trace-items/attributes/")) {
-      return json(
-        url.searchParams.get("attributeType") === "number" ? NUMBER_ATTRIBUTES : STRING_ATTRIBUTES,
-      );
+      const type = url.searchParams.get("attributeType");
+      const itemType = url.searchParams.get("itemType");
+      if (type === "boolean") return json([]);
+      if (itemType === "logs") {
+        return json(
+          type === "number"
+            ? [{ key: "duration_ms", name: "duration_ms", attributeType: "number" }]
+            : [
+                { key: "message", name: "message", attributeType: "string" },
+                { key: "project", name: "project", attributeType: "string" },
+              ],
+        );
+      }
+      if (itemType === "tracemetrics") {
+        return json(
+          type === "number"
+            ? [{ key: "value", name: "value", attributeType: "number" }]
+            : [{ key: "metric.name", name: "metric.name", attributeType: "string" }],
+        );
+      }
+      return json(type === "number" ? NUMBER_ATTRIBUTES : STRING_ATTRIBUTES);
     }
-    if (url.pathname.endsWith("/events-stats/")) return json({ data: exploreTimeseriesFixture });
+    if (url.pathname.endsWith("/events-stats/")) {
+      timeseries.push(url);
+      return json({ data: exploreTimeseriesFixture });
+    }
     if (url.pathname.endsWith("/events/")) {
       events.push(url);
       const fields = url.searchParams.getAll("field");
       const grouped = !fields.includes("id");
-      return json({ data: grouped ? AGGREGATE_ROWS : rawSpanRowsFixture });
+      const dataset = url.searchParams.get("dataset");
+      const rows =
+        dataset === "logs"
+          ? rawLogRowsFixture
+          : dataset === "tracemetrics"
+            ? rawMetricRowsFixture
+            : grouped
+              ? AGGREGATE_ROWS
+              : rawSpanRowsFixture;
+      return json({ data: rows });
     }
     return json([]);
   }) as unknown as typeof fetch;
@@ -81,7 +120,9 @@ function recordingClient(): Recorder {
   return {
     client: new SentryClient({ auth, fetchImpl }),
     events,
+    timeseries,
     last: () => events.at(-1)!,
+    lastTimeseries: () => timeseries.at(-1)!,
   };
 }
 
@@ -122,6 +163,26 @@ describe("the query builder row", () => {
     },
     SLOW_TEST_TIMEOUT_MS,
   );
+
+  test("uses the dataset defaults on Metrics and Logs", async () => {
+    const recorder = recordingClient();
+    for (const [screen, search, noun, yAxis] of [
+      ["explore.metrics", "Search metrics", "metrics", "count(value)"],
+      ["explore.logs", "Search logs", "logs", "count(message)"],
+    ] as const) {
+      const h = await renderHarness(
+        <App onQuit={() => {}} client={recorder.client} org="acme" initialScreen={screen} />,
+        { width: WIDTH, height: HEIGHT },
+      );
+      try {
+        await h.waitForFrame((frame) => frame.includes("Visualize") && frame.includes(search));
+        expect(h.frame()).toContain(noun);
+        expect(recorder.lastTimeseries().searchParams.getAll("yAxis")).toContain(yAxis);
+      } finally {
+        await h.cleanup();
+      }
+    }
+  });
 
   test(
     "is absent from a table that has no attributes to offer",
@@ -196,6 +257,53 @@ describe("grouping", () => {
       await h.waitForFrame((f) => f.includes("SELECT"));
 
       expect(recorder.last().searchParams.getAll("field")).toContain("id");
+
+      await h.cleanup();
+    },
+    SLOW_TEST_TIMEOUT_MS,
+  );
+
+  test(
+    "switching datasets starts each builder without the previous group by",
+    async () => {
+      const recorder = recordingClient();
+      const h = await openTraces(recorder.client);
+
+      await h.press((i) => i.pressKey("B"));
+      await h.waitForFrame((frame) => frame.includes("Group By"));
+      await h.press((i) => i.pressKey("j"));
+      await h.press((i) => i.pressEnter());
+      await h.waitForFrame((frame) => frame.includes("db.query"));
+      expect(recorder.last().searchParams.getAll("field")).toContain("span.op");
+
+      // The component is keyed by screen id. Shared filters survive this
+      // navigation; the dataset-specific builder deliberately does not.
+      await h.openNav();
+      await h.press((i) => i.pressEnter());
+      await h.press((i) => i.pressKey("j")); // Traces → Logs
+      await h.press((i) => i.pressEnter());
+      await h.waitForFrame(
+        (frame) => frame.includes("Search logs") && frame.includes("count(logs)"),
+      );
+
+      const logs = recorder.last();
+      expect(logs.searchParams.get("dataset")).toBe("logs");
+      expect(logs.searchParams.getAll("field")).toContain("sentry.item_id");
+      expect(logs.searchParams.getAll("field")).not.toContain("span.op");
+      expect(h.frame()).not.toContain("span.op");
+
+      await h.openNav();
+      await h.press((i) => i.pressEnter());
+      await h.press((i) => i.pressKey("j")); // Logs → Metrics
+      await h.press((i) => i.pressEnter());
+      await h.waitForFrame(
+        (frame) => frame.includes("Search metrics") && frame.includes("count(value)"),
+      );
+
+      const metrics = recorder.last();
+      expect(metrics.searchParams.get("dataset")).toBe("tracemetrics");
+      expect(metrics.searchParams.getAll("field")).toContain("id");
+      expect(metrics.searchParams.getAll("field")).not.toContain("span.op");
 
       await h.cleanup();
     },

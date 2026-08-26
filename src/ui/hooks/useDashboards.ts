@@ -32,7 +32,7 @@ export interface DashboardsState {
 /**
  * Fetch the org's dashboards for a list screen.
  *
- * Shaped like `useLogs`: one request per query, the superseded one aborted so
+ * One request per query, the superseded one aborted so
  * that typing in the search bar can't land an older page on top of a newer one.
  * Manual refresh only — nothing here polls.
  */

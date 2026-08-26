@@ -93,13 +93,13 @@ component was registered.
 Screens that differ only by a base query or endpoint option use one component
 and a configuration table keyed by `ScreenId`:
 
-| Screens                 | Configuration                   | Component       |
-| ----------------------- | ------------------------------- | --------------- |
-| Issue views             | `src/core/issueViews.ts`        | `IssueFeed`     |
-| Traces, Metrics, Errors | `src/core/exploreTables.ts`     | `ExploreTable`  |
-| Discover, All Queries   | `src/core/savedQueryScreens.ts` | `SavedQueries`  |
-| Dashboard lists         | `src/core/dashboards.ts`        | `DashboardList` |
-| Detector lists          | `src/core/monitors.ts`          | `MonitorList`   |
+| Screens                       | Configuration                   | Component       |
+| ----------------------------- | ------------------------------- | --------------- |
+| Issue views                   | `src/core/issueViews.ts`        | `IssueFeed`     |
+| Traces, Logs, Metrics, Errors | `src/core/exploreTables.ts`     | `ExploreTable`  |
+| Discover, All Queries         | `src/core/savedQueryScreens.ts` | `SavedQueries`  |
+| Dashboard lists               | `src/core/dashboards.ts`        | `DashboardList` |
+| Detector lists                | `src/core/monitors.ts`          | `MonitorList`   |
 
 The base filter that makes siblings different belongs in that configuration,
 not in shared screen state. Prefer ids over labels as configuration keys unless

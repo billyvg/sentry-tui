@@ -39,7 +39,7 @@ export interface DiscoverRowsState {
 /**
  * Run a Discover query and expose the raw rows as async state.
  *
- * The generic counterpart to `useLogs`: a screen with a fixed shape reshapes
+ * A screen with a fixed shape reshapes
  * its rows into a domain type, but a saved query's columns are only known at
  * runtime, so its rows stay in the endpoint's own flat form.
  */

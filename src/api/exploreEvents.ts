@@ -1,7 +1,7 @@
 /**
  * The Explore tables' domain layer — one fetch for four screens.
  *
- * Traces, Metrics, Errors and Conversations are the same `events/` request
+ * Traces, Logs, Metrics and Errors are the same `events/` request
  * with a different `dataset` and `field[]`, so there is nothing dataset-shaped
  * here: the caller supplies the columns it wants, and gets back flat rows with
  * a stable key attached. What each field *means* is the config table's

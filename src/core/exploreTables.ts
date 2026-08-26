@@ -1,7 +1,7 @@
 /**
  * The Discover-backed Explore tables, as configuration.
  *
- * Traces, Metrics and Errors are one `events/` query with a different
+ * Traces, Logs, Metrics and Errors are one `events/` query with a different
  * `dataset` and `field[]` — so they are one component
  * (`src/ui/screens/ExploreTable.tsx`) reading a row of this table, not four
  * near-identical screens. The pattern, and the reason for it, is
@@ -43,13 +43,8 @@ export interface ExploreTable {
   baseQuery?: string;
   /** Aggregate plotted in the chart above the table, and the builder's default. */
   yAxis: string;
-  /**
-   * The item type whose attributes the query builder offers, for a screen that
-   * has one. Its absence is what leaves a table with no Visualize/Group By row
-   * — `trace-items/attributes/` only knows the trace item datasets, so a table
-   * built on `errors` has nowhere to read its options from.
-   */
-  traceItemType?: TraceItemType;
+  /** Query-builder rules for a trace-item dataset. Errors has no such endpoint. */
+  builder?: ExploreBuilder;
   /** What a row is called, for the status bar and the row count. */
   noun: string;
   /** Placeholder in the search box. */
@@ -65,6 +60,55 @@ export interface ExploreTable {
   feature?: string;
 }
 
+/** The dataset-specific part of Visualize / Group By / Sort By. */
+export interface ExploreBuilder {
+  /** Item type whose attributes populate the Field and Group By menus. */
+  itemType: TraceItemType;
+  /** Aggregate names this dataset accepts, in menu order. */
+  aggregates: readonly string[];
+  /** Fallback for a numeric aggregate before dynamic attributes have loaded. */
+  numberField?: string;
+  /** Field selected when changing to `count_unique`. */
+  uniqueField: string;
+}
+
+/** Functions common to Logs and generic trace-metric values. */
+const VALUE_AGGREGATES = [
+  "count",
+  "avg",
+  "p50",
+  "p75",
+  "p90",
+  "p95",
+  "p99",
+  "sum",
+  "min",
+  "max",
+  "count_unique",
+] as const;
+
+/** The span-specific aggregate set exposed by Explore's span toolbar. */
+const SPAN_AGGREGATES = [
+  "count",
+  "avg",
+  "p50",
+  "p75",
+  "p90",
+  "p95",
+  "p99",
+  "p100",
+  "sum",
+  "min",
+  "max",
+  "count_unique",
+  "epm",
+  "eps",
+  "failure_rate",
+  "failure_count",
+  "performance_score",
+  "opportunity_score",
+] as const;
+
 /**
  * Explore › Traces — the Spans tab.
  *
@@ -73,8 +117,8 @@ export interface ExploreTable {
  * `DEFAULT_VISUALIZATION` (`contexts/pageParamsContext/visualizes.tsx:21`,
  * resolving to `count(span.duration)`).
  *
- * These are the *defaults*: `traceItemType` puts the web's Visualize / Group
- * By / Sort By toolbar on the screen, and everything it changes is resolved by
+ * These are the *defaults*: `builder` puts the web's Visualize / Group By /
+ * Sort By toolbar on the screen, and everything it changes is resolved by
  * `src/core/exploreQuery.ts` — including the switch to an aggregate query,
  * which replaces the fields below with the group bys and the visualize.
  */
@@ -85,10 +129,42 @@ const TRACES: ExploreTable = {
   sort: "-timestamp",
   idField: "id",
   yAxis: "count(span.duration)",
-  traceItemType: "spans",
+  builder: {
+    itemType: "spans",
+    aggregates: SPAN_AGGREGATES,
+    numberField: "span.duration",
+    uniqueField: "span.op",
+  },
   noun: "spans",
   searchPlaceholder: "Search spans…",
   referrer: "sentry-tui.explore-traces",
+};
+
+/**
+ * Explore › Logs — structured log records.
+ *
+ * The fields are the web Logs table's timestamp, level, project and message,
+ * plus the item and trace ids used by row identity and the detail panel.
+ * `count(message)` is the web toolbar's default. Numeric aggregates have no
+ * hard-coded fallback because an org may have no numeric log attributes; the
+ * menu offers them only after the attribute endpoint supplies one.
+ */
+const LOGS: ExploreTable = {
+  id: "explore.logs",
+  dataset: "logs",
+  fields: ["sentry.item_id", "trace", "sentry.severity", "timestamp", "message", "project"],
+  sort: "-timestamp",
+  idField: "sentry.item_id",
+  yAxis: "count(message)",
+  builder: {
+    itemType: "logs",
+    aggregates: VALUE_AGGREGATES,
+    uniqueField: "message",
+  },
+  noun: "logs",
+  searchPlaceholder: "Search logs…",
+  referrer: "sentry-tui.explore-logs",
+  feature: "logs",
 };
 
 /**
@@ -110,6 +186,12 @@ const METRICS: ExploreTable = {
   // `count()` is rejected by this dataset — "invalid number of arguments" —
   // so the sample count is spelled out the way the spans chart spells its own.
   yAxis: "count(value)",
+  builder: {
+    itemType: "tracemetrics",
+    aggregates: VALUE_AGGREGATES,
+    numberField: "value",
+    uniqueField: "metric.name",
+  },
   noun: "metrics",
   searchPlaceholder: "Search metrics…",
   referrer: "sentry-tui.explore-metrics",
@@ -139,7 +221,7 @@ const ERRORS: ExploreTable = {
   feature: "explore-errors",
 };
 
-export const EXPLORE_TABLES: readonly ExploreTable[] = [TRACES, METRICS, ERRORS];
+export const EXPLORE_TABLES: readonly ExploreTable[] = [TRACES, LOGS, METRICS, ERRORS];
 
 const BY_ID = new Map<ScreenId, ExploreTable>(EXPLORE_TABLES.map((table) => [table.id, table]));
 
@@ -172,7 +254,9 @@ export function exploreQuery(table: ExploreTable, userQuery: string): string {
  * changed.
  */
 export function exploreChartTitle(table: ExploreTable, yAxis: string = table.yAxis): string {
-  return yAxis === "count()" ? `count(${table.noun})` : yAxis;
+  return yAxis === "count()" || (table.id === "explore.logs" && yAxis === "count(message)")
+    ? `count(${table.noun})`
+    : yAxis;
 }
 
 /**

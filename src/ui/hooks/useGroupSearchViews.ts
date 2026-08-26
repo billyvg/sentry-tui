@@ -29,7 +29,7 @@ export interface GroupSearchViewsState {
  * `me` — asking once would quietly return only the current user's views and
  * look like the org has none.
  *
- * Mirrors `useLogs` in shape: a superseded request is aborted so fast
+ * A superseded request is aborted so fast
  * navigation doesn't race.
  */
 export function useGroupSearchViews(

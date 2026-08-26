@@ -25,7 +25,7 @@ import type { TraceItemAttribute } from "~/api/traceItemAttributes";
 import {
   argumentKind,
   argumentLabel,
-  EXPLORE_AGGREGATES,
+  availableExploreAggregates,
   effectiveSort,
   groupByLabel,
   isScoreAttribute,
@@ -112,7 +112,16 @@ export function ExploreQueryBar({
   const kind = argumentKind(query.aggregate);
   // `count` and the no-argument aggregates have exactly one field between
   // them, so the chip states it and doesn't pretend to be a menu.
-  const fieldIsChoosable = kind !== "none" && kind !== "spans";
+  const fieldIsChoosable = kind !== "none" && kind !== "count";
+  const numberFields = useMemo(() => attributes.number.map(({ key }) => key), [attributes.number]);
+  const aggregateItems = useMemo(
+    () =>
+      availableExploreAggregates(table, numberFields).map(({ name }) => ({
+        label: name,
+        value: name,
+      })),
+    [table, numberFields],
+  );
 
   const items: RowItem[] = [
     { kind: "label", text: "Visualize", gapBefore: 0 },
@@ -130,7 +139,7 @@ export function ExploreQueryBar({
       onPress: () => fieldIsChoosable && onOpen("field"),
       chip: {
         command: "sentry.explore.visualizeField",
-        label: argumentLabel(query),
+        label: argumentLabel(query, table),
         caret: fieldIsChoosable,
       },
     },
@@ -200,14 +209,14 @@ export function ExploreQueryBar({
       {open === "visualize" ? (
         <Dropdown
           title="Visualize"
-          items={AGGREGATE_ITEMS}
+          items={aggregateItems}
           selected={[query.aggregate]}
           anchorLeft={anchorOf("visualize")}
           anchorTop={dropdownTop}
           showAll={false}
           onSelect={(values) => {
             const value = values[0];
-            if (value) onChange(withAggregate(query, value));
+            if (value) onChange(withAggregate(query, value, table, numberFields));
             onClose();
           }}
           onClose={onClose}
@@ -263,11 +272,6 @@ export function ExploreQueryBar({
   );
 }
 
-const AGGREGATE_ITEMS: readonly DropdownItem[] = EXPLORE_AGGREGATES.map(({ name }) => ({
-  label: name,
-  value: name,
-}));
-
 /**
  * The aggregate's argument.
  *
@@ -293,7 +297,9 @@ function FieldDropdown({
 }) {
   const kind = argumentKind(query.aggregate);
   const items = useMemo(() => {
-    if (kind === "any") return toItems([...attributes.string, ...attributes.number]);
+    if (kind === "any") {
+      return toItems([...attributes.string, ...attributes.number, ...attributes.boolean]);
+    }
     if (kind === "score") return toItems(attributes.number.filter((a) => isScoreAttribute(a.key)));
     return toItems(attributes.number);
   }, [kind, attributes]);
@@ -343,9 +349,13 @@ function GroupByDropdown({
   const items = useMemo(
     () => [
       { label: "—", value: UNGROUPED },
-      ...toItems(attributes.string.filter((a) => !DISALLOWED_GROUP_BYS.has(a.key))),
+      ...toItems(
+        [...attributes.string, ...attributes.number, ...attributes.boolean].filter(
+          (a) => !DISALLOWED_GROUP_BYS.has(a.key),
+        ),
+      ),
     ],
-    [attributes.string],
+    [attributes.string, attributes.number, attributes.boolean],
   );
 
   return (
@@ -373,7 +383,14 @@ function GroupByDropdown({
  * call the project selector makes about slugs.
  */
 function toItems(attributes: readonly TraceItemAttribute[]): DropdownItem[] {
-  return attributes.map((attribute) => ({ label: attribute.key, value: attribute.key }));
+  return [
+    ...new Map(
+      attributes.map((attribute) => [
+        attribute.key,
+        { label: attribute.key, value: attribute.key },
+      ]),
+    ).values(),
+  ];
 }
 
 /** Add an attribute to the group-by list, or take it back out. */

@@ -12,6 +12,7 @@ import { describe, expect, test } from "bun:test";
 import {
   argumentKind,
   argumentLabel,
+  availableExploreAggregates,
   defaultExploreQuery,
   effectiveSort,
   exploreMode,
@@ -29,9 +30,11 @@ import {
   withToggledDirection,
   EXPLORE_AGGREGATES,
 } from "~/core/exploreQuery";
-import { getExploreTable, type ExploreTable } from "~/core/exploreTables";
+import { EXPLORE_TABLES, getExploreTable, type ExploreTable } from "~/core/exploreTables";
 
 const TRACES: ExploreTable = getExploreTable("explore.traces")!;
+const LOGS: ExploreTable = getExploreTable("explore.logs")!;
+const METRICS: ExploreTable = getExploreTable("explore.metrics")!;
 
 describe("parsing", () => {
   test("splits an aggregate expression into function and argument", () => {
@@ -60,7 +63,7 @@ describe("parsing", () => {
 describe("aggregates", () => {
   test("every offered aggregate produces a callable expression", () => {
     for (const { name } of EXPLORE_AGGREGATES) {
-      const state = withAggregate(defaultExploreQuery(TRACES), name);
+      const state = withAggregate(defaultExploreQuery(TRACES), name, TRACES);
       const yAxis = exploreYAxis(state);
       expect({ name, yAxis }).toEqual({ name, yAxis: `${name}(${state.argument})` });
       // A no-argument aggregate is the only one allowed to be empty inside.
@@ -72,38 +75,84 @@ describe("aggregates", () => {
   });
 
   test("count is offered exactly one field, and it is span.duration", () => {
-    const state = withAggregate(defaultExploreQuery(TRACES), "count");
+    const state = withAggregate(defaultExploreQuery(TRACES), "count", TRACES);
     expect(exploreYAxis(state)).toBe("count(span.duration)");
-    expect(argumentLabel(state)).toBe("spans");
+    expect(argumentLabel(state, TRACES)).toBe("spans");
   });
 
   test("count_unique resets to a string attribute, as the web hard-codes", () => {
-    const state = withAggregate(defaultExploreQuery(TRACES), "count_unique");
+    const state = withAggregate(defaultExploreQuery(TRACES), "count_unique", TRACES);
     expect(exploreYAxis(state)).toBe("count_unique(span.op)");
   });
 
   test("a numeric aggregate carries a numeric argument across", () => {
-    let state = withAggregate(defaultExploreQuery(TRACES), "p95");
+    let state = withAggregate(defaultExploreQuery(TRACES), "p95", TRACES);
     state = withArgument(state, "span.self_time");
-    expect(exploreYAxis(withAggregate(state, "avg"))).toBe("avg(span.self_time)");
+    expect(exploreYAxis(withAggregate(state, "avg", TRACES))).toBe("avg(span.self_time)");
   });
 
   test("switching away from count_unique resets rather than carrying a string", () => {
-    const unique = withAggregate(defaultExploreQuery(TRACES), "count_unique");
-    expect(exploreYAxis(withAggregate(unique, "avg"))).toBe("avg(span.duration)");
+    const unique = withAggregate(defaultExploreQuery(TRACES), "count_unique", TRACES);
+    expect(exploreYAxis(withAggregate(unique, "avg", TRACES))).toBe("avg(span.duration)");
   });
 
   test("the score aggregates only keep an argument that is a web vital", () => {
-    const state = withAggregate(defaultExploreQuery(TRACES), "performance_score");
+    const state = withAggregate(defaultExploreQuery(TRACES), "performance_score", TRACES);
     expect(exploreYAxis(state)).toBe("performance_score(measurements.score.total)");
-    const kept = withAggregate(withArgument(state, "measurements.score.cls"), "opportunity_score");
+    const kept = withAggregate(
+      withArgument(state, "measurements.score.cls"),
+      "opportunity_score",
+      TRACES,
+    );
     expect(exploreYAxis(kept)).toBe("opportunity_score(measurements.score.cls)");
   });
 
   test("a no-argument aggregate drops the argument and the label says spans", () => {
-    const state = withAggregate(defaultExploreQuery(TRACES), "failure_rate");
+    const state = withAggregate(defaultExploreQuery(TRACES), "failure_rate", TRACES);
     expect(exploreYAxis(state)).toBe("failure_rate()");
-    expect(argumentLabel(state)).toBe("spans");
+    expect(argumentLabel(state, TRACES)).toBe("spans");
+  });
+
+  test("Metrics keeps count on value and resets numeric functions to value", () => {
+    const unique = withAggregate(defaultExploreQuery(METRICS), "count_unique", METRICS);
+    expect(exploreYAxis(unique)).toBe("count_unique(metric.name)");
+    expect(exploreYAxis(withAggregate(unique, "avg", METRICS))).toBe("avg(value)");
+    expect(exploreYAxis(withAggregate(unique, "count", METRICS))).toBe("count(value)");
+    expect(argumentLabel(defaultExploreQuery(METRICS), METRICS)).toBe("metrics");
+  });
+
+  test("Logs uses message for counts and a reported attribute for numbers", () => {
+    const initial = defaultExploreQuery(LOGS);
+    expect(exploreYAxis(initial)).toBe("count(message)");
+    expect(exploreYAxis(withAggregate(initial, "count_unique", LOGS))).toBe(
+      "count_unique(message)",
+    );
+    expect(exploreYAxis(withAggregate(initial, "avg", LOGS, ["duration_ms"]))).toBe(
+      "avg(duration_ms)",
+    );
+  });
+
+  test("Logs and Metrics do not offer span-only aggregates", () => {
+    const metrics = availableExploreAggregates(METRICS).map(({ name }) => name);
+    const logsBeforeAttributes = availableExploreAggregates(LOGS).map(({ name }) => name);
+    const logsWithNumbers = availableExploreAggregates(LOGS, ["duration_ms"]).map(
+      ({ name }) => name,
+    );
+
+    expect(metrics).toContain("avg");
+    expect(metrics).not.toContain("failure_rate");
+    expect(logsBeforeAttributes).toEqual(["count", "count_unique"]);
+    expect(logsWithNumbers).toContain("avg");
+    expect(logsWithNumbers).not.toContain("performance_score");
+  });
+
+  test("every configured aggregate exists in the catalog", () => {
+    for (const table of EXPLORE_TABLES) {
+      if (!table.builder) continue;
+      expect(
+        availableExploreAggregates(table, ["reported.number"]).map(({ name }) => name),
+      ).toEqual([...table.builder.aggregates]);
+    }
   });
 });
 
@@ -136,7 +185,7 @@ describe("modes", () => {
   });
 
   test("a group by that is also the aggregate is asked for once", () => {
-    let state = withAggregate(defaultExploreQuery(TRACES), "count_unique");
+    let state = withAggregate(defaultExploreQuery(TRACES), "count_unique", TRACES);
     state = withGroupBys(state, ["span.op"], TRACES);
     expect(resolveExploreQuery(TRACES, state).fields).toEqual(["span.op", "count_unique(span.op)"]);
   });
@@ -190,7 +239,7 @@ describe("sorting", () => {
   test("a sort on the aggregate follows it when the aggregate changes", () => {
     let state = withGroupBys(defaultExploreQuery(TRACES), ["span.op"], TRACES);
     state = withSort(state, { field: "count(span.duration)", direction: "asc" });
-    state = withAggregate(state, "p95");
+    state = withAggregate(state, "p95", TRACES);
     expect(resolveExploreQuery(TRACES, state).sort).toBe("p95(span.duration)");
   });
 
