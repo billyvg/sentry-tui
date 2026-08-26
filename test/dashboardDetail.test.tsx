@@ -162,6 +162,57 @@ test("a series widget draws a block chart with an axis", async () => {
   }
 });
 
+test("a series widget uses the interval its author saved", async () => {
+  const calls: string[] = [];
+  const h = await renderApp(stubClient({ calls }));
+  try {
+    await openDashboard(h);
+    await h.waitForFrame(() => calls.some((url) => url.includes("/events-stats/")));
+
+    const call = calls.find((url) => url.includes("/events-stats/"))!;
+    expect(new URL(call).searchParams.get("interval")).toBe("1h");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("every named query in a series widget is fetched and drawn", async () => {
+  const detail = structuredClone(dashboardDetailFixture);
+  const widget = detail.widgets.find((candidate) => candidate.id === "w-series")!;
+  widget.queries = [
+    {
+      name: "Errors",
+      conditions: "event.type:error",
+      columns: [],
+      aggregates: ["count()"],
+      orderby: "",
+    },
+    {
+      name: "Warnings",
+      conditions: "level:warning",
+      columns: [],
+      aggregates: ["count()"],
+      orderby: "",
+    },
+  ];
+
+  const calls: string[] = [];
+  const h = await renderApp(stubClient({ calls, detail }));
+  try {
+    await openDashboard(h);
+    await h.waitForFrame((frame) => frame.includes("Errors") && frame.includes("Warni"));
+
+    const requests = calls.filter((url) => url.includes("/events-stats/"));
+    expect(requests).toHaveLength(2);
+    expect(requests.map((url) => new URL(url).searchParams.get("query"))).toEqual([
+      "event.type:error",
+      "level:warning",
+    ]);
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("a table widget draws its columns, using the author's aliases", async () => {
   const h = await renderApp();
   try {

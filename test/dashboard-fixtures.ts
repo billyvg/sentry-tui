@@ -165,6 +165,7 @@ export const dashboardDetailFixture: DashboardDetails = {
       title: "Error Rate",
       displayType: "line",
       widgetType: "spans",
+      interval: "1h",
       layout: { x: 2, y: 0, w: 4, h: 2 },
       queries: [{ name: "", conditions: "", columns: [], aggregates: ["count()"], orderby: "" }],
     },
