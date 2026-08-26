@@ -13,7 +13,7 @@ import { useCallback } from "react";
 import { SAVED_VIEW_STATE_KEY } from "~/core/screens";
 import { rowsOf } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
-import { IssueStreamView } from "~/ui/screens/IssueFeed";
+import { IssueFeed } from "~/ui/screens/IssueFeed";
 import { IssueViewsList, type SavedViewRow } from "~/ui/screens/IssueViewsList";
 import type { ScreenProps, ViewStackEntry } from "~/ui/screens/types";
 
@@ -73,12 +73,7 @@ function savedViewStream(row: SavedViewRow): ViewStackEntry {
     },
     render: (ctx) =>
       ctx.state ? (
-        <IssueStreamView
-          {...ctx}
-          state={ctx.state}
-          title={row.view.name}
-          description={row.view.query}
-        />
+        <IssueFeed {...ctx} state={ctx.state} title={row.view.name} description={row.view.query} />
       ) : null,
   };
 }
