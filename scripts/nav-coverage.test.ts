@@ -45,6 +45,21 @@ describe("nav coverage", () => {
     expect(ids).toHaveLength(new Set(ids).size);
   });
 
+  test("explicit state keys do not collide with screen ids", () => {
+    const ids = new Set<string>(SCREENS.map((screen) => screen.id));
+    // A screen without an explicit key falls back to its id, so a collision
+    // silently pulls that screen into an unrelated shared slice.
+    const collisions = [
+      ...new Set(
+        SCREENS.flatMap((screen) =>
+          screen.stateKey && ids.has(screen.stateKey) ? [screen.stateKey] : [],
+        ),
+      ),
+    ];
+
+    expect(collisions).toEqual([]);
+  });
+
   test("the registry has exactly one screen per nav item", () => {
     const navItemCount = NAV_GROUPS.reduce(
       (total, group) =>

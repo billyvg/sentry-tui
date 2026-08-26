@@ -376,11 +376,11 @@ Rules that matter:
 
 `stateKey` groups screens onto one slice. What's shared today:
 
-| Key                  | Screens                                                | Why                                                         |
-| -------------------- | ------------------------------------------------------ | ----------------------------------------------------------- |
-| `explore.discover`   | traces, logs, metrics, errors, profiles, conversations | Same `events/` call — filters should follow you across them |
-| `monitors.detectors` | all, mine, error, metric, cron, uptime, mobile-build   | One detector table with a different `type:` filter          |
-| `dashboards.list`    | all, sentry-built                                      | One list with a different filter                            |
+| Key                  | Screens                                                | Why                                                        |
+| -------------------- | ------------------------------------------------------ | ---------------------------------------------------------- |
+| `explore.events`     | traces, logs, metrics, errors, profiles, conversations | Same query filters — they should follow you across screens |
+| `monitors.detectors` | all, mine, error, metric, cron, uptime, mobile-build   | One detector table with a different `type:` filter         |
+| `dashboards.list`    | all, sentry-built                                      | One list with a different filter                           |
 
 The `issues.*` screens deliberately do **not** share: each is a different query, so one slice
 would collapse them all into whichever was opened last. `explore.discover` left the shared key
@@ -395,7 +395,7 @@ Cron` and `Monitors › Uptime` share the user's typed query and project filter;
    not share the base filter, because that is what makes them different screens.
 2. **Defaults come from the first screen in `SCREENS` order that uses the key**, so a shared
    slice starts the same way whichever screen you open first. `nav-coverage.test.ts` enforces
-   that screens sharing a key declare identical defaults. `explore.discover` starts on
+   that screens sharing a key declare identical defaults. `explore.events` starts on
    `statsPeriod: "1h"` — deliberately short, since a terminal wants a fast first paint, and it
    is also what **Conversations** needs (the web pins it to 24h "to avoid slow loads"). If
    your screen genuinely needs a different default period, drop it out of the shared key

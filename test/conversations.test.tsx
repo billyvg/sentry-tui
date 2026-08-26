@@ -101,7 +101,7 @@ describe("registration", () => {
 
   test("it still shares the Explore filter slice and opens a panel", () => {
     const screen = getScreen("explore.conversations");
-    expect(screen.stateKey).toBe("explore.discover");
+    expect(screen.stateKey).toBe("explore.events");
     expect(screen.kind).toBe("table");
     expect(screen.openLabel).toBe("details");
   });
