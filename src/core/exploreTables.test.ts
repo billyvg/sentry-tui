@@ -29,7 +29,7 @@ describe("explore table configs", () => {
 
   test("configured screens share the Discover slice, so filters follow the user", () => {
     const keys = new Set(EXPLORE_TABLES.map((table) => stateKeyOf(getScreen(table.id))));
-    expect([...keys]).toEqual(["explore.discover"]);
+    expect([...keys]).toEqual(["explore.events"]);
   });
 
   test("ids are unique and resolvable", () => {

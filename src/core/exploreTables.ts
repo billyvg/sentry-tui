@@ -9,7 +9,7 @@
  * `docs/plans/002-screen-contract.md` §2.
  *
  * Everything that distinguishes one screen from its siblings lives here.
- * Nothing here is user state: they share the `explore.discover` slice, so the
+ * Nothing here is user state: they share the `explore.events` slice, so the
  * project filter and the typed query follow you across them while the base
  * filter does not.
  *

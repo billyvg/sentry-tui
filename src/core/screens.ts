@@ -97,8 +97,8 @@ export interface ScreenDef {
   openLabel?: string;
 }
 
-/** Every Explore screen backed by the Discover `events/` endpoint shares filters. */
-const EXPLORE_DISCOVER = "explore.discover";
+/** The Discover-style Explore screens whose query filters follow the user. */
+const EXPLORE_DISCOVER = "explore.events";
 /** The seven Monitors screens that are the detector table with a `type:` filter. */
 const MONITOR_DETECTORS = "monitors.detectors";
 /** The slice a saved view's results are shown in, pushed from All Views. */
@@ -119,12 +119,12 @@ export const DASHBOARD_DETAIL_STATE_KEY = "dashboards.detail";
 /**
  * Filters the Discover-backed Explore tables start on.
  *
- * One period for all seven, deliberately. The web pins Conversations to 24h
+ * One period for all six, deliberately. The web pins Conversations to 24h
  * "to avoid slow loads"
  * (`views/navigation/secondary/sections/explore/exploreSecondaryNavigation.tsx:143`)
  * — a *narrowing* of Sentry's 14d default, not a widening — and 1h is narrower
  * still, so the shared value already satisfies the constraint that pin exists
- * to enforce. Since the seven share a slice, the default only applies to the
+ * to enforce. Since the six share a slice, the default only applies to the
  * first Explore screen opened in a session; after that the period follows the
  * user across them, which is what the web's pin is trying to approximate.
  *
@@ -235,7 +235,7 @@ function profilesScreen(): ScreenDef {
  * Releases is the one Explore screen that isn't a table, and the one whose
  * period must be long: `statsPeriod` filters the list by release date, so the
  * hour the Discover screens share would hide every release but this morning's.
- * That is why it keeps its own slice rather than joining `explore.discover`.
+ * That is why it keeps its own slice rather than joining `explore.events`.
  * Enter expands the card under the cursor to its remaining projects.
  */
 function releasesScreen(): ScreenDef {
@@ -249,7 +249,7 @@ function releasesScreen(): ScreenDef {
 }
 
 /**
- * An Explore list that shares the Discover filter slice and opens an inline
+ * An Explore list that shares the Discover-style filter slice and opens an inline
  * panel rather than a view.
  *
  * Three of these are the Discover tables configured in
