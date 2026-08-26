@@ -17,7 +17,6 @@ on:
 
 env:
   SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
-  BUN_VERSION: "1.3.1"
 
 concurrency:
   group: release-${{ github.ref }}
@@ -60,28 +59,58 @@ jobs:
   # A release must not be able to ship code the suite rejects, however the tag
   # got here. `main`'s CI covers the normal path, but a hand-pushed tag never
   # touches it, so the gate belongs in the workflow that publishes.
-  test:
-    name: Typecheck + lint + test
+  validate:
+    name: Typecheck + lint
     needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
+      - name: Set up Bun project
+        uses: ./.github/actions/setup-bun
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Format check
+        run: bun run format:check
 
-      - name: Format, lint, typecheck, boundaries, tests
-        run: bun run check
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Module boundary check
+        run: bun run deps:check
+
+      - name: Theme contrast check
+        run: bun run test:theme-contrast
+
+  # `bun test` has no --shard of its own, so scripts/test-shard.ts splits the
+  # suite. This list is checked against it by scripts/test-shard.test.ts —
+  # change one and the other fails.
+  test:
+    name: Test (shard ${{ matrix.shard }})
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Bun project
+        uses: ./.github/actions/setup-bun
+
+      - name: Test suite
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: bun run test:shard "$SHARD" "4"
 
   build:
     name: Build ${{ matrix.target }}
-    needs: [verify, test]
+    needs: [verify, validate, test]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -100,13 +129,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Set up Bun project
+        uses: ./.github/actions/setup-bun
 
       - name: Build binary
         run: bun run ./scripts/build-bin.ts --target ${{ matrix.target }}
@@ -130,7 +154,7 @@ jobs:
 
   package:
     name: Package release
-    needs: [verify, test, build]
+    needs: [verify, build]
     runs-on: ubuntu-latest
     env:
       DRY_RUN: ${{ needs.verify.outputs.dry_run }}
@@ -138,13 +162,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Set up Bun project
+        uses: ./.github/actions/setup-bun
 
       - name: Download binaries
         uses: actions/download-artifact@v7
