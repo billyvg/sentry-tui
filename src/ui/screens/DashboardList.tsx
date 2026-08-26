@@ -39,10 +39,11 @@ const HEADING_ROWS = 4;
 /**
  * Narrowest a dashboard title may be squeezed to before the table gives up a
  * column instead. A title is the only thing identifying a row, so it outranks
- * every piece of metadata beside it — and without a floor the default of eight
- * cells lets every column "fit" at 100 columns while the title says nothing.
+ * every piece of metadata beside it. Twenty-eight cells is also the room the
+ * title has in a standard 80-column terminal, so wider breakpoints
+ * shed lower-priority metadata rather than making the title less readable.
  */
-const MIN_TITLE_WIDTH = 24;
+const MIN_TITLE_WIDTH = 28;
 
 function dashboardColumns(theme: Theme): {
   standard: ReadonlyArray<Column<DashboardListItem>>;
