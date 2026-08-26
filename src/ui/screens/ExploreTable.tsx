@@ -103,8 +103,7 @@ function ExploreTableScreen({
   table,
 }: ScreenProps & { table: ExploreTableConfig }) {
   const theme = useTheme();
-  const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
-    state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
@@ -144,28 +143,34 @@ function ExploreTableScreen({
   const buckets = valueOf(timeseries);
 
   useEffect(() => {
-    if (rows) setEntries(rows);
-  }, [rows, setEntries]);
+    if (rows) dispatch({ type: "setEntries", payload: rows });
+  }, [rows, dispatch]);
 
   useEffect(() => {
-    setStatus({
-      loading,
-      since,
-      error: error?.message,
-      noun: table.noun,
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading,
+        since,
+        error: error?.message,
+        noun: table.noun,
+      },
     });
-  }, [loading, since, error, events, setStatus, table.noun]);
+  }, [loading, since, error, events, dispatch, table.noun]);
 
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
   const closeQueryDropdown = useCallback(() => setQueryDropdown(null), []);
 
   /** Open one of the builder's menus, closing any filter menu it overlaps. */
   const openQueryDropdown = useCallback(
     (which: ExploreQueryDropdown) => {
-      setOpenDropdown(null);
+      dispatch({ type: "setOpenDropdown", payload: null });
       setQueryDropdown(which);
     },
-    [setOpenDropdown],
+    [dispatch],
   );
 
   /**
@@ -174,10 +179,10 @@ function ExploreTableScreen({
    * nothing to pop back out of. Escape closes it, ahead of the view stack.
    */
   useScreenActions(registerActions, {
-    open: () => setDetailOpen((open) => !open),
+    open: () => dispatch({ type: "setDetailOpen", payload: (open) => !open }),
     back: () => {
       if (!state.detailOpen) return false;
-      setDetailOpen(false);
+      dispatch({ type: "setDetailOpen", payload: false });
       return true;
     },
     // The builder's keys are the screen's rather than the app's: they only
@@ -240,7 +245,7 @@ function ExploreTableScreen({
         placeholder={table.searchPlaceholder}
         focused={state.searchFocused}
         width={width}
-        onInput={state.setSearchQuery}
+        onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
         onFocus={focusSearch}
         onBlur={handleSearchBlur}
       />
@@ -264,10 +269,10 @@ function ExploreTableScreen({
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={state.setStatsPeriod}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownClose={closeDropdown}
-        onDropdownOpen={state.setOpenDropdown}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       {hasBuilder ? (

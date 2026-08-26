@@ -181,8 +181,7 @@ export function ConversationList({
   activateRow,
 }: ScreenProps) {
   const theme = useTheme();
-  const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
-    state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
 
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
@@ -205,27 +204,33 @@ export function ConversationList({
   const buckets = valueOf(timeseries);
 
   useEffect(() => {
-    if (rows) setEntries(rows);
-  }, [rows, setEntries]);
+    if (rows) dispatch({ type: "setEntries", payload: rows });
+  }, [rows, dispatch]);
 
   useEffect(() => {
-    setStatus({
-      loading,
-      since,
-      error: error?.message,
-      noun: CONVERSATION_NOUN,
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading,
+        since,
+        error: error?.message,
+        noun: CONVERSATION_NOUN,
+      },
     });
-  }, [loading, since, error, conversations, setStatus]);
+  }, [loading, since, error, conversations, dispatch]);
 
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   // Enter toggles an inline panel rather than pushing a view, as the other
   // Explore screens do: the cursor keys keep working while it is open.
   useScreenActions(registerActions, {
-    open: () => setDetailOpen((open) => !open),
+    open: () => dispatch({ type: "setDetailOpen", payload: (open) => !open }),
     back: () => {
       if (!state.detailOpen) return false;
-      setDetailOpen(false);
+      dispatch({ type: "setDetailOpen", payload: false });
       return true;
     },
   });
@@ -242,7 +247,7 @@ export function ConversationList({
         placeholder="Search AI conversations…"
         focused={state.searchFocused}
         width={width}
-        onInput={state.setSearchQuery}
+        onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
         onFocus={focusSearch}
         onBlur={handleSearchBlur}
       />
@@ -257,10 +262,10 @@ export function ConversationList({
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={state.setStatsPeriod}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownClose={closeDropdown}
-        onDropdownOpen={state.setOpenDropdown}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       {hasChart && buckets ? (

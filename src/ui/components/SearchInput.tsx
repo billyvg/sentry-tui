@@ -17,7 +17,7 @@
  *   placeholder="Search spans…"
  *   focused={state.searchFocused}
  *   width={width}
- *   onInput={state.setSearchQuery}
+ *   onInput={(query) => state.dispatch({ type: "setSearchQuery", payload: query })}
  *   onFocus={state.focusSearch}
  *   onBlur={state.handleSearchBlur}
  * />

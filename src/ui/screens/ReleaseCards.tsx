@@ -159,8 +159,7 @@ export function ReleaseCards({
   activateRow,
 }: ScreenProps) {
   const theme = useTheme();
-  const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
-    state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
   const listRef = useRef<ScrollBoxRenderable>(null);
   const inputRef = useRef<InputRenderable>(null);
 
@@ -222,22 +221,28 @@ export function ReleaseCards({
   const since = loadingSince(releasesStatus);
 
   useEffect(() => {
-    if (releases) setEntries(releases);
-  }, [releases, setEntries]);
+    if (releases) dispatch({ type: "setEntries", payload: releases });
+  }, [releases, dispatch]);
 
   useEffect(() => {
-    setStatus({
-      loading,
-      since,
-      // A failed health request is worth saying out loud: the cards render
-      // fine without it, so the only other signal would be three columns of
-      // em-dashes that look like absent data rather than a failed fetch.
-      error: listError?.message ?? (healthError ? `health: ${healthError.message}` : undefined),
-      noun: "releases",
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading,
+        since,
+        // A failed health request is worth saying out loud: the cards render
+        // fine without it, so the only other signal would be three columns of
+        // em-dashes that look like absent data rather than a failed fetch.
+        error: listError?.message ?? (healthError ? `health: ${healthError.message}` : undefined),
+        noun: "releases",
+      },
     });
-  }, [loading, since, listError, healthError, releasesStatus, setStatus]);
+  }, [loading, since, listError, healthError, releasesStatus, dispatch]);
 
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   /**
    * Enter expands the card under the cursor to show every project it shipped
@@ -246,10 +251,10 @@ export function ReleaseCards({
    * card is open and Escape closes it before anything else claims the key.
    */
   useScreenActions(registerActions, {
-    open: () => setDetailOpen((open) => !open),
+    open: () => dispatch({ type: "setDetailOpen", payload: (open) => !open }),
     back: () => {
       if (!state.detailOpen) return false;
-      setDetailOpen(false);
+      dispatch({ type: "setDetailOpen", payload: false });
       return true;
     },
   });
@@ -305,7 +310,7 @@ export function ReleaseCards({
           value={state.searchQuery}
           placeholder="Search releases…"
           focused={state.searchFocused}
-          onInput={state.setSearchQuery}
+          onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
           style={{
             flexGrow: 1,
             textColor: theme.text,
@@ -324,14 +329,18 @@ export function ReleaseCards({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sort={{ value: sort, items: sortItems, onChange: state.setSort }}
+        sort={{
+          value: sort,
+          items: sortItems,
+          onChange: (value) => dispatch({ type: "setSort", payload: value }),
+        }}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={state.setStatsPeriod}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownClose={closeDropdown}
-        onDropdownOpen={state.setOpenDropdown}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       <scrollbox

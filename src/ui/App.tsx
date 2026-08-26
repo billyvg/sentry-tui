@@ -248,7 +248,7 @@ export function App({
   /** Apply a dropdown selection and remember it as this organization's default. */
   const selectProjects = useCallback(
     (projects: string[]) => {
-      state.setSelectedProjects(projects);
+      state.dispatch({ type: "setSelectedProjects", payload: projects });
 
       const next = { ...projectsByOrgRef.current, [org]: [...projects] };
       projectsByOrgRef.current = next;
@@ -257,7 +257,7 @@ export function App({
         // A read-only config dir should not undo the selection on screen.
       });
     },
-    [org, state.setSelectedProjects],
+    [org, state.dispatch],
   );
 
   useNavigationTrace(activeGroup, activeItem, state.status.loading);
@@ -477,7 +477,10 @@ export function App({
         case "sentry.view.filterDate": {
           if (!isFilterBarMounted()) return;
           focus.focus("content");
-          state.setOpenDropdown(FILTER_COMMAND_DROPDOWN[commandId]);
+          state.dispatch({
+            type: "setOpenDropdown",
+            payload: FILTER_COMMAND_DROPDOWN[commandId],
+          });
           return;
         }
         default:
@@ -502,7 +505,7 @@ export function App({
       // focuses it, so it can only ever select — the cursor it would be
       // "confirming" wasn't on screen to be aimed at.
       const confirming = focus.focusedRef.current === "content" && index === state.selected;
-      state.setSelected(index);
+      state.dispatch({ type: "setSelected", payload: index });
       // The secondary nav is a drawer over the nav rail; acting in the content
       // pane closes it, exactly as choosing an item from it does.
       navigation.setShowSecondary(false);

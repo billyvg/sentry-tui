@@ -85,12 +85,13 @@ describe("app key handler factories", () => {
 
   test("the list cursor stage applies movement through ScreenState", () => {
     let selected = 1;
-    const setSelected: ScreenState["setSelected"] = mock((next) => {
-      selected = typeof next === "function" ? next(selected) : next;
+    const dispatch: ScreenState["dispatch"] = mock((action) => {
+      if (action.type !== "setSelected") return;
+      selected = typeof action.payload === "function" ? action.payload(selected) : action.payload;
     });
     const handler = createListCursorHandler({
       navigation: navigation({ listActive: true }),
-      state: { entries: [{}, {}, {}], selected, setSelected } as unknown as ScreenState,
+      state: { entries: [{}, {}, {}], selected, dispatch } as unknown as ScreenState,
       screenActions: { current: null },
       focus: {
         focusedRef: { current: "content" },

@@ -80,7 +80,7 @@ export function createDropdownHandler({
   return (key) => {
     if (!state.openDropdown && !showOrgPicker && !isDropdownMounted()) return "notMine";
     if (state.openDropdown && !isDropdownMounted() && matchesCommand("sentry.nav.back", key)) {
-      state.setOpenDropdown(null);
+      state.dispatch({ type: "setOpenDropdown", payload: null });
       return "mine";
     }
     return "focused";
@@ -266,11 +266,13 @@ export function createGlobalCommandHandler({
     if (navigation.listActive && focus.focusedRef.current === "content") {
       for (const [commandId, which] of FILTER_COMMAND_ENTRIES) {
         if (!matchesCommand(commandId, key)) continue;
-        if (isFilterBarMounted()) state.setOpenDropdown(which);
+        if (isFilterBarMounted()) {
+          state.dispatch({ type: "setOpenDropdown", payload: which });
+        }
         return "mine";
       }
       if (matchesCommand("sentry.view.sort", key) && isSortSelectorMounted()) {
-        state.setOpenDropdown("sort");
+        state.dispatch({ type: "setOpenDropdown", payload: "sort" });
         return "mine";
       }
     }
@@ -446,19 +448,25 @@ export function createListCursorHandler({
       return "mine";
     }
     if (matchesCommand("sentry.nav.down", key)) {
-      state.setSelected((index) => Math.min(index + 1, last));
+      state.dispatch({
+        type: "setSelected",
+        payload: (index) => Math.min(index + 1, last),
+      });
       return "mine";
     }
     if (matchesCommand("sentry.nav.up", key)) {
-      state.setSelected((index) => Math.max(index - 1, 0));
+      state.dispatch({
+        type: "setSelected",
+        payload: (index) => Math.max(index - 1, 0),
+      });
       return "mine";
     }
     if (matchesCommand("sentry.nav.top", key)) {
-      state.setSelected(0);
+      state.dispatch({ type: "setSelected", payload: 0 });
       return "mine";
     }
     if (matchesCommand("sentry.nav.bottom", key)) {
-      state.setSelected(last);
+      state.dispatch({ type: "setSelected", payload: last });
       return "mine";
     }
     return "notMine";

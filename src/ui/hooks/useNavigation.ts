@@ -174,10 +174,10 @@ export function useNavigation({
       setNavExpanded(false);
       setShowSecondary(false);
       setViewStack([]);
-      state.setDetailOpen(false);
+      state.dispatch({ type: "setDetailOpen", payload: false });
       focus.focus("content");
     },
-    [focus, state.setDetailOpen],
+    [focus, state.dispatch],
   );
 
   /** Navigate to a registered screen from inside another screen. */
@@ -251,17 +251,20 @@ export function useNavigation({
   /** Keep optimistic issue edits consistent in the list and every open view. */
   const replaceIssue = useCallback(
     (next: Group) => {
-      state.setEntries((rows) => {
-        const groups = rows as readonly Group[];
-        return groups.some((row) => row?.id === next.id)
-          ? groups.map((row) => (row?.id === next.id ? next : row))
-          : rows;
+      state.dispatch({
+        type: "setEntries",
+        payload: (rows) => {
+          const groups = rows as readonly Group[];
+          return groups.some((row) => row?.id === next.id)
+            ? groups.map((row) => (row?.id === next.id ? next : row))
+            : rows;
+        },
       });
       setViewStack((stack) =>
         stack.map((view) => (view.issue?.id === next.id ? { ...view, issue: next } : view)),
       );
     },
-    [state.setEntries],
+    [state.dispatch],
   );
 
   const showSecondaryPane = showSecondary || gotoMode;

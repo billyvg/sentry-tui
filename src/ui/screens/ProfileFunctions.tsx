@@ -130,8 +130,7 @@ export function ProfileFunctions({
   activateRow,
 }: ScreenProps) {
   const theme = useTheme();
-  const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
-    state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
   const inputRef = useRef<InputRenderable>(null);
 
   /**
@@ -184,19 +183,25 @@ export function ProfileFunctions({
   const error = errorOf(status);
 
   useEffect(() => {
-    if (functions) setEntries(functions);
-  }, [functions, setEntries]);
+    if (functions) dispatch({ type: "setEntries", payload: functions });
+  }, [functions, dispatch]);
 
   useEffect(() => {
-    setStatus({
-      loading,
-      since,
-      error: error?.message,
-      noun: "functions",
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading,
+        since,
+        error: error?.message,
+        noun: "functions",
+      },
     });
-  }, [loading, since, error, status, setStatus]);
+  }, [loading, since, error, status, dispatch]);
 
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   /**
    * Enter opens the detail panel. A function's name and package are the two
@@ -204,10 +209,10 @@ export function ProfileFunctions({
    * hundreds of characters — so the panel is where they are readable in full.
    */
   useScreenActions(registerActions, {
-    open: () => setDetailOpen((open) => !open),
+    open: () => dispatch({ type: "setDetailOpen", payload: (open) => !open }),
     back: () => {
       if (!state.detailOpen) return false;
-      setDetailOpen(false);
+      dispatch({ type: "setDetailOpen", payload: false });
       return true;
     },
   });
@@ -242,7 +247,7 @@ export function ProfileFunctions({
           value={state.searchQuery}
           placeholder="Search functions…"
           focused={state.searchFocused}
-          onInput={state.setSearchQuery}
+          onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
           style={{
             flexGrow: 1,
             textColor: theme.text,
@@ -261,14 +266,18 @@ export function ProfileFunctions({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sort={{ value: sort, items: PROFILE_FUNCTION_SORT_OPTIONS, onChange: state.setSort }}
+        sort={{
+          value: sort,
+          items: PROFILE_FUNCTION_SORT_OPTIONS,
+          onChange: (value) => dispatch({ type: "setSort", payload: value }),
+        }}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={state.setStatsPeriod}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownClose={closeDropdown}
-        onDropdownOpen={state.setOpenDropdown}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       <FlamegraphNote width={inner} />

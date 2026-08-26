@@ -133,7 +133,7 @@ function workflowColumns(theme: Theme): ReadonlyArray<Column<WorkflowRow>> {
 export function WorkflowList(props: ScreenProps) {
   const theme = useTheme();
   const { client, org, state, focused, width, height, reloadToken } = props;
-  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
 
   const sort = workflowSort(state.sort);
   const { workflows: status, nextCursor } = useWorkflows(client, {
@@ -166,12 +166,15 @@ export function WorkflowList(props: ScreenProps) {
   );
 
   useEffect(() => {
-    if (rows) setEntries(rows);
-  }, [rows, setEntries]);
+    if (rows) dispatch({ type: "setEntries", payload: rows });
+  }, [rows, dispatch]);
 
   useEffect(() => {
-    setStatus({ loading, since, error: error?.message, noun: "alerts" });
-  }, [loading, since, error, setStatus]);
+    dispatch({
+      type: "setStatus",
+      payload: { loading, since, error: error?.message, noun: "alerts" },
+    });
+  }, [loading, since, error, dispatch]);
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
@@ -180,7 +183,7 @@ export function WorkflowList(props: ScreenProps) {
         placeholder="Search alerts by name…"
         focused={state.searchFocused}
         width={width}
-        onInput={state.setSearchQuery}
+        onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
         onFocus={focusSearch}
         onBlur={handleSearchBlur}
       />
@@ -212,9 +215,9 @@ export function WorkflowList(props: ScreenProps) {
         open={state.openDropdown === "sort"}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
-        onChange={state.setSort}
-        onOpen={() => setOpenDropdown("sort")}
-        onClose={() => setOpenDropdown(null)}
+        onChange={(sort) => dispatch({ type: "setSort", payload: sort })}
+        onOpen={() => dispatch({ type: "setOpenDropdown", payload: "sort" })}
+        onClose={() => dispatch({ type: "setOpenDropdown", payload: null })}
       />
 
       <DataTable
