@@ -25,6 +25,7 @@ import {
 } from "../packaging/npm/update.mjs";
 import {
   APP_FIRST_CHECK_MS,
+  discardFailedCachedBuild,
   shouldCheckAfterRun,
   startBackgroundUpdate,
 } from "../packaging/npm/launch.mjs";
@@ -117,6 +118,35 @@ describe("the local cache", () => {
       const chosen = bestLocal({ version: "0.1.0", path: "/bundled/sentry-tui" }, env);
       expect(chosen.version).toBe("0.1.0");
       expect(chosen.path).toBe("/bundled/sentry-tui");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a permanently broken cached build is not selected again", () => {
+    const bundled = { version: "0.1.0", path: "/bundled/sentry-tui" };
+
+    for (const code of ["ENOENT", "ENOEXEC", "ELIBBAD"]) {
+      const { env, dir } = cacheWith(["0.2.0"]);
+      try {
+        const cached = bestLocal(bundled, env);
+        expect(discardFailedCachedBuild(cached, { code }, env)).toBe(true);
+        expect(bestLocal(bundled, env)).toEqual(bundled);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test("permission and transient spawn failures preserve the cached build", () => {
+    const bundled = { version: "0.1.0", path: "/bundled/sentry-tui" };
+    const { env, dir } = cacheWith(["0.2.0"]);
+    try {
+      const cached = bestLocal(bundled, env);
+
+      expect(discardFailedCachedBuild(cached, { code: "EACCES" }, env)).toBe(false);
+      expect(discardFailedCachedBuild(cached, { code: "ETXTBSY" }, env)).toBe(false);
+      expect(bestLocal(bundled, env)).toEqual(cached);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

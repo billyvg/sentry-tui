@@ -82,6 +82,17 @@ describe("npm launcher", () => {
     for (const [, options] of spawns) expect(options).toContain("env: childEnv()");
   });
 
+  test("it discards a permanently broken cached build before falling back", async () => {
+    const source = await read("packaging/npm/launch.mjs");
+    const fallback = source.indexOf("if (result.error && binary !== bundled.path)");
+    const discard = source.indexOf("discardFailedCachedBuild(local, result.error)", fallback);
+    const bundledSpawn = source.indexOf("spawnSync(bundled.path, argv", fallback);
+
+    expect(fallback).toBeGreaterThan(-1);
+    expect(discard).toBeGreaterThan(fallback);
+    expect(bundledSpawn).toBeGreaterThan(discard);
+  });
+
   test("it looks for an update only once nothing of ours is running", async () => {
     // The cadence lives in `src/app/selfUpdate.ts`; the launcher's share of it
     // is this single call, after the child has exited. Move it back above the

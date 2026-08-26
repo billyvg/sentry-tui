@@ -5,7 +5,9 @@ import { accessSync, chmodSync, constants } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-import { bestLocal, updatesDisabled } from "./update.mjs";
+import { bestLocal, removeCachedVersion, updatesDisabled } from "./update.mjs";
+
+/** @typedef {{version?: string, path: string}} Binary */
 
 /**
  * `${process.platform}-${process.arch}` → the npm package carrying that binary.
@@ -117,6 +119,36 @@ export function shouldCheckAfterRun(elapsedMs) {
   return elapsedMs < APP_FIRST_CHECK_MS;
 }
 
+/** Spawn failures that say the cached executable itself cannot run. */
+const BROKEN_BINARY_ERRORS = new Set(["ENOENT", "ENOEXEC", "ELIBBAD"]);
+
+/**
+ * Remove a cached build when its spawn error is permanent for those bytes.
+ *
+ * The allowlist is deliberately narrow. Permission and resource failures are
+ * properties of the machine at that moment, not proof that a fresh download
+ * would differ; in particular, `EACCES` may be a noexec mount and `ETXTBSY`
+ * only means another process temporarily has the executable open for writing.
+ *
+ * Cache cleanup is best-effort so failure to remove an update never prevents
+ * the bundled binary from taking over.
+ *
+ * @param {Binary} binary
+ * @param {{code?: string}} error
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {boolean} whether the cached version was removed
+ */
+export function discardFailedCachedBuild(binary, error, env = process.env) {
+  if (!binary.version || !BROKEN_BINARY_ERRORS.has(error?.code)) return false;
+
+  try {
+    removeCachedVersion(binary.version, env);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Kick off an update in a process of our own, and return immediately.
  *
@@ -192,6 +224,7 @@ export function main(argv = process.argv.slice(2)) {
   // A cached build that will not start is worse than the stale one that will,
   // so fall back once to whatever npm installed.
   if (result.error && binary !== bundled.path) {
+    discardFailedCachedBuild(local, result.error);
     process.stderr.write(
       `sentry-tui ${local.version} did not start, falling back to ${bundled.version}\n`,
     );
