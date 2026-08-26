@@ -1,10 +1,11 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useReducer } from "react";
 
 import { matchesCommand } from "~/core/commands";
 import { SEER_SUGGESTED_QUESTIONS, seerSlashCommands, type SeerSlashCommand } from "~/core/seer";
 import { useTheme } from "~/ui/theme";
 import { SeerChatContext } from "~/ui/hooks/useSeerChat";
 import { SeerExplorer } from "~/ui/screens/SeerExplorer";
+import { initialSeerScreenState, seerScreenReducer } from "~/ui/screens/seerScreenState";
 import type { ScreenProps } from "~/ui/screens/types";
 
 interface QuestionOption {
@@ -56,15 +57,7 @@ export function SeerScreen({
 }: ScreenProps) {
   const theme = useTheme();
   const chat = useContext(SeerChatContext);
-  const [inputFocused, setInputFocused] = useState(true);
-  const [slashSelected, setSlashSelected] = useState(0);
-  const [showHistory, setShowHistory] = useState(false);
-  const [historySelected, setHistorySelected] = useState(0);
-  const [fileApprovalIndex, setFileApprovalIndex] = useState(0);
-  const [fileApprovalDecisions, setFileApprovalDecisions] = useState<boolean[]>([]);
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [questionAnswers, setQuestionAnswers] = useState<string[]>([]);
-  const [questionSelected, setQuestionSelected] = useState(0);
+  const [interaction, dispatch] = useReducer(seerScreenReducer, undefined, initialSeerScreenState);
 
   const value = state.searchQuery;
   const setValue = useCallback(
@@ -72,6 +65,16 @@ export function SeerScreen({
     [state.dispatch],
   );
   const pendingId = chat?.pendingInput?.id;
+  const pendingType = chat?.pendingInput?.input_type;
+
+  const showHistory = interaction.mode === "history";
+  const historySelected = interaction.mode === "history" ? interaction.selected : 0;
+  const slashSelected = interaction.mode === "conversation" ? interaction.slashSelected : 0;
+  const fileApprovalIndex = interaction.mode === "fileApproval" ? interaction.index : 0;
+  const fileApprovalDecisions = interaction.mode === "fileApproval" ? interaction.decisions : [];
+  const questionIndex = interaction.mode === "question" ? interaction.index : 0;
+  const questionAnswers = interaction.mode === "question" ? interaction.answers : [];
+  const questionSelected = interaction.mode === "question" ? interaction.selected : 0;
 
   const commands = useMemo(
     () =>
@@ -89,23 +92,19 @@ export function SeerScreen({
     return commands.filter((command) => command.title.startsWith(query));
   }, [commands, value]);
 
-  useEffect(() => setSlashSelected(0), [value]);
+  useEffect(() => dispatch({ type: "inputChanged" }), [value]);
 
   useEffect(() => {
-    setFileApprovalIndex(0);
-    setFileApprovalDecisions([]);
-    setQuestionIndex(0);
-    setQuestionAnswers([]);
-    setQuestionSelected(0);
-    if (pendingId) setInputFocused(false);
-  }, [pendingId]);
+    dispatch({
+      type: "pendingChanged",
+      pending: pendingId && pendingType ? { id: pendingId, input_type: pendingType } : null,
+    });
+  }, [pendingId, pendingType]);
 
   const openHistory = useCallback(() => {
     if (!chat) return;
     chat.loadRuns();
-    setHistorySelected(0);
-    setShowHistory(true);
-    setInputFocused(false);
+    dispatch({ type: "openHistory" });
   }, [chat]);
 
   const pushChanges = useCallback(() => {
@@ -129,8 +128,7 @@ export function SeerScreen({
       switch (command.id) {
         case "new":
           chat.reset();
-          setShowHistory(false);
-          setInputFocused(true);
+          dispatch({ type: "startNewChat" });
           return;
         case "history":
           openHistory();
@@ -179,17 +177,14 @@ export function SeerScreen({
     (answer: string) => {
       if (!chat?.pendingInput || !currentQuestion) return;
       const answers = [...questionAnswers, answer];
-      if (questionIndex + 1 >= questions.length) {
+      const final = questionIndex + 1 >= questions.length;
+      dispatch({ type: "commitQuestionAnswer", answer, final });
+      if (final) {
         chat.respond(chat.pendingInput.id, { answers });
         setValue("");
-        setInputFocused(false);
         return;
       }
-      setQuestionAnswers(answers);
-      setQuestionIndex((index) => index + 1);
-      setQuestionSelected(0);
       setValue("");
-      setInputFocused(false);
     },
     [chat, currentQuestion, questionAnswers, questionIndex, questions.length, setValue],
   );
@@ -234,11 +229,10 @@ export function SeerScreen({
         ? chat.pendingInput.data["patches"]
         : [];
       const decisions = [...fileApprovalDecisions, approved];
-      if (fileApprovalIndex + 1 >= patches.length) {
+      const final = fileApprovalIndex + 1 >= patches.length;
+      dispatch({ type: "recordFileDecision", approved, final });
+      if (final) {
         chat.respond(chat.pendingInput.id, { decisions });
-      } else {
-        setFileApprovalDecisions(decisions);
-        setFileApprovalIndex((index) => index + 1);
       }
     },
     [chat, fileApprovalDecisions, fileApprovalIndex],
@@ -273,25 +267,28 @@ export function SeerScreen({
 
       if (pending.input_type !== "ask_user_question" || !currentQuestion) return false;
       if (matchesCommand("sentry.nav.up", key) || key.name.toLowerCase() === "up") {
-        setQuestionSelected((selected) =>
-          selected > 0 ? selected - 1 : currentQuestion.options.length,
-        );
+        dispatch({
+          type: "moveQuestionSelection",
+          direction: -1,
+          optionCount: currentQuestion.options.length,
+        });
         return true;
       }
       if (matchesCommand("sentry.nav.down", key) || key.name.toLowerCase() === "down") {
-        setQuestionSelected((selected) =>
-          selected < currentQuestion.options.length ? selected + 1 : 0,
-        );
+        dispatch({
+          type: "moveQuestionSelection",
+          direction: 1,
+          optionCount: currentQuestion.options.length,
+        });
         return true;
       }
       if (key.name.toLowerCase() === "o") {
-        setQuestionSelected(currentQuestion.options.length);
-        setInputFocused(true);
+        dispatch({ type: "selectOtherAnswer", optionCount: currentQuestion.options.length });
         return true;
       }
       const option = Number(key.name) - 1;
       if (option >= 0 && option < currentQuestion.options.length) {
-        setQuestionSelected(option);
+        dispatch({ type: "selectQuestionOption", index: option });
         return true;
       }
       if (matchesCommand("sentry.nav.open", key) && !otherSelected) {
@@ -317,13 +314,19 @@ export function SeerScreen({
       if (visibleCommands.length === 0) return false;
       const name = key.name.toLowerCase();
       if (name === "up") {
-        setSlashSelected(
-          (selected) => (selected - 1 + visibleCommands.length) % visibleCommands.length,
-        );
+        dispatch({
+          type: "moveSlashSelection",
+          direction: -1,
+          count: visibleCommands.length,
+        });
         return true;
       }
       if (name === "down") {
-        setSlashSelected((selected) => (selected + 1) % visibleCommands.length);
+        dispatch({
+          type: "moveSlashSelection",
+          direction: 1,
+          count: visibleCommands.length,
+        });
         return true;
       }
       return false;
@@ -340,19 +343,18 @@ export function SeerScreen({
       if (showHistory) {
         const runCount = chat.runs.state === "ready" ? chat.runs.value.length : 0;
         if (matchesCommand("sentry.nav.down", key)) {
-          setHistorySelected((selected) => Math.min(selected + 1, Math.max(0, runCount - 1)));
+          dispatch({ type: "moveHistorySelection", direction: 1, count: runCount });
           return true;
         }
         if (matchesCommand("sentry.nav.up", key)) {
-          setHistorySelected((selected) => Math.max(0, selected - 1));
+          dispatch({ type: "moveHistorySelection", direction: -1, count: runCount });
           return true;
         }
         if (matchesCommand("sentry.nav.open", key) && chat.runs.state === "ready") {
           const selected = chat.runs.value[historySelected];
           if (selected) {
             chat.switchRun(selected.id);
-            setShowHistory(false);
-            setInputFocused(true);
+            dispatch({ type: "closeHistory" });
           }
           return true;
         }
@@ -360,13 +362,13 @@ export function SeerScreen({
       }
 
       if (matchesCommand("sentry.seer.compose", key) || matchesCommand("sentry.nav.open", key)) {
-        setInputFocused(true);
+        dispatch({ type: "focusInput", allowQuestion: otherSelected });
         return true;
       }
       if (matchesCommand("sentry.seer.newChat", key)) {
         chat.reset();
         setValue("");
-        setInputFocused(true);
+        dispatch({ type: "startNewChat" });
         return true;
       }
       if (matchesCommand("sentry.seer.history", key)) {
@@ -395,11 +397,14 @@ export function SeerScreen({
 
   const back = useCallback(() => {
     if (!showHistory) return false;
-    setShowHistory(false);
-    setInputFocused(true);
+    dispatch({ type: "closeHistory" });
     return true;
   }, [showHistory]);
 
+  const inputFocused =
+    interaction.mode === "conversation" || interaction.mode === "question"
+      ? interaction.inputFocused
+      : false;
   const composerFocused =
     focused &&
     inputFocused &&
@@ -412,7 +417,7 @@ export function SeerScreen({
     registerActions({
       inputFocused: () => composerFocused,
       submitInput: submit,
-      blurInput: () => setInputFocused(false),
+      blurInput: () => dispatch({ type: "blurInput" }),
       handleInputKey,
       handleKey,
       back,
@@ -442,8 +447,8 @@ export function SeerScreen({
       value={value}
       onInput={setValue}
       inputFocused={composerFocused}
-      onInputFocus={() => setInputFocused(true)}
-      onInputBlur={() => setInputFocused(false)}
+      onInputFocus={() => dispatch({ type: "focusInput", allowQuestion: otherSelected })}
+      onInputBlur={() => dispatch({ type: "blurInput" })}
       slashCommands={visibleCommands}
       slashSelected={slashSelected}
       showHistory={showHistory}
