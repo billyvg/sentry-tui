@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,7 +10,7 @@ function output(stream: Uint8Array): string {
   return new TextDecoder().decode(stream);
 }
 
-test("compiled binaries embed stack-frame grammars and omit Zig", () => {
+test("compiled binaries embed stack-frame grammars", () => {
   const tempDir = mkdtempSync(join(tmpdir(), "sentry-tui-syntax-"));
   const binary = join(tempDir, process.platform === "win32" ? "probe.exe" : "probe");
 
@@ -20,7 +20,6 @@ test("compiled binaries embed stack-frame grammars and omit Zig", () => {
       { cwd: ROOT, stderr: "pipe", stdout: "pipe" },
     );
     expect(build.exitCode, output(build.stderr)).toBe(0);
-    expect(readFileSync(binary).includes("tree-sitter-zig")).toBe(false);
 
     const run = Bun.spawnSync([binary, "--version"], {
       cwd: ROOT,

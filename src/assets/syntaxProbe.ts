@@ -48,10 +48,6 @@ export async function verifySyntaxRuntime(): Promise<void> {
         );
       }
     }
-
-    if (await client.preloadParser("zig")) {
-      throw new Error("zig syntax highlighting should not be bundled");
-    }
   } finally {
     await destroyTreeSitterClient();
   }

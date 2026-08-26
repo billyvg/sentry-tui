@@ -27,9 +27,6 @@
       },
     },
   },
-  "patchedDependencies": {
-    "@opentui/core@0.5.4": "patches/@opentui%2Fcore@0.5.4.patch",
-  },
   "packages": {
     "@apm-js-collab/code-transformer": ["@apm-js-collab/code-transformer@0.18.1", "https://sfw.security.sentry.io/npm/@apm-js-collab/code-transformer/-/code-transformer-0.18.1.tgz", { "dependencies": { "@types/estree": "^1.0.8", "astring": "^1.9.0", "esquery": "^1.7.0", "meriyah": "^6.1.4", "semifies": "^1.0.0", "source-map": "^0.6.0" }, "bin": { "code-transformer": "cli.js" } }, "sha512-u1Hb6bHjWtkSpiprwVP6YaHC1DTN4RAU3zYkUDUe7WMnJwdyU1pwTL9dFKiSJB9IiLue/EQovmyx6xhU7FFtAQ=="],
 
