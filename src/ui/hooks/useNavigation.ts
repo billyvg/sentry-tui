@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useMemo, useReducer, useState, type Dispatch } from "react";
 
 import type { SentryClient } from "~/api/client";
 import type { Group } from "~/api/types";
@@ -11,6 +11,12 @@ import { COLLAPSED_NAV_RAIL_WIDTH, NAV_RAIL_WIDTH } from "~/ui/components/NavRai
 import { SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { useScreenState, type ScreenState, type ScreenStateSeed } from "~/ui/hooks/useScreenState";
 import { useSecondaryNavExtras } from "~/ui/hooks/useSecondaryNavExtras";
+import {
+  initialNavigationModel,
+  navigationReducer,
+  type NavigationAction,
+  type NavigationModel,
+} from "~/ui/hooks/navigationState";
 import {
   navItemsFor,
   navTargetOf,
@@ -48,21 +54,9 @@ export interface UseNavigationOptions {
   canOpen: boolean;
 }
 
-export interface NavigationState {
-  railGroup: NavGroupId;
-  setRailGroup: Dispatch<SetStateAction<NavGroupId>>;
-  activeGroup: NavGroupId;
-  activeItem: string;
-  navExpanded: boolean;
-  setNavExpanded: Dispatch<SetStateAction<boolean>>;
-  showSecondary: boolean;
-  setShowSecondary: Dispatch<SetStateAction<boolean>>;
+export interface NavigationState extends NavigationModel {
+  dispatch: Dispatch<NavigationAction>;
   showSecondaryPane: boolean;
-  secondaryItem: string;
-  setSecondaryItem: Dispatch<SetStateAction<string>>;
-  gotoMode: boolean;
-  setGotoMode: Dispatch<SetStateAction<boolean>>;
-  viewStack: readonly ViewStackEntry[];
   topView?: ViewStackEntry;
   detailView?: ViewStackEntry;
   listActive: boolean;
@@ -108,19 +102,14 @@ export function useNavigation({
   canOpen,
 }: UseNavigationOptions): NavigationState {
   const initial = getScreen(initialLocation?.screen ?? initialScreen);
-  const [railGroup, setRailGroup] = useState<NavGroupId>(initial.group);
-  const [activeGroup, setActiveGroup] = useState<NavGroupId>(initial.group);
-  const [activeItem, setActiveItem] = useState(initial.item);
-  const [navExpanded, setNavExpanded] = useState(false);
-  const [showSecondary, setShowSecondary] = useState(false);
-  const [secondaryItem, setSecondaryItem] = useState(initial.item);
-  const [gotoMode, setGotoMode] = useState(false);
   const [initialView] = useState(() =>
     viewForSentryUrl(initialLocation?.detail, initialLocation?.state),
   );
-  const [viewStack, setViewStack] = useState<readonly ViewStackEntry[]>(() =>
-    initialView ? [initialView] : [],
+  const [navigation, dispatch] = useReducer(navigationReducer, undefined, () =>
+    initialNavigationModel(initial.group, initial.item, initialView),
   );
+  const { railGroup, activeGroup, activeItem, navExpanded, showSecondary, gotoMode, viewStack } =
+    navigation;
 
   const screen = findScreen(activeGroup, activeItem);
   const ScreenComponent = screen ? SCREEN_COMPONENTS[screen.id] : undefined;
@@ -147,33 +136,26 @@ export function useNavigation({
   const pushView = useCallback(
     (view: ViewStackEntry) => {
       if (view.stateKey && view.initialState) seed(view.stateKey, view.initialState);
-      setViewStack((stack) => [...stack, view]);
+      dispatch({ type: "pushView", view });
     },
     [seed],
   );
 
   /** Merge metadata learned after a URL-addressed detail has loaded. */
   const updateView = useCallback((id: string, update: { label?: string; issue?: Group }) => {
-    setViewStack((stack) => stack.map((view) => (view.id === id ? { ...view, ...update } : view)));
+    dispatch({ type: "updateView", id, update });
   }, []);
 
   /** Remove the topmost pushed view. */
-  const popView = useCallback(() => setViewStack((stack) => stack.slice(0, -1)), []);
+  const popView = useCallback(() => dispatch({ type: "popView" }), []);
 
   /** Return to the active top-level screen. */
-  const clearViews = useCallback(() => setViewStack([]), []);
+  const clearViews = useCallback(() => dispatch({ type: "clearViews" }), []);
 
   /** Show a group's item in the content pane through the canonical route. */
   const navigateTo = useCallback(
     (group: NavGroupId, item: string) => {
-      setGotoMode(false);
-      setRailGroup(group);
-      setActiveGroup(group);
-      setActiveItem(item);
-      setSecondaryItem(item);
-      setNavExpanded(false);
-      setShowSecondary(false);
-      setViewStack([]);
+      dispatch({ type: "navigate", group, item });
       state.dispatch({ type: "setDetailOpen", payload: false });
       focus.focus("content");
     },
@@ -199,12 +181,9 @@ export function useNavigation({
         navigateTo(group, sole);
         return;
       }
-      setGotoMode(false);
-      setRailGroup(group);
       const startItem =
         group === activeGroup ? activeItem : (getNavGroup(group).sections[0]?.items[0] ?? "");
-      setSecondaryItem(startItem);
-      setShowSecondary(true);
+      dispatch({ type: "openGroup", group, item: startItem });
       focus.focus("secondary");
     },
     [activeGroup, activeItem, focus, navigateTo],
@@ -212,7 +191,7 @@ export function useNavigation({
 
   /** Restore the labeled rail without choosing a destination. */
   const expandNav = useCallback(() => {
-    setNavExpanded(true);
+    dispatch({ type: "expandNav" });
     focus.focus("nav");
   }, [focus]);
 
@@ -240,10 +219,9 @@ export function useNavigation({
         navigateTo(group, sole);
         return;
       }
-      setRailGroup(group);
-      setSecondaryItem(
-        group === activeGroup ? activeItem : (navItemsFor(group, navExtras)[0]?.label ?? ""),
-      );
+      const item =
+        group === activeGroup ? activeItem : (navItemsFor(group, navExtras)[0]?.label ?? "");
+      dispatch({ type: "previewGroup", group, item });
     },
     [activeGroup, activeItem, navExtras, navigateTo],
   );
@@ -260,9 +238,7 @@ export function useNavigation({
             : rows;
         },
       });
-      setViewStack((stack) =>
-        stack.map((view) => (view.issue?.id === next.id ? { ...view, issue: next } : view)),
-      );
+      dispatch({ type: "replaceIssue", issue: next });
     },
     [state.dispatch],
   );
@@ -319,20 +295,9 @@ export function useNavigation({
   }, [gotoMode, state.searchFocused, state.detailOpen, topView, detailView, screen, canOpen]);
 
   return {
-    railGroup,
-    setRailGroup,
-    activeGroup,
-    activeItem,
-    navExpanded,
-    setNavExpanded,
-    showSecondary,
-    setShowSecondary,
+    ...navigation,
+    dispatch,
     showSecondaryPane,
-    secondaryItem,
-    setSecondaryItem,
-    gotoMode,
-    setGotoMode,
-    viewStack,
     topView,
     detailView,
     listActive,
