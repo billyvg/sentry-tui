@@ -59,6 +59,46 @@ function stubClient({
   return new SentryClient({ auth, fetchImpl, maxRetries: 0 });
 }
 
+/** Two release pages, recording that health follows the list's cursor. */
+function paginatedReleaseClient() {
+  const listCursors: Array<string | null> = [];
+  const healthCursors: Array<string | null> = [];
+  const first = rawReleasesFixture[0] as Record<string, unknown>;
+  const secondPage = [
+    {
+      ...first,
+      version: "frontend@2.0.0",
+      shortVersion: "2.0.0",
+      versionInfo: { package: "frontend", version: { raw: "2.0.0" } },
+    },
+  ];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    if (!url.pathname.endsWith("/releases/")) {
+      return new Response("[]", { headers: { "Content-Type": "application/json" } });
+    }
+    const cursor = url.searchParams.get("cursor");
+    const health = url.searchParams.get("health") === "1";
+    (health ? healthCursors : listCursors).push(cursor);
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (!health && cursor === null) {
+      headers["Link"] =
+        '<https://sentry.io/api/0/organizations/acme/releases/?cursor=next>; rel="next"; results="true"; cursor="next"';
+    }
+    const body = health
+      ? rawReleasesWithHealthFixture
+      : cursor === "next"
+        ? secondPage
+        : rawReleasesFixture;
+    return new Response(JSON.stringify(body), { headers });
+  }) as unknown as typeof fetch;
+  return {
+    client: new SentryClient({ auth, fetchImpl, maxRetries: 0 }),
+    listCursors,
+    healthCursors,
+  };
+}
+
 /** Navigate to Explore › Releases. */
 async function navigateToReleases(h: Awaited<ReturnType<typeof renderHarness>>) {
   await h.openNav();
@@ -270,6 +310,24 @@ test("the footer counts the releases on screen", async () => {
   try {
     await h.waitForFrame((f) => f.includes("3 releases"));
     expect(h.frame()).toContain("3 releases");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("page keys follow the release cursor and keep health on the same page", async () => {
+  const { client, listCursors, healthCursors } = paginatedReleaseClient();
+  const h = await openReleases(client);
+  try {
+    await h.waitForFrame((frame) => frame.includes("1.4.2") && frame.includes("pgdn"));
+    await h.press((input) => input.pressKey("d", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("2.0.0"));
+    await h.waitForFrame(() => healthCursors.includes("next"));
+
+    expect(listCursors[0]).toBeNull();
+    expect(listCursors.filter((cursor) => cursor === "next")).toEqual(["next"]);
+    expect(healthCursors.at(-1)).toBe("next");
+    expect(h.frame()).not.toContain("1.4.2");
   } finally {
     await h.cleanup();
   }

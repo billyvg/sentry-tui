@@ -10,10 +10,11 @@ import { useCallback } from "react";
 import type { SentryClient } from "~/api/client";
 import type { TimeseriesBucket } from "~/api/discover";
 import { listExploreEvents, listExploreTimeseries, type ExploreEvent } from "~/api/exploreEvents";
-import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
+import { mapAsyncStatus, type AsyncStatus } from "~/core/async";
 import type { ResolvedExploreQuery } from "~/core/exploreQuery";
 import { exploreQuery, type ExploreTable } from "~/core/exploreTables";
 import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
+import { useCursorPages } from "~/ui/hooks/useCursorPages";
 
 export interface ExploreEventsQuery {
   org: string;
@@ -36,6 +37,9 @@ export interface ExploreEventsState {
   events: AsyncStatus<ExploreEvent[]>;
   timeseries: AsyncStatus<TimeseriesBucket[]>;
   nextCursor: string | null;
+  page: number;
+  nextPage: () => boolean;
+  previousPage: () => boolean;
 }
 
 /**
@@ -52,7 +56,7 @@ export function useExploreEvents(
 ): ExploreEventsState {
   const combined = exploreQuery(table, query);
   const eventsLoader = useCallback(
-    (signal: AbortSignal) =>
+    (cursor: string | undefined, signal: AbortSignal) =>
       client
         ? listExploreEvents(client, {
             org,
@@ -60,6 +64,7 @@ export function useExploreEvents(
             statsPeriod,
             project,
             environment,
+            cursor,
             signal,
             dataset: table.dataset,
             fields: request.fields,
@@ -87,12 +92,15 @@ export function useExploreEvents(
         : null,
     [client, org, combined, request, statsPeriod, project, environment, table],
   );
-  const eventsStatus = useAsyncFetch(eventsLoader, { reloadKey: reloadToken }).status;
+  const eventsPages = useCursorPages(eventsLoader, reloadToken);
   const timeseries = useAsyncFetch(timeseriesLoader, { reloadKey: reloadToken }).status;
 
   return {
-    events: mapAsyncStatus(eventsStatus, (page) => page.data),
+    events: mapAsyncStatus(eventsPages.status, (page) => page.data),
     timeseries,
-    nextCursor: valueOf(eventsStatus)?.nextCursor ?? null,
+    nextCursor: eventsPages.nextCursor,
+    page: eventsPages.page,
+    nextPage: eventsPages.nextPage,
+    previousPage: eventsPages.previousPage,
   };
 }

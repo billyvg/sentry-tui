@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -6,14 +6,8 @@ import {
   type ProfileFunction,
   type ProfileFunctionSort,
 } from "~/api/profileFunctions";
-import {
-  type AsyncStatus,
-  idle,
-  rejected,
-  resolved,
-  startLoading,
-  toAsyncError,
-} from "~/core/async";
+import { mapAsyncStatus, type AsyncStatus } from "~/core/async";
+import { useCursorPages } from "~/ui/hooks/useCursorPages";
 
 export interface ProfileFunctionsQuery {
   org: string;
@@ -29,6 +23,9 @@ export interface ProfileFunctionsQuery {
 export interface ProfileFunctionsState {
   functions: AsyncStatus<ProfileFunction[]>;
   nextCursor: string | null;
+  page: number;
+  nextPage: () => boolean;
+  previousPage: () => boolean;
 }
 
 /**
@@ -41,46 +38,29 @@ export function useProfileFunctions(
   client: SentryClient | null,
   { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ProfileFunctionsQuery,
 ): ProfileFunctionsState {
-  const [functions, setFunctions] = useState<AsyncStatus<ProfileFunction[]>>(idle);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loader = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      client
+        ? listProfileFunctions(client, {
+            org,
+            query,
+            statsPeriod,
+            project,
+            environment,
+            sort,
+            cursor,
+            signal,
+          })
+        : null,
+    [client, org, query, statsPeriod, project, environment, sort],
+  );
+  const pages = useCursorPages(loader, reloadToken);
 
-  const functionsRef = useRef(functions);
-  functionsRef.current = functions;
-
-  useEffect(() => {
-    if (!client) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    setFunctions(startLoading(functionsRef.current, Date.now()));
-
-    void (async () => {
-      try {
-        const result = await listProfileFunctions(client, {
-          org,
-          query,
-          statsPeriod,
-          project,
-          environment,
-          sort,
-          signal,
-        });
-        if (cancelled) return;
-        setFunctions(resolved(result.data, Date.now()));
-        setNextCursor(result.nextCursor);
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setFunctions(rejected(functionsRef.current, toAsyncError(error)));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
-
-  return { functions, nextCursor };
+  return {
+    functions: mapAsyncStatus(pages.status, (result) => result.data),
+    nextCursor: pages.nextCursor,
+    page: pages.page,
+    nextPage: pages.nextPage,
+    previousPage: pages.previousPage,
+  };
 }

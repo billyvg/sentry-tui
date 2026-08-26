@@ -166,7 +166,13 @@ export function ProfileFunctions({
   const query = state.committedQuery;
   const sort = profileFunctionSort(state.sort);
 
-  const { functions: status, nextCursor } = useProfileFunctions(client, {
+  const {
+    functions: status,
+    nextCursor,
+    page,
+    nextPage,
+    previousPage,
+  } = useProfileFunctions(client, {
     org,
     query,
     statsPeriod: state.statsPeriod,
@@ -185,6 +191,13 @@ export function ProfileFunctions({
   useEffect(() => {
     if (functions) dispatch({ type: "setEntries", payload: functions });
   }, [functions, dispatch]);
+
+  const reportedPage = useRef(page);
+  useEffect(() => {
+    if (reportedPage.current === page) return;
+    reportedPage.current = page;
+    dispatch({ type: "setSelected", payload: 0 });
+  }, [page, dispatch]);
 
   useEffect(() => {
     dispatch({
@@ -210,6 +223,8 @@ export function ProfileFunctions({
    */
   useScreenActions(registerActions, {
     open: () => dispatch({ type: "setDetailOpen", payload: (open) => !open }),
+    nextPage,
+    previousPage,
     back: () => {
       if (!state.detailOpen) return false;
       dispatch({ type: "setDetailOpen", payload: false });
@@ -305,7 +320,23 @@ export function ProfileFunctions({
       />
 
       {showDetail && selected ? <FunctionDetail fn={selected} width={inner} /> : null}
-      <ResultFooter count={functions?.length} noun="function" hasMore={nextCursor !== null} />
+      <ResultFooter
+        count={functions?.length}
+        noun="function"
+        hasMore={nextCursor !== null}
+        pagination={
+          nextCursor !== null || page > 1
+            ? {
+                page,
+                hasPrevious: page > 1,
+                hasNext: nextCursor !== null,
+                loading,
+                onPrevious: previousPage,
+                onNext: nextPage,
+              }
+            : undefined
+        }
+      />
     </box>
   );
 }

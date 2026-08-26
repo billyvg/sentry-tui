@@ -199,7 +199,7 @@ export function ReplayStream({
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
   const sort = replaySort(state.sort);
 
-  const { replays, nextCursor } = useReplays(client, {
+  const { replays, nextCursor, page, nextPage, previousPage } = useReplays(client, {
     org,
     query,
     statsPeriod: state.statsPeriod,
@@ -235,6 +235,13 @@ export function ReplayStream({
     if (rows) dispatch({ type: "setEntries", payload: rows });
   }, [rows, dispatch]);
 
+  const reportedPage = useRef(page);
+  useEffect(() => {
+    if (reportedPage.current === page) return;
+    reportedPage.current = page;
+    dispatch({ type: "setSelected", payload: 0 });
+  }, [page, dispatch]);
+
   useEffect(() => {
     dispatch({
       type: "setStatus",
@@ -257,6 +264,8 @@ export function ReplayStream({
       const row = rowsOf<ReplayRow>(state)[index];
       if (row) pushView(replayDetailView(row, state.statsPeriod, state.selectedEnvs));
     },
+    nextPage,
+    previousPage,
   });
 
   return (
@@ -309,7 +318,23 @@ export function ReplayStream({
         }}
         layout={[height]}
       />
-      <ResultFooter count={rows?.length} noun="replay" hasMore={nextCursor !== null} />
+      <ResultFooter
+        count={rows?.length}
+        noun="replay"
+        hasMore={nextCursor !== null}
+        pagination={
+          nextCursor !== null || page > 1
+            ? {
+                page,
+                hasPrevious: page > 1,
+                hasNext: nextCursor !== null,
+                loading,
+                onPrevious: previousPage,
+                onNext: nextPage,
+              }
+            : undefined
+        }
+      />
     </box>
   );
 }
