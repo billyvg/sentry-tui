@@ -7,7 +7,7 @@
 # Beat text lives in narration.md. `demo:mux` fails if the tape names a beat that
 # has no audio, and tape.test.ts pins the goto keys used below.
 #
-# Run `bun run demo:seer-prep` first — Act 3 ends on Seer.
+# Run `bun run demo:seer-prep` first — Act 3 opens its latest run in Seer.
 
 Set Columns 160
 Set Rows 44
@@ -94,25 +94,19 @@ Meanwhile @B06
   # Wait for the refetch rather than guessing at it: opening the palette any
   # sooner covers a list that is still empty, and the search never visibly lands.
   Settle 5s
-  # The palette is also how we reach Seer — goto's item key leaks into the
-  # composer, which takes focus on arrival, so the question would come out as
-  # "aWhich project…".
-  Key ctrl+k
-  Sleep 500ms
-  Type `ask seer`
-  Sleep 600ms
-  Key enter
-  Sleep 1200ms
-  Type `Which project is failing the most this week?`
-  Sleep 400ms
-  Key enter
 End
 
-# Seer is thinking from here — about 25 seconds. The next three beats cover it.
-# Escape first: the composer still holds focus and n would type into it.
 Meanwhile @B07
-  Key escape
-  Sleep 300ms
+  Key ctrl+k
+  Sleep 500ms
+  Type `conversations`
+  Sleep 600ms
+  Key enter
+  Settle 6s
+End
+
+# Return from Explore > Conversations to the issue feed for triage.
+Meanwhile @B08
   Key n
   Sleep 300ms
   Key i
@@ -130,10 +124,10 @@ Meanwhile @B07
 End
 
 # ---------------------------------------------------------------------------
-# Act 3 — while Seer works
+# Act 3 — across Sentry
 # ---------------------------------------------------------------------------
 
-Meanwhile @B08
+Meanwhile @B09
   Key n
   Sleep 300ms
   Key d
@@ -150,7 +144,7 @@ Meanwhile @B08
   Sleep 1800ms
   Key k 4
   Sleep 1200ms
-  # Hand over to Act 3's first screen here rather than at the top of B09: the
+  # Hand over to Act 3's first screen here rather than at the top of B10: the
   # word "Profiles" has to land on Profiles, and a goto plus a fetch is a second
   # and a half it would otherwise land in front of.
   Key n
@@ -172,7 +166,7 @@ End
 # loading skeletons and a status bar reading "loading replays…" in an earlier
 # cut, which reads as a slow app rather than a complete one.
 
-Meanwhile @B09
+Meanwhile @B10
   Sleep 1200ms
   Key n
   Sleep 250ms
@@ -182,7 +176,7 @@ Meanwhile @B09
   Settle 5s
 End
 
-Meanwhile @B10
+Meanwhile @B11
   Sleep 1200ms
   Key n
   Sleep 250ms
@@ -192,7 +186,7 @@ Meanwhile @B10
   Settle 5s
 End
 
-Meanwhile @B11
+Meanwhile @B12
   Sleep 1200ms
   Key n
   Sleep 250ms
@@ -202,7 +196,7 @@ Meanwhile @B11
   Settle 5s
 End
 
-Meanwhile @B12
+Meanwhile @B13
   Sleep 1200ms
   Key n
   Sleep 250ms
@@ -220,7 +214,7 @@ End
 # a proportional bar — so the toolbar visibly stops being chrome and starts
 # being a query. Both halves of this were driven against the real app and read
 # back off the screen before they went in the tape.
-Meanwhile @B13
+Meanwhile @B14
   Sleep 1000ms
   # Visualize has no filter box — its list is eighteen fixed aggregates — so
   # this arrows: count, avg, p50, p75, p90, p95. The cursor opens on the
@@ -245,22 +239,25 @@ Meanwhile @B13
   Settle 10s
 End
 
-# Back to Seer through the palette, inside the beat so the line plays over the
-# navigation rather than after it. Escape releases the composer so j scrolls the
-# transcript instead of typing into it.
-Meanwhile @B14
+# Back to Seer through the palette, then open /history and select its first row:
+# the latest run prepared by demo:seer-prep. Escape releases the composer after
+# the run opens so j scrolls the transcript instead of typing into it.
+Meanwhile @B15
   Key ctrl+k
   Sleep 500ms
   Type `ask seer`
   Sleep 600ms
   Key enter
   Sleep 1200ms
+  Type `/history`
+  Sleep 600ms
+  Key enter
+  Settle 5s
+  # History starts on index 0, which the API returns newest-first.
+  Key enter
+  Settle 15s
   Key escape
   Sleep 300ms
-  # Whatever is left of Seer's ~25 seconds — by now nothing, since Act 3 has
-  # spent the better part of a minute covering it. This is what makes "fully
-  # rendered" a guarantee, and inside the block the narration plays over it.
-  Settle 15s
   Key j 4
   Sleep 2000ms
   Key j 4
@@ -276,7 +273,7 @@ End
 # it would just launch the app over the top of the demo. Change it here if the
 # published name changes. `npx` needs no global install, which is why the outro
 # uses it over `npm install -g`.
-Meanwhile @B15
+Meanwhile @B16
   Key q
   # Same as leaving lynx: the app hands the terminal back and the shell redraws.
   Settle 4s
@@ -300,7 +297,7 @@ Meanwhile @B15
   Type `npx sentry-tui`
 End
 # Hold the still frame so viewers can copy it. The command goes up a couple of
-# seconds into B15 and this adds eight more — about fifteen seconds of readable
+# seconds into B16 and this adds eight more — about fifteen seconds of readable
 # command. This is the one deliberate silence in the cut: it is there to give
 # people time to copy, not to fill.
 Sleep 8s

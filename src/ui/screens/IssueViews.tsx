@@ -13,14 +13,14 @@ import { useCallback } from "react";
 import { SAVED_VIEW_STATE_KEY } from "~/core/screens";
 import { rowsOf } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
-import { IssueStreamView } from "~/ui/screens/IssueFeed";
+import { IssueFeed } from "~/ui/screens/IssueFeed";
 import { IssueViewsList, type SavedViewRow } from "~/ui/screens/IssueViewsList";
 import type { ScreenProps, ViewStackEntry } from "~/ui/screens/types";
 
 export function IssueViews(props: ScreenProps) {
   const { client, org, state, focused, width, height, reloadToken, pushView, registerActions } =
     props;
-  const { setStatus } = state;
+  const { dispatch } = state;
 
   const open = useCallback(
     (index: number) => {
@@ -32,8 +32,9 @@ export function IssueViews(props: ScreenProps) {
   useScreenActions(registerActions, { open });
 
   const handleStatus = useCallback(
-    (status: { loading: boolean; error?: string }) => setStatus({ ...status, noun: "saved views" }),
-    [setStatus],
+    (status: { loading: boolean; error?: string }) =>
+      dispatch({ type: "setStatus", payload: { ...status, noun: "saved views" } }),
+    [dispatch],
   );
 
   return (
@@ -46,10 +47,10 @@ export function IssueViews(props: ScreenProps) {
       selectedIndex={state.selected}
       sort={state.sort}
       openDropdown={state.openDropdown}
-      onSortChange={state.setSort}
-      onDropdownOpen={() => state.setOpenDropdown("sort")}
-      onDropdownClose={() => state.setOpenDropdown(null)}
-      onRowsChange={state.setEntries}
+      onSortChange={(sort) => dispatch({ type: "setSort", payload: sort })}
+      onDropdownOpen={() => dispatch({ type: "setOpenDropdown", payload: "sort" })}
+      onDropdownClose={() => dispatch({ type: "setOpenDropdown", payload: null })}
+      onRowsChange={(rows) => dispatch({ type: "setEntries", payload: rows })}
       onStatusChange={handleStatus}
       reloadToken={reloadToken}
     />
@@ -73,12 +74,7 @@ function savedViewStream(row: SavedViewRow): ViewStackEntry {
     },
     render: (ctx) =>
       ctx.state ? (
-        <IssueStreamView
-          {...ctx}
-          state={ctx.state}
-          title={row.view.name}
-          description={row.view.query}
-        />
+        <IssueFeed {...ctx} state={ctx.state} title={row.view.name} description={row.view.query} />
       ) : null,
   };
 }

@@ -17,7 +17,6 @@ on:
 
 env:
   SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
-  BUN_VERSION: "1.3.1"
 
 concurrency:
   group: release-${{ github.ref }}
@@ -60,28 +59,58 @@ jobs:
   # A release must not be able to ship code the suite rejects, however the tag
   # got here. `main`'s CI covers the normal path, but a hand-pushed tag never
   # touches it, so the gate belongs in the workflow that publishes.
-  test:
-    name: Typecheck + lint + test
+  validate:
+    name: Typecheck + lint
     needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
+      - name: Set up Bun project
+        uses: ./.github/actions/setup-bun
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Format check
+        run: bun run format:check
 
-      - name: Format, lint, typecheck, boundaries, tests
-        run: bun run check
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Module boundary check
+        run: bun run deps:check
+
+      - name: Theme contrast check
+        run: bun run test:theme-contrast
+
+  # `bun test` has no --shard of its own, so scripts/test-shard.ts splits the
+  # suite. This list is checked against it by scripts/test-shard.test.ts —
+  # change one and the other fails.
+  test:
+    name: Test (shard ${{ matrix.shard }})
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Bun project
+        uses: ./.github/actions/setup-bun
+
+      - name: Test suite
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: bun run test:shard "$SHARD" "4"
 
   build:
     name: Build ${{ matrix.target }}
-    needs: [verify, test]
+    needs: [verify, validate, test]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -100,13 +129,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Set up Bun project
+        uses: ./.github/actions/setup-bun
 
       - name: Build binary
         run: bun run ./scripts/build-bin.ts --target ${{ matrix.target }}
@@ -130,7 +154,7 @@ jobs:
 
   package:
     name: Package release
-    needs: [verify, test, build]
+    needs: [verify, build]
     runs-on: ubuntu-latest
     env:
       DRY_RUN: ${{ needs.verify.outputs.dry_run }}
@@ -138,13 +162,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Set up Bun project
+        uses: ./.github/actions/setup-bun
 
       - name: Download binaries
         uses: actions/download-artifact@v7
@@ -170,10 +189,10 @@ jobs:
           retention-days: ${{ env.DRY_RUN == 'true' && 7 || 1 }}
 
   # Split from `package` so only this job — the one that actually ships
-  # something — runs against the `production` environment. That's what makes
-  # the deploy show up under the repo's Environments/Deployments UI, and what
-  # lets required reviewers or a wait timer be configured on it without
-  # slowing down a dry run.
+  # something — runs against the `production` environment. It keeps the
+  # environment's protection rules and OIDC identity, but suppresses Actions'
+  # automatic pre-publish deployment. A successful npm publish is recorded
+  # explicitly below instead.
   publish:
     name: Publish
     needs: [verify, package]
@@ -181,9 +200,10 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.verify.outputs.version }}
+      deployment: false
     permissions:
       contents: write # create the GitHub Release
+      deployments: write # record the successful npm deployment
       id-token: write # npm trusted publishing (OIDC), and provenance
     env:
       VERSION: ${{ needs.verify.outputs.version }}
@@ -210,6 +230,42 @@ jobs:
           # whole point, since a token guarded by 2FA answers CI with EOTP.
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: .github/scripts/publish-npm.sh
+
+      # The environment still gates this job and scopes its OIDC token, but
+      # `deployment: false` keeps GitHub Actions from opening a deployment
+      # before npm has accepted the packages. Record the completed operation
+      # through the Deployments API only after the publish script succeeds.
+      - name: Create GitHub deployment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          deployment_id="$(
+            gh api \
+              --method POST \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2026-03-10" \
+              "/repos/${GITHUB_REPOSITORY}/deployments" \
+              --field "ref=${GITHUB_REF_NAME}" \
+              --field "environment=production" \
+              --field "description=sentry-tui v${VERSION} published to npm" \
+              --field "auto_merge=false" \
+              --field "required_contexts[]" \
+              --field "transient_environment=false" \
+              --field "production_environment=true" \
+              --jq ".id"
+          )"
+
+          gh api \
+            --method POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2026-03-10" \
+            "/repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" \
+            --field "state=success" \
+            --field "environment=production" \
+            --field "environment_url=https://www.npmjs.com/package/sentry-tui/v/${VERSION}" \
+            --field "log_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --field "description=Published sentry-tui v${VERSION} to npm" \
+            --silent
 
       - name: Create GitHub Release
         env:

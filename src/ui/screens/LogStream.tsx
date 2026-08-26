@@ -113,8 +113,7 @@ export function LogStream({
   registerActions,
 }: ScreenProps) {
   const theme = useTheme();
-  const { setEntries, setStatus, setOpenDropdown, setDetailOpen, focusSearch, handleSearchBlur } =
-    state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
 
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
@@ -148,19 +147,25 @@ export function LogStream({
   const error = errorOf(logs);
 
   useEffect(() => {
-    if (entries) setEntries(entries);
-  }, [entries, setEntries]);
+    if (entries) dispatch({ type: "setEntries", payload: entries });
+  }, [entries, dispatch]);
 
   useEffect(() => {
-    setStatus({
-      loading,
-      since,
-      error: error?.message,
-      noun: "logs",
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading,
+        since,
+        error: error?.message,
+        noun: "logs",
+      },
     });
-  }, [loading, since, error, logs, setStatus]);
+  }, [loading, since, error, logs, dispatch]);
 
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   /**
    * Enter toggles the detail panel rather than pushing a view: the cursor keys
@@ -168,10 +173,10 @@ export function LogStream({
    * Escape closes it, ahead of anything else that would claim the key.
    */
   useScreenActions(registerActions, {
-    open: () => setDetailOpen((open) => !open),
+    open: () => dispatch({ type: "setDetailOpen", payload: (open) => !open }),
     back: () => {
       if (!state.detailOpen) return false;
-      setDetailOpen(false);
+      dispatch({ type: "setDetailOpen", payload: false });
       return true;
     },
   });
@@ -197,7 +202,7 @@ export function LogStream({
         placeholder="Search logs…"
         focused={state.searchFocused}
         width={width}
-        onInput={state.setSearchQuery}
+        onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
         onFocus={focusSearch}
         onBlur={handleSearchBlur}
       />
@@ -210,14 +215,18 @@ export function LogStream({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sort={{ value: sort, items: LOG_SORT_OPTIONS, onChange: state.setSort }}
+        sort={{
+          value: sort,
+          items: LOG_SORT_OPTIONS,
+          onChange: (value) => dispatch({ type: "setSort", payload: value }),
+        }}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={state.setStatsPeriod}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownClose={closeDropdown}
-        onDropdownOpen={state.setOpenDropdown}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       {/* Volume chart */}

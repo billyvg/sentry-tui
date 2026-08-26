@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import type { SentryClient } from "~/api/client";
 import type { Group } from "~/api/types";
 import type { ScreenDef } from "~/core/screens";
+import type { ScreenId } from "~/core/screens";
 import type { Notice } from "~/ui/components/StatusBar";
 import type { ScreenState, ScreenStateSeed } from "~/ui/hooks/useScreenState";
 
@@ -51,6 +52,13 @@ export interface ScreenActions {
   submitInput?: () => boolean;
   /** Release the input — Escape, Tab, or the palette opening over it. */
   blurInput?: () => void;
+  /** Non-text keys claimed by a screen-owned input's popup, such as slash-menu arrows. */
+  handleInputKey?: (key: {
+    name: string;
+    ctrl?: boolean;
+    shift?: boolean;
+    meta?: boolean;
+  }) => boolean;
   /**
    * Keys the screen wants before the list cursor sees them, for a screen whose
    * body isn't a list — Seer's transcript takes `n` for a new chat and digits
@@ -108,6 +116,8 @@ export interface ScreenProps {
   registerActions: (actions: ScreenActions | null) => void;
   /** Update metadata learned after a URL-addressed detail view was pushed. */
   updateView: (id: string, update: { label?: string; issue?: Group }) => void;
+  /** Navigate to another registered top-level screen, optionally seeding its filters. */
+  navigateToScreen: (screen: ScreenId, initialState?: ScreenStateSeed) => void;
 }
 
 /**

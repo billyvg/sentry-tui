@@ -261,6 +261,7 @@ set; no per-harness copies.
 
 ## dev pane
 
-Before finishing, load the `dev-pane` skill and follow its steps: when running
-under Herdr it splits a new pane in the current tab and runs the app from this
-agent's worktree for manual testing.
+Before finishing, load the `dev-pane` skill and follow its steps only when the
+diff includes source-code changes that affect the rendered UI or user
+interaction. Do not launch a dev pane for documentation, tests-only changes,
+CI/workflows, configuration, tooling, or source changes with no UI effect.

@@ -13,8 +13,11 @@
  * here can.
  */
 
+import { getOrganizationReplay } from "@sentry/api";
+
 import { DEFAULT_BASE_URL, type SentryClient } from "~/api/client";
 import { queryDiscover, rowString, type DiscoverRow } from "~/api/discover";
+import { projectParams } from "~/api/projectParams";
 
 // ---------------------------------------------------------------------------
 // Domain types
@@ -181,15 +184,6 @@ const REPLAY_FIELDS = [
 /** `useReplayData.tsx:91-100`, minus the ms timestamp a HH:MM:SS column can't use. */
 const REPLAY_ERROR_FIELDS = ["id", "title", "issue", "level", "project.name", "timestamp"] as const;
 
-/**
- * Sentry's "all projects" sentinel.
- *
- * An error raised during a replay can belong to a different project than the
- * replay itself, so the error query deliberately ignores the project filter —
- * `useReplayData.tsx:232` passes the same sentinel for the same reason.
- */
-const ALL_ACCESS_PROJECTS = ["-1"];
-
 /** The web app behind the API, for links a terminal can't follow itself. */
 const WEB_BASE_URL = DEFAULT_BASE_URL.replace(/\/api\/0\/?$/, "");
 
@@ -241,7 +235,7 @@ export async function listReplays(
       statsPeriod,
       per_page: limit,
       cursor,
-      project,
+      project: projectParams(project),
       environment,
       queryReferrer: "replayList",
     },
@@ -256,11 +250,11 @@ export async function fetchReplay(
   client: SentryClient,
   { org, replayId, signal }: { org: string; replayId: string; signal?: AbortSignal },
 ): Promise<Replay> {
-  const page = await client.request<{ data?: unknown }>(
-    `/organizations/${org}/replays/${replayId}/`,
-    { signal },
-  );
-  const raw = page.data?.data;
+  const { data } = await getOrganizationReplay({
+    ...client.generatedOptions(signal),
+    path: { organization_id_or_slug: org, replay_id: replayId },
+  });
+  const raw = data.data;
   if (!isObject(raw)) throw new Error(`Replay ${replayId} was not found.`);
   return normalise(raw, 0);
 }
@@ -295,7 +289,8 @@ export async function listReplayErrors(
     sort: "timestamp",
     query: `replayId:[${replayId}]`,
     statsPeriod,
-    project: ALL_ACCESS_PROJECTS,
+    // An error can belong to a different project than the replay itself.
+    project: projectParams(),
     environment,
     referrer: "sentry-tui.replay-details",
     signal,

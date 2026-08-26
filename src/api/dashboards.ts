@@ -59,7 +59,7 @@ export interface DashboardPermissions {
 export interface DashboardListItem {
   id: string;
   title: string;
-  /** One entry per widget — its length is the table's Widgets column. */
+  /** One entry per widget; empty for prebuilts whose config lives in Sentry Web. */
   widgetDisplay: WidgetDisplayType[];
   description?: string;
   createdBy?: DashboardOwner | null;
@@ -70,7 +70,7 @@ export interface DashboardListItem {
   isFavorited?: boolean;
   permissions?: DashboardPermissions | null;
   /** Set on Sentry-built (prebuilt) dashboards; absent on the org's own. */
-  prebuiltId?: string | null;
+  prebuiltId?: number | null;
   projects?: number[];
   environment?: string[];
 }
@@ -145,16 +145,20 @@ export async function listDashboards(
   client: SentryClient,
   { org, filter, query, sort, limit = DASHBOARDS_PAGE_SIZE, cursor, signal }: ListDashboardsParams,
 ): Promise<Page<DashboardListItem[]>> {
-  return client.request<DashboardListItem[]>(`/organizations/${org}/dashboards/`, {
+  const page = await client.request<DashboardListItem[]>(`/organizations/${org}/dashboards/`, {
     query: {
       filter,
       query: query || undefined,
       sort,
+      // Match Web's manage list: favorites must stay on the loaded page even
+      // when an organization has more dashboards than `per_page` can hold.
+      pin: "favorites",
       per_page: limit,
       cursor,
     },
     signal,
   });
+  return page;
 }
 
 /**
@@ -272,7 +276,7 @@ export interface DashboardDetails {
   end?: string;
   isFavorited?: boolean;
   permissions?: DashboardPermissions | null;
-  prebuiltId?: string | null;
+  prebuiltId?: number | null;
 }
 
 /** Fetch a dashboard and its widgets. One request; the widgets fetch their own data. */

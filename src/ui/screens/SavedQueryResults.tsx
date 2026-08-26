@@ -70,7 +70,7 @@ function SavedQueryResults({
   query: savedQuery,
 }: DetailContext & { state: ScreenState; query: SavedQuery }) {
   const theme = useTheme();
-  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
 
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
@@ -98,17 +98,20 @@ function SavedQueryResults({
   const since = loadingSince(status);
 
   useEffect(() => {
-    if (rows) setEntries(rows);
-  }, [rows, setEntries]);
+    if (rows) dispatch({ type: "setEntries", payload: rows });
+  }, [rows, dispatch]);
 
   useEffect(() => {
-    setStatus({
-      loading,
-      since,
-      error: error?.message,
-      noun: "results",
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading,
+        since,
+        error: error?.message,
+        noun: "results",
+      },
     });
-  }, [loading, since, error, status, setStatus]);
+  }, [loading, since, error, status, dispatch]);
 
   const columns = useMemo(() => columnsFor(savedQuery.fields, theme), [savedQuery.fields, theme]);
 
@@ -119,7 +122,7 @@ function SavedQueryResults({
         placeholder="Refine this query…"
         focused={state.searchFocused}
         width={width}
-        onInput={state.setSearchQuery}
+        onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
         onFocus={focusSearch}
         onBlur={handleSearchBlur}
       />
@@ -138,14 +141,22 @@ function SavedQueryResults({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sort={sort ? { value: sort, items: sortItems, onChange: state.setSort } : undefined}
+        sort={
+          sort
+            ? {
+                value: sort,
+                items: sortItems,
+                onChange: (value) => dispatch({ type: "setSort", payload: value }),
+              }
+            : undefined
+        }
         width={width}
         anchorTop={SEARCH_ROWS + 1}
-        onProjectChange={state.setSelectedProjects}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={state.setStatsPeriod}
-        onDropdownClose={() => setOpenDropdown(null)}
-        onDropdownOpen={setOpenDropdown}
+        onProjectChange={(projects) => dispatch({ type: "setSelectedProjects", payload: projects })}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
+        onDropdownClose={() => dispatch({ type: "setOpenDropdown", payload: null })}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       <DataTable

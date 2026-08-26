@@ -5,6 +5,7 @@ import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
 import {
   dashboardListFixture,
+  defaultStarredPrebuiltDashboardsFixture,
   prebuiltDashboardsFixture,
   starredDashboardsFixture,
 } from "./dashboard-fixtures";
@@ -119,6 +120,76 @@ test("All Dashboards lists the org's dashboards with the web's columns", async (
     expect(frame).toContain("Mobile Crash Rates");
     expect(frame).toContain("API Latency");
     expect(frame).toContain("3 dashboards");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("All Dashboards pins favorites so they cannot fall past the first page", async () => {
+  const calls: string[] = [];
+  const h = await renderDashboards(stubClient({ calls }));
+  try {
+    await h.waitForFrame((f) => f.includes("Checkout Health"));
+
+    const request = calls.find(
+      (url) => url.includes("/dashboards/") && !url.includes("/dashboards/starred/"),
+    );
+    expect(request).toBeDefined();
+    expect(new URL(request!).searchParams.get("pin")).toBe("favorites");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the API's empty default-starred prebuilt rows show Web's widget counts", async () => {
+  const h = await renderDashboards(
+    stubClient({ dashboards: defaultStarredPrebuiltDashboardsFixture }),
+  );
+  try {
+    await h.waitForFrame((f) => f.includes("AI Agents Overview"));
+
+    for (const [title, count] of [
+      ["Web Vitals", 8],
+      ["Backend Overview", 7],
+      ["AI Agents Overview", 7],
+    ] as const) {
+      const row = h
+        .frame()
+        .split("\n")
+        .find((line) => line.includes(title));
+      expect(row).toBeDefined();
+      expect(row).toMatch(new RegExp(`${title}\\s+${count}\\s+`));
+    }
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("an unknown prebuilt widget count is not reported as zero", async () => {
+  const h = await renderDashboards(
+    stubClient({
+      dashboards: [
+        {
+          id: "999",
+          title: "Future Sentry Dashboard",
+          widgetDisplay: [],
+          prebuiltId: 999,
+          isFavorited: false,
+          projects: [],
+          environment: [],
+        },
+      ],
+    }),
+  );
+  try {
+    await h.waitForFrame((f) => f.includes("Future Sentry Dashboard"));
+
+    const row = h
+      .frame()
+      .split("\n")
+      .find((line) => line.includes("Future Sentry Dashboard"));
+    expect(row).toBeDefined();
+    expect(row).toMatch(/Future Sentry Dashboard\s+—\s+/);
   } finally {
     await h.cleanup();
   }

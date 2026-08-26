@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -8,14 +8,9 @@ import {
   type DashboardListItem,
   type DashboardSort,
 } from "~/api/dashboards";
-import {
-  idle,
-  rejected,
-  resolved,
-  startLoading,
-  toAsyncError,
-  type AsyncStatus,
-} from "~/core/async";
+import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
+import { withPrebuiltListMetadata } from "~/core/prebuiltDashboards";
+import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
 import { NO_NAV_EXTRAS, type SecondaryNavExtras } from "~/ui/lib/navSections";
 
 export interface DashboardsQuery {
@@ -45,40 +40,22 @@ export function useDashboards(
   client: SentryClient | null,
   { org, filter, query = "", sort, reloadToken = 0 }: DashboardsQuery,
 ): DashboardsState {
-  const [status, setStatus] = useState<AsyncStatus<DashboardListItem[]>>(idle);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!client) return null;
+      return listDashboards(client, { org, filter, query, sort, signal }).then((page) => ({
+        data: Array.isArray(page.data) ? page.data.map(withPrebuiltListMetadata) : [],
+        nextCursor: page.nextCursor,
+      }));
+    },
+    [client, org, filter, query, sort],
+  );
+  const { status } = useAsyncFetch(loader, { reloadKey: reloadToken });
 
-  const statusRef = useRef(status);
-  statusRef.current = status;
-
-  useEffect(() => {
-    if (!client) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    setStatus(startLoading(statusRef.current, Date.now()));
-
-    void (async () => {
-      try {
-        const page = await listDashboards(client, { org, filter, query, sort, signal });
-        if (cancelled) return;
-        setStatus(resolved(Array.isArray(page.data) ? page.data : [], Date.now()));
-        setNextCursor(page.nextCursor);
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setStatus(rejected(statusRef.current, toAsyncError(error)));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, filter, query, sort, reloadToken]);
-
-  return { dashboards: status, nextCursor };
+  return {
+    dashboards: mapAsyncStatus(status, (page) => page.data),
+    nextCursor: valueOf(status)?.nextCursor ?? null,
+  };
 }
 
 /**
@@ -109,7 +86,7 @@ export function useStarredDashboards(
 
     void listStarredDashboards(client, { org, signal: controller.signal })
       .then((data) => {
-        if (!cancelled) setDashboards(data);
+        if (!cancelled) setDashboards(data.map(withPrebuiltListMetadata));
       })
       .catch(() => {
         if (!cancelled) setDashboards([]);

@@ -6,6 +6,7 @@
       "dependencies": {
         "@opentui/core": "0.5.4",
         "@opentui/react": "0.5.4",
+        "@sentry/api": "0.272.0",
         "@sentry/bun": "^10.70.0",
         "react": "^19.2.0",
         "string-width": "^8.2.2",
@@ -149,6 +150,8 @@
     "@oxlint/binding-win32-ia32-msvc": ["@oxlint/binding-win32-ia32-msvc@1.78.0", "https://sfw.security.sentry.io/npm/@oxlint/binding-win32-ia32-msvc/-/binding-win32-ia32-msvc-1.78.0.tgz", { "os": "win32", "cpu": "ia32" }, "sha512-zcuXFVrEFHIafRfkCQT8w/Xe41o07ozl/vwHq7p94vB29xVzsB0sZGYORU1jhcYKv3Lr0J3HbJ2T4fHH5rWmvA=="],
 
     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.78.0", "https://sfw.security.sentry.io/npm/@oxlint/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.78.0.tgz", { "os": "win32", "cpu": "x64" }, "sha512-Sb5ocmLSuYeOuXd+CFOToGKp/gjXUEWDnvIGwhnh8aq8wY4TMmEnKnvbogSW7RdMZv77JSARduS7/gv+khYEjA=="],
+
+    "@sentry/api": ["@sentry/api@0.272.0", "https://sfw.security.sentry.io/npm/@sentry/api/-/api-0.272.0.tgz", { "peerDependencies": { "valibot": "*", "zod": "^3.24.0" }, "optionalPeers": ["valibot", "zod"] }, "sha512-FAq+gSfy5hgrd1rURk6srGYjCzF38YfU2hP4FxFe9CTrKvVeK4wkb/RECp6EES1vFEFRCgSuMYTumxnONUCy5w=="],
 
     "@sentry/bun": ["@sentry/bun@10.70.0", "https://sfw.security.sentry.io/npm/@sentry/bun/-/bun-10.70.0.tgz", { "dependencies": { "@apm-js-collab/code-transformer-bundler-plugins": "^0.7.3", "@sentry/conventions": "^0.16.0", "@sentry/core": "10.70.0", "@sentry/node": "10.70.0", "@sentry/server-utils": "10.70.0" } }, "sha512-0Lf/VJVVJNoVHZgHQAG9BuX1Uajhwxg58gelwRTx0yWoTRwJmd0uyNcqoh+XHR5oJcxex6QZJc16trNK4dY20Q=="],
 

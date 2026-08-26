@@ -23,6 +23,7 @@
 import { z } from "zod";
 
 import type { SentryClient } from "~/api/client";
+import { projectParams } from "~/api/projectParams";
 import {
   resolutionForWidth,
   type CronCheckInStatus,
@@ -191,7 +192,7 @@ export async function fetchMonitorStats(
   const page = await client.request<unknown>(`/organizations/${org}/monitors-stats/`, {
     query: {
       monitor: [...monitors],
-      project: project ? [...project] : undefined,
+      project: projectParams(project),
       environment: environment ? [...environment] : undefined,
       ...windowQuery(window),
     },

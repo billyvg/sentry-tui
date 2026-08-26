@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -8,14 +8,8 @@ import {
   type ReplayError,
   type ReplaySort,
 } from "~/api/replays";
-import {
-  idle,
-  rejected,
-  resolved,
-  startLoading,
-  toAsyncError,
-  type AsyncStatus,
-} from "~/core/async";
+import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
+import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
 
 export interface ReplaysQuery {
   org: string;
@@ -36,56 +30,35 @@ export interface ReplaysState {
 /**
  * Fetch the org's replays and expose them as async state.
  *
- * Same shape as `useLogs`: one `AbortController` per request, so a superseded
- * query can't land after the one that replaced it. Manual refresh only — the
- * replay index is never polled.
+ * Same shape as `useLogs`: the shared fetch lifecycle aborts a superseded
+ * query and prevents it landing after the one that replaced it. Manual
+ * refresh only — the replay index is never polled.
  */
 export function useReplays(
   client: SentryClient | null,
   { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ReplaysQuery,
 ): ReplaysState {
-  const [replays, setReplays] = useState<AsyncStatus<Replay[]>>(idle);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loader = useCallback(
+    (signal: AbortSignal) =>
+      client
+        ? listReplays(client, {
+            org,
+            query,
+            statsPeriod,
+            project,
+            environment,
+            sort,
+            signal,
+          })
+        : null,
+    [client, org, query, statsPeriod, project, environment, sort],
+  );
+  const { status } = useAsyncFetch(loader, { reloadKey: reloadToken });
 
-  const replaysRef = useRef(replays);
-  replaysRef.current = replays;
-
-  useEffect(() => {
-    if (!client) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    setReplays(startLoading(replaysRef.current, Date.now()));
-
-    void (async () => {
-      try {
-        const result = await listReplays(client, {
-          org,
-          query,
-          statsPeriod,
-          project,
-          environment,
-          sort,
-          signal,
-        });
-        if (cancelled) return;
-        setReplays(resolved(result.data, Date.now()));
-        setNextCursor(result.nextCursor);
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setReplays(rejected(replaysRef.current, toAsyncError(error)));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
-
-  return { replays, nextCursor };
+  return {
+    replays: mapAsyncStatus(status, (page) => page.data),
+    nextCursor: valueOf(status)?.nextCursor ?? null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,48 +93,26 @@ export function useReplayErrors(
   client: SentryClient | null,
   { org, replayId, statsPeriod, environment, count, reloadToken = 0 }: ReplayErrorsQuery,
 ): ReplayErrorsState {
-  const [status, setStatus] = useState<AsyncStatus<ReplayError[]>>(idle);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const statusRef = useRef(status);
-  statusRef.current = status;
-
-  useEffect(() => {
-    if (!client) return;
-    if (count <= 0) {
-      setStatus(resolved([], Date.now()));
-      setNextCursor(null);
-      return;
-    }
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    setStatus(startLoading(statusRef.current, Date.now()));
-
-    void (async () => {
-      try {
-        const page = await listReplayErrors(client, {
-          org,
-          replayId,
-          statsPeriod,
-          environment,
-          signal,
-        });
-        if (cancelled) return;
-        setStatus(resolved(page.data, Date.now()));
-        setNextCursor(page.nextCursor);
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setStatus(rejected(statusRef.current, toAsyncError(error)));
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!client) return null;
+      if (count <= 0) {
+        return Promise.resolve({ data: [] as ReplayError[], nextCursor: null });
       }
-    })();
+      return listReplayErrors(client, {
+        org,
+        replayId,
+        statsPeriod,
+        environment,
+        signal,
+      });
+    },
+    [client, org, replayId, statsPeriod, environment, count],
+  );
+  const { status } = useAsyncFetch(loader, { reloadKey: reloadToken });
 
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, replayId, statsPeriod, environment, count, reloadToken]);
-
-  return { errors: status, nextCursor };
+  return {
+    errors: mapAsyncStatus(status, (page) => page.data),
+    nextCursor: valueOf(status)?.nextCursor ?? null,
+  };
 }

@@ -8,7 +8,7 @@
  */
 
 import { COMMANDS, formatKey, primaryKey, type PaletteScope } from "~/core/commands";
-import { NAV_GROUPS, type NavGroupId } from "~/core/nav";
+import { NAV_GROUPS, type NavGroup, type NavGroupId } from "~/core/nav";
 import { fuzzyMatch } from "~/lib/fuzzy";
 
 /** Result headings, in the order they appear when nothing outranks them. */
@@ -93,10 +93,13 @@ function isInScope(scope: PaletteScope, context: PaletteContext): boolean {
  * Destinations come first because they are what the palette is mostly used
  * for; a query reorders the sections anyway.
  */
-export function buildPaletteActions(context: PaletteContext): PaletteAction[] {
+export function buildPaletteActions(
+  context: PaletteContext,
+  navGroups: readonly NavGroup[] = NAV_GROUPS,
+): PaletteAction[] {
   const actions: PaletteAction[] = [];
 
-  for (const group of NAV_GROUPS) {
+  for (const group of navGroups) {
     for (const section of group.sections) {
       for (const item of section.items) {
         // Labels repeat across groups ("Errors" is both an Explore view and a

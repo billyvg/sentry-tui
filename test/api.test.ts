@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { createTokenAuthProvider, MissingTokenError } from "~/api/auth";
 import { ApiError, parseLinkHeader, SentryClient } from "~/api/client";
-import { queryDiscoverTimeseries } from "~/api/discover";
+import { queryDiscover, queryDiscoverTimeseries } from "~/api/discover";
 import { fetchIssueStats, listIssues, updateIssue } from "~/api/issues";
 import { groupsFixture } from "./fixtures";
 
@@ -94,8 +94,7 @@ describe("SentryClient", () => {
     expect(page.nextCursor).toBe("0:25:0");
     expect(page.rateLimit.remaining).toBe(37);
 
-    const headers = calls[0]!.init.headers as Record<string, string>;
-    expect(headers["Authorization"]).toBe("Bearer sntryu_test");
+    expect(new Headers(calls[0]!.init.headers).get("Authorization")).toBe("Bearer sntryu_test");
   });
 
   test("omits stats from the list request so the first paint is fast", async () => {
@@ -109,12 +108,13 @@ describe("SentryClient", () => {
     expect(url).toContain("collapse=unhandled");
     expect(url).toContain("limit=25");
     expect(url).toContain("shortIdLookup=1");
+    expect(new URL(url).searchParams.getAll("project")).toEqual(["-1"]);
   });
 
   test("keys the /issues-stats/ array response by issue id", async () => {
     // The endpoint returns an array whose entries carry their own `id`, not an
     // object keyed by id. Getting this wrong silently yields no stats at all.
-    const { impl } = stubFetch(() =>
+    const { impl, calls } = stubFetch(() =>
       json([
         { id: "1", count: "42", userCount: 7, stats: { "24h": [[0, 1]] } },
         { id: "2", count: "9", userCount: 1 },
@@ -127,6 +127,7 @@ describe("SentryClient", () => {
     expect(Object.keys(stats).sort()).toEqual(["1", "2"]);
     expect(stats["1"]?.count).toBe("42");
     expect(stats["1"]?.stats?.["24h"]).toEqual([[0, 1]]);
+    expect(new URL(calls[0]!.url).searchParams.getAll("project")).toEqual(["-1"]);
   });
 
   test("skips the stats request entirely when there are no ids", async () => {
@@ -144,6 +145,43 @@ describe("SentryClient", () => {
     await listIssues(client, { org: "acme", project: ["1", "2"] });
 
     expect(calls[0]!.url).toContain("project=1&project=2");
+  });
+
+  test("runs generated Discover requests through auth and pagination", async () => {
+    const { impl, calls } = stubFetch(() =>
+      json(
+        { data: [{ id: "event-1", message: "hello" }], meta: {} },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Link: '<https://x/?cursor=0:50:0>; rel="next"; results="true"; cursor="0:50:0"',
+            "X-Sentry-Rate-Limit-Remaining": "12",
+          },
+        },
+      ),
+    );
+    const client = new SentryClient({ auth, fetchImpl: impl });
+
+    const page = await queryDiscover(client, {
+      org: "acme",
+      dataset: "logs",
+      fields: ["id", "message"],
+      project: ["1", "2"],
+      limit: 50,
+      referrer: "sentry-tui.logs",
+    });
+
+    expect(page.rows).toEqual([{ id: "event-1", message: "hello" }]);
+    expect(page.nextCursor).toBe("0:50:0");
+    expect(client.rateLimit.remaining).toBe(12);
+    expect(new Headers(calls[0]!.init.headers).get("Authorization")).toBe("Bearer sntryu_test");
+
+    const url = new URL(calls[0]!.url);
+    expect(url.pathname).toBe("/api/0/organizations/acme/events/");
+    expect(url.searchParams.getAll("field")).toEqual(["id", "message"]);
+    expect(url.searchParams.getAll("project")).toEqual(["1", "2"]);
+    expect(url.searchParams.get("per_page")).toBe("50");
+    expect(url.searchParams.get("referrer")).toBe("sentry-tui.logs");
   });
 
   test("PUT sends a JSON body", async () => {
@@ -253,6 +291,10 @@ describe("queryDiscoverTimeseries", () => {
 
   test("lets a caller name its own interval", async () => {
     expect((await paramsFor("24h", "1h")).get("interval")).toBe("1h");
+  });
+
+  test("scopes an unfiltered Discover query to every accessible project", async () => {
+    expect((await paramsFor("24h")).getAll("project")).toEqual(["-1"]);
   });
 
   test("omits the param when the period isn't one it can read", async () => {

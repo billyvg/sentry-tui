@@ -17,6 +17,8 @@ export interface IssuesQuery {
   query: string;
   sort: SortOption;
   statsPeriod: string;
+  /** Maximum rows requested from the issue endpoint. */
+  limit?: number;
   project?: string[];
   environment?: string[];
   /** Bump to refetch an unchanged query — the app's global refresh. */
@@ -46,7 +48,7 @@ export interface IssuesState {
  */
 export function useIssues(
   client: SentryClient | null,
-  { org, query, sort, statsPeriod, project, environment, reloadToken = 0 }: IssuesQuery,
+  { org, query, sort, statsPeriod, limit, project, environment, reloadToken = 0 }: IssuesQuery,
 ): IssuesState {
   const [issues, setIssues] = useState<AsyncStatus<Group[]>>(idle);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -91,6 +93,7 @@ export function useIssues(
             query,
             sort,
             statsPeriod,
+            limit,
             project,
             environment,
             cursor,
@@ -113,6 +116,7 @@ export function useIssues(
               org,
               groups: result.data.map((group) => group.id),
               statsPeriod,
+              project,
               signal,
             });
             if (signal.aborted || requestId !== requestIdRef.current) return;
@@ -132,7 +136,7 @@ export function useIssues(
 
       return true;
     },
-    [client, org, query, sort, statsPeriod, project, environment],
+    [client, org, query, sort, statsPeriod, limit, project, environment],
   );
 
   const previousRequestPage = useRef<typeof requestPage | null>(null);

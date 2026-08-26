@@ -75,7 +75,7 @@ function dashboardColumns(theme: Theme): {
     align: "right",
     priority: 4,
     render: (row, _selected, width) => (
-      <text fg={theme.text}>{padText(String(row.widgetDisplay?.length ?? 0), width, "right")}</text>
+      <text fg={theme.text}>{padText(widgetCountLabel(row), width, "right")}</text>
     ),
   };
 
@@ -160,7 +160,7 @@ function dashboardColumns(theme: Theme): {
 export function DashboardList(props: ScreenProps) {
   const theme = useTheme();
   const { client, org, screen, state, focused, width, height, reloadToken } = props;
-  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
 
   const view = getDashboardListView(screen.id);
   // Every id in `SCREEN_COMPONENTS` pointing here has an entry, and
@@ -192,12 +192,15 @@ export function DashboardList(props: ScreenProps) {
   const loading = status.state === "loading";
 
   useEffect(() => {
-    if (rows) setEntries(rows);
-  }, [rows, setEntries]);
+    if (rows) dispatch({ type: "setEntries", payload: rows });
+  }, [rows, dispatch]);
 
   useEffect(() => {
-    setStatus({ loading, error: error?.message, noun: "dashboards" });
-  }, [loading, error, setStatus]);
+    dispatch({
+      type: "setStatus",
+      payload: { loading, error: error?.message, noun: "dashboards" },
+    });
+  }, [loading, error, dispatch]);
 
   const { pushView } = props;
   const open = useCallback(
@@ -219,7 +222,7 @@ export function DashboardList(props: ScreenProps) {
         placeholder={config.searchPlaceholder}
         focused={state.searchFocused}
         width={width}
-        onInput={state.setSearchQuery}
+        onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
         onFocus={focusSearch}
         onBlur={handleSearchBlur}
       />
@@ -236,9 +239,9 @@ export function DashboardList(props: ScreenProps) {
         open={state.openDropdown === "sort"}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
-        onChange={state.setSort}
-        onOpen={() => setOpenDropdown("sort")}
-        onClose={() => setOpenDropdown(null)}
+        onChange={(sort) => dispatch({ type: "setSort", payload: sort })}
+        onOpen={() => dispatch({ type: "setOpenDropdown", payload: "sort" })}
+        onClose={() => dispatch({ type: "setOpenDropdown", payload: null })}
       />
 
       <DataTable
@@ -262,6 +265,16 @@ export function DashboardList(props: ScreenProps) {
       <ResultFooter count={rows?.length} noun="dashboard" hasMore={nextCursor !== null} />
     </box>
   );
+}
+
+/**
+ * A custom dashboard with no widget rows really is empty. An unknown prebuilt
+ * is different: its widgets live only in Web's bundled config, so zero would
+ * be a confidently wrong count.
+ */
+function widgetCountLabel(row: DashboardListItem): string {
+  if (row.widgetDisplay.length > 0) return String(row.widgetDisplay.length);
+  return row.prebuiltId == null ? "0" : "—";
 }
 
 /**

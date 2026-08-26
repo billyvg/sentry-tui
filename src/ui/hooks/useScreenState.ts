@@ -1,17 +1,15 @@
 /**
  * Per-screen state, keyed by screen.
  *
- * Every list screen owns the same ten things — its rows, its cursor, its load
- * status, which filter dropdown is open, the project/environment/period
- * filters, and the three-part search state (live value, committed value, and
- * the value to revert to). Declaring them ten times in `App` is what made
- * routing a pile of booleans; declaring them once, in a map keyed by screen,
- * is what lets filters and cursor survive navigating away and back.
+ * Every list screen owns the same things — its rows, cursor, load status,
+ * filters, detail visibility, and search state. Keeping one reducer-managed
+ * slice per state key lets those values survive navigating away and back
+ * without exposing a setter for every field.
  *
  * Screens that share a `stateKey` share one entry — see `src/core/screens.ts`.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useReducer, useRef } from "react";
 
 import { DEFAULT_SORT, DEFAULT_STATS_PERIOD } from "~/api/issues";
 import { defaultsForStateKey } from "~/core/screens";
@@ -28,7 +26,7 @@ export interface ScreenStatus {
 }
 
 /** State held for one screen (or one group of screens sharing a `stateKey`). */
-interface ScreenStateData {
+interface ScreenSlice {
   entries: readonly unknown[];
   selected: number;
   status: ScreenStatus;
@@ -55,32 +53,38 @@ interface ScreenStateData {
   queryBeforeEdit: string;
 }
 
+/** Every atomic transition supported by one screen slice. */
+export type ScreenAction =
+  | {
+      type: "setEntries";
+      payload: readonly unknown[] | ((previous: readonly unknown[]) => readonly unknown[]);
+    }
+  | { type: "setSelected"; payload: number | ((previous: number) => number) }
+  | { type: "setStatus"; payload: ScreenStatus }
+  | { type: "setOpenDropdown"; payload: FilterDropdownType }
+  | { type: "setSelectedProjects"; payload: string[] }
+  | { type: "setSelectedEnvs"; payload: string[] }
+  | { type: "setStatsPeriod"; payload: string }
+  | { type: "setSort"; payload: string }
+  | { type: "setDetailOpen"; payload: boolean | ((previous: boolean) => boolean) }
+  | { type: "setSearchQuery"; payload: string }
+  | { type: "focusSearch" }
+  | { type: "submitSearch" }
+  | { type: "cancelSearch" }
+  | { type: "handleSearchBlur" }
+  | { type: "resetOrgScoped"; payload: { projects: string[] } }
+  | { type: "seed"; payload: ScreenStateSeed };
+
 /**
- * One screen's slice: its current values, plus setters whose identities are
- * stable for the life of the app, so a screen can list them in an effect's
- * dependencies without re-running it every render.
+ * One screen's slice: current values and a single stable transition function,
+ * plus convenience methods for the coordinated search interactions.
  */
-export interface ScreenState extends ScreenStateData {
+export interface ScreenState extends ScreenSlice {
   /** The map key this slice is stored under. */
   key: string;
-  /**
-   * Replace the rows, or update them from their current value. The cursor is
-   * clamped to the new length. Prefer the updater form for an edit that races
-   * with a fetch — an optimistic write landing after its own request, say.
-   */
-  setEntries: (
-    next: readonly unknown[] | ((previous: readonly unknown[]) => readonly unknown[]),
-  ) => void;
-  setSelected: (next: number | ((previous: number) => number)) => void;
-  setStatus: (next: ScreenStatus) => void;
-  setOpenDropdown: (next: FilterDropdownType) => void;
-  setSelectedProjects: (next: string[]) => void;
-  setSelectedEnvs: (next: string[]) => void;
-  setStatsPeriod: (next: string) => void;
-  setSort: (next: string) => void;
-  setDetailOpen: (next: boolean | ((previous: boolean) => boolean)) => void;
-  setSearchQuery: (next: string) => void;
-  /** Focus the search input, stashing the current value for Escape to revert to. */
+  /** Apply one atomic transition to this slice. */
+  dispatch: (action: ScreenAction) => void;
+  /** Focus the search input, stashing the committed value for Escape to restore. */
   focusSearch: () => void;
   /** Commit the typed query and hand focus back to the list. */
   submitSearch: () => void;
@@ -94,10 +98,9 @@ export interface ScreenStateStore {
   /** The slice belonging to the screen passed in. */
   active: ScreenState;
   /**
-   * Drop everything scoped to the current organization — rows, cursors, and
-   * the environment filters, whose names mean nothing in another org. Project
-   * filters start from the new org's remembered selection. Queries and periods
-   * are org-independent and survive.
+   * Drop everything scoped to the current organization — rows, cursors, open
+   * UI, and environment filters. Project filters start from the new org's
+   * remembered selection. Queries and periods are org-independent and survive.
    */
   resetOrgScoped: (selectedProjects?: readonly string[]) => void;
   /**
@@ -126,7 +129,8 @@ export function rowsOf<T>(state: ScreenState): readonly T[] {
 
 const UNREGISTERED_KEY = "__unregistered__";
 
-function initialData(key: string, selectedProjects: readonly string[] = []): ScreenStateData {
+/** Build the default state for a screen key. */
+function initialSlice(key: string, selectedProjects: readonly string[] = []): ScreenSlice {
   const defaults = defaultsForStateKey(key);
   const query = defaults.query ?? "";
   return {
@@ -146,23 +150,141 @@ function initialData(key: string, selectedProjects: readonly string[] = []): Scr
   };
 }
 
-/** Apply a route or pushed-view seed to a fresh slice. */
-function seededData(base: ScreenStateData, values: ScreenStateSeed): ScreenStateData {
-  const query = values.query ?? base.searchQuery;
-  return {
-    ...base,
-    searchQuery: query,
-    committedQuery: query,
-    queryBeforeEdit: query,
-    sort: values.sort ?? base.sort,
-    statsPeriod: values.statsPeriod ?? base.statsPeriod,
-    selectedProjects: values.selectedProjects ?? base.selectedProjects,
-    selectedEnvs: values.selectedEnvs ?? base.selectedEnvs,
-  };
-}
-
+/** Compare status values so repeated fetch effects can remain reducer no-ops. */
 function sameStatus(a: ScreenStatus, b: ScreenStatus): boolean {
   return a.loading === b.loading && a.since === b.since && a.error === b.error && a.noun === b.noun;
+}
+
+/** Apply one action to a screen slice without side effects. */
+function screenReducer(state: ScreenSlice, action: ScreenAction): ScreenSlice {
+  switch (action.type) {
+    case "setEntries": {
+      const entries =
+        typeof action.payload === "function" ? action.payload(state.entries) : action.payload;
+      if (entries === state.entries) return state;
+      // Clamp rather than reset: a refresh should keep the cursor on the row
+      // the user was looking at whenever that row still exists.
+      const selected = Math.min(state.selected, Math.max(0, entries.length - 1));
+      return { ...state, entries, selected };
+    }
+    case "setSelected": {
+      const selected =
+        typeof action.payload === "function" ? action.payload(state.selected) : action.payload;
+      const clamped = Math.max(0, Math.min(selected, Math.max(0, state.entries.length - 1)));
+      return clamped === state.selected ? state : { ...state, selected: clamped };
+    }
+    case "setStatus":
+      return sameStatus(state.status, action.payload)
+        ? state
+        : { ...state, status: action.payload };
+    case "setOpenDropdown":
+      return state.openDropdown === action.payload
+        ? state
+        : { ...state, openDropdown: action.payload };
+    case "setSelectedProjects":
+      return { ...state, selectedProjects: action.payload };
+    case "setSelectedEnvs":
+      return { ...state, selectedEnvs: action.payload };
+    case "setStatsPeriod":
+      return state.statsPeriod === action.payload
+        ? state
+        : { ...state, statsPeriod: action.payload };
+    case "setSort":
+      return state.sort === action.payload ? state : { ...state, sort: action.payload };
+    case "setDetailOpen": {
+      const detailOpen =
+        typeof action.payload === "function" ? action.payload(state.detailOpen) : action.payload;
+      return detailOpen === state.detailOpen ? state : { ...state, detailOpen };
+    }
+    case "setSearchQuery":
+      return state.searchQuery === action.payload
+        ? state
+        : { ...state, searchQuery: action.payload };
+    case "focusSearch":
+      return {
+        ...state,
+        queryBeforeEdit: state.committedQuery,
+        searchFocused: true,
+      };
+    case "submitSearch":
+      return {
+        ...state,
+        committedQuery: state.searchQuery,
+        searchFocused: false,
+      };
+    case "cancelSearch":
+    case "handleSearchBlur":
+      return {
+        ...state,
+        searchQuery: state.queryBeforeEdit,
+        searchFocused: false,
+      };
+    case "resetOrgScoped":
+      return {
+        ...state,
+        entries: [],
+        selected: 0,
+        status: { loading: false },
+        openDropdown: null,
+        selectedProjects: [...action.payload.projects],
+        selectedEnvs: [],
+        detailOpen: false,
+        searchFocused: false,
+      };
+    case "seed": {
+      const query = action.payload.query ?? state.searchQuery;
+      return {
+        ...state,
+        searchQuery: query,
+        committedQuery: query,
+        queryBeforeEdit: query,
+        sort: action.payload.sort ?? state.sort,
+        statsPeriod: action.payload.statsPeriod ?? state.statsPeriod,
+        selectedProjects: action.payload.selectedProjects ?? state.selectedProjects,
+        selectedEnvs: action.payload.selectedEnvs ?? state.selectedEnvs,
+      };
+    }
+  }
+}
+
+type ScreenStoreAction =
+  | { type: "dispatch"; key: string; action: ScreenAction; fallback: ScreenSlice }
+  | { type: "resetOrgScoped"; projects: string[] }
+  | { type: "seed"; key: string; values: ScreenStateSeed };
+
+/** Route a slice action through the map that owns all screen state. */
+function screenStoreReducer(
+  states: ReadonlyMap<string, ScreenSlice>,
+  action: ScreenStoreAction,
+): ReadonlyMap<string, ScreenSlice> {
+  if (action.type === "resetOrgScoped") {
+    const next = new Map<string, ScreenSlice>();
+    for (const [key, state] of states) {
+      next.set(
+        key,
+        screenReducer(state, {
+          type: "resetOrgScoped",
+          payload: { projects: action.projects },
+        }),
+      );
+    }
+    return next;
+  }
+
+  const next = new Map(states);
+  if (action.type === "seed") {
+    next.set(
+      action.key,
+      screenReducer(initialSlice(action.key), { type: "seed", payload: action.values }),
+    );
+    return next;
+  }
+
+  const current = states.get(action.key) ?? action.fallback;
+  const updated = screenReducer(current, action.action);
+  if (updated === current && states.has(action.key)) return states;
+  next.set(action.key, updated);
+  return next;
 }
 
 /**
@@ -179,10 +301,21 @@ export function useScreenState(
   initialSeed?: ScreenStateSeed,
 ): ScreenStateStore {
   const key = stateKey ?? UNREGISTERED_KEY;
-  const [states, setStates] = useState<ReadonlyMap<string, ScreenStateData>>(() =>
-    initialSeed
-      ? new Map([[key, seededData(initialData(key, initialSelectedProjects), initialSeed)]])
-      : new Map(),
+  const [states, storeDispatch] = useReducer(
+    screenStoreReducer,
+    undefined,
+    (): ReadonlyMap<string, ScreenSlice> =>
+      initialSeed
+        ? new Map([
+            [
+              key,
+              screenReducer(initialSlice(key, initialSelectedProjects), {
+                type: "seed",
+                payload: initialSeed,
+              }),
+            ],
+          ])
+        : new Map(),
   );
   const initialSelectedProjectsRef = useRef(initialSelectedProjects);
   initialSelectedProjectsRef.current = initialSelectedProjects;
@@ -194,148 +327,60 @@ export function useScreenState(
    */
   const searchExitHandled = useRef(false);
 
-  const patch = useCallback(
-    (target: string, update: (current: ScreenStateData) => ScreenStateData) => {
-      setStates((previous) => {
-        const current =
-          previous.get(target) ?? initialData(target, initialSelectedProjectsRef.current);
-        const next = update(current);
-        if (next === current && previous.has(target)) return previous;
-        const map = new Map(previous);
-        map.set(target, next);
-        return map;
+  const dispatch = useCallback(
+    (action: ScreenAction) => {
+      storeDispatch({
+        type: "dispatch",
+        key,
+        action,
+        fallback: initialSlice(key, initialSelectedProjectsRef.current),
       });
     },
-    [],
+    [key],
   );
 
-  // Setters are built once per key and cached: a screen's `useEffect` may list
-  // `setStatus` in its dependencies, and a fresh closure each render would
-  // re-run that effect forever.
-  const setters = useRef(new Map<string, Setters>());
-  const settersFor = useCallback(
-    (target: string): Setters => {
-      const cached = setters.current.get(target);
-      if (cached) return cached;
-      const built = buildSetters(target, patch, searchExitHandled);
-      setters.current.set(target, built);
-      return built;
-    },
-    [patch],
-  );
+  const focusSearch = useCallback(() => dispatch({ type: "focusSearch" }), [dispatch]);
+  const submitSearch = useCallback(() => {
+    searchExitHandled.current = true;
+    dispatch({ type: "submitSearch" });
+  }, [dispatch]);
+  const cancelSearch = useCallback(() => {
+    searchExitHandled.current = true;
+    dispatch({ type: "cancelSearch" });
+  }, [dispatch]);
+  const handleSearchBlur = useCallback(() => {
+    if (searchExitHandled.current) {
+      searchExitHandled.current = false;
+      return;
+    }
+    dispatch({ type: "handleSearchBlur" });
+  }, [dispatch]);
 
   const data = useMemo(
-    () => states.get(key) ?? initialData(key, initialSelectedProjects),
+    () => states.get(key) ?? initialSlice(key, initialSelectedProjects),
     [states, key, initialSelectedProjects],
   );
 
   const active = useMemo<ScreenState>(
-    () => ({ ...data, key, ...settersFor(key) }),
-    [data, key, settersFor],
+    () => ({
+      ...data,
+      key,
+      dispatch,
+      focusSearch,
+      submitSearch,
+      cancelSearch,
+      handleSearchBlur,
+    }),
+    [data, key, dispatch, focusSearch, submitSearch, cancelSearch, handleSearchBlur],
   );
 
   const resetOrgScoped = useCallback((selectedProjects: readonly string[] = []) => {
-    setStates((previous) => {
-      const map = new Map<string, ScreenStateData>();
-      for (const [k, value] of previous) {
-        map.set(k, {
-          ...value,
-          entries: [],
-          selected: 0,
-          selectedProjects: [...selectedProjects],
-          selectedEnvs: [],
-          openDropdown: null,
-          status: { loading: false },
-        });
-      }
-      return map;
-    });
+    storeDispatch({ type: "resetOrgScoped", projects: [...selectedProjects] });
   }, []);
 
   const seed = useCallback((target: string, values: ScreenStateSeed) => {
-    setStates((previous) => {
-      const map = new Map(previous);
-      map.set(target, seededData(initialData(target), values));
-      return map;
-    });
+    storeDispatch({ type: "seed", key: target, values });
   }, []);
 
   return { active, resetOrgScoped, seed };
-}
-
-type Patch = (target: string, update: (current: ScreenStateData) => ScreenStateData) => void;
-
-type Setters = Omit<ScreenState, keyof ScreenStateData | "key">;
-
-function buildSetters(key: string, patch: Patch, searchExitHandled: { current: boolean }): Setters {
-  const on = (update: (current: ScreenStateData) => ScreenStateData) => patch(key, update);
-
-  /** Revert the input to the value stashed when editing began. */
-  const revert = (current: ScreenStateData): ScreenStateData => ({
-    ...current,
-    searchQuery: current.queryBeforeEdit,
-    searchFocused: false,
-  });
-
-  return {
-    setEntries: (next) =>
-      on((current) => {
-        const rows = typeof next === "function" ? next(current.entries) : next;
-        if (current.entries === rows) return current;
-        // Clamp rather than reset: a refresh shouldn't move the cursor off the
-        // row the user was looking at.
-        const selected = Math.min(current.selected, Math.max(0, rows.length - 1));
-        return { ...current, entries: rows, selected };
-      }),
-    setSelected: (next) =>
-      on((current) => {
-        const value = typeof next === "function" ? next(current.selected) : next;
-        const clamped = Math.max(0, Math.min(value, Math.max(0, current.entries.length - 1)));
-        return clamped === current.selected ? current : { ...current, selected: clamped };
-      }),
-    setStatus: (next) =>
-      on((current) => (sameStatus(current.status, next) ? current : { ...current, status: next })),
-    setOpenDropdown: (next) =>
-      on((current) =>
-        current.openDropdown === next ? current : { ...current, openDropdown: next },
-      ),
-    setSelectedProjects: (next) => on((current) => ({ ...current, selectedProjects: next })),
-    setSelectedEnvs: (next) => on((current) => ({ ...current, selectedEnvs: next })),
-    setStatsPeriod: (next) =>
-      on((current) => (current.statsPeriod === next ? current : { ...current, statsPeriod: next })),
-    setSort: (next) =>
-      on((current) => (current.sort === next ? current : { ...current, sort: next })),
-    setDetailOpen: (next) =>
-      on((current) => {
-        const value = typeof next === "function" ? next(current.detailOpen) : next;
-        return value === current.detailOpen ? current : { ...current, detailOpen: value };
-      }),
-    setSearchQuery: (next) =>
-      on((current) => (current.searchQuery === next ? current : { ...current, searchQuery: next })),
-    focusSearch: () =>
-      on((current) => ({
-        ...current,
-        queryBeforeEdit: current.searchQuery,
-        searchFocused: true,
-      })),
-    submitSearch: () => {
-      searchExitHandled.current = true;
-      on((current) => ({
-        ...current,
-        committedQuery: current.searchQuery,
-        searchFocused: false,
-      }));
-    },
-    cancelSearch: () => {
-      searchExitHandled.current = true;
-      on(revert);
-    },
-    handleSearchBlur: () => {
-      if (searchExitHandled.current) {
-        searchExitHandled.current = false;
-        return;
-      }
-      on(revert);
-    },
-  };
 }

@@ -99,7 +99,7 @@ export function DashboardWidgetGrid({
   updateView,
 }: DashboardWidgetGridProps) {
   const theme = useTheme();
-  const { setEntries, setStatus, setOpenDropdown, setStatsPeriod } = state;
+  const { dispatch } = state;
   const listRef = useRef<ScrollBoxRenderable>(null);
 
   const detail = useDashboardDetail(client, { org, id: dashboard.id, reloadToken });
@@ -142,12 +142,15 @@ export function DashboardWidgetGrid({
   const isPrebuilt = Boolean(details?.prebuiltId ?? dashboard.prebuiltId);
 
   useEffect(() => {
-    setEntries(widgets);
-  }, [widgets, setEntries]);
+    dispatch({ type: "setEntries", payload: widgets });
+  }, [widgets, dispatch]);
 
   useEffect(() => {
-    setStatus({ loading, error: error?.message, noun: "dashboard" });
-  }, [loading, error, setStatus]);
+    dispatch({
+      type: "setStatus",
+      payload: { loading, error: error?.message, noun: "dashboard" },
+    });
+  }, [loading, error, dispatch]);
 
   /**
    * The dashboard's own saved period, applied once.
@@ -159,8 +162,8 @@ export function DashboardWidgetGrid({
   useEffect(() => {
     if (!details?.period || seededPeriod.current === details.id) return;
     seededPeriod.current = details.id;
-    setStatsPeriod(details.period);
-  }, [details, setStatsPeriod]);
+    dispatch({ type: "setStatsPeriod", payload: details.period });
+  }, [details, dispatch]);
 
   /**
    * How far down the stack the data has been asked for. Only ever rises, so
@@ -208,7 +211,10 @@ export function DashboardWidgetGrid({
     if (next !== box.scrollTop) box.scrollTop = next;
   }, [heights, state.selected, height]);
 
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
@@ -232,11 +238,11 @@ export function DashboardWidgetGrid({
         // it wrap into fragments that push the widget stack off screen.
         width={width}
         anchorTop={HEADER_ROWS}
-        onProjectChange={state.setSelectedProjects}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={setStatsPeriod}
+        onProjectChange={(projects) => dispatch({ type: "setSelectedProjects", payload: projects })}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownClose={closeDropdown}
-        onDropdownOpen={setOpenDropdown}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       {error && !details ? (
@@ -251,12 +257,12 @@ export function DashboardWidgetGrid({
         <box style={{ flexDirection: "column", padding: 1 }}>
           <text fg={theme.text}>
             {isPrebuilt
-              ? "Sentry Built dashboards have no widgets to fetch."
+              ? "This Sentry Built dashboard is not bundled in this version."
               : "This dashboard has no widgets."}
           </text>
           <text fg={theme.muted}>
             {isPrebuilt
-              ? "Their widgets are defined in the web app rather than stored on the dashboard (views/dashboards/utils/prebuiltConfigs/), so the API returns the dashboard without them."
+              ? "Its widgets live in Sentry Web rather than the API; open it on sentry.io to view them."
               : "Add one on sentry.io — this client is read-only."}
           </text>
         </box>

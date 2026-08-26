@@ -31,8 +31,8 @@ there is no list to update.
 `scripts/test-shard.test.ts` keeps it honest: the shards must partition the
 suite exactly once each, and the workflow matrices must ask for every shard the
 planner makes. Change the shard count in `CI_SHARD_TOTAL` and both
-`.github/workflows/ci.yml` and `.github/workflows/pull-request.yml` have to
-follow, or that test fails.
+`.github/workflows/ci.yml` and `.github/workflows/release.yml` have to follow,
+or that test fails.
 
 ## Fixtures
 
