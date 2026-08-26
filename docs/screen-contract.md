@@ -113,7 +113,8 @@ one sibling cannot appear while another sibling loads.
 
 `useNavigation` resolves `stateKeyOf(screen)` and passes the active slice to the
 screen. A slice survives navigation for the lifetime of the app, so filters,
-search text, cursor position, and rows remain when the user returns.
+search text, cursor position, and rows on an unshared key remain when the user
+returns.
 
 `ScreenState` contains:
 
@@ -161,12 +162,13 @@ Issues do not share because each item owns a different query. Discover and All
 Queries are saved-query lists over different endpoints and each keeps its own
 slice. Releases and Replays also keep independent defaults and state.
 
-A shared slice includes `entries`, even when sibling components use different
-row types. Render and open rows from the current request result (`valueOf` the
-hook status), not blindly from `rowsOf(state)`. Enter must do nothing while the
-new sibling is loading. The route-keyed remount prevents hook-local data from
-crossing screens; using the current request rows prevents stale shared entries
-from becoming actionable.
+A shared slice still has one `entries` slot, but every write is branded with
+the active screen or pushed view id. A sibling sees an empty `state.entries`
+until its own request writes, so the central cursor cannot act on stale rows;
+`rowsOf(state)` additionally throws at the boundary with both owners named if
+code tries to cast rows written by another source. Render and open rows from
+the current request result (`valueOf` the hook status) when a screen needs to
+keep stale data visible through a refresh.
 
 Defaults for a shared key come from the first matching entry in `SCREENS`.
 `scripts/nav-coverage.test.ts` rejects conflicting defaults and explicit state
@@ -315,8 +317,8 @@ on its detail or results.
 
 - Keep imports within the enforced `lib -> api -> core -> ui` direction.
 - Match nav labels exactly, but key domain configuration by `ScreenId`.
-- Use current request rows for rendering and Enter; shared slice entries may
-  belong to the previous sibling during a load.
+- Brand shared rows through the supplied `state.dispatch`; `rowsOf(state)` is
+  only valid for rows the active screen or view wrote.
 - Never poll. Surface load state through `state.status` and preserve cached
   rows only when the hook intentionally does so.
 - Exercise skeleton, empty, error, resize, cursor, click, Escape, refresh, and

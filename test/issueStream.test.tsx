@@ -91,7 +91,7 @@ function deferredClient() {
 
 /** Render the issue screen through the same state contract the app supplies. */
 function IssueFeedHarness({ client }: { client: SentryClient | null }) {
-  const { active: state } = useScreenState("issues.feed", EMPTY_PROJECTS);
+  const { active: state } = useScreenState("issues.feed", "issues.feed", EMPTY_PROJECTS);
   return (
     <IssueFeed
       client={client}
