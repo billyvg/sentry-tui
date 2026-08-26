@@ -379,9 +379,8 @@ for (const { width, kept, shed } of [
   },
   {
     width: 100,
-    // The compact rail leaves enough room for the full table at 100 columns.
-    kept: ["Name", "Widgets", "Owner", "Access", "Created", "Last Visited"],
-    shed: [],
+    kept: ["Name", "Widgets", "Owner", "Created", "Last Visited"],
+    shed: ["Access"],
   },
   {
     width: 140,
@@ -420,14 +419,7 @@ for (const { width, kept, shed } of [
  * `layoutColumns` sheds a column only once the flex column would drop below
  * `minFlex`, and the default of 8 lets a row "fit" with eight cells of title
  * left — which technically fits and says nothing. Naming the width a title
- * needs is what makes the table give up Owner instead of shrinking below it.
- *
- * That per-width shedding is greedy, though, not globally monotonic: 100
- * columns has just enough room to pull `Created` back in (unlike 80), and
- * `Created` costs more than the extra 20 columns bought, so the title lands
- * on the bare `minFlex` floor there rather than growing. Tracked as
- * https://github.com/billyvg/sentry-tui/issues/164 — asserted here as a known
- * exception rather than papered over, so a real fix still has this pinned.
+ * needs makes the table give up lower-priority metadata instead.
  */
 test("the title column stays readable, and never narrower on a wider terminal", async () => {
   const widths: Record<number, number> = {};
@@ -452,10 +444,10 @@ test("the title column stays readable, and never narrower on a wider terminal", 
   }
 
   for (const width of [80, 100, 140]) {
-    expect(widths[width]).toBeGreaterThanOrEqual(24);
+    expect(widths[width]).toBeGreaterThanOrEqual(28);
   }
-  // 140 still never buys a narrower title than 100. 100 vs 80 is the
-  // documented exception above (issue #164), not asserted here.
+  // Monotonic: a wider terminal never buys a narrower title.
+  expect(widths[100]).toBeGreaterThanOrEqual(widths[80]!);
   expect(widths[140]).toBeGreaterThanOrEqual(widths[100]!);
 });
 
