@@ -1,8 +1,8 @@
 # Releasing
 
 One tag drives every channel. Push `v0.1.0` and CI builds a binary per platform,
-publishes the npm packages, and creates the GitHub Release from the same
-assets.
+publishes the npm packages, records the successful production deployment, and
+creates the GitHub Release from the same assets.
 
 ## What ships
 
@@ -67,13 +67,18 @@ run a step yourself. `--yes` skips confirmations; `--npm-dry-run` makes
    `publish` job — the one that actually pushes to npm and cuts the GitHub
    Release — runs against a GitHub Environment named `production`. Create it
    under Settings → Environments → New environment, named exactly
-   `production`. This is what makes each release show up as a deployment in
-   the repo's Environments tab with a link to the release it produced, and
-   it's where to add protection rules later — required reviewers, a wait
-   timer, or restricting it to the `v*` tag pattern — without touching the
-   workflow file. Nothing here is required for a release to work; skipping it
-   just means the environment is created implicitly with no protection rules
-   the first time the workflow references it.
+   `production`. This is where to add protection rules later — required
+   reviewers, a wait timer, or restricting it to the `v*` tag pattern —
+   without touching the workflow file. Nothing here is required for a release
+   to work; skipping it just means the environment is created implicitly with
+   no protection rules the first time the workflow references it.
+
+   The job sets `deployment: false`, so entering the environment does not
+   create a misleading deployment before npm has accepted anything. Immediately
+   after all packages publish, the workflow creates a production deployment
+   through GitHub's Deployments REST API and marks it successful, linking to
+   the published `sentry-tui` package and the workflow log. An npm failure
+   therefore leaves no deployment record.
 
 3. **Trusted publishing, once per package.** CI authenticates to npm over
    OIDC rather than with a token. On npmjs.com, for each of the six published
@@ -166,9 +171,10 @@ then four binaries — macOS and Linux, arm64 and x64 — each smoke-tested with
 `--help` on its own runner, then npm and the GitHub Release. Nothing
 is built until the tests pass, and nothing is published until the builds do.
 The publish step runs against the `production` environment (see
-[One-time setup](#one-time-setup)); if that environment has required
-reviewers configured, the run pauses there until someone approves it in the
-Actions UI.
+[One-time setup](#one-time-setup)); if that environment has required reviewers
+configured, the run pauses there until someone approves it in the Actions UI.
+GitHub records the production deployment only after npm has accepted every
+package, then creates the GitHub Release.
 
 Doing it by hand is the same four steps:
 
