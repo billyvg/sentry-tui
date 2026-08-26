@@ -38,8 +38,8 @@ selling.
 Deliberately absent: the CLI, `--help`, the login flow, and anything about
 implementation. Nothing but the TUI after the cold open.
 
-**Before recording**, run `bun run demo:seer-prep` — the last screens hit Seer,
-which only answers for orgs where the Explorer agent is enabled.
+**Before recording**, run `bun run demo:seer-prep` — the last screens open its
+latest Seer run, which only exists for orgs where the Explorer agent is enabled.
 
 ---
 
@@ -83,15 +83,19 @@ which only answers for orgs where the Explorer agent is enabled.
 
 > It's built for the keyboard. Press n, and every destination tells you its key.
 
-### B06 · the palette, and a question for Seer
+### B06 · search
 
-**Screen:** `/` and a query, then `ctrl+k` → `ask seer` → the question, sent.
-**Note:** reach Seer through the palette, never goto — goto's item key leaks into
-the composer and the question comes out as `aWhich project…`.
+**Screen:** `/` and a query, submitted.
 
-> Slash to update your search queries. Command-K is also here to bring you comfort.
+> Slash to update your search queries.
 
-### B07 · triage
+### B07 · command palette
+
+**Screen:** `ctrl+k` → `Conversations`.
+
+> Command-K is also here to bring you comfort.
+
+### B08 · triage
 
 **Screen:** back to the feed, Enter into an issue, `r` to resolve, Escape.
 
@@ -100,40 +104,40 @@ the composer and the question comes out as `aWhich project…`.
 
 ---
 
-## Act 3 — While Seer works
+## Act 3 — Across Sentry
 
-### B08 · dashboards
+### B09 · dashboards
 
 **Screen:** `n`, `d`, `a`, Enter — the starred dashboard, scrolling its widgets.
 
-> Dashboards are here too. Real widgets, real series, no eCharts, just love.
+> Dashboards are here too. Real widgets, real series, no eCharts, just joy.
 
-### B09 · Profiles
+### B10 · Profiles
 
 **Screen:** Explore › Profiles, the aggregate flamegraph note and the slowest
 functions, already loaded when the word is said.
 
-> Profiles.
+> Every Explore view is ported. Profiles.
 
-### B10 · Releases
+### B11 · Releases
 
 **Screen:** Explore › Releases.
 
 > Releases.
 
-### B11 · Replays
+### B12 · Replays
 
 **Screen:** Explore › Replays.
 
 > Replays.
 
-### B12 · Logs
+### B13 · Logs
 
 **Screen:** Explore › Logs.
 
 > Logs.
 
-### B13 · Traces, and the query builder
+### B14 · Traces, and the query builder
 
 **Screen:** Explore › Traces. `V` opens Visualize and the aggregate becomes p95;
 `B` groups by `span.op`, which turns a page of spans into one row per group with
@@ -143,9 +147,10 @@ grouping is the moment the toolbar stops being chrome and starts being a query.
 
 > Explore at your fingertips. Simple to browse, simple to use, simple.
 
-### B14 · Seer answered
+### B15 · Seer answered
 
-**Screen:** back to Seer via the palette; the finished conversation, scrolled.
+**Screen:** back to Seer via the palette; `/history`; the latest conversation,
+selected and scrolled.
 
 > Talk to Seer, just like you would in the web app, but in your favorite terminal.
 
@@ -153,7 +158,7 @@ grouping is the moment the toolbar stops being chrome and starts being a query.
 
 ## Act 4 — Outro
 
-### B15 · install
+### B16 · install
 
 **Screen:** back to a bare prompt with `npx sentry-tui` typed and not
 run. Holds for ten seconds so viewers can copy it.
@@ -190,20 +195,18 @@ command in step with the README. It is one `Type` line at the end of `demo.tape`
 
 - **"Two seconds to open"** — measured: chrome paints at 0.8s, real rows with
   sparklines and counts by 2.0s.
-- **"The whole Explore section"** — every item now has a real screen; the
-  montage visits four of them, and waits for each to fill before moving on.
+- **"The whole Explore section"** — every item now has a real screen; the demo
+  visits six of them, and waits for each to fill before moving on.
 - **lynx needs 5–8 seconds** to render sentry.io, and it varies. B01 waits with
   a `Settle` rather than a fixed `Sleep`, because every key after it goes into
   the page: if the load isn't finished, the quit never happens and `sentry-tui`
   gets typed into lynx instead of the shell. Quitting uses capital `Q`, which
   exits outright — lowercase `q` raises an "are you sure" prompt that is one more
   thing to mistime.
-- **Seer takes about 25 seconds** to answer this question — measured: first tool
-  step at 21s, answer complete at 25s. That is why it is asked back in B06,
-  four beats before the answer is shown: triage, dashboards and the Explore
-  montage exist partly to cover the wait with something worth watching. The
-  `Settle` before B10 absorbs whatever is left, so the conversation is always
-  fully rendered before the camera returns to it.
+- **The Seer conversation is prepared before recording.** `demo:seer-prep` asks
+  the real question and leaves that run first in `/history`. B15 selects the
+  latest run, and its `Settle` keeps the camera there until the conversation is
+  fully rendered.
 - **"Rolls back if the server disagrees"** — `useTriage` keeps the original and
   restores it on failure.
 - **Keyboard only.** The app does take a mouse, and the script no longer says so
