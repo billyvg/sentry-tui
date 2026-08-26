@@ -34,7 +34,7 @@ export interface ProfileFunctionsState {
 /**
  * Fetch the slowest profiled functions and expose them as async state.
  *
- * Same shape as `useLogs`: one `AbortController` per request, so a superseded
+ * One `AbortController` per request, so a superseded
  * query is cancelled rather than raced.
  */
 export function useProfileFunctions(

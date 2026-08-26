@@ -180,7 +180,7 @@ const ISSUE_SCREENS: readonly ScreenDef[] = [
 export const SCREENS: readonly ScreenDef[] = [
   ...ISSUE_SCREENS,
 
-  // Explore — the Discover-backed tables share filters; the three that hit
+  // Explore — the Discover-backed tables share filters; screens that hit
   // their own endpoints keep their own.
   exploreTable("explore.traces", "Traces"),
   logsScreen(),

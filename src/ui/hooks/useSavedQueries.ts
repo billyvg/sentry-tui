@@ -43,7 +43,7 @@ export interface SavedQueriesState {
 /**
  * Fetch saved queries and expose them as async state.
  *
- * Shaped like `useLogs`: one `AbortController` per request, so a fast change of
+ * One `AbortController` per request, so a fast change of
  * search text or organization can't land out of order. Manual refresh only.
  */
 export function useSavedQueries(

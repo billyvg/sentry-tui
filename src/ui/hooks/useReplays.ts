@@ -30,7 +30,7 @@ export interface ReplaysState {
 /**
  * Fetch the org's replays and expose them as async state.
  *
- * Same shape as `useLogs`: the shared fetch lifecycle aborts a superseded
+ * The shared fetch lifecycle aborts a superseded
  * query and prevents it landing after the one that replaced it. Manual
  * refresh only — the replay index is never polled.
  */

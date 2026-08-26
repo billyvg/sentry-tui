@@ -1,9 +1,8 @@
 /**
  * Rows and volume for one Explore table, as async state.
  *
- * Shaped like `useLogs`: the shared fetch lifecycle prevents a fast filter
- * change from landing out of order, and `R` is the only refresh — nothing
- * here polls.
+ * The shared fetch lifecycle prevents a fast filter change from landing out
+ * of order, and `R` is the only refresh — nothing here polls.
  */
 
 import { useCallback } from "react";

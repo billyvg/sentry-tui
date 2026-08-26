@@ -1,5 +1,5 @@
 /**
- * Explore › Traces, Metrics, Errors and Conversations — one screen, four ways.
+ * Explore › Traces, Logs, Metrics and Errors — one screen, four ways.
  *
  * These four are the same `events/` query with a different dataset and column
  * set, so they are one component reading its configuration from
@@ -7,7 +7,7 @@
  * is Logs': search box, filter row, volume chart, table — through the shared
  * `SearchInput` rather than a fourth copy of Logs' own bordered box.
  *
- * A table whose config names a `traceItemType` gets a second chip row under
+ * A table whose config names query-builder rules gets a second chip row under
  * the filters: the web's Visualize / Group By / Sort By toolbar
  * (`src/ui/components/ExploreQueryBar.tsx`), which can turn the page of rows
  * into a page of aggregates. Where the builder is *held* is the one decision
@@ -27,6 +27,7 @@ import type { ExploreEvent } from "~/api/exploreEvents";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { matchesCommand } from "~/core/commands";
 import {
+  argumentKind,
   defaultExploreQuery,
   parseSort,
   resolveExploreQuery,
@@ -63,6 +64,7 @@ import {
   EXPLORE_MIN_FLEX,
   exploreColumnsFor,
   field,
+  logSeverity,
 } from "~/ui/screens/exploreColumns";
 import type { ScreenProps } from "~/ui/screens/types";
 
@@ -108,14 +110,14 @@ function ExploreTableScreen({
   // own — see the module comment for why it is not in the screen's slice.
   const [builder, setBuilder] = useState<ExploreQueryState>(() => defaultExploreQuery(table));
   const [queryDropdown, setQueryDropdown] = useState<ExploreQueryDropdown>(null);
-  const hasBuilder = table.traceItemType !== undefined;
+  const hasBuilder = table.builder !== undefined;
 
   const resolved = useMemo(() => resolveExploreQuery(table, builder), [table, builder]);
   const fixedSortItems = useMemo(() => fieldSortItems(table.fields), [table.fields]);
 
   const attributes = useTraceItemAttributes(client, {
     org,
-    itemType: table.traceItemType,
+    itemType: table.builder?.itemType,
     statsPeriod: state.statsPeriod,
     project,
     environment,
@@ -191,7 +193,8 @@ function ExploreTableScreen({
         return true;
       }
       if (matchesCommand("sentry.explore.visualizeField", key)) {
-        openQueryDropdown("field");
+        const kind = argumentKind(builder.aggregate);
+        if (kind !== "none" && kind !== "count") openQueryDropdown("field");
         return true;
       }
       if (matchesCommand("sentry.explore.groupBy", key)) {
@@ -324,9 +327,40 @@ function ExploreTableScreen({
       />
 
       {showDetail && selected ? (
-        <EventDetail event={selected} fields={resolved.fields} width={inner} />
+        table.id === "explore.logs" ? (
+          <LogDetail event={selected} width={inner} />
+        ) : (
+          <EventDetail event={selected} fields={resolved.fields} width={inner} />
+        )
       ) : null}
       <ResultFooter count={rows?.length} noun={rowNoun(table)} hasMore={nextCursor !== null} />
+    </box>
+  );
+}
+
+/** The compact detail panel Logs had before joining the configured tables. */
+function LogDetail({ event, width }: { event: ExploreEvent; width: number }) {
+  const theme = useTheme();
+  const traceId = field(event, "trace");
+  return (
+    <box
+      style={{
+        flexDirection: "column",
+        width,
+        border: ["top"],
+        borderColor: theme.border,
+        paddingTop: 1,
+        flexShrink: 0,
+      }}
+    >
+      <text fg={theme.accent} attributes={BOLD}>
+        {"▾ Log Details"}
+      </text>
+      <text fg={theme.text}>{fitText(field(event, "message"), width)}</text>
+      <text fg={theme.muted}>
+        {`  Severity: ${logSeverity(event)}  │  Project: ${field(event, "project") || "—"}`}
+      </text>
+      {traceId ? <text fg={theme.muted}>{`  Trace: ${traceId}`}</text> : null}
     </box>
   );
 }

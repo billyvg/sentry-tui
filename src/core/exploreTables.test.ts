@@ -39,7 +39,6 @@ describe("explore table configs", () => {
   });
 
   test("a screen with no config resolves to undefined rather than a default", () => {
-    expect(getExploreTable("explore.logs")).toBeUndefined();
     expect(getExploreTable("issues.feed")).toBeUndefined();
     // Conversations shares these screens' filters and their nav section, but
     // its rows come pre-aggregated from its own endpoint — it is not a
@@ -102,6 +101,13 @@ describe("field choices match the web app", () => {
     expect([...metrics.fields]).toContain("value");
   });
 
+  test("Logs reads the trace-item logs dataset", () => {
+    const logs = getExploreTable("explore.logs")!;
+    expect(logs.dataset).toBe("logs");
+    expect(logs.yAxis).toBe("count(message)");
+    expect(logs.builder?.itemType).toBe("logs");
+  });
+
   test("Errors reads individual events from the errors dataset, not grouped issues", () => {
     const errors = getExploreTable("explore.errors")!;
     expect(errors.dataset).toBe("errors");
@@ -147,6 +153,7 @@ describe("chart titles and empty states", () => {
   test("an aggregate that already names its field is left alone", () => {
     expect(exploreChartTitle(getExploreTable("explore.traces")!)).toBe("count(span.duration)");
     expect(exploreChartTitle(getExploreTable("explore.metrics")!)).toBe("count(value)");
+    expect(exploreChartTitle(getExploreTable("explore.logs")!)).toBe("count(logs)");
   });
 
   test("a gated dataset's empty state names the flag rather than claiming no results", () => {

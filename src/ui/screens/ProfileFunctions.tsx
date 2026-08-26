@@ -135,12 +135,11 @@ export function ProfileFunctions({
   const inputRef = useRef<InputRenderable>(null);
 
   /**
-   * PLACEHOLDER, awaiting `src/ui/components/SearchInput.tsx`.
+   * TODO: migrate this screen to `src/ui/components/SearchInput.tsx`.
    *
-   * The saved-queries branch is extracting the bordered `/`-prefixed input out
-   * of `LogStream` into a shared component. Whichever of the two lands second
-   * deletes this callback and the box that uses it and renders that component
-   * instead — nothing else in this file touches `inputRef`.
+   * The configured Explore tables already use the shared input. Once this
+   * screen does too, delete this callback and the box that uses it — nothing
+   * else in this file touches `inputRef`.
    *
    * Left working rather than stubbed out: `committedQuery` is what the
    * function list is fetched with, so a placeholder that couldn't commit a

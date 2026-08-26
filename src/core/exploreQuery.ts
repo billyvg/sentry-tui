@@ -1,7 +1,7 @@
 /**
  * Explore's query builder — Visualize, Group By and Sort By, as data.
  *
- * The web puts a toolbar beside the Traces table
+ * The web puts a toolbar beside its trace-item tables
  * (`views/explore/toolbar/index.tsx`) that decides *what the query asks for*
  * rather than which rows come back: an aggregate to plot and tabulate, the
  * attributes to group it by, and the column the result is ordered on. This
@@ -60,8 +60,8 @@ export type ExploreMode = "samples" | "aggregate";
 export type AggregateArgumentKind =
   /** Nothing: `epm()`. */
   | "none"
-  /** Spans themselves. `count` is offered one field and labelled "spans". */
-  | "spans"
+  /** Dataset items themselves. `count` is offered one fixed field and labelled by noun. */
+  | "count"
   /** Any numeric attribute. */
   | "number"
   /** Any attribute at all — `count_unique` is the only one. */
@@ -74,26 +74,23 @@ export interface ExploreAggregate {
   argument: AggregateArgumentKind;
 }
 
-/** The field `count` is offered, and the fallback argument for a numeric one. */
-export const DEFAULT_VISUALIZE_FIELD = "span.duration";
-/** What `count_unique` resets to — `updateVisualizeAggregate` hard-codes it too. */
-const DEFAULT_UNIQUE_FIELD = "span.op";
 /** What the two score aggregates default to, from their `defaultValue`. */
 const DEFAULT_SCORE_FIELD = "measurements.score.total";
 /** Prefix of the attributes the score aggregates accept. */
 const SCORE_PREFIX = "measurements.score.";
 
 /**
- * The aggregates Explore offers, in the web's own order.
+ * The aggregate catalog, in the web's span-toolbar order.
  *
  * `ALLOWED_EXPLORE_VISUALIZE_AGGREGATES` (`utils/fields/index.ts:1086`)
  * verbatim, and each one's argument kind is read off its entry in
  * `SPAN_AGGREGATION_FIELDS` in the same file: no `parameters` means no
  * argument, a `[STRING]` column type means `count_unique`, and the score pair
- * restrict their column to the web vitals.
+ * restrict their column to the web vitals. Each table filters this catalog to
+ * the functions its dataset accepts with `availableExploreAggregates`.
  */
 export const EXPLORE_AGGREGATES: readonly ExploreAggregate[] = [
-  { name: "count", argument: "spans" },
+  { name: "count", argument: "count" },
   { name: "avg", argument: "number" },
   { name: "p50", argument: "number" },
   { name: "p75", argument: "number" },
@@ -121,13 +118,39 @@ export function argumentKind(aggregate: string): AggregateArgumentKind {
 }
 
 /**
+ * Aggregates the table can safely offer with the attributes currently known.
+ *
+ * Logs deliberately have no made-up numeric fallback: until their attribute
+ * request returns a numeric key, choosing `avg` would have to send a string
+ * field and fail. Traces and Metrics have built-in numeric fields, so their
+ * numeric functions remain available while attributes load.
+ */
+export function availableExploreAggregates(
+  table: ExploreTable,
+  numberFields: readonly string[] = [],
+): readonly ExploreAggregate[] {
+  const builder = table.builder;
+  if (!builder) return [];
+  const allowed = new Set(builder.aggregates);
+  return EXPLORE_AGGREGATES.filter(
+    (aggregate) =>
+      allowed.has(aggregate.name) &&
+      (aggregate.argument !== "number" || builder.numberField || numberFields.length > 0),
+  );
+}
+
+/**
  * Attributes the group-by list will not offer.
  *
  * `DISALLOWED_GROUP_BY_FIELDS` (`hooks/useGroupByFields.tsx`) — grouping by a
  * span id or a timestamp produces one group per row, which is the sample table
  * with extra steps.
  */
-export const DISALLOWED_GROUP_BYS: ReadonlySet<string> = new Set(["id", "timestamp"]);
+export const DISALLOWED_GROUP_BYS: ReadonlySet<string> = new Set([
+  "id",
+  "sentry.item_id",
+  "timestamp",
+]);
 
 // ---------------------------------------------------------------------------
 // Reading and writing the state
@@ -160,18 +183,25 @@ export function exploreMode(state: ExploreQueryState): ExploreMode {
  * Change the aggregate, carrying the argument across when it still means
  * something.
  *
- * `updateVisualizeAggregate` (`contexts/pageParamsContext/visualizes.tsx`)
- * rule for rule: `count` has exactly one field, `count_unique` takes a string
- * and resets to `span.op`, the no-argument aggregates drop theirs, the score
- * pair keep an argument only if it is a web vital — and anything else keeps
- * what was there, unless what was there belonged to an aggregate of a
- * different shape.
+ * Following `updateVisualizeAggregate`, `count` has the dataset's one fixed
+ * field, `count_unique` resets to its useful string default, no-argument
+ * aggregates drop theirs, and the score pair only retain a web vital. A
+ * numeric aggregate carries another numeric selection; after a different
+ * shape it takes the first reported numeric attribute or the dataset's
+ * built-in fallback.
  */
-export function withAggregate(state: ExploreQueryState, aggregate: string): ExploreQueryState {
+export function withAggregate(
+  state: ExploreQueryState,
+  aggregate: string,
+  table: ExploreTable,
+  numberFields: readonly string[] = [],
+): ExploreQueryState {
+  const argument = argumentFor(aggregate, state, table, numberFields);
+  if (argument === undefined) return state;
   return repointSort(state, {
     ...state,
     aggregate,
-    argument: argumentFor(aggregate, state),
+    argument,
   });
 }
 
@@ -193,20 +223,26 @@ function repointSort(previous: ExploreQueryState, next: ExploreQueryState): Expl
   return { ...next, aggregateSort: { ...sort, field: exploreYAxis(next) } };
 }
 
-function argumentFor(aggregate: string, previous: ExploreQueryState): string {
+function argumentFor(
+  aggregate: string,
+  previous: ExploreQueryState,
+  table: ExploreTable,
+  numberFields: readonly string[],
+): string | undefined {
   const kind = argumentKind(aggregate);
   const wasKind = argumentKind(previous.aggregate);
   if (kind === "none") return "";
-  if (kind === "spans") return DEFAULT_VISUALIZE_FIELD;
-  if (kind === "any") return DEFAULT_UNIQUE_FIELD;
+  if (kind === "count") return parseAggregateExpression(table.yAxis).argument;
+  if (kind === "any") return table.builder?.uniqueField;
   if (kind === "score") {
     return previous.argument.startsWith(SCORE_PREFIX) ? previous.argument : DEFAULT_SCORE_FIELD;
   }
   // A numeric aggregate: the previous argument only transfers if it was also
   // being read as a number.
   if (wasKind === "none" || wasKind === "any" || previous.argument === "") {
-    return DEFAULT_VISUALIZE_FIELD;
+    return numberFields[0] ?? table.builder?.numberField;
   }
+  if (wasKind === "count") return numberFields[0] ?? table.builder?.numberField;
   return previous.argument;
 }
 
@@ -335,13 +371,12 @@ function unique(values: readonly string[]): string[] {
 /**
  * What the argument chip shows.
  *
- * `count` and the no-argument aggregates both read as "spans" in the web's own
- * field list — `count(span.duration)` counts spans, and saying so is more use
- * than naming a duration nothing is measuring.
+ * `count` and no-argument aggregates read as the table's noun: for example,
+ * `count(span.duration)` counts spans, and `count(message)` counts logs.
  */
-export function argumentLabel(state: ExploreQueryState): string {
+export function argumentLabel(state: ExploreQueryState, table: ExploreTable): string {
   const kind = argumentKind(state.aggregate);
-  return kind === "none" || kind === "spans" ? "spans" : state.argument || "—";
+  return kind === "none" || kind === "count" ? table.noun : state.argument || "—";
 }
 
 /** What the group-by chip shows: the attribute, a count of them, or a dash. */
