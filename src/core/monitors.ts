@@ -4,7 +4,7 @@
  * All seven are one table over `GET /organizations/{org}/detectors/`; what
  * distinguishes them is the filter their query carries. So they are one
  * component plus this table, keyed by `ScreenId` — the pattern
- * `core/issueViews.ts` set and `docs/plans/002-screen-contract.md` §2 asks
+ * `core/issueViews.ts` set and `docs/screen-contract.md` describes
  * for — and the base filter lives here rather than in screen state, because
  * all seven *share* a state slice (`MONITOR_DETECTORS`) and the user's own
  * query has to follow them across it.

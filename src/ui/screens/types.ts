@@ -4,9 +4,9 @@
  * A screen is a component that takes `ScreenProps` and renders the content
  * pane. It owns its fetch and its layout; the app owns navigation, the key
  * router, the status bar, and the view stack, and hands the screen a way into
- * each of those. Adding one is a new file plus a line in `SCREEN_COMPONENTS`.
+ * each of those. The registry and nav wiring are described in the reference.
  *
- * See `docs/plans/002-screen-contract.md` for the field-by-field reference.
+ * See `docs/screen-contract.md` for the field-by-field reference.
  */
 
 import type { ReactNode } from "react";

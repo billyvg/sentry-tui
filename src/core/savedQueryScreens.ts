@@ -4,7 +4,7 @@
  * `Explore › All Queries` and `Explore › Discover` are the same list over two
  * endpoints — the current saved-query store and the legacy Discover one. They
  * are one component plus this table rather than two near-identical screens, per
- * the sibling-screen rule in `docs/plans/002-screen-contract.md` §2.
+ * the sibling-screen rule in `docs/screen-contract.md`.
  *
  * Keyed by `ScreenId` rather than by nav label: a copy edit to the sidebar must
  * not be able to break the join.

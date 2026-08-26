@@ -1,9 +1,8 @@
 /**
  * Explore › Conversations — the gen-AI conversation list.
  *
- * Not a Discover query, despite what
- * `docs/plans/002-explore-dashboards-monitors.md` §7.2 says. The web serves
- * this list from `GET /organizations/{org}/ai-conversations/`
+ * Not a Discover query. The web serves this list from
+ * `GET /organizations/{org}/ai-conversations/`
  * (`views/explore/conversations/hooks/useConversations.tsx`), which rolls the
  * gen-AI spans of a trace up into one row per *conversation*: a title, how
  * long it took, how many model calls and tool calls it made, what it cost.

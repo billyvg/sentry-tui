@@ -4,7 +4,7 @@
  * `All Dashboards` and `Sentry Built` are one table over one endpoint with a
  * different query parameter, so they are one component plus this table rather
  * than two near-identical screens — the pattern `core/issueViews.ts` sets and
- * `docs/plans/002-screen-contract.md` §2 asks for. Keyed by `ScreenId`, so a
+ * `docs/screen-contract.md` describes. Keyed by `ScreenId`, so a
  * copy edit to a sidebar label cannot break the join.
  */
 
