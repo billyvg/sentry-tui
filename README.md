@@ -5,18 +5,22 @@ mirroring Sentry's real information architecture and screen layouts.
 
 ## Status
 
-Hackweek 2026. The Issues path is built end to end; other nav sections are
-honest stubs.
+Every destination in the current navigation opens a real screen across Issues,
+Explore, Dashboards, Seer, and Monitors — 30 in all, with no placeholder panes.
 
-- [x] Phase 1 — app shell, focus ring, theme, command catalog
-- [x] Phase 2 — API client, auth, domain types
-- [x] Phase 2.5 — loading states
-- [x] Phase 3 — issue stream
-- [x] Phase 4 — issue detail + stack traces
-- [x] Phase 5 — triage actions
-- [x] Phase 6 — OAuth device-flow login
+| Area       | What's built                                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Issues     | Query-backed views, saved views, cursor pagination, full event detail and stack traces, plus resolve, archive, bookmark, and review actions         |
+| Explore    | Traces, Logs, Metrics, Errors, Discover, Profiles, Replays, Releases, Conversations, saved queries, charts, and the trace query builder             |
+| Dashboards | All, Sentry Built, and starred dashboard lists, with a terminal widget grid for supported chart, table, number, and categorical widgets             |
+| Seer       | Ask Seer, conversation history, rich responses, and feature-gated Code Mode workflows                                                               |
+| Monitors   | Detector lists by type, check-in timelines, monitor detail, and Alerts workflows                                                                    |
+| App shell  | OAuth device-flow login, command palette, org and project switching, filters, Sentry URL navigation, telemetry, and self-updating compiled binaries |
 
-Next: command palette, org/project switcher, and the remaining nav sections.
+Settings is intentionally left on sentry.io rather than mirrored as a stub.
+Most non-Issues data screens are read-only today. Next is deeper pagination,
+filtering, and cross-screen detail navigation, plus the remaining parity work
+tracked in the [open issues](https://github.com/billyvg/sentry-tui/issues).
 
 ## Install
 
