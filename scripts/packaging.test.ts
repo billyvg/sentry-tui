@@ -186,9 +186,9 @@ describe("release workflow", () => {
 
     // A hand-pushed tag never goes past `main`'s CI, so the release workflow
     // has to run the suite itself rather than assume someone else did.
-    expect(workflow).toContain("run: bun run check");
-    expect(workflow).toMatch(/build:\n\s+name: Build[^\n]*\n\s+needs: \[verify, test\]/);
-    expect(workflow).toMatch(/needs: \[verify, test, build\]/);
+    expect(workflow).toContain('run: bun run test:shard "$SHARD" "4"');
+    expect(workflow).toMatch(/build:\n\s+name: Build[^\n]*\n\s+needs: \[verify, validate, test\]/);
+    expect(workflow).toMatch(/package:\n\s+name: Package release\n\s+needs: \[verify, build\]/);
   });
 
   test("npm is authenticated over OIDC, not by a required token", async () => {

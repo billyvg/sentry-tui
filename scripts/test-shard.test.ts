@@ -14,7 +14,7 @@ import { CI_SHARD_TOTAL, discoverTestFiles, planShards, weighTestFiles } from ".
 const ROOT = join(import.meta.dirname, "..");
 const read = (path: string) => Bun.file(join(ROOT, path)).text();
 
-const SHARDED_WORKFLOWS = [".github/workflows/ci.yml", ".github/workflows/pull-request.yml"];
+const SHARDED_WORKFLOWS = [".github/workflows/ci.yml", ".github/workflows/release.yml"];
 
 describe("test discovery", () => {
   test("finds the suite, and nothing from node_modules or dist", () => {
