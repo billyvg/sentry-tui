@@ -4,8 +4,7 @@
  * The screen the web actually shows: `/ai-conversations/` rolls the gen-AI
  * spans of a trace into a conversation, so a row is a whole exchange — its
  * title, what it cost, how many model and tool calls it took — rather than one
- * model call. `docs/plans/002-explore-dashboards-monitors.md` §7.2 described
- * it as `dataset=spans`; that is the span-level view underneath, and a
+ * model call. `dataset=spans` is the span-level view underneath, and a
  * different screen.
  *
  * The layout is its Explore siblings': search box, filter row, volume chart,

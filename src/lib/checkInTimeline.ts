@@ -107,7 +107,7 @@ export type UptimeCheckStatus = "success" | "failure" | "failure_incident" | "mi
 /**
  * Glyphs for a cron row.
  *
- * The plan's sketch drew both `ok` and `error` as `█`, which makes the two
+ * The original sketch drew both `ok` and `error` as `█`, which makes the two
  * states that matter most indistinguishable the moment colour is gone — a
  * mono terminal, a screenshot, a colour-blind reader. The fix is to spend the
  * *ink*, not the hue: severity climbs with how much of the cell is filled, and
@@ -127,11 +127,10 @@ export type UptimeCheckStatus = "success" | "failure" | "failure_incident" | "mi
  * nothing. The closest pair left is `▒` and `▓` — a shade apart, and two
  * statuses that are neither adjacent in meaning nor commonly adjacent in a row.
  *
- * **The invariant, so nobody restores the table from the issue text:** severity
- * climbs with ink, and `█` belongs to the failure alone. Giving `ok` the full
- * block back would match the sketch in `docs/plans/002-explore-dashboards-
- * monitors.md` §8.2 and break the "legible without colour" requirement in the
- * same issue. `src/lib/checkInTimeline.test.ts` fails if the two collide.
+ * **The invariant:** severity climbs with ink, and `█` belongs to the failure
+ * alone. Giving `ok` the full block back would break the "legible without
+ * colour" requirement. `src/lib/checkInTimeline.test.ts` fails if the two
+ * collide.
  */
 export const CRON_GLYPHS: Readonly<Record<CronCheckInStatus, string>> = {
   ok: "▄",

@@ -6,7 +6,7 @@
  * (`src/ui/screens/ExploreTable.tsx`) reading a row of this table, not four
  * near-identical screens. The pattern, and the reason for it, is
  * `src/core/issueViews.ts`; the contract is
- * `docs/plans/002-screen-contract.md` §2.
+ * `docs/screen-contract.md`.
  *
  * Everything that distinguishes one screen from its siblings lives here.
  * Nothing here is user state: they share the `explore.events` slice, so the
