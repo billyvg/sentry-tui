@@ -115,6 +115,10 @@ describe("formatting", () => {
     expect(formatCount(1428)).toBe("1.4k");
     expect(formatCount(12_000)).toBe("12k");
     expect(formatCount(2_400_000)).toBe("2.4m");
+    expect(formatCount(999_999)).toBe("1m");
+    expect(formatCount(999_999_999)).toBe("1b");
+    expect(formatCount(2_153_665_800_000)).toBe("2.2t");
+    expect(formatCount(-2_400_000)).toBe("-2.4m");
     expect(formatCount("1428")).toBe("1.4k");
   });
 

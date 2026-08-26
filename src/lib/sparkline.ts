@@ -177,20 +177,44 @@ function downsample(values: number[], width: number): number[] {
   return out;
 }
 
-/** Compact counts the way Sentry's `<Count>` does: 1.4k, 12k, 1.2m. */
+/** Compact counts the way Sentry's `<Count>` does: 1.4k, 12m, 2.2t. */
 export function formatCount(value: number | string | undefined): string {
   // An absent count is pending phase two, not zero — say so rather than
   // asserting a number we don't have yet.
   if (value === undefined) return "··";
   const n = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(n)) return "0";
-  // Two decimals at most: a count is a whole number and is unaffected, but the
-  // same helper labels a chart of `p95(span.duration)`, whose axis would
-  // otherwise read `28.345678901234375`.
-  if (n < 1000) return String(Number(n.toFixed(2)));
-  if (n < 10_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
-  if (n < 1_000_000) return `${Math.round(n / 1000)}k`;
-  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
+  const sign = n < 0 ? "-" : "";
+  const magnitude = Math.abs(n);
+  const units = [
+    { divisor: 1, suffix: "" },
+    { divisor: 1_000, suffix: "k" },
+    { divisor: 1_000_000, suffix: "m" },
+    { divisor: 1_000_000_000, suffix: "b" },
+    { divisor: 1_000_000_000_000, suffix: "t" },
+  ] as const;
+
+  let unitIndex = 0;
+  while (unitIndex + 1 < units.length && magnitude >= units[unitIndex + 1]!.divisor) {
+    unitIndex++;
+  }
+
+  // Promote a rounded `1000k` to `1m` (and likewise at every boundary). The
+  // API returns extrapolated fractional counts, so this can happen even when
+  // the unrounded value sits just below the next exact threshold.
+  while (unitIndex + 1 < units.length) {
+    const scaled = magnitude / units[unitIndex]!.divisor;
+    const decimals = unitIndex === 0 ? 2 : scaled < 10 ? 1 : 0;
+    if (Number(scaled.toFixed(decimals)) < 1000) break;
+    unitIndex++;
+  }
+
+  const unit = units[unitIndex]!;
+  const scaled = magnitude / unit.divisor;
+  // Two decimals for an un-abbreviated chart value; one below ten once a unit
+  // is present, and whole counts after that, matching the existing UI.
+  const decimals = unitIndex === 0 ? 2 : scaled < 10 ? 1 : 0;
+  return `${sign}${Number(scaled.toFixed(decimals))}${unit.suffix}`;
 }
 
 /**
