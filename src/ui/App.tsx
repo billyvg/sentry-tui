@@ -508,7 +508,7 @@ export function App({
       state.dispatch({ type: "setSelected", payload: index });
       // The secondary nav is a drawer over the nav rail; acting in the content
       // pane closes it, exactly as choosing an item from it does.
-      navigation.setShowSecondary(false);
+      navigation.dispatch({ type: "closeSecondary" });
       focus.focus("content");
       if (confirming) screenActions.current?.open?.(index);
     },

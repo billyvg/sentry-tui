@@ -56,16 +56,14 @@ describe("app key handler factories", () => {
   });
 
   test("goto mode opens through its dedicated stage", () => {
-    const setNavExpanded = mock(() => {});
-    const setGotoMode = mock(() => {});
+    const dispatch = mock(() => {});
     const handler = createGotoHandler({
-      navigation: navigation({ gotoMode: false, setNavExpanded, setGotoMode }),
+      navigation: navigation({ gotoMode: false, dispatch }),
       setShowOrgPicker: () => {},
     });
 
     expect(handler(key("n"))).toBe("mine");
-    expect(setNavExpanded).toHaveBeenCalledWith(true);
-    expect(setGotoMode).toHaveBeenCalledWith(true);
+    expect(dispatch).toHaveBeenCalledWith({ type: "openGoto" });
   });
 
   test("a secondary drawer closes before the underlying view pops", () => {
