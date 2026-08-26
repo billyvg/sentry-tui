@@ -23,6 +23,7 @@ import {
   type DiscoverRow,
   type TimeseriesBucket,
 } from "~/api/discover";
+import { dashboardChartInterval } from "~/lib/interval";
 
 // ---------------------------------------------------------------------------
 // Display type → what the terminal draws
@@ -111,9 +112,14 @@ export function unsupportedReason(widget: DashboardWidget): string {
 // Data
 // ---------------------------------------------------------------------------
 
+export interface WidgetSeries {
+  buckets: TimeseriesBucket[];
+  label: string;
+}
+
 export type WidgetData =
   | { kind: "number"; value: number | undefined; formatted: string; label: string }
-  | { kind: "series"; buckets: TimeseriesBucket[]; label: string }
+  | { kind: "series"; series: WidgetSeries[] }
   | { kind: "table"; headers: string[]; fields: string[]; rows: DiscoverRow[] }
   | { kind: "bars"; entries: ReadonlyArray<{ label: string; value: number }>; label: string };
 
@@ -139,11 +145,11 @@ export interface WidgetDataParams {
 }
 
 /**
- * Fetch one widget's data — exactly one request.
+ * Fetch one widget's data.
  *
- * Only the widget's **first** query is run. A widget with several is several
- * series on the web; here it is one, and the card says so rather than fanning
- * a dashboard's request count out by a factor nobody asked for.
+ * A series widget makes one request per saved query because each query may
+ * carry different conditions. The surrounding hook still serialises widgets,
+ * so a large dashboard cannot fan all of its requests out at once.
  *
  * @returns The data, or `null` when the widget is one the terminal doesn't
  *   draw or the dataset isn't reachable through `events/`.
@@ -177,9 +183,23 @@ export async function fetchWidgetData(
     }
 
     case "series": {
-      const yAxis = query.aggregates[0] ?? "count()";
-      const buckets = await queryDiscoverTimeseries(client, { ...common, yAxis });
-      return { kind: "series", buckets, label: yAxis };
+      const interval = dashboardChartInterval(
+        statsPeriod,
+        widget.interval,
+        widget.displayType === "bar",
+      );
+      const series: WidgetSeries[] = [];
+      for (const savedQuery of widget.queries) {
+        const yAxis = savedQuery.aggregates[0] ?? "count()";
+        const buckets = await queryDiscoverTimeseries(client, {
+          ...common,
+          query: savedQuery.conditions,
+          yAxis,
+          interval,
+        });
+        series.push({ buckets, label: savedQuery.name || yAxis });
+      }
+      return { kind: "series", series };
     }
 
     case "table": {

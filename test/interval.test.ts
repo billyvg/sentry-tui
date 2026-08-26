@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { chartInterval, statsPeriodMinutes } from "~/lib/interval";
+import {
+  chartInterval,
+  dashboardChartInterval,
+  DASHBOARD_MAX_BIN_COUNT,
+  statsPeriodMinutes,
+} from "~/lib/interval";
 
 describe("statsPeriodMinutes", () => {
   test("reads every unit the API accepts", () => {
@@ -61,5 +66,33 @@ describe("chartInterval", () => {
   test("leaves the param off when the period can't be read", () => {
     expect(chartInterval(undefined)).toBeUndefined();
     expect(chartInterval("not-a-period")).toBeUndefined();
+  });
+});
+
+describe("dashboardChartInterval", () => {
+  test("keeps the interval the dashboard author saved when it fits", () => {
+    expect(dashboardChartInterval("24h", "1h", false)).toBe("1h");
+    expect(dashboardChartInterval("14d", "12h", false)).toBe("12h");
+  });
+
+  test("coarsens a saved interval to fit a small dashboard card", () => {
+    const interval = dashboardChartInterval("14d", "5m", false)!;
+    expect(interval).toBe("6h");
+    expect(statsPeriodMinutes("14d")! / statsPeriodMinutes(interval)!).toBeLessThanOrEqual(
+      DASHBOARD_MAX_BIN_COUNT,
+    );
+  });
+
+  test("a bar widget uses daily totals", () => {
+    expect(dashboardChartInterval("24h", "5m", true)).toBe("1d");
+  });
+
+  test("a widget without a saved interval derives and caps the Explore default", () => {
+    expect(dashboardChartInterval("24h", undefined, false)).toBe("30m");
+  });
+
+  test("leaves an unreadable absolute range for the endpoint to resolve", () => {
+    expect(dashboardChartInterval(undefined, undefined, false)).toBeUndefined();
+    expect(dashboardChartInterval(undefined, "1h", false)).toBe("1h");
   });
 });

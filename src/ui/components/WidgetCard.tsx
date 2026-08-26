@@ -264,29 +264,45 @@ function SeriesBody({
 }) {
   const theme = useTheme();
   const chartWidth = Math.max(4, width - AXIS_LABEL_WIDTH - 1);
-  const raw: SeriesPoint[] | undefined = data?.buckets.map(([at, series]) => [
-    at,
-    series[0]?.count ?? 0,
-  ]);
-  // `sparklineBlock` downsamples but never stretches, so a twelve-bucket series
-  // would sit in the right twelve cells of a seventy-cell card. Widening the
-  // buckets first is what makes a short series fill its chart.
-  const points = raw ? stretch(raw, chartWidth) : undefined;
-  // `sparklineBlock` draws its own pending glyphs for an absent series, which
-  // is exactly the skeleton this card wants.
-  const rows = sparklineBlock(pending ? undefined : points, chartWidth, SERIES_CHART_ROWS, {
-    floor: true,
+  const rawSeries = (data?.series ?? []).map(({ buckets, label }) => ({
+    label,
+    points: buckets.map(([at, series]): SeriesPoint => [at, series[0]?.count ?? 0]),
+  }));
+  const visibleSeries = pending
+    ? [{ label: "", points: undefined }]
+    : rawSeries.slice(0, SERIES_CHART_ROWS);
+  const colors = [theme.accent, theme.success, theme.warning, theme.highlight];
+  const baseRows = Math.floor(SERIES_CHART_ROWS / Math.max(1, visibleSeries.length));
+  let remainder = SERIES_CHART_ROWS % Math.max(1, visibleSeries.length);
+  const multiple = visibleSeries.length > 1;
+  const rows = visibleSeries.flatMap(({ label, points }, seriesIndex) => {
+    const rowCount = baseRows + (remainder-- > 0 ? 1 : 0);
+    // `sparklineBlock` downsamples but never stretches, so a short response has
+    // to be widened before it can fill the card.
+    const stretched = points ? stretch(points, chartWidth) : undefined;
+    const lines = sparklineBlock(stretched, chartWidth, rowCount, { floor: true });
+    const max = points && points.length > 0 ? Math.max(...points.map(([, count]) => count)) : 0;
+    return lines.map((line, row) => ({
+      line,
+      color: colors[seriesIndex % colors.length]!,
+      gutter: multiple
+        ? row === 0
+          ? fitText(label, AXIS_LABEL_WIDTH)
+          : ""
+        : axisLabel(row, lines.length, max, Boolean(points)),
+    }));
   });
-  const max = raw && raw.length > 0 ? Math.max(...raw.map(([, count]) => count)) : 0;
+  const first = rawSeries[0]?.points;
+  const axisTitle = multiple ? `${visibleSeries.length} series` : (rawSeries[0]?.label ?? "");
 
   return (
     <box style={{ flexDirection: "column", width, flexShrink: 0 }}>
-      {rows.map((line, row) => (
+      {rows.map(({ line, gutter, color }, row) => (
         <box key={row} style={{ flexDirection: "row", width, flexShrink: 0 }}>
           <text fg={theme.muted} attributes={DIM}>
-            {`${padText(axisLabel(row, rows.length, max, Boolean(raw)), AXIS_LABEL_WIDTH, "right")} `}
+            {`${padText(gutter, AXIS_LABEL_WIDTH, multiple ? "left" : "right")} `}
           </text>
-          <text fg={pending ? theme.panelAlt : theme.accent}>{line}</text>
+          <text fg={pending ? theme.panelAlt : color}>{line}</text>
         </box>
       ))}
       <box style={{ flexDirection: "row", width, flexShrink: 0 }}>
@@ -294,7 +310,7 @@ function SeriesBody({
           {" ".repeat(AXIS_LABEL_WIDTH + 1)}
         </text>
         <text fg={theme.subText} attributes={DIM}>
-          {timeAxis(raw, data?.label ?? "", chartWidth)}
+          {timeAxis(first, axisTitle, chartWidth)}
         </text>
       </box>
     </box>

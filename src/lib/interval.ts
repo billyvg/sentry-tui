@@ -45,6 +45,35 @@ const CHART_LADDER: readonly GranularityStep[] = [
   [0, "1m"],
 ];
 
+/** A dashboard card is too small for more buckets than this to add information. */
+export const DASHBOARD_MAX_BIN_COUNT = 66;
+
+/**
+ * Bucket widths accepted by events-stats, finest first.
+ *
+ * Dashboard intervals use this to preserve an author's saved width until it
+ * would put more than 66 bins in a card, then choose the smallest coarser width
+ * that fits. The tail covers the longest period offered by the filter bar.
+ */
+const DASHBOARD_INTERVALS = [
+  "1m",
+  "2m",
+  "5m",
+  "10m",
+  "15m",
+  "20m",
+  "30m",
+  "1h",
+  "2h",
+  "3h",
+  "4h",
+  "6h",
+  "12h",
+  "1d",
+  "2d",
+  "1w",
+] as const;
+
 const UNIT_MINUTES: Record<string, number> = {
   s: 1 / 60,
   m: 1,
@@ -81,4 +110,35 @@ export function chartInterval(statsPeriod: string | undefined): string | undefin
   const minutes = statsPeriodMinutes(statsPeriod);
   if (minutes === undefined || minutes < 0) return undefined;
   return CHART_LADDER.find(([threshold]) => minutes >= threshold)![1];
+}
+
+/**
+ * Resolve a dashboard widget's saved bucket width for its small card.
+ *
+ * Bar widgets are daily totals, matching Sentry Web. Other series retain the
+ * saved interval whenever it fits and fall back to Explore's interval when the
+ * widget predates saved intervals. A finer interval is coarsened just enough
+ * to keep the card at or below {@link DASHBOARD_MAX_BIN_COUNT} buckets.
+ */
+export function dashboardChartInterval(
+  statsPeriod: string | undefined,
+  savedInterval: string | undefined,
+  bar: boolean,
+): string | undefined {
+  if (bar) return "1d";
+
+  const savedMinutes = statsPeriodMinutes(savedInterval);
+  const fallback = chartInterval(statsPeriod);
+  const desired = savedMinutes === undefined || savedMinutes <= 0 ? fallback : savedInterval;
+  const desiredMinutes = statsPeriodMinutes(desired);
+  const rangeMinutes = statsPeriodMinutes(statsPeriod);
+  if (desiredMinutes === undefined || rangeMinutes === undefined) return desired;
+
+  const minimumMinutes = rangeMinutes / DASHBOARD_MAX_BIN_COUNT;
+  if (desiredMinutes >= minimumMinutes) return desired;
+
+  return (
+    DASHBOARD_INTERVALS.find((interval) => statsPeriodMinutes(interval)! >= minimumMinutes) ??
+    DASHBOARD_INTERVALS.at(-1)
+  );
 }
