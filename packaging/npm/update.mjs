@@ -118,6 +118,11 @@ export function bestLocal(bundled, env = process.env) {
   return best;
 }
 
+/** Remove one cached version and everything stored beneath it. */
+export function removeCachedVersion(version, env = process.env) {
+  rmSync(join(cacheRoot(env), version), { recursive: true, force: true });
+}
+
 /**
  * Ask the registry for the newest release of `packageName`.
  *
@@ -208,7 +213,7 @@ export async function installRelease({ release, env = process.env, fetchImpl = f
     chmodSync(binary, 0o755);
 
     const destination = join(root, release.version);
-    rmSync(destination, { recursive: true, force: true });
+    removeCachedVersion(release.version, env);
     mkdirSync(destination, { recursive: true });
     renameSync(binary, join(destination, "sentry-tui"));
 
@@ -221,7 +226,7 @@ export async function installRelease({ release, env = process.env, fetchImpl = f
 /** Drop old cached builds, keeping the newest few. */
 export function pruneCache(env = process.env, keep = KEEP_VERSIONS) {
   for (const version of cachedVersions(env).slice(keep)) {
-    rmSync(join(cacheRoot(env), version), { recursive: true, force: true });
+    removeCachedVersion(version, env);
   }
 }
 
