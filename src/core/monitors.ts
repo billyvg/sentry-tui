@@ -14,6 +14,7 @@
  * `useDetectorListQuery` adds (`list/common/useDetectorListQuery.tsx:30-35`).
  */
 
+import { DETECTOR_TYPE, type DetectorType } from "~/api/detectors";
 import type { ScreenId } from "~/core/screens";
 
 /** Everything that distinguishes one Monitors screen from its six siblings. */
@@ -23,10 +24,10 @@ export interface MonitorListView {
   /** One line of context under the heading. */
   description: string;
   /**
-   * The detector type this screen lists, e.g. `metric_issue`. Absent on All
+   * The detector type this screen lists, e.g. `DETECTOR_TYPE.metric`. Absent on All
    * Monitors and My Monitors, which list every type.
    */
-  type?: string;
+  type?: DetectorType;
   /**
    * The assignee filter this screen adds, as the search value — `[me,my_teams]`
    * on My Monitors (`list/myMonitors.tsx:12`).
@@ -50,7 +51,7 @@ export interface MonitorListView {
  * connect alerts to the issue stream — and are excluded from every list
  * (`createDetectorQuery`, `hooks/index.ts:53-55`).
  */
-export const EXCLUDED_DETECTOR_TYPE = "issue_stream";
+export const EXCLUDED_DETECTOR_TYPE = DETECTOR_TYPE.issueStream;
 
 /** Every Monitors list screen, keyed by the id `SCREENS` registers it under. */
 export const MONITOR_LIST_VIEWS: Readonly<Partial<Record<ScreenId, MonitorListView>>> = {
@@ -78,7 +79,7 @@ export const MONITOR_LIST_VIEWS: Readonly<Partial<Record<ScreenId, MonitorListVi
   "monitors.error": {
     title: "Error",
     description: "The per-project detectors that turn errors into issues.",
-    type: "error",
+    type: DETECTOR_TYPE.error,
     searchPlaceholder: "Search error monitors…",
     emptyTitle: "No error monitors found.",
     emptyLines: [
@@ -89,7 +90,7 @@ export const MONITOR_LIST_VIEWS: Readonly<Partial<Record<ScreenId, MonitorListVi
   "monitors.metric": {
     title: "Metric",
     description: "Thresholds and anomalies over a metric.",
-    type: "metric_issue",
+    type: DETECTOR_TYPE.metric,
     searchPlaceholder: "Search metric monitors…",
     emptyTitle: "No metric monitors found.",
     emptyLines: [
@@ -100,7 +101,7 @@ export const MONITOR_LIST_VIEWS: Readonly<Partial<Record<ScreenId, MonitorListVi
   "monitors.cron": {
     title: "Cron",
     description: "Scheduled jobs that check in when they run.",
-    type: "monitor_check_in_failure",
+    type: DETECTOR_TYPE.cron,
     searchPlaceholder: "Search cron monitors…",
     emptyTitle: "No cron monitors found.",
     emptyLines: [
@@ -111,7 +112,7 @@ export const MONITOR_LIST_VIEWS: Readonly<Partial<Record<ScreenId, MonitorListVi
   "monitors.uptime": {
     title: "Uptime",
     description: "URLs Sentry checks on a schedule.",
-    type: "uptime_domain_failure",
+    type: DETECTOR_TYPE.uptime,
     searchPlaceholder: "Search uptime monitors…",
     emptyTitle: "No uptime monitors found.",
     emptyLines: [
@@ -122,7 +123,7 @@ export const MONITOR_LIST_VIEWS: Readonly<Partial<Record<ScreenId, MonitorListVi
   "monitors.mobile-build": {
     title: "Mobile Build",
     description: "Size regressions in mobile builds.",
-    type: "preprod_size_analysis",
+    type: DETECTOR_TYPE.mobileBuild,
     searchPlaceholder: "Search mobile build monitors…",
     emptyTitle: "No mobile build monitors found.",
     emptyLines: [
@@ -140,7 +141,7 @@ export function getMonitorListView(id: ScreenId): MonitorListView | undefined {
 /**
  * The query one screen sends, given whatever the user typed.
  *
- * Order matches `createDetectorQuery`: the `issue_stream` exclusion, then the
+ * Order matches `createDetectorQuery`: the issue-stream exclusion, then the
  * screen's own filters, then the user's query — so a typed `type:cron` narrows
  * within the screen rather than being overridden by it.
  */

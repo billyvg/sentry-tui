@@ -14,15 +14,16 @@
  * "which data source does this detector have" is answered, once.
  */
 
-import type {
-  CronMonitorDataSource,
-  Detector,
-  DetectorActor,
-  DetectorType,
-  MetricCondition,
-  MonitorConfig,
-  SnubaQuery,
-  UptimeSubscriptionDataSource,
+import {
+  DETECTOR_TYPE,
+  type CronMonitorDataSource,
+  type Detector,
+  type DetectorActor,
+  type DetectorType,
+  type MetricCondition,
+  type MonitorConfig,
+  type SnubaQuery,
+  type UptimeSubscriptionDataSource,
 } from "~/api/detectors";
 import { crontabAsText, intervalAsText } from "~/lib/cron";
 import { middleEllipsis } from "~/lib/text";
@@ -43,12 +44,12 @@ export const DETAIL_SEPARATOR = " │ ";
  * id, so a copy edit to either list cannot silently repoint the other.
  */
 const TYPE_LABELS: Record<string, string> = {
-  error: "Error",
-  metric_issue: "Metric",
-  monitor_check_in_failure: "Cron",
-  uptime_domain_failure: "Uptime",
-  issue_stream: "Project",
-  preprod_size_analysis: "Mobile Build",
+  [DETECTOR_TYPE.error]: "Error",
+  [DETECTOR_TYPE.metric]: "Metric",
+  [DETECTOR_TYPE.cron]: "Cron",
+  [DETECTOR_TYPE.uptime]: "Uptime",
+  [DETECTOR_TYPE.issueStream]: "Project",
+  [DETECTOR_TYPE.mobileBuild]: "Mobile Build",
 };
 
 /** The Type column's text. An unknown type reads as `Unknown`, as on the web. */
@@ -118,11 +119,11 @@ export interface DetectorDetailContext {
  *
  * | Type                       | Fields                                            |
  * | -------------------------- | ------------------------------------------------- |
- * | `metric_issue`             | environment, aggregate, query, threshold          |
- * | `uptime_domain_failure`    | url, interval                                     |
- * | `monitor_check_in_failure` | schedule                                          |
- * | `preprod_size_analysis`    | measurement and threshold type                    |
- * | `error`                    | nothing — the project is the whole line           |
+ * | Metric       | environment, aggregate, query, threshold          |
+ * | Uptime       | url, interval                                     |
+ * | Cron         | schedule                                          |
+ * | Mobile Build | measurement and threshold type                    |
+ * | Error        | nothing — the project is the whole line           |
  */
 export function detectorDetailParts(
   detector: Detector,
@@ -132,24 +133,24 @@ export function detectorDetailParts(
   if (projectSlug) parts.push(projectSlug);
 
   switch (detector.type) {
-    case "metric_issue":
+    case DETECTOR_TYPE.metric:
       parts.push(...metricDetailParts(detector));
       break;
-    case "uptime_domain_failure":
+    case DETECTOR_TYPE.uptime:
       parts.push(...uptimeDetailParts(detector));
       break;
-    case "monitor_check_in_failure": {
+    case DETECTOR_TYPE.cron: {
       const schedule = cronScheduleText(cronMonitor(detector)?.config);
       if (schedule) parts.push(schedule);
       break;
     }
-    case "preprod_size_analysis": {
+    case DETECTOR_TYPE.mobileBuild: {
       const preprod = preprodThresholdText(detector);
       if (preprod) parts.push(preprod);
       break;
     }
     default:
-      // `error`, `issue_stream`, and anything Sentry adds after this was
+      // Error, issue-stream, and anything Sentry adds after this was
       // written: the project is all the row claims to know.
       break;
   }
@@ -352,13 +353,13 @@ export interface DetectorField {
  */
 export function detectorConfigFields(detector: Detector): DetectorField[] {
   switch (detector.type) {
-    case "metric_issue":
+    case DETECTOR_TYPE.metric:
       return metricConfigFields(detector);
-    case "uptime_domain_failure":
+    case DETECTOR_TYPE.uptime:
       return uptimeConfigFields(detector);
-    case "monitor_check_in_failure":
+    case DETECTOR_TYPE.cron:
       return cronConfigFields(detector);
-    case "preprod_size_analysis":
+    case DETECTOR_TYPE.mobileBuild:
       return preprodConfigFields(detector);
     default:
       return [];
@@ -462,9 +463,9 @@ function successCount(count: number | null | undefined): string | undefined {
  */
 export function detectorEnvironment(detector: Detector): string | undefined {
   switch (detector.type) {
-    case "metric_issue":
+    case DETECTOR_TYPE.metric:
       return metricQuery(detector)?.environment ?? undefined;
-    case "uptime_domain_failure":
+    case DETECTOR_TYPE.uptime:
       return detector.config?.environment ?? undefined;
     default:
       return undefined;

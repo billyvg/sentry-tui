@@ -31,6 +31,16 @@ import { projectParams } from "~/api/projectParams";
 // Domain types
 // ---------------------------------------------------------------------------
 
+/** Detector type wire values shared by API consumers. */
+export const DETECTOR_TYPE = {
+  error: "error",
+  metric: "metric_issue",
+  cron: "monitor_check_in_failure",
+  uptime: "uptime_domain_failure",
+  issueStream: "issue_stream",
+  mobileBuild: "preprod_size_analysis",
+} as const;
+
 /**
  * What a detector detects — `DetectorType` in
  * `types/workflowEngine/detectors.tsx:84-90`.
@@ -39,14 +49,7 @@ import { projectParams } from "~/api/projectParams";
  * terminal learns to draw them: an unknown one must render its name and its
  * project rather than fail to compile.
  */
-export type DetectorType =
-  | "error"
-  | "metric_issue"
-  | "monitor_check_in_failure"
-  | "uptime_domain_failure"
-  | "issue_stream"
-  | "preprod_size_analysis"
-  | (string & {});
+export type DetectorType = (typeof DETECTOR_TYPE)[keyof typeof DETECTOR_TYPE] | (string & {});
 
 /** A user or team, as `Actor` in `types/core.tsx:27-32`. */
 export interface DetectorActor {

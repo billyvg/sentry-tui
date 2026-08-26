@@ -14,7 +14,7 @@
  * column set.
  */
 
-import type { Detector } from "~/api/detectors";
+import { DETECTOR_TYPE, type Detector, type DetectorType } from "~/api/detectors";
 import { timelineStylesFor, timelineWindowLabel } from "~/core/checkInTimeline";
 import { cronMonitor } from "~/core/detectors";
 import type { Theme } from "~/core/theme";
@@ -26,17 +26,13 @@ import { cronBuckets, uptimeBuckets, type CheckInStats } from "~/ui/hooks/useChe
 /** Detector types that have a check-in history worth drawing. */
 export type TimelineKind = "cron" | "uptime";
 
-/** Detector type strings, as `core/monitors.ts` and the API spell them. */
-const CRON_TYPE = "monitor_check_in_failure";
-const UPTIME_TYPE = "uptime_domain_failure";
-
 /**
  * Which screens draw a timeline, keyed by the detector type their view
  * filters to. Everything else gets the standard five columns.
  */
-export function timelineKindFor(detectorType: string | undefined): TimelineKind | undefined {
-  if (detectorType === CRON_TYPE) return "cron";
-  if (detectorType === UPTIME_TYPE) return "uptime";
+export function timelineKindFor(detectorType: DetectorType | undefined): TimelineKind | undefined {
+  if (detectorType === DETECTOR_TYPE.cron) return "cron";
+  if (detectorType === DETECTOR_TYPE.uptime) return "uptime";
   return undefined;
 }
 
