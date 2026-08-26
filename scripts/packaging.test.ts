@@ -219,25 +219,44 @@ describe("release workflow", () => {
   test("publishing is skipped on a dry run", async () => {
     const workflow = await read(".github/workflows/release.yml");
 
-    // Both steps that ship something live in the `publish` job, which is
-    // gated as a whole rather than step-by-step, so a dry run never enters it.
+    // Every step that publishes or records something live is in the `publish`
+    // job, which is gated as a whole rather than step-by-step, so a dry run
+    // never enters it.
     const publishJob = workflow.split(/^  publish:/m)[1];
     expect(publishJob).toBeDefined();
     expect(publishJob).toContain("if: needs.verify.outputs.dry_run != 'true'");
 
     const publishSteps = publishJob!
       .split("      - name: ")
-      .filter((step) => /run: .*(publish-npm|gh release create)/s.test(step));
-    expect(publishSteps.length).toBe(2);
+      .filter((step) => /run: .*(publish-npm|gh api|gh release create)/s.test(step));
+    expect(publishSteps.length).toBe(3);
   });
 
-  test("publishing runs against the production deployment environment", async () => {
+  test("a production deployment is recorded only after npm publishes", async () => {
     const workflow = await read(".github/workflows/release.yml");
     const publishJob = workflow.split(/^  publish:/m)[1];
     expect(publishJob).toBeDefined();
 
     expect(publishJob).toContain("environment:");
     expect(publishJob).toContain("name: production");
+    expect(publishJob).toContain("deployment: false");
+    expect(publishJob).toContain("deployments: write");
+
+    const npmPublish = publishJob!.indexOf("run: .github/scripts/publish-npm.sh");
+    const deployment = publishJob!.indexOf("- name: Create GitHub deployment");
+    const githubRelease = publishJob!.indexOf("- name: Create GitHub Release");
+
+    expect(npmPublish).toBeGreaterThan(-1);
+    expect(deployment).toBeGreaterThan(npmPublish);
+    expect(githubRelease).toBeGreaterThan(deployment);
+
+    const deploymentStep = publishJob!.slice(deployment, githubRelease);
+    expect(deploymentStep).toContain('/deployments"');
+    expect(deploymentStep).toContain("/deployments/${deployment_id}/statuses");
+    expect(deploymentStep).toContain("X-GitHub-Api-Version: 2026-03-10");
+    expect(deploymentStep).toContain('--field "required_contexts[]"');
+    expect(deploymentStep).toContain('--field "state=success"');
+    expect(deploymentStep).toContain("https://www.npmjs.com/package/sentry-tui/v/${VERSION}");
   });
 });
 
