@@ -20,7 +20,7 @@
         "oxfmt": "^0.63.0",
         "oxlint": "^1.78.0",
         "platformicons": "9.6.0",
-        "simple-git-hooks": "^2.13.1",
+        "simple-git-hooks": "2.12.1",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -302,7 +302,7 @@
 
     "shell-quote": ["shell-quote@1.10.0", "https://sfw.security.sentry.io/npm/shell-quote/-/shell-quote-1.10.0.tgz", {}, "sha512-w1aiOKwKuRgtwAReIIj89puqg+I7GvX4IbLrvmhXbzQsj1+Zwi4VO3+fa6ZF91TWSjIxoEkKnMeHcLEODK5ZXA=="],
 
-    "simple-git-hooks": ["simple-git-hooks@2.13.1", "https://sfw.security.sentry.io/npm/simple-git-hooks/-/simple-git-hooks-2.13.1.tgz", { "bin": { "simple-git-hooks": "cli.js" } }, "sha512-WszCLXwT4h2k1ufIXAgsbiTOazqqevFCIncOuUBZJ91DdvWcC5+OFkluWRQPrcuSYd8fjq+o2y1QfWqYMoAToQ=="],
+    "simple-git-hooks": ["simple-git-hooks@2.12.1", "https://sfw.security.sentry.io/npm/simple-git-hooks/-/simple-git-hooks-2.12.1.tgz", { "bin": { "simple-git-hooks": "cli.js" } }, "sha512-NB3V4XyCOrWTIhjh85DyEoVlM3adHWwqQXKYHmuegy/108bJPP6YxuPGm4ZKBq1+GVKRbKJuzNY//09cMJYp+A=="],
 
     "sisteransi": ["sisteransi@1.0.5", "https://sfw.security.sentry.io/npm/sisteransi/-/sisteransi-1.0.5.tgz", {}, "sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg=="],
 
