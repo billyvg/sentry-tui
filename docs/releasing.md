@@ -129,6 +129,16 @@ actually break a release.
 
 ## Cutting a release
 
+A release is the documentation freshness checkpoint. Before cutting it:
+
+- Compare `README.md`'s Status section with `src/core/nav.ts`,
+  `src/core/screens.ts`, and `src/ui/screens/registry.tsx`. Every shipped nav
+  group and screen should be represented, and nothing implemented should still
+  appear under "Next".
+- Keep the purpose summary at the top of `AGENTS.md` aligned with that status.
+- Re-check "Next" against the open issue list instead of carrying the previous
+  release's priorities forward.
+
 ```bash
 bun run release:cut           # 0.5.0 → 0.6.0
 bun run release:cut --patch   # 0.5.0 → 0.5.1

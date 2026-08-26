@@ -2,7 +2,9 @@
 
 ## purpose
 
-Terminal client for sentry.io — issues deep (stream + details + triage), other nav sections stubbed.
+Terminal client for sentry.io — real screens across Issues, Explore, Dashboards,
+Seer, and Monitors. Issues supports deep detail and triage; the other Sentry data
+surfaces are read-only.
 Built with OpenTUI React on Bun.
 
 ## architecture
