@@ -22,13 +22,14 @@ import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
 import { ResultFooter } from "~/ui/components/ResultFooter";
+import { SearchInputHint } from "~/ui/components/SearchInputHint";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useIssues } from "~/ui/hooks/useIssues";
 import { useMemberAvatars } from "~/ui/hooks/useMemberAvatars";
 import { useRowScrollFollow } from "~/ui/hooks/useRowScrollFollow";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
-import { BOLD, UNDERLINE } from "~/ui/lib/attributes";
+import { BOLD } from "~/ui/lib/attributes";
 import { IssueDetail } from "~/ui/screens/IssueDetail";
 import type { DetailContext, ScreenProps, ViewStackEntry } from "~/ui/screens/types";
 import { useTheme } from "~/ui/theme";
@@ -203,10 +204,7 @@ export function IssueFeed(props: IssueFeedProps) {
           paddingRight: 1,
         }}
       >
-        <text fg={theme.hotkey} attributes={UNDERLINE}>
-          {"/"}
-        </text>
-        <text> </text>
+        <SearchInputHint />
         <input
           ref={inputRefCallback}
           value={state.searchQuery}

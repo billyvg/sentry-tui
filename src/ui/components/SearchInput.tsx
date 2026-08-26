@@ -34,7 +34,7 @@ import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
 import { useTheme } from "~/ui/theme";
 import { SEARCH_ROWS } from "~/ui/components/FilterBar";
-import { UNDERLINE } from "~/ui/lib/attributes";
+import { SearchInputHint } from "~/ui/components/SearchInputHint";
 
 export interface SearchInputProps {
   /** Live value of the input: `state.searchQuery`, not the committed one. */
@@ -95,10 +95,7 @@ export function SearchInput({
         paddingRight: 1,
       }}
     >
-      <text fg={focused ? theme.accent : theme.text} attributes={UNDERLINE}>
-        {"/"}
-      </text>
-      <text> </text>
+      <SearchInputHint />
       <input
         ref={inputRefCallback}
         value={value}
