@@ -116,15 +116,16 @@ export function useNavigation({
   const topView = viewStack.at(-1);
   const detailView = topView && !topView.stateKey ? topView : undefined;
   const listActive = !detailView && (ScreenComponent !== undefined || topView !== undefined);
-  const activeKey =
-    [...viewStack].reverse().find((view) => view.stateKey)?.stateKey ??
-    (screen ? stateKeyOf(screen) : undefined);
+  const activeStatefulView = [...viewStack].reverse().find((view) => view.stateKey);
+  const activeKey = activeStatefulView?.stateKey ?? (screen ? stateKeyOf(screen) : undefined);
+  const activeSource = activeStatefulView?.id ?? screen?.id ?? activeKey ?? "__unregistered__";
   const {
     active: state,
     resetOrgScoped,
     seed,
   } = useScreenState(
     activeKey,
+    activeSource,
     initialSelectedProjects,
     initialView?.stateKey ? initialView.initialState : initialLocation?.state,
   );

@@ -28,6 +28,8 @@ export interface ScreenStatus {
 /** State held for one screen (or one group of screens sharing a `stateKey`). */
 interface ScreenSlice {
   entries: readonly unknown[];
+  /** Screen or pushed view that last wrote `entries`. */
+  entriesSource: string | null;
   selected: number;
   status: ScreenStatus;
   openDropdown: FilterDropdownType;
@@ -82,6 +84,8 @@ export type ScreenAction =
 export interface ScreenState extends ScreenSlice {
   /** The map key this slice is stored under. */
   key: string;
+  /** Screen or pushed view currently reading and writing the slice. */
+  source: string;
   /** Apply one atomic transition to this slice. */
   dispatch: (action: ScreenAction) => void;
   /** Focus the search input, stashing the committed value for Escape to restore. */
@@ -122,8 +126,19 @@ export interface ScreenStateSeed {
   selectedEnvs?: string[];
 }
 
-/** Rows of a slice, typed by the screen that owns them. */
+/**
+ * Rows of a slice, typed by the screen that owns them.
+ *
+ * A shared state key deliberately carries filters between sibling screens,
+ * but their row shapes can differ. Fail here with both owners named instead
+ * of letting an unchecked cast fail later at an unrelated property access.
+ */
 export function rowsOf<T>(state: ScreenState): readonly T[] {
+  if (state.entriesSource !== null && state.entriesSource !== state.source) {
+    throw new Error(
+      `Screen "${state.source}" cannot read rows written by "${state.entriesSource}" from shared state "${state.key}"`,
+    );
+  }
   return state.entries as readonly T[];
 }
 
@@ -135,6 +150,7 @@ function initialSlice(key: string, selectedProjects: readonly string[] = []): Sc
   const query = defaults.query ?? "";
   return {
     entries: [],
+    entriesSource: null,
     selected: 0,
     status: { loading: false },
     openDropdown: null,
@@ -156,21 +172,29 @@ function sameStatus(a: ScreenStatus, b: ScreenStatus): boolean {
 }
 
 /** Apply one action to a screen slice without side effects. */
-function screenReducer(state: ScreenSlice, action: ScreenAction): ScreenSlice {
+function screenReducer(state: ScreenSlice, action: ScreenAction, source?: string): ScreenSlice {
   switch (action.type) {
     case "setEntries": {
+      if (!source) throw new Error("setEntries requires a screen source");
+      const previous = state.entriesSource === source ? state.entries : [];
       const entries =
-        typeof action.payload === "function" ? action.payload(state.entries) : action.payload;
-      if (entries === state.entries) return state;
+        typeof action.payload === "function" ? action.payload(previous) : action.payload;
+      if (entries === state.entries && state.entriesSource === source) return state;
       // Clamp rather than reset: a refresh should keep the cursor on the row
       // the user was looking at whenever that row still exists.
-      const selected = Math.min(state.selected, Math.max(0, entries.length - 1));
-      return { ...state, entries, selected };
+      const selected = Math.min(
+        state.entriesSource === source ? state.selected : 0,
+        Math.max(0, entries.length - 1),
+      );
+      return { ...state, entries, entriesSource: source, selected };
     }
     case "setSelected": {
+      const ownsEntries = source === undefined || state.entriesSource === source;
+      const previous = ownsEntries ? state.selected : 0;
       const selected =
-        typeof action.payload === "function" ? action.payload(state.selected) : action.payload;
-      const clamped = Math.max(0, Math.min(selected, Math.max(0, state.entries.length - 1)));
+        typeof action.payload === "function" ? action.payload(previous) : action.payload;
+      const rowCount = ownsEntries ? state.entries.length : 0;
+      const clamped = Math.max(0, Math.min(selected, Math.max(0, rowCount - 1)));
       return clamped === state.selected ? state : { ...state, selected: clamped };
     }
     case "setStatus":
@@ -223,6 +247,7 @@ function screenReducer(state: ScreenSlice, action: ScreenAction): ScreenSlice {
       return {
         ...state,
         entries: [],
+        entriesSource: null,
         selected: 0,
         status: { loading: false },
         openDropdown: null,
@@ -248,7 +273,7 @@ function screenReducer(state: ScreenSlice, action: ScreenAction): ScreenSlice {
 }
 
 type ScreenStoreAction =
-  | { type: "dispatch"; key: string; action: ScreenAction; fallback: ScreenSlice }
+  | { type: "dispatch"; key: string; source: string; action: ScreenAction; fallback: ScreenSlice }
   | { type: "resetOrgScoped"; projects: string[] }
   | { type: "seed"; key: string; values: ScreenStateSeed };
 
@@ -281,7 +306,7 @@ function screenStoreReducer(
   }
 
   const current = states.get(action.key) ?? action.fallback;
-  const updated = screenReducer(current, action.action);
+  const updated = screenReducer(current, action.action, action.source);
   if (updated === current && states.has(action.key)) return states;
   next.set(action.key, updated);
   return next;
@@ -294,9 +319,12 @@ function screenStoreReducer(
  *   own `stateKey`. `undefined` for a nav destination with no registered
  *   screen — a dynamic starred-query item, say, which renders the placeholder
  *   pane and needs somewhere inert to put its state.
+ * @param source The active screen id or pushed view id. Unlike `stateKey`, it
+ *   is never shared: it brands rows so a sibling cannot cast them as its own.
  */
 export function useScreenState(
   stateKey: string | undefined,
+  source: string,
   initialSelectedProjects: readonly string[] = [],
   initialSeed?: ScreenStateSeed,
 ): ScreenStateStore {
@@ -332,11 +360,12 @@ export function useScreenState(
       storeDispatch({
         type: "dispatch",
         key,
+        source,
         action,
         fallback: initialSlice(key, initialSelectedProjectsRef.current),
       });
     },
-    [key],
+    [key, source],
   );
 
   const focusSearch = useCallback(() => dispatch({ type: "focusSearch" }), [dispatch]);
@@ -364,14 +393,20 @@ export function useScreenState(
   const active = useMemo<ScreenState>(
     () => ({
       ...data,
+      // Filters intentionally survive a move between screens on one key;
+      // rows do not. Hide a sibling's rows from generic cursor handling while
+      // keeping their owner so `rowsOf` can report a typed read immediately.
+      entries: data.entriesSource === null || data.entriesSource === source ? data.entries : [],
+      selected: data.entriesSource === null || data.entriesSource === source ? data.selected : 0,
       key,
+      source,
       dispatch,
       focusSearch,
       submitSearch,
       cancelSearch,
       handleSearchBlur,
     }),
-    [data, key, dispatch, focusSearch, submitSearch, cancelSearch, handleSearchBlur],
+    [data, key, source, dispatch, focusSearch, submitSearch, cancelSearch, handleSearchBlur],
   );
 
   const resetOrgScoped = useCallback((selectedProjects: readonly string[] = []) => {
