@@ -153,6 +153,22 @@ describe("empty values", () => {
 });
 
 describe("row layout", () => {
+  test("keeps the established geometry at the supported terminal widths", () => {
+    const columns: ReturnType<typeof resolveRowLayout>["columns"] = [
+      "lastSeen",
+      "age",
+      "sparkline",
+      "events",
+      "users",
+      "priority",
+      "assignee",
+    ];
+
+    expect(resolveRowLayout(80)).toEqual({ content: 78, title: 22, columns });
+    expect(resolveRowLayout(100)).toEqual({ content: 98, title: 42, columns });
+    expect(resolveRowLayout(140)).toEqual({ content: 138, title: 82, columns });
+  });
+
   test("sheds columns right-to-left rather than crushing the title", () => {
     const wide = resolveRowLayout(140);
     const narrow = resolveRowLayout(70);
