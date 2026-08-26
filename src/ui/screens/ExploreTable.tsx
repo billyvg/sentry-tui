@@ -82,11 +82,7 @@ export function ExploreTable(props: ScreenProps) {
       </box>
     );
   }
-  // Keyed by screen, because all four draw the same component in the same
-  // slot: without it React reconciles Traces into Metrics and keeps the hook
-  // state, so the new screen shows the old one's rows and chart until its own
-  // fetch lands — and a chart the endpoint rejected would never be replaced.
-  return <ExploreTableScreen key={table.id} {...props} table={table} />;
+  return <ExploreTableScreen {...props} table={table} />;
 }
 
 function ExploreTableScreen({

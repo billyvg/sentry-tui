@@ -27,7 +27,6 @@ import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { SortBar } from "~/ui/components/SortBar";
 import { useDashboards } from "~/ui/hooks/useDashboards";
-import { rowsOf } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
 import { dashboardDetailView } from "~/ui/screens/DashboardDetail";
@@ -206,10 +205,10 @@ export function DashboardList(props: ScreenProps) {
   const { pushView } = props;
   const open = useCallback(
     (index: number) => {
-      const row = rowsOf<DashboardListItem>(state)[index];
+      const row = rows?.[index];
       if (row) pushView(dashboardDetailView(row));
     },
-    [state, pushView],
+    [rows, pushView],
   );
   useScreenActions(props.registerActions, { open });
 

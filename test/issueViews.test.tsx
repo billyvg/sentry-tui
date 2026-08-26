@@ -33,6 +33,31 @@ function recordingClient() {
   return { urls, client: new SentryClient({ auth, fetchImpl }) };
 }
 
+/** Return Feed's marker row, then leave Warnings in flight. */
+function slowWarningsClient() {
+  const feedIssue = {
+    ...groupsFixture[0]!,
+    id: "9001",
+    shortId: "FEED-1",
+    title: "FeedOnlyError",
+    metadata: { type: "FeedOnlyError", value: "only on the feed" },
+  };
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/issues-stats/")) return new Response("{}");
+    if (url.includes("/issues/?")) {
+      const query = new URL(url).searchParams.get("query");
+      if (query === getIssueView("Warnings")!.query) return new Promise<Response>(() => {});
+      return new Response(JSON.stringify([feedIssue]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response("[]", { headers: { "Content-Type": "application/json" } });
+  }) as unknown as typeof fetch;
+  return new SentryClient({ auth, fetchImpl, maxRetries: 0 });
+}
+
 /** The `query` parameter of the most recent issues request. */
 function lastQuery(urls: string[]): string | null {
   const url = urls.at(-1);
@@ -88,6 +113,23 @@ for (const label of ["Warnings", "Errors & Outages", "User Feedback", "Recently 
     }
   });
 }
+
+test("Warnings does not show Feed's issues while its request is in flight", async () => {
+  const h = await renderHarness(
+    <App onQuit={() => {}} client={slowWarningsClient()} org="acme" />,
+    { width: WIDTH, height: HEIGHT },
+  );
+  try {
+    await h.waitForFrame((f) => f.includes("FeedOnlyError"));
+
+    await selectIssuesItem(h, ITEM_INDEX["Warnings"]!);
+    await h.waitForFrame((f) => f.includes("Warnings"));
+
+    expect(h.frame()).not.toContain("FeedOnlyError");
+  } finally {
+    await h.cleanup();
+  }
+});
 
 test("Inbox carries its own sort as well as its query", async () => {
   const { urls, client } = recordingClient();

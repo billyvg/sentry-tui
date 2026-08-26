@@ -75,14 +75,11 @@ export function MonitorList(props: ScreenProps) {
   const query = buildDetectorQuery(view, state.committedQuery);
   const sort = detectorSort(state.sort);
 
-  // `resetKey` is the screen: the seven share a slice *and* a component
-  // instance, so without it this screen opens showing the last one's rows.
   const { detectors: status, nextCursor } = useDetectors(client, {
     org,
     query,
     sortBy: sort,
     reloadToken,
-    resetKey: screen.id,
   });
   const rows = valueOf(status);
   const error = errorOf(status);

@@ -622,7 +622,10 @@ export function App({
                 issue: topView.issue,
               })
             ) : ScreenComponent && screen ? (
-              <ScreenComponent {...paneProps} screen={screen} state={state} />
+              // Sibling screens can use the same component in this slot. Key
+              // by route so React does not carry that component's hook-local
+              // rows and charts into a different screen while it loads.
+              <ScreenComponent key={screen.id} {...paneProps} screen={screen} state={state} />
             ) : (
               <box style={{ flexDirection: "column", paddingLeft: 1 }}>
                 <text fg={theme.text} attributes={1}>
