@@ -277,8 +277,9 @@ right, then fits flex columns into what remains. Columns without a priority are
 kept until the last-resort narrow-pane path. Cell renderers should use
 `padText`; clipping prevents overflow but cannot make unpadded columns align.
 
-The issue stream is the established exception: its richer row layout remains
-in `IssueFeed` and `IssueRow` rather than `DataTable`.
+The issue stream keeps its richer multi-line renderer in `IssueFeed` and
+`IssueRow` rather than `DataTable`, but resolves its columns through the same
+`layoutColumns` engine.
 
 Screens own their fetch through a domain hook. New hooks should reuse
 `useAsyncFetch`, which centralizes aborts, stale-result protection, and the

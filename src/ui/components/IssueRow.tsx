@@ -8,6 +8,7 @@ import { PlatformIcon, usePlatformIconWidth } from "~/ui/components/PlatformIcon
 import { Placeholder } from "~/ui/components/Placeholder";
 import { useImageSupport } from "~/ui/hooks/useImageSupport";
 import { BOLD } from "~/ui/lib/attributes";
+import { layoutColumns, type ColumnSpec } from "~/ui/lib/tableLayout";
 
 /**
  * The right-hand column strip, mirroring the web stream's table header
@@ -64,15 +65,31 @@ const ALL_COLUMNS: ColumnKey[] = [
 ];
 
 /**
- * Shed columns right-to-left as the terminal narrows. Last to go are the ones
- * the stream is scanned and sorted by; the title always wins, because a row
- * whose title is three characters wide tells you nothing.
+ * The issue row's custom renderer still resolves its columns through the same
+ * priority-driven layout engine as `DataTable`. Events and the title have no
+ * priority, so they survive until the engine's last-resort narrow-pane path;
+ * the optional columns encode the stream's established shed order.
  */
-const DROP_ORDER: ColumnKey[] = ["assignee", "priority", "age", "users", "sparkline", "lastSeen"];
 const MIN_TITLE_WIDTH = 16;
 
 /** `▸` cursor, `●` unread dot, and the space after them. */
 const MARKER_WIDTH = 3;
+
+interface IssueColumnSpec extends ColumnSpec {
+  key: "marker" | "title" | ColumnKey;
+}
+
+const LAYOUT_COLUMNS: readonly IssueColumnSpec[] = [
+  { key: "marker", width: MARKER_WIDTH },
+  { key: "title", width: "flex" },
+  { key: "lastSeen", width: COLUMN_WIDTH.lastSeen, priority: 6 },
+  { key: "age", width: COLUMN_WIDTH.age, priority: 3 },
+  { key: "sparkline", width: COLUMN_WIDTH.sparkline, priority: 5 },
+  { key: "events", width: COLUMN_WIDTH.events },
+  { key: "users", width: COLUMN_WIDTH.users, priority: 4 },
+  { key: "priority", width: COLUMN_WIDTH.priority, priority: 2 },
+  { key: "assignee", width: COLUMN_WIDTH.assignee, priority: 1 },
+];
 /** Horizontal padding inside each row, matching the web's cell padding. */
 export const ROW_PADDING = 1;
 /** Three text lines (title / message / meta) plus the separating rule. */
@@ -93,17 +110,12 @@ export interface RowLayout {
  */
 export function resolveRowLayout(width: number): RowLayout {
   const content = Math.max(MIN_TITLE_WIDTH + MARKER_WIDTH, width - ROW_PADDING * 2);
-  const columns = [...ALL_COLUMNS];
+  const resolved = layoutColumns(LAYOUT_COLUMNS, content, { gap: 0, minFlex: MIN_TITLE_WIDTH });
+  const title = resolved.find(({ column }) => column.key === "title")?.width ?? MIN_TITLE_WIDTH;
+  const visible = new Set(resolved.map(({ column }) => column.key));
+  const columns = ALL_COLUMNS.filter((key) => visible.has(key));
 
-  const titleFor = (cols: ColumnKey[]) =>
-    content - MARKER_WIDTH - cols.reduce((sum, key) => sum + COLUMN_WIDTH[key], 0);
-
-  for (const key of DROP_ORDER) {
-    if (titleFor(columns) >= MIN_TITLE_WIDTH) break;
-    columns.splice(columns.indexOf(key), 1);
-  }
-
-  return { content, title: Math.max(MIN_TITLE_WIDTH, titleFor(columns)), columns };
+  return { content, title, columns };
 }
 
 /**
