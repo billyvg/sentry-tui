@@ -148,3 +148,18 @@ export const exploreTimeseriesFixture: TimeseriesBucket[] = Array.from(
   { length: 12 },
   (_, i): TimeseriesBucket => [BASE_SECONDS + i * 300, [{ count: 40 + i * 7 }]],
 );
+
+/** `/events-timeseries/` response for Explore, including its provisional tail. */
+export const exploreEventsTimeseriesFixture = {
+  timeSeries: [
+    {
+      yAxis: "count()",
+      values: exploreTimeseriesFixture.map(([timestamp, values], index) => ({
+        timestamp: timestamp * 1000,
+        value: values[0]?.count ?? 0,
+        incomplete: index === exploreTimeseriesFixture.length - 1,
+      })),
+      meta: { interval: 300_000, valueType: "integer", valueUnit: null },
+    },
+  ],
+};

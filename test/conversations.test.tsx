@@ -14,7 +14,7 @@ import { getScreen } from "~/core/screens";
 import { App } from "~/ui/App";
 import { SCREEN_COMPONENTS } from "~/ui/screens/registry";
 import { rawConversationsFixture } from "./conversation-fixtures";
-import { exploreTimeseriesFixture } from "./explore-fixtures";
+import { exploreEventsTimeseriesFixture } from "./explore-fixtures";
 import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
@@ -39,7 +39,7 @@ function stubClient(rows: unknown = rawConversationsFixture) {
       });
 
     if (url.includes("/ai-conversations/")) return json(rows);
-    if (url.includes("/events-stats/")) return json({ data: exploreTimeseriesFixture });
+    if (url.includes("/events-timeseries/")) return json(exploreEventsTimeseriesFixture);
     return json([]);
   }) as unknown as typeof fetch;
   return { client: new SentryClient({ auth, fetchImpl }), calls };
@@ -252,7 +252,7 @@ describe("Explore › Conversations", () => {
     try {
       await h.waitForFrame((f) => f.includes("count_unique(gen_ai.conversation.id)"));
 
-      const chart = calls.find((url) => url.includes("/events-stats/"))!;
+      const chart = calls.find((url) => url.includes("/events-timeseries/"))!;
       expect(chart).toContain("dataset=spans");
       expect(decodeURIComponent(chart)).toContain("has:gen_ai.conversation.id");
     } finally {

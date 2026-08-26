@@ -43,9 +43,12 @@ import {
   type ExploreTable as ExploreTableConfig,
 } from "~/core/exploreTables";
 import { useTheme } from "~/ui/theme";
+import { chartInterval, chartIntervalOptions } from "~/lib/interval";
 import { fitText, padText } from "~/lib/text";
 import { BarChart, CHART_ROWS, fitsChart } from "~/ui/components/BarChart";
+import { Chip, CHIP_HEIGHT } from "~/ui/components/Chip";
 import { DataTable } from "~/ui/components/DataTable";
+import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
 import {
   ExploreQueryBar,
   QUERY_BAR_ROWS,
@@ -110,10 +113,16 @@ function ExploreTableScreen({
   // own — see the module comment for why it is not in the screen's slice.
   const [builder, setBuilder] = useState<ExploreQueryState>(() => defaultExploreQuery(table));
   const [queryDropdown, setQueryDropdown] = useState<ExploreQueryDropdown>(null);
+  const [selectedInterval, setSelectedInterval] = useState<string>();
   const hasBuilder = table.builder !== undefined;
 
   const resolved = useMemo(() => resolveExploreQuery(table, builder), [table, builder]);
   const fixedSortItems = useMemo(() => fieldSortItems(table.fields), [table.fields]);
+  const intervalItems = useMemo(() => chartIntervalOptions(state.statsPeriod), [state.statsPeriod]);
+  const interval =
+    intervalItems.find(({ value }) => value === selectedInterval)?.value ??
+    intervalItems[0]?.value ??
+    chartInterval(state.statsPeriod);
 
   const attributes = useTraceItemAttributes(client, {
     org,
@@ -131,6 +140,7 @@ function ExploreTableScreen({
       query,
       request: resolved,
       statsPeriod: state.statsPeriod,
+      interval,
       project,
       environment,
       reloadToken,
@@ -200,6 +210,10 @@ function ExploreTableScreen({
     // mean anything where there is a builder, and the app has no way to know
     // which tables have one.
     handleKey: (key) => {
+      if (matchesCommand("sentry.explore.interval", key)) {
+        openQueryDropdown("interval");
+        return true;
+      }
       if (!hasBuilder) return false;
       if (matchesCommand("sentry.explore.visualize", key)) {
         openQueryDropdown("visualize");
@@ -244,10 +258,7 @@ function ExploreTableScreen({
   // row is what is being read, so the chart yields rather than squeezing the
   // table to a handful of lines.
   const hasChart =
-    !showDetail &&
-    fitsChart(height, hasBuilder ? QUERY_BAR_ROWS : 0) &&
-    buckets !== undefined &&
-    buckets.length > 0;
+    !showDetail && fitsChart(height, QUERY_BAR_ROWS) && buckets !== undefined && buckets.length > 0;
   const inner = Math.max(20, width - 2);
 
   return (
@@ -295,18 +306,31 @@ function ExploreTableScreen({
           open={queryDropdown}
           width={width}
           anchorTop={SEARCH_ROWS + QUERY_BAR_ROWS}
+          interval={interval ?? ""}
+          intervalItems={intervalItems}
           onChange={setBuilder}
+          onIntervalChange={setSelectedInterval}
           onOpen={openQueryDropdown}
           onClose={closeQueryDropdown}
         />
-      ) : null}
+      ) : (
+        <ExploreIntervalBar
+          interval={interval ?? ""}
+          items={intervalItems}
+          open={queryDropdown === "interval"}
+          width={width}
+          anchorTop={SEARCH_ROWS + QUERY_BAR_ROWS}
+          onOpen={() => openQueryDropdown("interval")}
+          onChange={setSelectedInterval}
+          onClose={closeQueryDropdown}
+        />
+      )}
 
       {/*
-       * The chart plots the visualize expression across the whole query, group
-       * bys included but not broken out. The web draws one series per group
-       * here (`useExploreTimeseries` sends `topEvents`); a terminal chart has
-       * one colour of bar and no legend to tell five series apart, so it stays
-       * the total — which is still the thing the aggregate column sums to.
+       * A grouped request asks for the web's top nine series plus Other. The
+       * API adapter combines them back into the total here: a terminal bar
+       * chart has no hover legend to distinguish ten overlapping colors, while
+       * the total still agrees with the aggregate column beneath it.
        */}
       {hasChart && buckets ? (
         <BarChart
@@ -364,6 +388,68 @@ function ExploreTableScreen({
         }
       />
     </box>
+  );
+}
+
+/** The chart-only control row used by Explore tables without a query builder. */
+function ExploreIntervalBar({
+  interval,
+  items,
+  open,
+  width,
+  anchorTop,
+  onOpen,
+  onChange,
+  onClose,
+}: {
+  interval: string;
+  items: readonly DropdownItem[];
+  open: boolean;
+  width: number;
+  anchorTop: number;
+  onOpen: () => void;
+  onChange: (interval: string) => void;
+  onClose: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <>
+      <box
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          flexShrink: 0,
+          height: CHIP_HEIGHT,
+          overflow: "hidden",
+        }}
+      >
+        <text fg={theme.muted}>Interval </text>
+        <Chip
+          command="sentry.explore.interval"
+          label={interval}
+          caret
+          active={open}
+          onPress={onOpen}
+        />
+      </box>
+      {open ? (
+        <Dropdown
+          title="Chart Interval"
+          items={items}
+          selected={[interval]}
+          anchorLeft={9}
+          anchorTop={anchorTop + CHIP_HEIGHT}
+          availableWidth={width}
+          showAll={false}
+          onSelect={(values) => {
+            const value = values[0];
+            if (value) onChange(value);
+            onClose();
+          }}
+          onClose={onClose}
+        />
+      ) : null}
+    </>
   );
 }
 

@@ -2,7 +2,7 @@
  * The conversation list and the chart above it, as async state.
  *
  * Two endpoints, one hook: the table comes from `/ai-conversations/` and the
- * chart from Discover's `events-stats/` over the same gen-AI spans, which is
+ * chart from Discover's `events-timeseries/` over the same gen-AI spans, which is
  * how the web draws them too. Shaped like `useExploreEvents` — both requests
  * share the same filters and reload key, and neither polls.
  */

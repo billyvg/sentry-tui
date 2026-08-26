@@ -328,6 +328,13 @@ export const COMMANDS: readonly Command[] = [
     description: "Flip between ascending and descending",
   },
   {
+    id: "sentry.explore.interval",
+    title: "Chart interval",
+    category: "view",
+    defaultKeys: ["I"],
+    description: "Choose the chart bucket width",
+  },
+  {
     // Every section is bound at once rather than one command per section: the
     // number is printed in the section's own header, so the binding is read off
     // the screen instead of memorised.

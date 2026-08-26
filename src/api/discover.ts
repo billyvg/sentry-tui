@@ -3,8 +3,8 @@
  *
  * Most of Explore is the same request with a different `dataset` and
  * `field[]`: `GET /organizations/{org}/events/` returns rows in a flat tabular
- * format, and `GET /organizations/{org}/events-stats/` returns the matching
- * volume timeseries. Screens supply the dataset, the fields, and a row
+ * format, and `GET /organizations/{org}/events-timeseries/` returns Explore's
+ * matching volume timeseries. Screens supply the dataset, the fields, and a row
  * normaliser; nothing here knows what a log or a span is.
  *
  * Manual refresh only — nothing in this module polls. `events/` rate limits
@@ -163,7 +163,7 @@ function isGeneratedDiscoverDataset(dataset: DiscoverDataset): dataset is Genera
  * The nested array is the endpoint's own shape — one entry per series, of
  * which single-`yAxis` queries have exactly one.
  */
-export type TimeseriesBucket = [number, Array<{ count: number }>];
+export type TimeseriesBucket = [number, Array<{ count: number }>, { incomplete?: boolean }?];
 
 export interface QueryTimeseriesParams {
   org: string;
@@ -222,6 +222,100 @@ export async function queryDiscoverTimeseries(
   );
 
   return unwrapBuckets(page.data);
+}
+
+interface EventsTimeseriesValue {
+  /** Milliseconds since the Unix epoch. */
+  timestamp: number;
+  value: number | null;
+  incomplete?: boolean;
+}
+
+interface EventsTimeseriesSeries {
+  yAxis: string;
+  values: EventsTimeseriesValue[];
+}
+
+interface EventsTimeseriesResponse {
+  timeSeries: EventsTimeseriesSeries[];
+}
+
+export interface QueryExploreTimeseriesParams extends QueryTimeseriesParams {
+  /** Attributes that split the response into top series. */
+  groupBy?: readonly string[];
+  /** Top-series order, in the endpoint's `-field` spelling. */
+  sort?: string;
+  /** Number of grouped series to return before the Other series. */
+  topEvents?: number;
+}
+
+/**
+ * Fetch the canonical Explore timeseries and adapt it to the chart's bucket
+ * shape. Unlike the legacy events-stats route, timestamps arrive in
+ * milliseconds and values carry the server's provisional-bucket marker.
+ */
+export async function queryExploreTimeseries(
+  client: SentryClient,
+  {
+    org,
+    dataset,
+    yAxis = "count()",
+    query = "",
+    statsPeriod,
+    interval = chartInterval(statsPeriod),
+    project,
+    environment,
+    referrer,
+    signal,
+    groupBy,
+    sort,
+    topEvents,
+  }: QueryExploreTimeseriesParams,
+): Promise<TimeseriesBucket[]> {
+  const page = await client.request<EventsTimeseriesResponse>(
+    `/organizations/${org}/events-timeseries/`,
+    {
+      query: {
+        dataset,
+        yAxis,
+        query: query || undefined,
+        statsPeriod,
+        interval,
+        project: projectParams(project),
+        environment,
+        referrer,
+        partial: 1,
+        excludeOther: 0,
+        sampling: "NORMAL",
+        groupBy: groupBy ? [...groupBy] : undefined,
+        sort,
+        topEvents,
+      },
+      signal,
+    },
+  );
+
+  const series = Array.isArray(page.data?.timeSeries) ? page.data.timeSeries : [];
+  const combined = new Map<number, { count: number; incomplete: boolean }>();
+  for (const item of series.flatMap((entry) =>
+    Array.isArray(entry?.values) ? entry.values : [],
+  )) {
+    if (!item || !Number.isFinite(item.timestamp)) continue;
+    const value = item.value === null ? 0 : Number(item.value);
+    if (!Number.isFinite(value)) continue;
+    const current = combined.get(item.timestamp);
+    combined.set(item.timestamp, {
+      count: (current?.count ?? 0) + value,
+      incomplete: Boolean(current?.incomplete || item.incomplete),
+    });
+  }
+  return [...combined.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([timestamp, value]) => [
+      timestamp / 1000,
+      [{ count: value.count }],
+      { incomplete: value.incomplete || undefined },
+    ]);
 }
 
 /**

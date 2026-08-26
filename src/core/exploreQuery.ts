@@ -329,6 +329,8 @@ export interface ResolvedExploreQuery {
   sort: string;
   /** Aggregate plotted above the table. */
   yAxis: string;
+  /** Attributes that split the aggregate chart into top series. */
+  groupBys: readonly string[];
   /** Field carrying a row's identity; aggregate rows have none. */
   idField: string;
 }
@@ -349,13 +351,14 @@ export function resolveExploreQuery(
   const mode = exploreMode(state);
   const sort = formatSort(effectiveSort(state, table));
   if (mode === "samples") {
-    return { mode, fields: table.fields, sort, yAxis, idField: table.idField };
+    return { mode, fields: table.fields, sort, yAxis, groupBys: [], idField: table.idField };
   }
   return {
     mode,
     fields: unique([...state.groupBys, yAxis]),
     sort,
     yAxis,
+    groupBys: state.groupBys,
     idField: state.groupBys[0] ?? "",
   };
 }

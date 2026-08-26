@@ -46,7 +46,7 @@ import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
 import type { TraceItemAttributes } from "~/ui/hooks/useTraceItemAttributes";
 
 /** Which of the builder's menus is open, if any. */
-export type ExploreQueryDropdown = "visualize" | "field" | "groupBy" | "sort" | null;
+export type ExploreQueryDropdown = "visualize" | "field" | "groupBy" | "sort" | "interval" | null;
 
 /** Rows the builder row occupies — one chip's worth, like the filter row. */
 export const QUERY_BAR_ROWS = CHIP_HEIGHT;
@@ -79,7 +79,12 @@ export interface ExploreQueryBarProps {
   width: number;
   /** Row the builder starts on, for anchoring a menu below its chip. */
   anchorTop: number;
+  /** Bucket width selected for the chart above the table. */
+  interval: string;
+  /** Widths valid for the current date range. */
+  intervalItems: readonly DropdownItem[];
   onChange: (next: ExploreQueryState) => void;
+  onIntervalChange: (interval: string) => void;
   onOpen: (which: ExploreQueryDropdown) => void;
   onClose: () => void;
 }
@@ -103,7 +108,10 @@ export function ExploreQueryBar({
   open,
   width,
   anchorTop,
+  interval,
+  intervalItems,
   onChange,
+  onIntervalChange,
   onOpen,
   onClose,
 }: ExploreQueryBarProps) {
@@ -168,6 +176,14 @@ export function ExploreQueryBar({
         command: "sentry.explore.sortDirection",
         label: sort.direction === "desc" ? "Desc" : "Asc",
       },
+    },
+    { kind: "label", text: "Interval", gapBefore: SECTION_GAP },
+    {
+      kind: "chip",
+      gapBefore: LABEL_GAP,
+      opens: "interval",
+      onPress: () => onOpen("interval"),
+      chip: { command: "sentry.explore.interval", label: interval, caret: true },
     },
   ];
 
@@ -263,6 +279,24 @@ export function ExploreQueryBar({
           onSelect={(values) => {
             const value = values[0];
             if (value) onChange(withSort(query, { field: value, direction: sort.direction }));
+            onClose();
+          }}
+          onClose={onClose}
+        />
+      ) : null}
+
+      {open === "interval" ? (
+        <Dropdown
+          title="Chart Interval"
+          items={intervalItems}
+          selected={[interval]}
+          anchorLeft={anchorOf("interval")}
+          anchorTop={dropdownTop}
+          showAll={false}
+          placeholder="No intervals for this range"
+          onSelect={(values) => {
+            const value = values[0];
+            if (value) onIntervalChange(value);
             onClose();
           }}
           onClose={onClose}

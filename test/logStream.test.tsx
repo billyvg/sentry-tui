@@ -3,7 +3,11 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
-import { logTimeseriesFixture, rawLogRowsFixture } from "./log-fixtures";
+import {
+  logEventsTimeseriesFixture,
+  logTimeseriesFixture,
+  rawLogRowsFixture,
+} from "./log-fixtures";
 import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
@@ -29,9 +33,10 @@ function stubClient(
         headers: { "Content-Type": "application/json" },
       });
     }
-    // Log volume timeseries via events-stats endpoint.
-    if (url.includes("/events-stats/") && url.includes("dataset=logs")) {
-      return new Response(JSON.stringify({ data: timeseries }), {
+    // Log volume timeseries via the canonical Explore endpoint.
+    if (url.includes("/events-timeseries/") && url.includes("dataset=logs")) {
+      const body = timeseries === logTimeseriesFixture ? logEventsTimeseriesFixture : timeseries;
+      return new Response(JSON.stringify(body), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   chartInterval,
+  chartIntervalOptions,
   dashboardChartInterval,
   DASHBOARD_MAX_BIN_COUNT,
   statsPeriodMinutes,
@@ -94,5 +95,23 @@ describe("dashboardChartInterval", () => {
   test("leaves an unreadable absolute range for the endpoint to resolve", () => {
     expect(dashboardChartInterval(undefined, undefined, false)).toBeUndefined();
     expect(dashboardChartInterval(undefined, "1h", false)).toBe("1h");
+  });
+});
+
+describe("chartIntervalOptions", () => {
+  test("filters the web's choices to the selected range", () => {
+    expect(chartIntervalOptions("1h").map(({ value }) => value)).toEqual(["1m", "5m"]);
+    expect(chartIntervalOptions("24h").map(({ value }) => value)).toEqual(["5m", "10m", "30m"]);
+    expect(chartIntervalOptions("14d").map(({ value }) => value)).toEqual(["1h", "3h", "6h", "1d"]);
+    expect(chartIntervalOptions("90d").map(({ value }) => value)).toEqual([
+      "3h",
+      "6h",
+      "12h",
+      "1d",
+    ]);
+  });
+
+  test("has no picker options for an unreadable range", () => {
+    expect(chartIntervalOptions(undefined)).toEqual([]);
   });
 });

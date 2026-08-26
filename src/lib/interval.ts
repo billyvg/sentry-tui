@@ -25,6 +25,8 @@ const FOUR_DAYS = 5_760;
 const FORTY_EIGHT_HOURS = 2_880;
 const TWELVE_HOURS = 720;
 const SIX_HOURS = 360;
+const ONE_HOUR = 60;
+const FIVE_MINUTES = 5;
 
 /**
  * `MINIMUM_INTERVAL` from `app/utils/useChartInterval.tsx:176`, the finest
@@ -72,6 +74,30 @@ const DASHBOARD_INTERVALS = [
   "1d",
   "2d",
   "1w",
+] as const;
+
+/** Coarsest interval Explore offers for each selected range. */
+const MAXIMUM_INTERVAL: readonly GranularityStep[] = [
+  [THIRTY_DAYS, "12h"],
+  [TWO_WEEKS, "6h"],
+  [FOUR_DAYS, "3h"],
+  [FORTY_EIGHT_HOURS, "1h"],
+  [TWELVE_HOURS, "30m"],
+  [SIX_HOURS, "10m"],
+  [ONE_HOUR, "5m"],
+  [FIVE_MINUTES, "5m"],
+  [0, "1m"],
+];
+
+const INTERVAL_OPTIONS = [
+  { value: "1m", label: "1 minute" },
+  { value: "5m", label: "5 minutes" },
+  { value: "10m", label: "10 minutes" },
+  { value: "30m", label: "30 minutes" },
+  { value: "1h", label: "1 hour" },
+  { value: "3h", label: "3 hours" },
+  { value: "6h", label: "6 hours" },
+  { value: "12h", label: "12 hours" },
 ] as const;
 
 const UNIT_MINUTES: Record<string, number> = {
@@ -141,4 +167,27 @@ export function dashboardChartInterval(
     DASHBOARD_INTERVALS.find((interval) => statsPeriodMinutes(interval)! >= minimumMinutes) ??
     DASHBOARD_INTERVALS.at(-1)
   );
+}
+
+/**
+ * Bucket widths the Explore interval picker may offer for `statsPeriod`.
+ *
+ * The lower bound prevents requests above roughly one thousand points and the
+ * upper bound prevents a chart collapsing to one or two bars. Ranges of two
+ * weeks or more also offer the web's explicit one-day option.
+ */
+export function chartIntervalOptions(
+  statsPeriod: string | undefined,
+): ReadonlyArray<{ value: string; label: string }> {
+  const minutes = statsPeriodMinutes(statsPeriod);
+  if (minutes === undefined || minutes < 0) return [];
+  const minimum = statsPeriodMinutes(chartInterval(statsPeriod))!;
+  const maximum = statsPeriodMinutes(
+    MAXIMUM_INTERVAL.find(([threshold]) => minutes >= threshold)![1],
+  )!;
+  const options = INTERVAL_OPTIONS.filter(({ value }) => {
+    const option = statsPeriodMinutes(value)!;
+    return option >= minimum && option <= maximum;
+  });
+  return minutes >= TWO_WEEKS ? [...options, { value: "1d", label: "1 day" }] : options;
 }

@@ -13,7 +13,7 @@
 import type { SentryClient } from "~/api/client";
 import {
   queryDiscover,
-  queryDiscoverTimeseries,
+  queryExploreTimeseries,
   rowString,
   type DiscoverDataset,
   type DiscoverRow,
@@ -80,6 +80,11 @@ export interface ListExploreTimeseriesParams {
   yAxis: string;
   query?: string;
   statsPeriod?: string;
+  /** Bucket width chosen for this chart. */
+  interval?: string;
+  groupBy?: readonly string[];
+  sort?: string;
+  topEvents?: number;
   project?: string[];
   environment?: string[];
   referrer?: string;
@@ -96,5 +101,5 @@ export async function listExploreTimeseries(
   client: SentryClient,
   params: ListExploreTimeseriesParams,
 ): Promise<TimeseriesBucket[]> {
-  return queryDiscoverTimeseries(client, params);
+  return queryExploreTimeseries(client, params);
 }

@@ -49,7 +49,7 @@ const BOTTOM_ROWS = 1;
 const TITLE_ROWS = 1;
 
 export interface BarChartProps {
-  /** Raw timeseries buckets from the events-stats API. */
+  /** Timeseries buckets normalized from either Sentry chart endpoint. */
   buckets: readonly TimeseriesBucket[];
   /** Available width in terminal columns. */
   width: number;
@@ -67,19 +67,26 @@ export interface BarChartProps {
   noun?: string;
 }
 
-/**
- * Downsample `values` into `targetLen` buckets by summing neighbouring cells.
- */
-function downsample(values: number[], targetLen: number): number[] {
+interface ChartValue {
+  value: number;
+  incomplete: boolean;
+}
+
+/** Downsample values by summing neighbours and retaining provisional state. */
+function downsample(values: ChartValue[], targetLen: number): ChartValue[] {
   if (values.length <= targetLen) return values;
   const bucketSize = values.length / targetLen;
-  const out: number[] = [];
+  const out: ChartValue[] = [];
   for (let i = 0; i < targetLen; i++) {
     const start = Math.floor(i * bucketSize);
     const end = Math.min(values.length, Math.floor((i + 1) * bucketSize));
     let sum = 0;
-    for (let j = start; j < end; j++) sum += values[j]!;
-    out.push(sum);
+    let incomplete = false;
+    for (let j = start; j < end; j++) {
+      sum += values[j]!.value;
+      incomplete ||= values[j]!.incomplete;
+    }
+    out.push({ value: sum, incomplete });
   }
   return out;
 }
@@ -147,12 +154,16 @@ export function BarChart({ buckets, width, height, title, noun }: BarChartProps)
 
   // Extract counts from the raw bucket format.
   const rawCounts = buckets.map(([, agg]) => agg[0]?.count ?? 0);
+  const rawValues = buckets.map(([, agg, meta]) => ({
+    value: agg[0]?.count ?? 0,
+    incomplete: meta?.incomplete === true,
+  }));
   // Fit the series to the chart in whichever direction it needs: a long window
   // has more buckets than cells, a short one fewer. Without the stretch a
   // six-bucket series draws six bars against the left edge of a seventy-cell
   // box, which reads as an empty chart rather than a small one.
-  const values = stretch(downsample(rawCounts, chartWidth), chartWidth);
-  const max = Math.max(1, ...values);
+  const values = stretch(downsample(rawValues, chartWidth), chartWidth);
+  const max = Math.max(1, ...values.map(({ value }) => value));
   const total = rawCounts.reduce((a, b) => a + b, 0);
 
   const labels = yAxisLabels(max);
@@ -164,20 +175,19 @@ export function BarChart({ buckets, width, height, title, noun }: BarChartProps)
   for (let row = chartHeight - 1; row >= 0; row--) {
     let line = "";
     for (let col = 0; col < values.length; col++) {
-      const v = values[col]!;
+      const { value: v, incomplete } = values[col]!;
       // Normalised height in sub-cells (chartHeight * 8 sub-cells total).
       const subCells = max === 0 ? 0 : Math.round((v / max) * chartHeight * 8);
       // How many full rows this bar fills.
       const fullRows = Math.floor(subCells / 8);
       const remainder = subCells % 8;
 
-      if (row < fullRows) {
-        line += "█";
-      } else if (row === fullRows && remainder > 0) {
-        line += BLOCKS[remainder]!;
-      } else {
-        line += " ";
-      }
+      const glyph =
+        row < fullRows ? "█" : row === fullRows && remainder > 0 ? BLOCKS[remainder]! : " ";
+      // The endpoint includes the current, incomplete bucket when `partial=1`.
+      // A stippled tail distinguishes it from settled bars without needing a
+      // mouse tooltip a terminal cannot provide.
+      line += incomplete && glyph !== " " ? "░" : glyph;
     }
     rows.push(line);
   }

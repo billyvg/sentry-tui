@@ -15,9 +15,11 @@ function stubClient() {
     const url = String(input);
     const payload = url.includes("issues-stats")
       ? {}
-      : url.includes("/events-stats/") || url.includes("/events/")
-        ? { data: [] }
-        : groupsFixture;
+      : url.includes("/events-timeseries/")
+        ? { timeSeries: [] }
+        : url.includes("/events-stats/") || url.includes("/events/")
+          ? { data: [] }
+          : groupsFixture;
     return new Response(JSON.stringify(payload), {
       status: 200,
       headers: { "Content-Type": "application/json" },
