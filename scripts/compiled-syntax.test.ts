@@ -10,8 +10,8 @@ function output(stream: Uint8Array): string {
   return new TextDecoder().decode(stream);
 }
 
-test("compiled binaries embed the OpenTUI worker and Python grammar", () => {
-  const tempDir = mkdtempSync(join(tmpdir(), "sentry-tui-python-syntax-"));
+test("compiled binaries embed stack-frame grammars", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "sentry-tui-syntax-"));
   const binary = join(tempDir, process.platform === "win32" ? "probe.exe" : "probe");
 
   try {
@@ -37,4 +37,4 @@ test("compiled binaries embed the OpenTUI worker and Python grammar", () => {
   } finally {
     rmSync(tempDir, { force: true, recursive: true });
   }
-}, 30_000);
+}, 60_000);

@@ -9,13 +9,28 @@ const SYNTAX_CASES = [
     groups: ["keyword", "function"],
   },
   {
+    content: 'def process_job; raise HTTPError, "boom"; end',
+    filetype: "ruby",
+    groups: ["keyword", "function.method"],
+  },
+  {
+    content: 'function processJob(): void { throw new RuntimeException("boom"); }',
+    filetype: "php",
+    groups: ["keyword", "function"],
+  },
+  {
+    content: 'func processJob() error { return errors.New("boom") }',
+    filetype: "go",
+    groups: ["keyword", "function"],
+  },
+  {
     content: "function processJob() { return true; }",
     filetype: "javascript",
     groups: ["keyword", "function"],
   },
 ] as const;
 
-/** Verify custom and built-in parsers through OpenTUI's shared runtime client. */
+/** Verify stack-frame and built-in parsers through OpenTUI's shared runtime client. */
 export async function verifySyntaxRuntime(): Promise<void> {
   registerSyntaxParsers();
   const client = getTreeSitterClient();
