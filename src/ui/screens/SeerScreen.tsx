@@ -67,7 +67,10 @@ export function SeerScreen({
   const [questionSelected, setQuestionSelected] = useState(0);
 
   const value = state.searchQuery;
-  const setValue = state.setSearchQuery;
+  const setValue = useCallback(
+    (next: string) => state.dispatch({ type: "setSearchQuery", payload: next }),
+    [state.dispatch],
+  );
   const pendingId = chat?.pendingInput?.id;
 
   const commands = useMemo(

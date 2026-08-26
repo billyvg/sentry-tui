@@ -102,7 +102,9 @@ function IssueFeedHarness({ client }: { client: SentryClient | null }) {
       height={HEIGHT}
       focused
       reloadToken={0}
-      onProjectSelect={state.setSelectedProjects}
+      onProjectSelect={(projects) =>
+        state.dispatch({ type: "setSelectedProjects", payload: projects })
+      }
       pendingIds={EMPTY_PENDING_IDS}
       pushView={() => {}}
       notify={() => {}}

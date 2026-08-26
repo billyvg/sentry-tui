@@ -69,7 +69,7 @@ function fallbackView(item: string): MonitorListView {
 export function MonitorList(props: ScreenProps) {
   const theme = useTheme();
   const { client, org, screen, state, focused, width, height, reloadToken } = props;
-  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
 
   const view = getMonitorListView(screen.id) ?? fallbackView(screen.item);
   const query = buildDetectorQuery(view, state.committedQuery);
@@ -90,12 +90,15 @@ export function MonitorList(props: ScreenProps) {
   const since = loadingSince(status);
 
   useEffect(() => {
-    if (rows) setEntries(rows);
-  }, [rows, setEntries]);
+    if (rows) dispatch({ type: "setEntries", payload: rows });
+  }, [rows, dispatch]);
 
   useEffect(() => {
-    setStatus({ loading, since, error: error?.message, noun: "monitors" });
-  }, [loading, since, error, setStatus]);
+    dispatch({
+      type: "setStatus",
+      payload: { loading, since, error: error?.message, noun: "monitors" },
+    });
+  }, [loading, since, error, dispatch]);
 
   // Project slugs for the detail line: a detector carries a numeric
   // `projectId`, and only the projects list knows what that is called.
@@ -212,7 +215,7 @@ export function MonitorList(props: ScreenProps) {
         placeholder={view.searchPlaceholder}
         focused={state.searchFocused}
         width={width}
-        onInput={state.setSearchQuery}
+        onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
         onFocus={focusSearch}
         onBlur={handleSearchBlur}
       />
@@ -229,9 +232,9 @@ export function MonitorList(props: ScreenProps) {
         open={state.openDropdown === "sort"}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
-        onChange={state.setSort}
-        onOpen={() => setOpenDropdown("sort")}
-        onClose={() => setOpenDropdown(null)}
+        onChange={(sort) => dispatch({ type: "setSort", payload: sort })}
+        onOpen={() => dispatch({ type: "setOpenDropdown", payload: "sort" })}
+        onClose={() => dispatch({ type: "setOpenDropdown", payload: null })}
       />
 
       <DataTable

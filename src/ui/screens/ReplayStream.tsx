@@ -191,7 +191,7 @@ export function ReplayStream({
   activateRow,
 }: ScreenProps) {
   const theme = useTheme();
-  const { setEntries, setStatus, setOpenDropdown } = state;
+  const { dispatch } = state;
 
   const query = state.committedQuery;
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
@@ -231,19 +231,25 @@ export function ReplayStream({
   );
 
   useEffect(() => {
-    if (rows) setEntries(rows);
-  }, [rows, setEntries]);
+    if (rows) dispatch({ type: "setEntries", payload: rows });
+  }, [rows, dispatch]);
 
   useEffect(() => {
-    setStatus({
-      loading,
-      since,
-      error: error?.message,
-      noun: "replays",
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading,
+        since,
+        error: error?.message,
+        noun: "replays",
+      },
     });
-  }, [loading, since, error, replays, setStatus]);
+  }, [loading, since, error, replays, dispatch]);
 
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   useScreenActions(registerActions, {
     open: (index) => {
@@ -263,14 +269,18 @@ export function ReplayStream({
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sort={{ value: sort, items: REPLAY_SORT_OPTIONS, onChange: state.setSort }}
+        sort={{
+          value: sort,
+          items: REPLAY_SORT_OPTIONS,
+          onChange: (value) => dispatch({ type: "setSort", payload: value }),
+        }}
         width={width}
         anchorTop={SEARCH_ROWS}
         onProjectChange={onProjectSelect}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={state.setStatsPeriod}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownClose={closeDropdown}
-        onDropdownOpen={state.setOpenDropdown}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       <DataTable
@@ -510,7 +520,7 @@ function ReplayDetail({
   reloadToken,
 }: ReplayDetailProps) {
   const theme = useTheme();
-  const { setEntries, setStatus, setOpenDropdown } = state;
+  const { dispatch } = state;
 
   const { errors: status, nextCursor } = useReplayErrors(client, {
     org,
@@ -527,18 +537,24 @@ function ReplayDetail({
   const error = errorOf(status);
 
   useEffect(() => {
-    if (errors) setEntries(errors);
-  }, [errors, setEntries]);
+    if (errors) dispatch({ type: "setEntries", payload: errors });
+  }, [errors, dispatch]);
 
   useEffect(() => {
-    setStatus({
-      loading: status.state === "loading",
-      error: error?.message,
-      noun: "replay errors",
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading: status.state === "loading",
+        error: error?.message,
+        noun: "replay errors",
+      },
     });
-  }, [status, error, setStatus]);
+  }, [status, error, dispatch]);
 
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [setOpenDropdown]);
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   const inner = Math.max(20, width - 2);
   const name = replay.user.displayName ?? "Anonymous User";
@@ -563,11 +579,11 @@ function ReplayDetail({
         // The filter row is this view's first row now that the app draws the
         // breadcrumb in the pane's border rather than the screen printing one.
         anchorTop={0}
-        onProjectChange={state.setSelectedProjects}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={state.setStatsPeriod}
+        onProjectChange={(projects) => dispatch({ type: "setSelectedProjects", payload: projects })}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownClose={closeDropdown}
-        onDropdownOpen={state.setOpenDropdown}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       <box style={{ flexDirection: "row", flexShrink: 0 }}>
@@ -752,7 +768,7 @@ function SearchInputPlaceholder({
         value={state.searchQuery}
         placeholder={placeholder}
         focused={state.searchFocused}
-        onInput={state.setSearchQuery}
+        onInput={(query) => state.dispatch({ type: "setSearchQuery", payload: query })}
         style={{
           flexGrow: 1,
           textColor: theme.text,

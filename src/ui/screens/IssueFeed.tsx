@@ -70,10 +70,14 @@ export function IssueFeed(props: IssueFeedProps) {
     registerActions,
   } = props;
   const theme = useTheme();
+  const { dispatch } = state;
   const view = "screen" in props ? getIssueView(props.screen.item) : undefined;
   const title = "screen" in props ? view?.label : props.title;
   const description = "screen" in props ? view?.description : props.description;
-  const onProjectChange = "screen" in props ? props.onProjectSelect : state.setSelectedProjects;
+  const onProjectChange =
+    "screen" in props
+      ? props.onProjectSelect
+      : (projects: string[]) => dispatch({ type: "setSelectedProjects", payload: projects });
   const inputRef = useRef<InputRenderable>(null);
   const listRef = useRef<ScrollBoxRenderable>(null);
 
@@ -84,7 +88,10 @@ export function IssueFeed(props: IssueFeedProps) {
     },
     [state, pushView, client, org],
   );
-  const closeDropdown = useCallback(() => state.setOpenDropdown(null), [state.setOpenDropdown]);
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   // Sync native focus/blur (for example, mouse clicks) back to screen state.
   const inputRefCallback = useCallback(
@@ -123,8 +130,8 @@ export function IssueFeed(props: IssueFeedProps) {
   useEffect(() => {
     if (reportedPage.current === page) return;
     reportedPage.current = page;
-    state.setSelected(0);
-  }, [page, state.setSelected]);
+    dispatch({ type: "setSelected", payload: 0 });
+  }, [page, dispatch]);
 
   const loading = issues.state === "loading";
   const since = loadingSince(issues);
@@ -138,17 +145,20 @@ export function IssueFeed(props: IssueFeedProps) {
   const stale = rows !== undefined && (loading || error !== undefined);
 
   useEffect(() => {
-    if (fetched) state.setEntries(fetched);
-  }, [fetched, state.setEntries]);
+    if (fetched) dispatch({ type: "setEntries", payload: fetched });
+  }, [fetched, dispatch]);
 
   useEffect(() => {
-    state.setStatus({
-      loading: loading || statsLoading,
-      since,
-      error: error?.message,
-      noun: "issues",
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading: loading || statsLoading,
+        since,
+        error: error?.message,
+        noun: "issues",
+      },
     });
-  }, [loading, statsLoading, since, error, issues, state.setStatus]);
+  }, [loading, statsLoading, since, error, issues, dispatch]);
 
   useRowScrollFollow(listRef, {
     index: state.selected,
@@ -202,7 +212,7 @@ export function IssueFeed(props: IssueFeedProps) {
           value={state.searchQuery}
           placeholder="Search issues…"
           focused={state.searchFocused}
-          onInput={state.setSearchQuery}
+          onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
           style={{
             flexGrow: 1,
             textColor: theme.text,
@@ -221,14 +231,18 @@ export function IssueFeed(props: IssueFeedProps) {
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        sort={{ value: sort, items: SORT_OPTIONS, onChange: state.setSort }}
+        sort={{
+          value: sort,
+          items: SORT_OPTIONS,
+          onChange: (value) => dispatch({ type: "setSort", payload: value }),
+        }}
         width={width}
         anchorTop={SEARCH_ROWS + (title ? TITLE_ROWS : 0)}
         onProjectChange={onProjectChange}
-        onEnvChange={state.setSelectedEnvs}
-        onPeriodChange={state.setStatsPeriod}
+        onEnvChange={(envs) => dispatch({ type: "setSelectedEnvs", payload: envs })}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownClose={closeDropdown}
-        onDropdownOpen={state.setOpenDropdown}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
       />
 
       <IssueListHeader

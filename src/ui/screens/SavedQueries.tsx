@@ -143,7 +143,7 @@ export function SavedQueries(props: ScreenProps) {
     registerActions,
     activateRow,
   } = props;
-  const { setEntries, setStatus, setOpenDropdown, focusSearch, handleSearchBlur } = state;
+  const { dispatch, focusSearch, handleSearchBlur } = state;
 
   // Every screen pointed at this component has an entry; the fallback keeps a
   // mis-wired registry line rendering an empty table rather than throwing.
@@ -175,17 +175,20 @@ export function SavedQueries(props: ScreenProps) {
   }, [projects]);
 
   useEffect(() => {
-    if (queries) setEntries(queries);
-  }, [queries, setEntries]);
+    if (queries) dispatch({ type: "setEntries", payload: queries });
+  }, [queries, dispatch]);
 
   useEffect(() => {
-    setStatus({
-      loading,
-      since,
-      error: error?.message,
-      noun: config.noun,
+    dispatch({
+      type: "setStatus",
+      payload: {
+        loading,
+        since,
+        error: error?.message,
+        noun: config.noun,
+      },
     });
-  }, [loading, since, error, status, config.noun, setStatus]);
+  }, [loading, since, error, status, config.noun, dispatch]);
 
   const open = useCallback(
     (index: number) => {
@@ -205,7 +208,7 @@ export function SavedQueries(props: ScreenProps) {
         placeholder={config.searchPlaceholder}
         focused={state.searchFocused}
         width={width}
-        onInput={state.setSearchQuery}
+        onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
         onFocus={focusSearch}
         onBlur={handleSearchBlur}
       />
@@ -225,9 +228,9 @@ export function SavedQueries(props: ScreenProps) {
         open={state.openDropdown === "sort"}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
-        onChange={state.setSort}
-        onOpen={() => setOpenDropdown("sort")}
-        onClose={() => setOpenDropdown(null)}
+        onChange={(sort) => dispatch({ type: "setSort", payload: sort })}
+        onOpen={() => dispatch({ type: "setOpenDropdown", payload: "sort" })}
+        onClose={() => dispatch({ type: "setOpenDropdown", payload: null })}
       />
 
       <DataTable
