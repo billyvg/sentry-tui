@@ -2,14 +2,18 @@ import { expect, test } from "bun:test";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
+import { getScreen } from "~/core/screens";
 import { SPARKLINE_PENDING } from "~/lib/sparkline";
-import { IssueStream } from "~/ui/screens/IssueStream";
+import { useScreenState } from "~/ui/hooks/useScreenState";
+import { IssueFeed } from "~/ui/screens/IssueFeed";
 import { groupsFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 100;
 const HEIGHT = 30;
+const EMPTY_PROJECTS: string[] = [];
+const EMPTY_PENDING_IDS = new Set<string>();
 
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -85,18 +89,33 @@ function deferredClient() {
   };
 }
 
-const render = (client: SentryClient | null) =>
-  renderHarness(
-    <IssueStream
+/** Render the issue screen through the same state contract the app supplies. */
+function IssueFeedHarness({ client }: { client: SentryClient | null }) {
+  const { active: state } = useScreenState("issues.feed", EMPTY_PROJECTS);
+  return (
+    <IssueFeed
       client={client}
       org="acme"
+      screen={getScreen("issues.feed")}
+      state={state}
       width={WIDTH}
       height={HEIGHT}
       focused
-      selectedIndex={0}
-    />,
-    { width: WIDTH, height: HEIGHT },
+      reloadToken={0}
+      onProjectSelect={state.setSelectedProjects}
+      pendingIds={EMPTY_PENDING_IDS}
+      pushView={() => {}}
+      notify={() => {}}
+      activateRow={() => {}}
+      registerActions={() => {}}
+      updateView={() => {}}
+      navigateToScreen={() => {}}
+    />
   );
+}
+
+const render = (client: SentryClient | null) =>
+  renderHarness(<IssueFeedHarness client={client} />, { width: WIDTH, height: HEIGHT });
 
 test("shows skeleton rows immediately on a cold load", async () => {
   const { client } = deferredClient(); // never released
