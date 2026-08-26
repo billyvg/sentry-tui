@@ -1,4 +1,12 @@
-import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 
 import { ApiError, type SentryClient } from "~/api/client";
 import {
@@ -19,7 +27,6 @@ import {
   type SeerRepoPRState,
   type SeerRunId,
   type SeerRun,
-  type SeerSession,
 } from "~/api/seer";
 import {
   errorOf,
@@ -33,6 +40,7 @@ import {
 } from "~/core/async";
 import { SEER_THINKING_PLACEHOLDERS, summarizeSeerCodeChanges } from "~/core/seer";
 import type { SeerCapabilities, SeerCodeChange } from "~/core/seer";
+import { initialSeerConversationState, seerConversationReducer } from "~/ui/hooks/seerChatState";
 
 /** Give up on a run after roughly a minute of consecutive server errors. */
 const MAX_ERROR_POLLS = Math.ceil(60_000 / SEER_ERROR_POLL_INTERVAL_MS);
@@ -119,19 +127,15 @@ export function useSeerChat(
   org: string,
   options: SeerChatOptions = {},
 ): SeerChatState {
-  const [session, setSession] = useState<AsyncStatus<SeerSession>>(idle);
-  const [runId, setRunId] = useState<SeerRunId | null>(null);
-  const [optimistic, setOptimistic] = useState<SeerBlock[] | null>(null);
-  const [timedOut, setTimedOut] = useState(false);
-  const [interrupting, setInterrupting] = useState(false);
+  const [conversation, dispatch] = useReducer(
+    seerConversationReducer,
+    undefined,
+    initialSeerConversationState,
+  );
   const [runs, setRuns] = useState<AsyncStatus<SeerRun[]>>(idle);
-  /** Bumped on every send so a settled run resumes polling. */
-  const [pollToken, setPollToken] = useState(0);
 
-  const sessionRef = useRef(session);
-  sessionRef.current = session;
-  const runIdRef = useRef(runId);
-  runIdRef.current = runId;
+  const conversationRef = useRef(conversation);
+  conversationRef.current = conversation;
   const runsRef = useRef(runs);
   runsRef.current = runs;
   /** Monotonic counter for optimistic block ids and placeholder rotation. */
@@ -144,11 +148,7 @@ export function useSeerChat(
   useEffect(() => {
     if (previousOrg.current === org) return;
     previousOrg.current = org;
-    setRunId(null);
-    setSession(idle);
-    setOptimistic(null);
-    setTimedOut(false);
-    setInterrupting(false);
+    dispatch({ type: "orgChanged" });
     setRuns(idle);
   }, [org]);
 
@@ -175,7 +175,8 @@ export function useSeerChat(
   // Poll the run until it settles. A settled run simply stops rescheduling,
   // so an idle conversation costs nothing.
   useEffect(() => {
-    if (!client || !org || runId == null) return;
+    if (!client || !org || conversation.runId == null) return;
+    const runId = conversation.runId;
 
     const controller = new AbortController();
     let cancelled = false;
@@ -184,30 +185,32 @@ export function useSeerChat(
 
     const tick = async () => {
       try {
-        const next = await getSeerSession(client, { org, runId, signal: controller.signal });
+        const next = await getSeerSession(client, {
+          org,
+          runId,
+          signal: controller.signal,
+        });
         if (cancelled) return;
         errorPolls = 0;
 
         if (next) {
-          setSession(resolved(next, Date.now()));
+          const now = Date.now();
           if (isSessionSettled(next)) {
-            setOptimistic(null);
-            setInterrupting(false);
+            dispatch({ type: "pollSettled", session: next, now });
             return;
           }
-          if (isSessionStale(next, Date.now())) {
-            setOptimistic(null);
-            setTimedOut(true);
+          if (isSessionStale(next, now)) {
+            dispatch({ type: "pollStale", session: next, now });
             return;
           }
+          dispatch({ type: "pollProgressed", session: next, now });
         }
         timer = setTimeout(() => void tick(), SEER_POLL_INTERVAL_MS);
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
         errorPolls += 1;
         if (errorPolls > MAX_ERROR_POLLS) {
-          setOptimistic(null);
-          setSession(rejected(sessionRef.current, toAsyncError(error)));
+          dispatch({ type: "pollFailed", error: toAsyncError(error) });
           return;
         }
         timer = setTimeout(() => void tick(), SEER_ERROR_POLL_INTERVAL_MS);
@@ -221,20 +224,20 @@ export function useSeerChat(
       controller.abort();
       clearTimeout(timer);
     };
-  }, [client, org, runId, pollToken]);
+  }, [client, org, conversation.runId, conversation.pollToken]);
 
   const send = useCallback(
     (query: string) => {
       const trimmed = query.trim();
       if (!client || !org || trimmed === "" || !capabilities.available) return;
 
-      const base = valueOf(sessionRef.current)?.blocks ?? [];
+      const base = valueOf(conversationRef.current.session)?.blocks ?? [];
       const turn = turnCount.current++;
       const now = new Date().toISOString();
       const placeholder =
         SEER_THINKING_PLACEHOLDERS[turn % SEER_THINKING_PLACEHOLDERS.length] ?? "Thinking…";
 
-      setOptimistic([
+      const optimistic: SeerBlock[] = [
         ...base,
         {
           id: `optimistic-user-${turn}`,
@@ -247,12 +250,10 @@ export function useSeerChat(
           timestamp: now,
           loading: true,
         },
-      ]);
-      setTimedOut(false);
-      setInterrupting(false);
-      setSession(startLoading(sessionRef.current, Date.now()));
+      ];
+      dispatch({ type: "sendStarted", optimistic, now: Date.now() });
 
-      const currentRun = runIdRef.current;
+      const currentRun = conversationRef.current.runId;
       const sent = new Date();
       sendSeerMessage(client, {
         org,
@@ -265,14 +266,10 @@ export function useSeerChat(
         bashMode: capabilities.employee && capabilities.bashMode ? bashMode : undefined,
       })
         .then((id) => {
-          setRunId(id);
-          // Continuing an existing run leaves `runId` unchanged, so the poll
-          // effect needs its own trigger to restart.
-          setPollToken((n) => n + 1);
+          dispatch({ type: "sendSucceeded", runId: id });
         })
         .catch((error: unknown) => {
-          setOptimistic(null);
-          setSession(rejected(sessionRef.current, toAsyncError(error)));
+          dispatch({ type: "sendFailed", error: toAsyncError(error) });
         });
     },
     [
@@ -289,37 +286,27 @@ export function useSeerChat(
   );
 
   const interrupt = useCallback(() => {
-    const currentRun = runIdRef.current;
+    const currentRun = conversationRef.current.runId;
     if (!client || !org || currentRun == null) return;
-    setInterrupting(true);
+    dispatch({ type: "interruptStarted" });
     interruptSeerRun(client, { org, runId: currentRun }).catch(() => {
       // The run may have finished on its own between render and click; the
       // next poll settles the UI either way.
-      setInterrupting(false);
+      dispatch({ type: "interruptFailed" });
     });
   }, [client, org]);
 
   const respond = useCallback(
     (inputId: string, responseData?: Record<string, unknown>) => {
-      const currentRun = runIdRef.current;
+      const currentRun = conversationRef.current.runId;
       if (!client || !org || currentRun == null) return;
 
-      const current = valueOf(sessionRef.current);
-      if (current) {
-        setSession(
-          resolved(
-            { ...current, status: "processing", updated_at: new Date().toISOString() },
-            Date.now(),
-          ),
-        );
-      }
-      setInterrupting(false);
-      setTimedOut(false);
+      dispatch({ type: "respondStarted", now: Date.now() });
 
       respondToSeerInput(client, { org, runId: currentRun, inputId, responseData })
-        .then(() => setPollToken((token) => token + 1))
+        .then(() => dispatch({ type: "respondSucceeded" }))
         .catch((error: unknown) => {
-          setSession(rejected(sessionRef.current, toAsyncError(error)));
+          dispatch({ type: "respondFailed", error: toAsyncError(error) });
         });
     },
     [client, org],
@@ -337,7 +324,7 @@ export function useSeerChat(
           });
         })
         .catch((error: unknown) => {
-          setSession(rejected(sessionRef.current, toAsyncError(error)));
+          dispatch({ type: "approveWriteFailed", error: toAsyncError(error) });
         });
     },
     [client, org, respond],
@@ -345,34 +332,20 @@ export function useSeerChat(
 
   const createPR = useCallback(
     (repoName: string) => {
-      const currentRun = runIdRef.current;
+      const currentRun = conversationRef.current.runId;
       if (!client || !org || currentRun == null || !repoName) return;
-      const current = valueOf(sessionRef.current);
-      if (current) {
-        setSession(
-          resolved(
-            { ...current, status: "processing", updated_at: new Date().toISOString() },
-            Date.now(),
-          ),
-        );
-      }
+      dispatch({ type: "createPRStarted", now: Date.now() });
       createSeerPR(client, { org, runId: currentRun, repoName })
-        .then(() => setPollToken((token) => token + 1))
+        .then(() => dispatch({ type: "createPRSucceeded" }))
         .catch((error: unknown) => {
-          setSession(rejected(sessionRef.current, toAsyncError(error)));
+          dispatch({ type: "createPRFailed", error: toAsyncError(error) });
         });
     },
     [client, org],
   );
 
   const switchRun = useCallback((nextRunId: SeerRunId) => {
-    if (nextRunId === runIdRef.current) return;
-    setRunId(nextRunId);
-    setSession(idle);
-    setOptimistic(null);
-    setTimedOut(false);
-    setInterrupting(false);
-    setPollToken((token) => token + 1);
+    dispatch({ type: "switchRun", runId: nextRunId });
   }, []);
 
   const loadRuns = useCallback(() => {
@@ -387,28 +360,28 @@ export function useSeerChat(
   }, [client, org, capabilities.available]);
 
   const reset = useCallback(() => {
-    setRunId(null);
-    setSession(idle);
-    setOptimistic(null);
-    setTimedOut(false);
-    setInterrupting(false);
+    dispatch({ type: "reset" });
   }, []);
 
-  const serverBlocks = valueOf(session)?.blocks ?? [];
+  const serverBlocks = valueOf(conversation.session)?.blocks ?? [];
   const blocks = useMemo(() => {
-    if (!optimistic) return serverBlocks;
+    if (!conversation.optimistic) return serverBlocks;
     // Once the server knows about at least as many blocks as we invented, its
     // copy is strictly better — it has real ids, tool calls, and content.
-    return serverBlocks.length >= optimistic.length ? serverBlocks : optimistic;
-  }, [serverBlocks, optimistic]);
+    return serverBlocks.length >= conversation.optimistic.length
+      ? serverBlocks
+      : conversation.optimistic;
+  }, [serverBlocks, conversation.optimistic]);
 
-  const status = valueOf(session)?.status;
+  const status = valueOf(conversation.session)?.status;
   const thinking =
-    !timedOut &&
-    (optimistic !== null || status === "processing" || blocks.some((block) => block.loading));
-  const ownerId = valueOf(session)?.owner_user_id;
+    !conversation.timedOut &&
+    (conversation.optimistic !== null ||
+      status === "processing" ||
+      blocks.some((block) => block.loading));
+  const ownerId = valueOf(conversation.session)?.owner_user_id;
   const readOnly = ownerId !== null && ownerId !== undefined && String(ownerId) !== options.userId;
-  const repoPRStates = valueOf(session)?.repo_pr_states ?? {};
+  const repoPRStates = valueOf(conversation.session)?.repo_pr_states ?? {};
   const codeChanges = useMemo(
     () => summarizeSeerCodeChanges(blocks, repoPRStates),
     [blocks, repoPRStates],
@@ -430,13 +403,13 @@ export function useSeerChat(
   return {
     blocks,
     thinking,
-    timedOut,
-    interrupting,
-    error: errorOf(session),
-    started: runId !== null || blocks.length > 0,
-    runId,
+    timedOut: conversation.timedOut,
+    interrupting: conversation.interrupting,
+    error: errorOf(conversation.session),
+    started: conversation.runId !== null || blocks.length > 0,
+    runId: conversation.runId,
     readOnly,
-    pendingInput: valueOf(session)?.pending_user_input ?? null,
+    pendingInput: valueOf(conversation.session)?.pending_user_input ?? null,
     repoPRStates,
     codeChanges,
     capabilities,
