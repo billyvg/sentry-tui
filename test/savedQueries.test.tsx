@@ -21,6 +21,8 @@ interface StubOptions {
   explore?: unknown;
   discover?: unknown;
   results?: unknown;
+  /** Leave the current Explore saved-query request in flight. */
+  hangExplore?: boolean;
   /** Fail every saved-query request, whichever endpoint it went to. */
   failSaved?: boolean;
 }
@@ -30,6 +32,7 @@ function stubClient({
   explore = rawExploreSavedQueriesFixture,
   discover = rawDiscoverSavedQueriesFixture,
   results = savedQueryResultRowsFixture,
+  hangExplore = false,
   failSaved = false,
 }: StubOptions = {}) {
   const urls: string[] = [];
@@ -46,6 +49,9 @@ function stubClient({
 
     if (url.includes("/explore/saved/") || url.includes("/discover/saved/")) {
       if (failSaved) return json({ detail: "nope" }, 403);
+      if (hangExplore && url.includes("/explore/saved/")) {
+        return new Promise<Response>(() => {});
+      }
       return json(url.includes("/explore/saved/") ? explore : discover);
     }
     if (url.includes("/projects/")) return json(PROJECTS);
@@ -101,6 +107,13 @@ async function renderAt(client: SentryClient, screen: "explore.all-queries" | "e
     />,
     { width: WIDTH, height: HEIGHT },
   );
+}
+
+/** Jump straight to a destination through the command palette. */
+async function goTo(h: Awaited<ReturnType<typeof renderHarness>>, destination: string) {
+  await h.press((i) => i.pressKey("k", { ctrl: true }));
+  await h.press((i) => i.typeText(destination));
+  await h.press((i) => i.pressEnter());
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +227,20 @@ test("All Queries lists the org's saved queries", async () => {
     expect(frame).toContain("Sentry");
     // Starred state is rendered; starring is a write and is not offered.
     expect(frame).toContain("★");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("All Queries does not show Discover's rows while its request is in flight", async () => {
+  const h = await renderAt(stubClient({ hangExplore: true }).client, "explore.discover");
+  try {
+    await h.waitForFrame((f) => f.includes("Unhandled by release"));
+
+    await goTo(h, "All Queries");
+    await h.waitForFrame((f) => f.includes("All Queries"));
+
+    expect(h.frame()).not.toContain("Unhandled by release");
   } finally {
     await h.cleanup();
   }

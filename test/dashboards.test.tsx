@@ -19,6 +19,8 @@ interface StubOptions {
   dashboards?: unknown;
   prebuilt?: unknown;
   starred?: unknown;
+  /** Leave the Sentry Built request in flight. */
+  hangPrebuilt?: boolean;
   /** Fail the list request, for the error state. */
   listStatus?: number;
   /** Every URL the client asked for, in order. */
@@ -29,6 +31,7 @@ function stubClient({
   dashboards = dashboardListFixture,
   prebuilt = prebuiltDashboardsFixture,
   starred = starredDashboardsFixture,
+  hangPrebuilt = false,
   listStatus = 200,
   calls,
 }: StubOptions = {}) {
@@ -45,7 +48,10 @@ function stubClient({
     if (url.includes("/dashboards/starred/")) return json(starred);
     if (url.includes("/dashboards/")) {
       if (listStatus !== 200) return json({ detail: "nope" }, listStatus);
-      return json(url.includes("filter=onlyPrebuilt") ? prebuilt : dashboards);
+      if (url.includes("filter=onlyPrebuilt")) {
+        return hangPrebuilt ? new Promise<Response>(() => {}) : json(prebuilt);
+      }
+      return json(dashboards);
     }
     return json([]);
   }) as unknown as typeof fetch;
@@ -96,6 +102,13 @@ async function renderDashboards(
     <App onQuit={() => {}} client={client} org="acme" initialScreen={screen} />,
     { width: WIDTH, height: HEIGHT },
   );
+}
+
+/** Jump straight to a destination through the command palette. */
+async function goTo(h: Awaited<ReturnType<typeof renderHarness>>, destination: string) {
+  await h.press((i) => i.pressKey("k", { ctrl: true }));
+  await h.press((i) => i.typeText(destination));
+  await h.press((i) => i.pressEnter());
 }
 
 // ---------------------------------------------------------------------------
@@ -288,6 +301,30 @@ test("Sentry Built asks the endpoint for prebuilt dashboards and shows descripti
     expect(frame).not.toContain("Access");
 
     expect(calls.some((url) => url.includes("filter=onlyPrebuilt"))).toBe(true);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("Sentry Built does not show All Dashboards rows while its request is in flight", async () => {
+  const h = await renderDashboards(stubClient({ hangPrebuilt: true }));
+  try {
+    await h.waitForFrame((f) => f.includes("Checkout Health"));
+
+    await goTo(h, "Sentry Built");
+    await h.waitForFrame((f) => f.includes("Sentry Built") && f.includes("Description"));
+
+    const frame = h.frame();
+    expect(frame).not.toContain("Checkout Health");
+    expect(frame).not.toContain("Mobile Crash Rates");
+    expect(frame).not.toContain("API Latency");
+    expect(frame).not.toContain("3 dashboards");
+    expect(frame).toContain("─");
+
+    // The two dashboard screens share a state slice, so Enter must not reach
+    // the old slice rows while the remounted component has none to render.
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).not.toContain("Checkout Health");
   } finally {
     await h.cleanup();
   }
