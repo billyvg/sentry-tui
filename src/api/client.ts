@@ -150,9 +150,31 @@ interface Tally {
   status: number;
 }
 
+/** One request after its URL and body have been serialized. */
+interface TransportRequest {
+  url: string;
+  method: string;
+  headers: Headers;
+  body?: BodyInit;
+  signal?: AbortSignal;
+  /** Stable API route used by request telemetry. */
+  path: string;
+  query: string;
+}
+
+/** Per-call options shared by every generated `@sentry/api` operation. */
+export interface GeneratedRequestOptions {
+  baseUrl: string;
+  fetch: typeof fetch;
+  parseAs: "json";
+  signal?: AbortSignal;
+  throwOnError: true;
+}
+
 export class SentryClient {
   private readonly auth: AuthProvider;
   private readonly baseUrl: string;
+  private readonly siteUrl: string;
   private readonly latencyMs: number;
   private readonly maxRetries: number;
   private readonly retryBaseMs: number;
@@ -164,10 +186,30 @@ export class SentryClient {
   constructor(options: SentryClientOptions) {
     this.auth = options.auth;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+    // Generated routes already start with `/api/0`, while the legacy client
+    // takes paths relative to it. Keep both rooted at the caller's host.
+    this.siteUrl = this.baseUrl.replace(/\/api\/0\/?$/, "");
     this.latencyMs = options.latencyMs ?? Number(process.env["SENTRY_TUI_LATENCY"] ?? 0);
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.retryBaseMs = options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  /**
+   * Build the common options for an `@sentry/api` operation.
+   *
+   * Its generated route and query serializer stay in charge, while the custom
+   * fetch funnels the resulting Request through this client's auth refresh,
+   * retries, timeout, rate-limit tracking, and telemetry.
+   */
+  generatedOptions(signal?: AbortSignal): GeneratedRequestOptions {
+    return {
+      baseUrl: this.siteUrl,
+      fetch: this.generatedFetch,
+      parseAs: "json",
+      signal,
+      throwOnError: true,
+    };
   }
 
   /**
@@ -178,20 +220,71 @@ export class SentryClient {
    */
   async request<T>(path: string, options: RequestOptions = {}): Promise<Page<T>> {
     const method = options.method ?? "GET";
+    const query = buildQuery(options.query);
+    const hasBody = options.body !== undefined;
+    const response = await this.send({
+      url: `${this.baseUrl}${path}${query}`,
+      method,
+      headers: new Headers({
+        Accept: "application/json",
+        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      }),
+      ...(hasBody ? { body: JSON.stringify(options.body) } : {}),
+      signal: options.signal,
+      path,
+      query,
+    });
+    const links = parseLinkHeader(response.headers.get("Link"));
+    return {
+      data: (await response.json()) as T,
+      nextCursor: links.next,
+      prevCursor: links.prev,
+      rateLimit: this.rateLimit,
+    };
+  }
+
+  /** Route a Request produced by `@sentry/api` through the shared transport. */
+  private readonly generatedFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    const body = request.body === null ? undefined : await request.arrayBuffer();
+    return this.send({
+      url: request.url,
+      method: request.method,
+      headers: new Headers(request.headers),
+      ...(body === undefined ? {} : { body }),
+      signal: request.signal,
+      path: apiPath(url.pathname),
+      query: url.search,
+    });
+  }) as typeof fetch;
+
+  /** Execute one logical request, including every retry and token refresh. */
+  private async send(request: TransportRequest): Promise<Response> {
     // One span per call rather than per attempt, so it measures the latency
     // someone actually sat through — retries and token refresh included.
-    const finish = beginRequest({ method, path, query: buildQuery(options.query) });
+    const finish = beginRequest({
+      method: request.method,
+      path: request.path,
+      query: request.query,
+    });
     const tally: Tally = { retries: 0, status: 0 };
 
     try {
-      const page = await this.withRefresh<T>(path, options, tally);
+      const response = await this.withRefresh(request, tally);
       finish({ status: tally.status, retries: tally.retries });
-      return page;
+      return response;
     } catch (error) {
-      const cancelled = options.signal?.aborted === true;
+      const cancelled = request.signal?.aborted === true;
       const status = error instanceof ApiError ? error.status : tally.status;
       finish({ status, retries: tally.retries, cancelled });
-      if (!cancelled) this.report(error, { method, path, retries: tally.retries });
+      if (!cancelled) {
+        this.report(error, {
+          method: request.method,
+          path: request.path,
+          retries: tally.retries,
+        });
+      }
       throw error;
     }
   }
@@ -237,30 +330,22 @@ export class SentryClient {
     }
   }
 
-  private async withRefresh<T>(
-    path: string,
-    options: RequestOptions,
-    tally: Tally,
-  ): Promise<Page<T>> {
+  private async withRefresh(request: TransportRequest, tally: Tally): Promise<Response> {
     try {
-      return await this.attemptWithRetries<T>(path, options, tally);
+      return await this.attemptWithRetries(request, tally);
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 401) throw error;
       if (!this.auth.refresh || !(await this.auth.refresh())) throw error;
-      return await this.attemptWithRetries<T>(path, options, tally);
+      return await this.attemptWithRetries(request, tally);
     }
   }
 
-  private async attemptWithRetries<T>(
-    path: string,
-    options: RequestOptions,
-    tally: Tally,
-  ): Promise<Page<T>> {
+  private async attemptWithRetries(request: TransportRequest, tally: Tally): Promise<Response> {
     let lastError: ApiError | undefined;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        return await this.attempt<T>(path, options, tally);
+        return await this.attempt(request, tally);
       } catch (error) {
         if (!(error instanceof ApiError) || !error.retryable) throw error;
         lastError = error;
@@ -277,35 +362,29 @@ export class SentryClient {
     throw lastError;
   }
 
-  private async attempt<T>(
-    path: string,
-    { method = "GET", query, body, signal }: RequestOptions,
-    tally: Tally,
-  ): Promise<Page<T>> {
+  private async attempt(request: TransportRequest, tally: Tally): Promise<Response> {
     if (this.latencyMs > 0) await sleep(this.latencyMs);
 
     const token = await this.auth.getToken();
-    const url = `${this.baseUrl}${path}${buildQuery(query)}`;
+    const headers = new Headers(request.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    if (!headers.has("Accept")) headers.set("Accept", "application/json");
 
     // Compose the caller's signal with our own timeout so either can abort.
     const timeout = AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
-    const composed = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    const composed = request.signal ? AbortSignal.any([request.signal, timeout]) : timeout;
 
     let response: Response;
     try {
-      response = await this.fetchImpl(url, {
-        method,
+      response = await this.fetchImpl(request.url, {
+        method: request.method,
         signal: composed,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-          ...(body ? { "Content-Type": "application/json" } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
+        headers,
+        ...(request.body === undefined ? {} : { body: request.body }),
       });
     } catch (error) {
       // A caller-initiated abort is not a failure — let it propagate as-is.
-      if (signal?.aborted) throw error;
+      if (request.signal?.aborted) throw error;
       throw new ApiError(error instanceof Error ? error.message : "Network request failed", {
         status: 0,
         retryable: true,
@@ -319,13 +398,7 @@ export class SentryClient {
       throw await this.toApiError(response);
     }
 
-    const links = parseLinkHeader(response.headers.get("Link"));
-    return {
-      data: (await response.json()) as T,
-      nextCursor: links.next,
-      prevCursor: links.prev,
-      rateLimit: this.rateLimit,
-    };
+    return response;
   }
 
   private async toApiError(response: Response): Promise<ApiError> {
@@ -347,6 +420,13 @@ export class SentryClient {
       retryable: response.status >= 500,
     });
   }
+}
+
+/** Strip the generated API prefix so telemetry matches legacy route names. */
+function apiPath(pathname: string): string {
+  const marker = "/api/0";
+  const index = pathname.indexOf(`${marker}/`);
+  return index === -1 ? pathname : pathname.slice(index + marker.length);
 }
 
 function summarize(status: number, detail: string, tokenSource: string): string {

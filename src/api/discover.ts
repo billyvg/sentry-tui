@@ -11,6 +11,8 @@
  * are undocumented per dataset and every screen is another caller.
  */
 
+import { fetchPage_listOrganizationEvents, type ListOrganizationEventsData } from "@sentry/api";
+
 import type { SentryClient } from "~/api/client";
 import { projectParams } from "~/api/projectParams";
 import { chartInterval } from "~/lib/interval";
@@ -60,6 +62,23 @@ export interface DiscoverPage {
 
 export const DISCOVER_PAGE_SIZE = 50;
 
+type GeneratedDiscoverDataset = NonNullable<ListOrganizationEventsData["query"]>["dataset"];
+
+/**
+ * Attribution is accepted by Sentry but is not yet present in the schema.
+ * Tracked in https://github.com/getsentry/sentry-api-schema/issues/91.
+ */
+type GeneratedDiscoverQuery = NonNullable<ListOrganizationEventsData["query"]> & {
+  referrer?: string;
+};
+
+const GENERATED_DISCOVER_DATASETS = new Set<DiscoverDataset>([
+  "errors",
+  "logs",
+  "spans",
+  "tracemetrics",
+]);
+
 /** Envelope the `events/` endpoint returns. */
 interface DiscoverResponse {
   data: DiscoverRow[];
@@ -88,6 +107,32 @@ export async function queryDiscover(
     signal,
   }: QueryDiscoverParams,
 ): Promise<DiscoverPage> {
+  if (isGeneratedDiscoverDataset(dataset)) {
+    const generatedQuery: GeneratedDiscoverQuery = {
+      dataset,
+      field: [...fields],
+      sort,
+      query: query || undefined,
+      statsPeriod,
+      per_page: limit,
+      project: projectParams(project),
+      environment,
+      referrer,
+    };
+    const page = await fetchPage_listOrganizationEvents(
+      {
+        ...client.generatedOptions(signal),
+        path: { organization_id_or_slug: org },
+        query: generatedQuery,
+      },
+      cursor,
+    );
+
+    return { rows: unwrapRows(page.data), nextCursor: page.nextCursor ?? null };
+  }
+
+  // Some internal/legacy datasets used by dashboards and profiling are not
+  // represented in the public schema yet. Keep those on the flexible path.
   const page = await client.request<DiscoverResponse>(`/organizations/${org}/events/`, {
     query: {
       dataset,
@@ -105,6 +150,11 @@ export async function queryDiscover(
   });
 
   return { rows: unwrapRows(page.data), nextCursor: page.nextCursor };
+}
+
+/** Narrow the open-ended app dataset union to the generated operation's set. */
+function isGeneratedDiscoverDataset(dataset: DiscoverDataset): dataset is GeneratedDiscoverDataset {
+  return GENERATED_DISCOVER_DATASETS.has(dataset);
 }
 
 /**

@@ -1,15 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
 import type { SentryClient } from "~/api/client";
 import { listDetectors, type Detector, type DetectorSort } from "~/api/detectors";
-import {
-  idle,
-  rejected,
-  resolved,
-  startLoading,
-  toAsyncError,
-  type AsyncStatus,
-} from "~/core/async";
+import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
+import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
 
 export interface DetectorsQuery {
   org: string;
@@ -52,43 +46,20 @@ export function useDetectors(
   client: SentryClient | null,
   { org, query, sortBy, project, reloadToken = 0, resetKey }: DetectorsQuery,
 ): DetectorsState {
-  const [status, setStatus] = useState<AsyncStatus<Detector[]>>(idle);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!client) return null;
+      return listDetectors(client, { org, query, sortBy, project, signal }).then((page) => ({
+        data: Array.isArray(page.data) ? page.data : [],
+        nextCursor: page.nextCursor,
+      }));
+    },
+    [client, org, query, sortBy, project],
+  );
+  const { status } = useAsyncFetch(loader, { reloadKey: reloadToken, resetKey });
 
-  const statusRef = useRef(status);
-  statusRef.current = status;
-  const resetRef = useRef(resetKey);
-
-  useEffect(() => {
-    if (!client) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    // Carry the rows forward, unless they belong to another screen.
-    const carried = resetRef.current === resetKey ? statusRef.current : undefined;
-    if (resetRef.current !== resetKey) setNextCursor(null);
-    resetRef.current = resetKey;
-    setStatus(startLoading(carried, Date.now()));
-
-    void (async () => {
-      try {
-        const page = await listDetectors(client, { org, query, sortBy, project, signal });
-        if (cancelled) return;
-        setStatus(resolved(Array.isArray(page.data) ? page.data : [], Date.now()));
-        setNextCursor(page.nextCursor);
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setStatus(rejected(statusRef.current, toAsyncError(error)));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, query, sortBy, project, reloadToken, resetKey]);
-
-  return { detectors: status, nextCursor };
+  return {
+    detectors: mapAsyncStatus(status, (page) => page.data),
+    nextCursor: valueOf(status)?.nextCursor ?? null,
+  };
 }

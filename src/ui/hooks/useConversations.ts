@@ -3,25 +3,19 @@
  *
  * Two endpoints, one hook: the table comes from `/ai-conversations/` and the
  * chart from Discover's `events-stats/` over the same gen-AI spans, which is
- * how the web draws them too. Shaped like `useExploreEvents` — one
- * `AbortController`, `reloadToken` in the dependencies, and no polling.
+ * how the web draws them too. Shaped like `useExploreEvents` — both requests
+ * share the same filters and reload key, and neither polls.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
 import { listConversations, type Conversation } from "~/api/aiConversations";
 import type { SentryClient } from "~/api/client";
 import type { TimeseriesBucket } from "~/api/discover";
 import { listExploreTimeseries } from "~/api/exploreEvents";
-import {
-  idle,
-  rejected,
-  resolved,
-  startLoading,
-  toAsyncError,
-  type AsyncStatus,
-} from "~/core/async";
+import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
 import { CONVERSATION_CHART, CONVERSATION_SPAN_FILTER } from "~/core/conversations";
+import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
 
 export interface ConversationsQuery {
   org: string;
@@ -44,64 +38,40 @@ export function useConversations(
   client: SentryClient | null,
   { org, query, statsPeriod, project, environment, reloadToken = 0 }: ConversationsQuery,
 ): ConversationsState {
-  const [conversations, setConversations] = useState<AsyncStatus<Conversation[]>>(idle);
-  const [timeseries, setTimeseries] = useState<AsyncStatus<TimeseriesBucket[]>>(idle);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const conversationsLoader = useCallback(
+    (signal: AbortSignal) =>
+      client
+        ? listConversations(client, { org, query, statsPeriod, project, environment, signal })
+        : null,
+    [client, org, query, statsPeriod, project, environment],
+  );
+  const timeseriesLoader = useCallback(
+    (signal: AbortSignal) =>
+      client
+        ? listExploreTimeseries(client, {
+            org,
+            statsPeriod,
+            project,
+            environment,
+            signal,
+            dataset: "spans",
+            // The chart counts conversations, not the spans they are made of,
+            // and needs the span filter the list endpoint applies for itself.
+            yAxis: CONVERSATION_CHART.yAxis,
+            query: [CONVERSATION_SPAN_FILTER, query.trim()].filter(Boolean).join(" "),
+            referrer: "sentry-tui.explore-conversations-chart",
+          })
+        : null,
+    [client, org, query, statsPeriod, project, environment],
+  );
+  const conversationsStatus = useAsyncFetch(conversationsLoader, {
+    reloadKey: reloadToken,
+  }).status;
+  const timeseries = useAsyncFetch(timeseriesLoader, { reloadKey: reloadToken }).status;
 
-  const conversationsRef = useRef(conversations);
-  conversationsRef.current = conversations;
-  const timeseriesRef = useRef(timeseries);
-  timeseriesRef.current = timeseries;
-
-  useEffect(() => {
-    if (!client) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    setConversations(startLoading(conversationsRef.current, Date.now()));
-    setTimeseries(startLoading(timeseriesRef.current, Date.now()));
-
-    const filters = { org, statsPeriod, project, environment, signal };
-
-    void (async () => {
-      try {
-        const page = await listConversations(client, { ...filters, query });
-        if (cancelled) return;
-        setConversations(resolved(page.data, Date.now()));
-        setNextCursor(page.nextCursor);
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setConversations(rejected(conversationsRef.current, toAsyncError(error)));
-      }
-    })();
-
-    void (async () => {
-      try {
-        const buckets = await listExploreTimeseries(client, {
-          ...filters,
-          dataset: "spans",
-          // The chart counts conversations, not the spans they are made of,
-          // and needs the span filter the list endpoint applies for itself.
-          yAxis: CONVERSATION_CHART.yAxis,
-          query: [CONVERSATION_SPAN_FILTER, query.trim()].filter(Boolean).join(" "),
-          referrer: "sentry-tui.explore-conversations-chart",
-        });
-        if (cancelled) return;
-        setTimeseries(resolved(buckets, Date.now()));
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        // A missing chart is a smaller loss than a missing list.
-        setTimeseries(rejected(timeseriesRef.current, toAsyncError(error)));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, query, statsPeriod, project, environment, reloadToken]);
-
-  return { conversations, timeseries, nextCursor };
+  return {
+    conversations: mapAsyncStatus(conversationsStatus, (page) => page.data),
+    timeseries,
+    nextCursor: valueOf(conversationsStatus)?.nextCursor ?? null,
+  };
 }

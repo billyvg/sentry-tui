@@ -13,6 +13,8 @@
  * here can.
  */
 
+import { getOrganizationReplay } from "@sentry/api";
+
 import { DEFAULT_BASE_URL, type SentryClient } from "~/api/client";
 import { queryDiscover, rowString, type DiscoverRow } from "~/api/discover";
 import { projectParams } from "~/api/projectParams";
@@ -248,11 +250,11 @@ export async function fetchReplay(
   client: SentryClient,
   { org, replayId, signal }: { org: string; replayId: string; signal?: AbortSignal },
 ): Promise<Replay> {
-  const page = await client.request<{ data?: unknown }>(
-    `/organizations/${org}/replays/${replayId}/`,
-    { signal },
-  );
-  const raw = page.data?.data;
+  const { data } = await getOrganizationReplay({
+    ...client.generatedOptions(signal),
+    path: { organization_id_or_slug: org, replay_id: replayId },
+  });
+  const raw = data.data;
   if (!isObject(raw)) throw new Error(`Replay ${replayId} was not found.`);
   return normalise(raw, 0);
 }

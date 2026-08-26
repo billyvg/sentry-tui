@@ -53,6 +53,7 @@
   "dependencies": {
     "@opentui/core": "0.5.4",
     "@opentui/react": "0.5.4",
+    "@sentry/api": "0.272.0",
     "@sentry/bun": "^10.70.0",
     "react": "^19.2.0",
     "string-width": "^8.2.2",

@@ -1,16 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import { listDetectorsByIds, type Detector } from "~/api/detectors";
 import { listWorkflows, type Workflow, type WorkflowSort } from "~/api/workflows";
-import {
-  idle,
-  rejected,
-  resolved,
-  startLoading,
-  toAsyncError,
-  type AsyncStatus,
-} from "~/core/async";
+import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
+import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
 
 export interface WorkflowsQuery {
   org: string;
@@ -37,40 +31,22 @@ export function useWorkflows(
   client: SentryClient | null,
   { org, query = "", sortBy, reloadToken = 0 }: WorkflowsQuery,
 ): WorkflowsState {
-  const [status, setStatus] = useState<AsyncStatus<Workflow[]>>(idle);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!client) return null;
+      return listWorkflows(client, { org, query, sortBy, signal }).then((page) => ({
+        data: Array.isArray(page.data) ? page.data : [],
+        nextCursor: page.nextCursor,
+      }));
+    },
+    [client, org, query, sortBy],
+  );
+  const { status } = useAsyncFetch(loader, { reloadKey: reloadToken });
 
-  const statusRef = useRef(status);
-  statusRef.current = status;
-
-  useEffect(() => {
-    if (!client) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    setStatus(startLoading(statusRef.current, Date.now()));
-
-    void (async () => {
-      try {
-        const page = await listWorkflows(client, { org, query, sortBy, signal });
-        if (cancelled) return;
-        setStatus(resolved(Array.isArray(page.data) ? page.data : [], Date.now()));
-        setNextCursor(page.nextCursor);
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setStatus(rejected(statusRef.current, toAsyncError(error)));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, query, sortBy, reloadToken]);
-
-  return { workflows: status, nextCursor };
+  return {
+    workflows: mapAsyncStatus(status, (page) => page.data),
+    nextCursor: valueOf(status)?.nextCursor ?? null,
+  };
 }
 
 /** What the Projects column knows so far. */
