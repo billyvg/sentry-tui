@@ -82,6 +82,7 @@ describe("SentryClient", () => {
       json(groupsFixture, {
         headers: {
           Link: '<https://x/?cursor=0:25:0>; rel="next"; results="true"; cursor="0:25:0"',
+          "X-Hits": "73",
           "X-Sentry-Rate-Limit-Remaining": "37",
         },
       }),
@@ -92,9 +93,19 @@ describe("SentryClient", () => {
 
     expect(page.data).toHaveLength(3);
     expect(page.nextCursor).toBe("0:25:0");
+    expect(page.totalCount).toBe(73);
     expect(page.rateLimit.remaining).toBe(37);
 
     expect(new Headers(calls[0]!.init.headers).get("Authorization")).toBe("Bearer sntryu_test");
+  });
+
+  test("omits a total count when the endpoint sends no X-Hits header", async () => {
+    const { impl } = stubFetch(() => json(groupsFixture));
+    const client = new SentryClient({ auth, fetchImpl: impl });
+
+    const page = await listIssues(client, { org: "acme" });
+
+    expect(page.totalCount).toBeUndefined();
   });
 
   test("omits stats from the list request so the first paint is fast", async () => {

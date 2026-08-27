@@ -43,6 +43,8 @@ export interface Page<T> {
   /** Cursor for the next page, or null when `results="false"`. */
   nextCursor: string | null;
   prevCursor: string | null;
+  /** Total matching rows when an endpoint returns `X-Hits`. */
+  totalCount?: number;
   rateLimit: RateLimit;
 }
 
@@ -235,10 +237,14 @@ export class SentryClient {
       query,
     });
     const links = parseLinkHeader(response.headers.get("Link"));
+    const hitsHeader = response.headers.get("X-Hits");
+    const hits = hitsHeader === null ? Number.NaN : Number(hitsHeader);
+    const totalCount = Number.isSafeInteger(hits) && hits >= 0 ? hits : undefined;
     return {
       data: (await response.json()) as T,
       nextCursor: links.next,
       prevCursor: links.prev,
+      ...(totalCount === undefined ? {} : { totalCount }),
       rateLimit: this.rateLimit,
     };
   }

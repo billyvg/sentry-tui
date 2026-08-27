@@ -27,6 +27,10 @@ const HEIGHT = 34;
 
 interface StubOptions {
   openPeriods?: unknown;
+  /** Matching open periods reported by `X-Hits`. */
+  openPeriodsTotal?: number;
+  /** Advertise another page of open periods. */
+  openPeriodsHasMore?: boolean;
   workflows?: unknown;
   /** Fail the open-periods request, for its error state. */
   openPeriodsStatus?: number;
@@ -42,6 +46,8 @@ const UPTIME_DETECTOR_ID = "3";
 
 function stubClient({
   openPeriods = openPeriodsFixture,
+  openPeriodsTotal,
+  openPeriodsHasMore = false,
   workflows = detectorWorkflowsFixture,
   openPeriodsStatus = 200,
   failStats = false,
@@ -69,8 +75,17 @@ function stubClient({
 
     if (url.includes("/detectors/")) return json(detectorListFixture);
     if (url.includes("/open-periods/")) {
+      const headers: Record<string, string> = {};
+      if (openPeriodsTotal !== undefined) headers["X-Hits"] = String(openPeriodsTotal);
+      if (openPeriodsHasMore) {
+        headers.Link =
+          '<https://sentry.io/api/0/organizations/acme/open-periods/?cursor=next>; rel="next"; results="true"; cursor="next"';
+      }
       return openPeriodsStatus === 200
-        ? json(openPeriods)
+        ? new Response(JSON.stringify(openPeriods), {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...headers },
+          })
         : json({ detail: "nope" }, openPeriodsStatus);
     }
     if (url.includes("/workflows/")) return json(workflows);
@@ -350,30 +365,59 @@ test("an error monitor says it has no settings rather than showing an empty sect
 // ---------------------------------------------------------------------------
 
 test("open periods list the ongoing one and the closed ones", async () => {
-  const h = await renderMonitors();
+  const calls: string[] = [];
+  const h = await renderMonitors(stubClient({ calls }));
   try {
     await openRow(h);
     await h.waitForFrame((f) => f.includes("Open Periods"));
 
     const frame = h.frame();
     expect(frame).toContain("Open Periods (2)");
+    expect(frame).toContain("All 2 in the last 14d, newest first.");
     expect(frame).toContain("#8801");
     expect(frame).toContain("2026-08-21 06:00");
     expect(frame).toContain("ongoing");
     // The closed one carries its end and how long it lasted.
     expect(frame).toContain("2026-08-19 11:45");
     expect(frame).toContain("2h");
+
+    const request = calls.find((url) => url.includes("/open-periods/"))!;
+    expect(new URL(request).searchParams.get("statsPeriod")).toBe("14d");
   } finally {
     await h.cleanup();
   }
 });
 
-test("no open periods means the monitor has not fired, and says that", async () => {
+test("no open periods names the selected window rather than claiming it never fired", async () => {
   const h = await renderMonitors(stubClient({ openPeriods: [] }));
   try {
     await openRow(h);
     await h.waitForFrame((f) => f.includes("Open Periods"));
-    expect(h.frame()).toContain("has not fired");
+    expect(h.frame()).toContain("No open periods in the last 14d");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a capped open-period page states its total and how many rows are hidden", async () => {
+  const h = await renderMonitors(stubClient({ openPeriodsTotal: 5, openPeriodsHasMore: true }));
+  try {
+    await openRow(h);
+    await h.waitForFrame((frame) => frame.includes("Open Periods (2 of 5)"));
+
+    expect(h.frame()).toContain("Newest 2 in the last 14d; 3 older not shown.");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a capped page remains honest when the endpoint omits its total", async () => {
+  const h = await renderMonitors(stubClient({ openPeriodsHasMore: true }));
+  try {
+    await openRow(h);
+    await h.waitForFrame((frame) => frame.includes("Open Periods (2+)"));
+
+    expect(h.frame()).toContain("older periods not shown");
   } finally {
     await h.cleanup();
   }
