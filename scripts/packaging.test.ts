@@ -201,8 +201,21 @@ describe("release workflow", () => {
     // A hand-pushed tag never goes past `main`'s CI, so the release workflow
     // has to run the suite itself rather than assume someone else did.
     expect(workflow).toContain('run: bun run test:shard "$SHARD" "4"');
-    expect(workflow).toMatch(/build:\n\s+name: Build[^\n]*\n\s+needs: \[verify, validate, test\]/);
+    expect(workflow).toMatch(
+      /build:\n\s+name: Build[^\n]*\n\s+needs: \[verify, validate, test, tag\]/,
+    );
     expect(workflow).toMatch(/package:\n\s+name: Package release\n\s+needs: \[verify, build\]/);
+  });
+
+  test("a remote cut validates its exact commit before creating the tag", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+    const tagJob = workflow.split(/^  tag:/m)[1]!.split(/^  build:/m)[0]!;
+
+    expect(workflow).toContain("types: [release_cut]");
+    expect(workflow).toContain("ref: ${{ github.event.client_payload.sha || github.sha }}");
+    expect(tagJob).toContain("needs: [verify, validate, test]");
+    expect(tagJob).toContain('git tag -a "v${VERSION}" -m "v${VERSION}"');
+    expect(tagJob).toContain('git push origin "v${VERSION}"');
   });
 
   test("npm is authenticated over OIDC, not by a required token", async () => {
@@ -291,21 +304,25 @@ describe("release commands", () => {
     expect(scripted.sort()).toEqual(Object.keys(COMMANDS).sort());
   });
 
-  test("cut annotates the tag and pushes it by name", async () => {
+  test("cut commits and dispatches remotely, then watches the exact release run", async () => {
     const source = await read("scripts/release.ts");
+    const cutPath = source.split("interface RemoteReleaseSource")[1]!.split("// publish")[0]!;
 
-    // The tag is the only thing that starts a release, and `--follow-tags`
-    // pushes annotated tags only. A lightweight `git tag` therefore rode along
-    // with the branch and never reached origin — no run, no publish, and `cut`
-    // reporting success either way. Both halves are the fix: annotate the tag,
-    // and push it as its own refspec so failing to reach origin is an error.
-    expect(source).toContain(
-      'await run(["git", "tag", "-a", `v${version}`, "-m", `v${version}`]);',
-    );
-    expect(source).toContain('await run(["git", "push", "origin", `v${version}`]);');
-    // The argv form specifically — the comment above the fix names the flag in
-    // prose, and that mention is the point rather than a regression.
-    expect(source).not.toContain('"--follow-tags"');
+    // A stale checkout must not choose or mutate the release. The expected-head
+    // GraphQL mutation makes a racing update fail, then repository_dispatch
+    // hands that exact commit to the workflow which creates the tag after CI.
+    expect(cutPath).toContain("createCommitOnBranch");
+    expect(cutPath).toContain("expectedHeadOid: $head");
+    expect(cutPath).toContain("repos/${REPOSITORY}/dispatches");
+    expect(cutPath).toContain("event_type=release_cut");
+    expect(cutPath).toContain("client_payload[sha]=${commit}");
+    expect(cutPath).not.toContain('["git",');
+
+    // Locate by its unique dispatch id rather than whichever release happened
+    // to be newest, then propagate a failed Release run back to the command.
+    expect(cutPath).toContain("run.displayTitle.includes(`[${requestId}]`)");
+    expect(cutPath).toContain('"gh", "run", "watch"');
+    expect(cutPath).toContain('"--exit-status"');
   });
 });
 
