@@ -7,7 +7,7 @@ import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { readConfig } from "~/api/config";
 import { App } from "~/ui/App";
-import { groupFixture } from "./fixtures";
+import { eventFixture, groupFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
@@ -57,6 +57,8 @@ function stubClient(orgsResponse: unknown = ORGS) {
           metadata: { type: `${issueList[1]}Error`, value: "scoped to this org" },
         },
       ];
+    } else if (url.includes("/events/")) {
+      payload = eventFixture;
     } else if (new URL(url).pathname.endsWith("/organizations/")) {
       payload = orgsResponse;
     } else if (url.includes("/projects/")) {
@@ -151,6 +153,26 @@ test("selecting an org refetches all accessible projects and stores the default"
     expect(projectQueries.findLast((query) => query.org === "globex")?.projects).toEqual(["-1"]);
 
     expect((await readConfig()).org).toBe("globex");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the arrow keys move the org picker while an issue detail is open", async () => {
+  const { client } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await h.waitForFrame((f) => f.includes("acmeError"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("Issues › Feed › PUMP-STATION-1"));
+
+    await h.press((i) => i.pressKey("o"));
+    await h.waitForFrame((f) => f.includes("globex"));
+    await h.press((i) => i.pressArrow("down"));
+    await h.press((i) => i.pressEnter());
+
+    await h.waitForFrame((f) => f.includes("globexError"));
+    expect(h.frame()).toContain("switched to globex");
   } finally {
     await h.cleanup();
   }

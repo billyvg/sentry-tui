@@ -541,6 +541,7 @@ export function App({
   });
 
   const contentHeight = Math.max(3, height - 3);
+  const contentFocused = focus.isFocused("content") && !showOrgPicker;
 
   /**
    * What the content pane hands whatever it draws. A screen and a pushed view
@@ -549,7 +550,7 @@ export function App({
   const paneProps = {
     client,
     org,
-    focused: focus.isFocused("content"),
+    focused: contentFocused,
     width: contentWidth,
     height: contentHeight,
     reloadToken,
@@ -606,9 +607,7 @@ export function App({
             overflow: "hidden",
             border: true,
             borderColor:
-              focus.isFocused("content") && !state.searchFocused
-                ? theme.borderFocused
-                : theme.border,
+              contentFocused && !state.searchFocused ? theme.borderFocused : theme.border,
           }}
         >
           {/* Seer reads its transcript from here; every other screen ignores it. */}
