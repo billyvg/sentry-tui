@@ -409,29 +409,31 @@ test("the skeleton holds the table's geometry while the list is in flight", asyn
   }
 });
 
-/**
- * `P` / `E` / `D` must not be able to wedge the keyboard.
- *
- * The router opens a filter dropdown for any list screen and only `Dropdown`
- * closes one, so a screen with no filter row has to close it itself — see the
- * same test on the dashboards list.
- */
-for (const key of ["P", "E", "D"]) {
-  test(`${key} is a no-op on the monitor list, not a keyboard lock`, async () => {
-    const h = await renderMonitors();
-    try {
-      await h.waitForFrame((f) => f.includes("checkout p95 latency"));
+test("P filters monitors by project while E and D remain ordinary keys", async () => {
+  const calls: string[] = [];
+  const h = await renderMonitors(stubClient({ calls }));
+  try {
+    await h.waitForFrame((frame) => frame.includes("checkout p95 latency"));
+    expect(h.frame()).toContain("P all projects");
 
-      await h.press((i) => i.pressKey(key, { shift: true }));
-      // The keyboard still answers: the cursor moves.
-      await h.press((i) => i.pressKey("j"));
-      expect(h.frame()).toContain("checkout p95 latency");
-      expect(h.frame()).not.toContain("Project");
-    } finally {
-      await h.cleanup();
-    }
-  });
-}
+    await h.press((input) => input.pressKey("P"));
+    await h.waitForFrame((frame) => frame.includes("─ Project "));
+    await h.press((input) => input.pressKey("j"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame(() =>
+      calls
+        .filter((url) => url.includes("/detectors/"))
+        .some((url) => new URL(url).searchParams.getAll("project").includes("checkout")),
+    );
+    await h.pressEscape();
+
+    for (const key of ["E", "D"]) await h.press((input) => input.pressKey(key));
+    await h.press((input) => input.pressKey("?"));
+    expect(h.frame()).toContain("Keyboard");
+  } finally {
+    await h.cleanup();
+  }
+});
 
 test("the screen fits an 80-column terminal without wrapping", async () => {
   const h = await renderHarness(
