@@ -206,9 +206,12 @@ unexpected commit.
 
 This is a fast failure, not the safety net. The release workflow runs the suite
 itself before it creates the tag or builds anything, so nothing ships that the
-tests reject. A failed validation leaves the version commit on `main` but no
-tag; after fixing it, retry that exact version (for example,
-`bun run release:cut 0.6.0`) rather than selecting another bump.
+tests reject. An interruption after the version commit but before its component
+tags leaves a pending release on `main`. After fixing the cause, run
+`bun run release:cut` again: it recognizes the generated one-file version
+commit and resumes those exact components and versions instead of bumping them
+again. `release:preflight` shows the pending commit and equal current/target
+versions when this recovery path is active.
 
 If CI is still running, `release:cut` waits for it (polling every 15s, giving up
 after 20 minutes), which is usually what you want right after merging. Once the
