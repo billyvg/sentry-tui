@@ -36,7 +36,6 @@ import {
   downloadIfNewer,
   updatesDisabled,
 } from "../../packaging/npm/update.mjs";
-import { replaceProcess } from "~/lib/exec";
 import { APP_VERSION } from "~/lib/version";
 
 /** A build on disk, newer than the one running, ready to be restarted into. */
@@ -180,40 +179,17 @@ export function watchForUpdate(
 /**
  * Hand the terminal to `path`, and never come back.
  *
- * `execve` first: it keeps this pid, this terminal, and whatever is waiting on
+ * `execve` keeps this pid, this terminal, and whatever is waiting on
  * this process, so accepting update after update in one session leaves nothing
- * behind. Spawning is the fallback, because a restart that works and stacks a
- * process is better than one that does not happen — but it is the shape that
- * caused #101, so it is second.
+ * behind.
  *
- * The caller must have torn the renderer down first, either way: the new image
- * inherits this terminal, and one left in `-echo`/`-icanon` reaches it so.
- *
- * @param replace seam for the test that covers the spawn fallback
+ * The caller must have torn the renderer down first: the new image inherits
+ * this terminal, and one left in `-echo`/`-icanon` reaches it so.
  */
-export function restartInto(
-  path: string,
-  argv: readonly string[] = process.argv.slice(2),
-  replace: typeof replaceProcess = replaceProcess,
-): void {
+export function restartInto(path: string, argv: readonly string[] = process.argv.slice(2)): void {
   // Passing the environment explicitly rather than letting execve inherit it:
   // `process.env` is what the rest of the app reads and writes, and it carries
   // SENTRY_TUI_MANAGED, which is what lets the new build offer the next update
   // in turn.
-  replace(path, argv, process.env);
-
-  const result = Bun.spawnSync([path, ...argv], {
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-    env: process.env,
-  });
-
-  // Re-raise the child's signal so Ctrl-C looks the same to the shell as it
-  // would have without the restart in between.
-  if (result.signalCode) {
-    process.kill(process.pid, result.signalCode);
-    return;
-  }
-  process.exit(result.exitCode);
+  process.execve!(path, [path, ...argv], process.env);
 }

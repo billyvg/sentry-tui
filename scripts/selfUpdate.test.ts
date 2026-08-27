@@ -572,28 +572,4 @@ describe("restartInto", () => {
 
     expect(stdout.trim()).toBe("--org acme");
   });
-
-  test("when the process cannot be replaced it still runs the new build", () => {
-    // The fallback is the old behaviour, kept because a restart that works and
-    // costs a stacked process beats one that does not happen at all.
-    const { stdout, exitCode } = runChild(
-      `say("before " + process.pid);\n` +
-        `restartInto("/bin/sh", ["-c", 'echo "after $$"; exit 3'], () => false);\n`,
-    );
-
-    const before = stdout.match(/before (\d+)/)?.[1];
-    expect(before).toBeDefined();
-    expect(stdout.match(/after (\d+)/)?.[1]).not.toBe(before);
-    expect(exitCode).toBe(3);
-  });
-
-  test("the fallback re-raises the signal the new build died from", () => {
-    // Ctrl-C has to look to the shell the way it would have without a restart
-    // in between, which means dying from the signal rather than reporting it.
-    const { signalCode } = runChild(
-      `restartInto("/bin/sh", ["-c", "kill -TERM $$"], () => false);\n`,
-    );
-
-    expect(signalCode).toBe("SIGTERM");
-  });
 });

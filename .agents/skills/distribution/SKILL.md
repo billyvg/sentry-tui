@@ -1,6 +1,6 @@
 ---
 name: distribution
-description: How sentry-tui is built, packaged, and self-updates — the compiled-binary release model, the npm launcher and its background update worker, the in-app update offer and its execve restart, and the platform list that three files restate. Use when touching packaging/, scripts/release*.ts, scripts/build-*.ts, src/app/selfUpdate.ts, src/lib/exec.ts, or the release workflow.
+description: How sentry-tui is built, packaged, and self-updates — the compiled-binary release model, the npm launcher and its background update worker, the in-app update offer and its execve restart, and the platform list that three files restate. Use when touching packaging/, scripts/release*.ts, scripts/build-*.ts, src/app/selfUpdate.ts, or the release workflow.
 ---
 
 # Distribution
@@ -40,11 +40,9 @@ layout or the lock. A build only ever surfaces once its bytes are on disk, as a
 bold pink `Update` in the status bar's left corner; clicking it or pressing `U`
 tears the renderer down and execs the cached binary.
 
-That exec is a real `execve(2)`, reached through `bun:ffi` in `src/lib/exec.ts`
-because Bun has no `process.execve`. Spawning instead would leave the old
-process suspended underneath the new one, once per update accepted in a
-session; `restartInto` keeps a spawn only as the fallback for a machine whose
-libc will not load.
+That exec is a real `execve(2)`, reached through Bun's `process.execve`.
+Spawning instead would leave the old process suspended underneath the new one,
+once per update accepted in a session, so `restartInto` has no spawn fallback.
 
 That offer is gated on `SENTRY_TUI_MANAGED=1`, which only the launcher sets.
 A binary run straight off the releases page would revert on its next cold
