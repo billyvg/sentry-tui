@@ -45,7 +45,7 @@ must resolve `@opentui/core-<X>`, and `bun install` skips packages whose
 ```bash
 bun run release:preflight     # readiness for the next minor
 bun run release:dry-run       # build and package on CI, publish nothing
-bun run release:cut           # next minor, verify, commit, tag, push
+bun run release:cut           # next minor, cut remotely, watch Release
 bun run release:publish       # publish from CI artifacts, by hand
 bun run release:verify        # check what actually landed
 ```
@@ -122,10 +122,11 @@ run a step yourself. `--yes` skips confirmations; `--npm-dry-run` makes
 
 `bun run release:preflight` checks all of the above at once, plus whether the
 names are still free and whether the version you are about to publish is already
-taken. It resolves the next minor by default and accepts the same `--major`,
-`--minor`, `--patch`, or exact-version selector as `release:cut`; use the same
-selector for both commands. It exits non-zero only on problems that would
-actually break a release.
+taken. Like `release:cut`, it reads the version from GitHub's default branch,
+not the local checkout. It resolves the next minor by default and accepts the
+same `--major`, `--minor`, `--patch`, or exact-version selector as
+`release:cut`; use the same selector for both commands. It exits non-zero only
+on problems that would actually break a release.
 
 ## Cutting a release
 
@@ -145,41 +146,50 @@ bun run release:cut --patch   # 0.5.0 → 0.5.1
 bun run release:cut --major   # 0.5.0 → 1.0.0
 ```
 
-It reads the current `version` from package.json (the single source of truth
-every generated manifest is stamped from), bumps it, commits, tags, and pushes
-— after showing you exactly what will be published and asking. With no flag it
-bumps the minor version; `--major`, `--minor`, and `--patch` select another
-increment. An exact version such as `bun run release:cut 0.6.0-beta.1` is still
-accepted for prereleases or unusual jumps. Answering no restores the manifest,
-leaving the tree as it was found.
+It reads `package.json` and the default branch head directly from GitHub, then
+uses GitHub's API to bump the version on that exact remote head and dispatch the
+Release workflow — after showing you exactly what will be published and asking.
+The workflow validates that commit before creating the annotated release tag.
+The local branch, working tree, and even the local copy of `package.json` are
+irrelevant. With no flag it bumps the minor version; `--major`, `--minor`, and
+`--patch` select another increment. An exact version such as
+`bun run release:cut 0.6.0-beta.1` is still accepted for prereleases or unusual
+jumps. Answering no makes no changes on GitHub.
 
-Before any of that it reads CI's verdict for the commit being released, rather
-than re-running the suite locally: the commit must be pushed, and its checks
-must be green. That is seconds instead of a minute and a half, and it describes
-the code CI actually tested rather than one machine's working tree.
+Before any of that it reads CI's verdict for the remote default-branch head,
+rather than re-running the suite locally. Its checks must be green. That is
+seconds instead of a minute and a half, and it describes the code CI actually
+tested rather than one machine's working tree. The release commit is created
+with that head as an explicit precondition, so a merge that lands during the
+command makes it stop and ask you to run it again instead of releasing an
+unexpected commit.
 
 This is a fast failure, not the safety net. The release workflow runs the suite
-itself before it builds anything, so nothing ships that the tests reject. What
-the local gate buys is finding out before a tag exists — a failed release leaves
-a tag to delete and re-cut.
+itself before it creates the tag or builds anything, so nothing ships that the
+tests reject. A failed validation leaves the version commit on `main` but no
+tag; after fixing it, retry that exact version (for example,
+`bun run release:cut 0.6.0`) rather than selecting another bump.
 
 If CI is still running, `release:cut` waits for it (polling every 15s, giving up
-after 20 minutes), which is usually what you want right after merging.
+after 20 minutes), which is usually what you want right after merging. Once the
+command dispatches the Release workflow, it finds that exact run by a unique
+request ID and runs `gh run watch --exit-status` automatically.
 
-| Flag        |                                                    |
-| ----------- | -------------------------------------------------- |
-| `--major`   | bump to the next major version                     |
-| `--minor`   | bump to the next minor version (the default)       |
-| `--patch`   | bump to the next patch version                     |
-| `--no-wait` | stop rather than wait on a run in progress         |
-| `--force`   | release whatever CI says, or without pushing first |
-| `--check`   | also run the full local suite, for belt and braces |
-| `--yes`     | skip the confirmation                              |
+| Flag        |                                              |
+| ----------- | -------------------------------------------- |
+| `--major`   | bump to the next major version               |
+| `--minor`   | bump to the next minor version (the default) |
+| `--patch`   | bump to the next patch version               |
+| `--no-wait` | stop if default-branch CI is still running   |
+| `--force`   | release whatever CI says                     |
+| `--yes`     | skip the confirmation                        |
 
-CI takes over from the tag: the tag must match the version, then the suite runs,
-then four binaries — macOS and Linux, arm64 and x64 — each smoke-tested with
-`--help` on its own runner, then npm and the GitHub Release. Nothing
-is built until the tests pass, and nothing is published until the builds do.
+CI takes over from the dispatch: the version must match the remote commit, then
+the suite runs, the annotated tag is created, and four binaries — macOS and
+Linux, arm64 and x64 — are each smoke-tested with `--help` on their own runner,
+followed by npm and the GitHub Release. Nothing is built until the tests pass,
+and nothing is published until the builds do. A tag pushed by hand enters the
+same workflow with its tag already created.
 The publish step runs against the `production` environment (see
 [One-time setup](#one-time-setup)); if that environment has required reviewers
 configured, the run pauses there until someone approves it in the Actions UI.

@@ -5,7 +5,7 @@
  *
  *   bun run release:preflight   check readiness for the next minor
  *   bun run release:dry-run     build and package on CI, publish nothing
- *   bun run release:cut --minor bump, verify, commit, tag, push — CI does the rest
+ *   bun run release:cut --minor cut from remote main and watch CI publish it
  *   bun run release:publish     publish from CI artifacts, by hand
  *   bun run release:verify      check what actually landed
  *
@@ -37,6 +37,10 @@ const REGISTRY = "https://registry.npmjs.org";
 const CI_WAIT_TIMEOUT_MS = 20 * 60 * 1000;
 /** Gap between check-run polls: unnoticeable to a human, gentle on the API. */
 const CI_POLL_MS = 15 * 1000;
+/** Longest to wait for the tag-triggered Release run to appear. */
+const RELEASE_RUN_WAIT_TIMEOUT_MS = 60 * 1000;
+/** Release runs normally appear quickly; this keeps the lookup responsive. */
+const RELEASE_RUN_POLL_MS = 2 * 1000;
 const SEMVER_VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-[\w.]+)?$/;
 const VERSION_BUMPS = ["major", "minor", "patch"] as const;
 type VersionBump = (typeof VERSION_BUMPS)[number];
@@ -63,8 +67,6 @@ const flags = {
   yes: process.argv.includes("--yes") || process.argv.includes("-y"),
   npmDryRun: process.argv.includes("--npm-dry-run"),
   skipDownload: process.argv.includes("--skip-download"),
-  /** Run the full local suite too, on top of reading CI. */
-  check: process.argv.includes("--check"),
   /** Release anyway, whatever CI says. */
   force: process.argv.includes("--force"),
   /** Wait for an in-progress CI run. Default; `--no-wait` stops instead. */
@@ -148,10 +150,15 @@ async function packageVersion(): Promise<string> {
  * report all of it at once rather than failing one step at a time.
  */
 async function preflight(): Promise<void> {
-  const version = requestedReleaseVersion(await packageVersion());
+  // Reject ambiguous selectors before making even a read-only network call.
+  requestedReleaseVersion("0.0.0");
+  const ghAuth = await capture(["gh", "auth", "status"]);
+  if (ghAuth.code !== 0) die("gh: not authenticated — run `gh auth login`");
+  const source = await remoteReleaseSource();
+  const version = requestedReleaseVersion(source.version);
   let blocking = 0;
 
-  step(`Preflight for v${version}`);
+  step(`Preflight for v${version} from ${source.branch}@${source.head.slice(0, 7)}`);
 
   const configured = await capture(["npm", "config", "get", "registry"]);
   if (configured.out === REGISTRY || configured.out === `${REGISTRY}/`) {
@@ -176,13 +183,7 @@ async function preflight(): Promise<void> {
     ok(`npm: logged in as ${npmUser.out}`);
   }
 
-  const ghAuth = await capture(["gh", "auth", "status"]);
-  if (ghAuth.code !== 0) {
-    bad("gh: not authenticated — run `gh auth login`");
-    blocking++;
-  } else {
-    ok("gh: authenticated");
-  }
+  ok("gh: authenticated");
 
   // CI authenticates over OIDC, so a token is a fallback rather than a
   // requirement. Its absence is the healthy state; its presence is worth a
@@ -208,19 +209,6 @@ async function preflight(): Promise<void> {
     } else {
       ok(`${name}: latest is ${latest}, publishing ${version}`);
     }
-  }
-
-  const dirty = await capture(["git", "status", "--porcelain"]);
-  if (dirty.out) warn("working tree is dirty");
-  else ok("working tree is clean");
-
-  const branch = await capture(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
-  if (branch.out === "main") {
-    ok("on main");
-  } else {
-    warn(
-      `on ${branch.out}, not main — \`gh workflow run\` only finds ${WORKFLOW} once it is on the default branch`,
-    );
   }
 
   console.log();
@@ -454,87 +442,218 @@ function requestedReleaseVersion(current: string): string {
   return version;
 }
 
-/** Bump the version, verify, commit, tag, and push — CI takes it from the tag. */
-async function cut(): Promise<void> {
-  const current = await packageVersion();
-  const version = requestedReleaseVersion(current);
+/** The exact default-branch state a remote release starts from. */
+interface RemoteReleaseSource {
+  branch: string;
+  head: string;
+  manifest: string;
+  version: string;
+}
 
-  const dirty = (await capture(["git", "status", "--porcelain"])).out;
-  if (dirty) die("working tree is dirty — commit or stash first");
+/** Read package.json and the default branch head from GitHub, never local Git. */
+async function remoteReleaseSource(): Promise<RemoteReleaseSource> {
+  const repository = await capture(["gh", "api", `repos/${REPOSITORY}`, "--jq", ".default_branch"]);
+  if (repository.code !== 0 || !repository.out) die(`could not read ${REPOSITORY}`);
+  const branch = repository.out;
 
-  const branch = (await capture(["git", "rev-parse", "--abbrev-ref", "HEAD"])).out;
-  if (branch !== "main") warn(`releasing from ${branch}, not main`);
+  const ref = await capture([
+    "gh",
+    "api",
+    `repos/${REPOSITORY}/git/ref/heads/${branch}`,
+    "--jq",
+    ".object.sha",
+  ]);
+  if (ref.code !== 0 || !ref.out) die(`could not read ${REPOSITORY}'s ${branch} head`);
 
-  // The commit has to be on the remote already, or CI has never seen the code
-  // about to be published and there is no verdict to read.
-  const fetched = await capture(["git", "fetch", "--quiet", "origin", branch]);
-  if (fetched.code !== 0 && !flags.force) {
-    die(`origin has no ${branch}. Push the branch first so CI can run against it.`);
+  const file = await capture([
+    "gh",
+    "api",
+    `repos/${REPOSITORY}/contents/package.json?ref=${ref.out}`,
+  ]);
+  if (file.code !== 0 || !file.out) die(`could not read package.json from ${branch}`);
+
+  let manifest: string;
+  let version: unknown;
+  try {
+    const encoded = (JSON.parse(file.out) as { content?: string }).content;
+    if (!encoded) throw new Error("package.json has no content");
+    manifest = Buffer.from(encoded.replaceAll("\n", ""), "base64").toString();
+    version = (JSON.parse(manifest) as { version?: unknown }).version;
+  } catch (error) {
+    die(`could not decode package.json from ${branch}: ${String(error)}`);
   }
+  if (typeof version !== "string") die(`package.json on ${branch} has no version`);
 
-  const head = (await capture(["git", "rev-parse", "HEAD"])).out;
-  const remote = (await capture(["git", "rev-parse", `origin/${branch}`])).out;
-  if (head !== remote && !flags.force) {
+  return { branch, head: ref.out, manifest, version };
+}
+
+/** Change only package.json's top-level version field. */
+export function bumpManifestVersion(manifest: string, current: string, version: string): string {
+  if (current === version) return manifest;
+  const bumped = manifest.replace(`"version": "${current}"`, `"version": "${version}"`);
+  if (bumped === manifest) throw new Error("could not find the version field in package.json");
+  return bumped;
+}
+
+/** Commit a bumped package.json straight to GitHub's current default-branch head. */
+async function createReleaseCommit(
+  source: RemoteReleaseSource,
+  manifest: string,
+  version: string,
+): Promise<string> {
+  const mutation = `
+    mutation(
+      $repository: String!
+      $branch: String!
+      $head: GitObjectID!
+      $message: String!
+      $path: String!
+      $contents: Base64String!
+    ) {
+      createCommitOnBranch(input: {
+        branch: { repositoryNameWithOwner: $repository, branchName: $branch }
+        expectedHeadOid: $head
+        message: { headline: $message }
+        fileChanges: { additions: [{ path: $path, contents: $contents }] }
+      }) {
+        commit { oid }
+      }
+    }
+  `;
+  const commit = await capture([
+    "gh",
+    "api",
+    "graphql",
+    "-f",
+    `query=${mutation}`,
+    "-f",
+    `repository=${REPOSITORY}`,
+    "-f",
+    `branch=${source.branch}`,
+    "-f",
+    `head=${source.head}`,
+    "-f",
+    `message=chore: release v${version}`,
+    "-f",
+    "path=package.json",
+    "-f",
+    `contents=${Buffer.from(manifest).toString("base64")}`,
+    "--jq",
+    ".data.createCommitOnBranch.commit.oid",
+  ]);
+  if (commit.code !== 0 || !commit.out) {
     die(
-      `HEAD is not origin/${branch}. Push first so CI can run against it, ` +
-        `or --force to release regardless.`,
+      `could not create the release commit on ${source.branch} — ` +
+        "the branch may have moved; re-run release:cut",
     );
   }
+  return commit.out;
+}
 
-  if (flags.force) warn("--force: releasing without checking CI");
-  else await requireGreenCi(head);
+/** Dispatch the remote release workflow with enough identity to find its run. */
+async function dispatchRelease(version: string, commit: string, requestId: string): Promise<void> {
+  const dispatched = await capture([
+    "gh",
+    "api",
+    "--method",
+    "POST",
+    `repos/${REPOSITORY}/dispatches`,
+    "-f",
+    "event_type=release_cut",
+    "-f",
+    `client_payload[version]=${version}`,
+    "-f",
+    `client_payload[sha]=${commit}`,
+    "-f",
+    `client_payload[request_id]=${requestId}`,
+    "--silent",
+  ]);
+  if (dispatched.code !== 0) die("could not dispatch the Release workflow");
+}
+
+/** Wait until a uniquely identified dispatch materializes as a Release run. */
+async function releaseRunFor(requestId: string): Promise<string> {
+  const deadline = Date.now() + RELEASE_RUN_WAIT_TIMEOUT_MS;
+  while (Date.now() <= deadline) {
+    const list = await capture([
+      "gh",
+      "run",
+      "list",
+      "--repo",
+      REPOSITORY,
+      "--workflow",
+      WORKFLOW,
+      "--event",
+      "repository_dispatch",
+      "--limit",
+      "20",
+      "--json",
+      "databaseId,displayTitle",
+    ]);
+    if (list.code === 0) {
+      const entry = (
+        JSON.parse(list.out || "[]") as { databaseId: number; displayTitle: string }[]
+      ).find((run) => run.displayTitle.includes(`[${requestId}]`));
+      if (entry) return String(entry.databaseId);
+    }
+    await Bun.sleep(RELEASE_RUN_POLL_MS);
+  }
+  die(`Release run ${requestId} did not appear — check \`gh run list\``);
+}
+
+/** Cut from GitHub's default branch, tag it remotely, and watch CI publish it. */
+async function cut(): Promise<void> {
+  // Reject ambiguous selectors before making even a read-only network call.
+  requestedReleaseVersion("0.0.0");
+  if (process.argv.includes("--check")) {
+    die("--check no longer applies — the Release workflow validates the remote commit");
+  }
+
+  const source = await remoteReleaseSource();
+  const version = requestedReleaseVersion(source.version);
+  let manifest: string;
+  try {
+    manifest = bumpManifestVersion(source.manifest, source.version, version);
+  } catch (error) {
+    die(error instanceof Error ? error.message : String(error));
+  }
 
   const existingTag = await capture([
-    "git",
-    "rev-parse",
-    "-q",
-    "--verify",
-    `refs/tags/v${version}`,
+    "gh",
+    "api",
+    `repos/${REPOSITORY}/git/ref/tags/v${version}`,
+    "--silent",
   ]);
   if (existingTag.code === 0) die(`tag v${version} already exists`);
 
-  const manifestPath = join(ROOT, "package.json");
-  const original = await Bun.file(manifestPath).text();
-  /** Put the manifest back, so an abort leaves the tree as it was found. */
-  const restore = async () => {
-    if (version !== current) await Bun.write(manifestPath, original);
-  };
+  if (flags.force) warn("--force: releasing without checking CI");
+  else await requireGreenCi(source.head);
 
-  if (version !== current) {
-    step(`Bumping ${current} → ${version}`);
-    // Replace only the top-level version field, which is the first one.
-    const bumped = original.replace(`"version": "${current}"`, `"version": "${version}"`);
-    if (bumped === original) die("could not find the version field in package.json");
-    await Bun.write(manifestPath, bumped);
-    ok(`package.json is now ${version}`);
-  }
-
-  // Only on request: CI has already run all of this against this commit.
-  if (flags.check) {
-    step("Verifying locally");
-    await run(["bun", "run", "check"]);
-  }
-
-  step(`Releasing v${version}`);
-  console.log(`  commit, tag v${version}, and push to origin/${branch}`);
+  step(`Releasing v${version} from GitHub`);
+  console.log(`  ${REPOSITORY} ${source.branch}@${source.head.slice(0, 7)}`);
+  if (version === source.version) console.log(`  tag the existing v${version} manifest`);
+  else console.log(`  commit package.json ${source.version} → ${version}, then tag v${version}`);
   console.log(`  CI then builds ${RELEASE_TARGETS.length} binaries and publishes:`);
   for (const name of PUBLISH_ORDER) console.log(`    ${name}@${version}`);
-  if (!flags.yes && !confirm(`\nPush v${version}? This publishes to npm.`)) {
-    await restore();
-    die("aborted");
+  check(`\nRelease v${version}? This publishes to npm.`);
+
+  let releaseCommit = source.head;
+  if (version !== source.version) {
+    step(`Committing ${source.version} → ${version} on ${source.branch}`);
+    releaseCommit = await createReleaseCommit(source, manifest, version);
+    ok(`${source.branch} is now ${releaseCommit.slice(0, 7)}`);
   }
 
-  await run(["git", "commit", "-am", `chore: release v${version}`]);
-  // Annotated, and pushed as a refspec of its own. `--follow-tags` carries
-  // annotated tags and silently ignores the rest, so a lightweight `git tag`
-  // stayed home while the branch landed: no tag on origin, no release run, and
-  // this command still printing "Pushed." Naming the ref means a tag that does
-  // not reach origin fails loudly instead.
-  await run(["git", "tag", "-a", `v${version}`, "-m", `v${version}`]);
-  await run(["git", "push", "origin", branch]);
-  await run(["git", "push", "origin", `v${version}`]);
+  const requestId = crypto.randomUUID();
+  step("Triggering the Release workflow");
+  await dispatchRelease(version, releaseCommit, requestId);
 
-  console.log(`\n${green("Pushed.")} Follow the release with:\n  ${bold("gh run watch")}`);
+  step("Waiting for the Release run");
+  const runId = await releaseRunFor(requestId);
+  step(`Watching Release run ${runId}`);
+  await run(["gh", "run", "watch", runId, "--repo", REPOSITORY, "--exit-status"]);
+
+  console.log(`\n${green(`Released v${version}.`)}`);
 }
 
 // ---------------------------------------------------------------------------

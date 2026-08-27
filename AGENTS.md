@@ -56,7 +56,7 @@ bun run icons:build             # re-rasterize platform icons (needs librsvg)
 ```bash
 bun run release:preflight       # readiness for the next minor (same selectors as cut)
 bun run release:dry-run         # build + package on CI, publish nothing
-bun run release:cut             # next minor, verify, commit, tag, push
+bun run release:cut             # next minor, cut remotely, watch Release
 bun run release:publish         # publish from CI artifacts, by hand
 bun run release:verify          # check what landed on npm
 ```

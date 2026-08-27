@@ -1,13 +1,17 @@
 name: Release
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release v{0} [{1}]', github.event.client_payload.version, github.event.client_payload.request_id) || github.ref_name }}
 
-# Tag-driven: `git tag -a v0.1.0 -m v0.1.0 && git push origin v0.1.0`. The tag must match
-# `version` in package.json — the first job fails the run otherwise.
+# Hand-pushed tags still start a release. `release:cut` instead dispatches the
+# exact remote commit, lets this workflow validate it, then creates the same
+# annotated tag before building. Either path must match `package.json`.
 #
 # Run it by hand first (workflow_dispatch, dry_run: true) to build and package
 # everything without publishing anything.
 on:
   push:
     tags: ["v*"]
+  repository_dispatch:
+    types: [release_cut]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -32,19 +36,24 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       dry_run: ${{ steps.version.outputs.dry_run }}
+      release_sha: ${{ steps.version.outputs.release_sha }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.client_payload.sha || github.sha }}
 
       - name: Resolve and check version
         id: version
         env:
-          REF_NAME: ${{ github.ref_name }}
-          IS_TAG: ${{ github.ref_type == 'tag' }}
+          REF_NAME: ${{ github.event_name == 'repository_dispatch' && format('v{0}', github.event.client_payload.version) || github.ref_name }}
+          IS_TAG: ${{ github.ref_type == 'tag' || github.event_name == 'repository_dispatch' }}
+          RELEASE_SHA_INPUT: ${{ github.event.client_payload.sha }}
           DRY_RUN_INPUT: ${{ inputs.dry_run }}
         run: |
           version="$(node -p "require('./package.json').version")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release_sha=${RELEASE_SHA_INPUT:-$GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
           if [ "$IS_TAG" = "true" ]; then
             if [ "$REF_NAME" != "v$version" ]; then
@@ -56,9 +65,9 @@ jobs:
             echo "dry_run=${DRY_RUN_INPUT:-true}" >> "$GITHUB_OUTPUT"
           fi
 
-  # A release must not be able to ship code the suite rejects, however the tag
-  # got here. `main`'s CI covers the normal path, but a hand-pushed tag never
-  # touches it, so the gate belongs in the workflow that publishes.
+  # A release must not be able to ship code the suite rejects, however its
+  # request got here. `main`'s CI covers the normal remote-cut path, but a
+  # hand-pushed tag never touches it, so the gate belongs in this workflow.
   validate:
     name: Typecheck + lint
     needs: verify
@@ -66,6 +75,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify.outputs.release_sha }}
 
       - name: Set up Bun project
         uses: ./.github/actions/setup-bun
@@ -99,6 +110,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify.outputs.release_sha }}
 
       - name: Set up Bun project
         uses: ./.github/actions/setup-bun
@@ -108,9 +121,36 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: bun run test:shard "$SHARD" "4"
 
+  # `release:cut` dispatches this workflow without a tag so validation can fail
+  # cleanly first. Its authenticated caller already made the version commit;
+  # GITHUB_TOKEN only creates the tag, and therefore cannot recursively trigger
+  # another Release run. Hand-pushed tags and dry runs have nothing to do here.
+  tag:
+    name: Create release tag
+    needs: [verify, validate, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify.outputs.release_sha }}
+          fetch-depth: 0
+
+      - name: Create annotated tag
+        if: github.event_name == 'repository_dispatch'
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${VERSION}" -m "v${VERSION}"
+          git push origin "v${VERSION}"
+
   build:
     name: Build ${{ matrix.target }}
-    needs: [verify, validate, test]
+    needs: [verify, validate, test, tag]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -128,6 +168,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify.outputs.release_sha }}
 
       - name: Set up Bun project
         uses: ./.github/actions/setup-bun
@@ -161,6 +203,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify.outputs.release_sha }}
 
       - name: Set up Bun project
         uses: ./.github/actions/setup-bun
@@ -210,6 +254,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify.outputs.release_sha }}
 
       - name: Download release bundle
         uses: actions/download-artifact@v7
@@ -245,7 +291,7 @@ jobs:
               --header "Accept: application/vnd.github+json" \
               --header "X-GitHub-Api-Version: 2026-03-10" \
               "/repos/${GITHUB_REPOSITORY}/deployments" \
-              --field "ref=${GITHUB_REF_NAME}" \
+              --field "ref=v${VERSION}" \
               --field "environment=production" \
               --field "description=sentry-tui v${VERSION} published to npm" \
               --field "auto_merge=false" \

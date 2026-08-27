@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
-import { releasePackageStatus, resolveReleaseVersion } from "./release.ts";
+import { bumpManifestVersion, releasePackageStatus, resolveReleaseVersion } from "./release.ts";
 
 describe("release version", () => {
   test("defaults to the next minor version", () => {
@@ -23,6 +23,15 @@ describe("release version", () => {
     expect(() => resolveReleaseVersion("1.2.3", [], ["major", "patch"])).toThrow();
     expect(() => resolveReleaseVersion("1.2.3", ["2.0.0"], ["major"])).toThrow();
     expect(() => resolveReleaseVersion("1.2.3", ["2.0.0", "2.1.0"], [])).toThrow();
+  });
+
+  test("changes only the repository manifest version", () => {
+    const manifest = '{\n  "name": "sentry-tui",\n  "version": "1.2.3",\n  "private": true\n}\n';
+
+    expect(bumpManifestVersion(manifest, "1.2.3", "1.3.0")).toBe(
+      '{\n  "name": "sentry-tui",\n  "version": "1.3.0",\n  "private": true\n}\n',
+    );
+    expect(bumpManifestVersion(manifest, "1.2.3", "1.2.3")).toBe(manifest);
   });
 
   test("the cut command applies bump flags before release checks", () => {
