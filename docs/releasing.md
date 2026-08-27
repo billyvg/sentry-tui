@@ -38,10 +38,13 @@ process. The launcher starts the host with the newest cached payload, while the
 app checks and downloads newer payloads in the background
 (`packages/launcher/src/update.mjs`, opt out with `SENTRY_TUI_NO_UPDATE=1`). Once the
 status-bar offer is accepted, `RuntimeHost` swaps the payload under the existing
-renderer and React root. A payload whose `hostApiVersion` is incompatible causes
-the updater to fetch the platform host too and use the existing `execve`
-fallback. A change to the Node launcher itself still needs `npm i -g`, and a
-bundle downloaded by hand is never updated for you.
+renderer and React root. The outgoing app publishes a bounded JSON session
+snapshot; the host keeps it opaque, and the incoming app validates its version
+before restoring canonical URLs, filters, cursors, preferences, and an active
+Seer run. API response bodies are fetched again. A payload whose
+`hostApiVersion` is incompatible causes the updater to fetch the platform host
+too and use the existing `execve` fallback. A change to the Node launcher itself
+still needs `npm i -g`, and a bundle downloaded by hand is never updated for you.
 
 The repo's own `package.json` is `private` and never published. `release.json`
 is the source of truth for the independent host and app versions. Every published

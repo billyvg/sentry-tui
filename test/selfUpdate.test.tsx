@@ -9,7 +9,7 @@
  * test here lives long enough to reach. `scripts/selfUpdate.test.ts` drives
  * that schedule directly, with the numbers turned down.
  */
-import { afterEach, beforeEach, expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -182,7 +182,10 @@ test("the runtime host swaps a compatible payload without replacing the renderer
     path,
     `import { jsx } from ${JSON.stringify(HOST_MODULE_SPECIFIERS["@opentui/react/jsx-runtime"])};\n` +
       `export const payload = ${JSON.stringify({ version: NEWER, hostApiVersion: HOST_API_VERSION })};\n` +
-      `export function PayloadApp() { return jsx("text", { children: "payload swapped in process" }); }\n`,
+      `export function PayloadApp({ initialSessionSnapshot }) {\n` +
+      `  const location = initialSessionSnapshot?.navigation?.location ?? "missing snapshot";\n` +
+      `  return jsx("text", { children: "payload swapped in process " + location });\n` +
+      `}\n`,
   );
   const themeSource = {
     themeMode: "dark" as const,
@@ -196,6 +199,8 @@ test("the runtime host swaps a compatible payload without replacing the renderer
       onRestart={() => {
         throw new Error("a compatible payload must not restart the host");
       }}
+      org="acme"
+      initialScreen="explore.logs"
       theme={{ source: themeSource, initialMode: "dark", fixed: true }}
     />,
   );
@@ -203,7 +208,59 @@ test("the runtime host swaps a compatible payload without replacing the renderer
     await h.click(PILL_X, STATUS_ROW);
     await h.wait(25);
     expect(h.frame()).toContain("payload swapped in process");
+    expect(h.frame()).toContain("https://acme.sentry.io/explore/logs/");
   } finally {
+    await h.cleanup();
+  }
+});
+
+test("a crashing replacement cannot poison the snapshot used for rollback", async () => {
+  const consoleError = spyOn(console, "error").mockImplementation(() => {});
+  const path = cacheBuild(NEWER);
+  const poisoned = {
+    kind: "sentry-tui.session",
+    version: 1,
+    org: "acme",
+    navigation: {
+      location: "https://acme.sentry.io/issues/",
+      viewStack: [],
+      screens: {},
+    },
+    projectsByOrg: {},
+    seerCodeModeByOrg: {},
+    seerBashModeByOrg: {},
+    seerShowThinkingByOrg: {},
+  };
+  writeFileSync(
+    path,
+    `export const payload = ${JSON.stringify({ version: NEWER, hostApiVersion: HOST_API_VERSION })};\n` +
+      `export function PayloadApp({ onSessionSnapshot }) {\n` +
+      `  onSessionSnapshot(${JSON.stringify(poisoned)});\n` +
+      `  throw new Error("bad replacement");\n` +
+      `}\n`,
+  );
+  const themeSource = {
+    themeMode: "dark" as const,
+    waitForThemeMode: async () => "dark" as const,
+    on: () => {},
+    off: () => {},
+  };
+  const h = await renderHarness(
+    <RuntimeHost
+      onQuit={() => {}}
+      onRestart={() => {}}
+      org="acme"
+      initialScreen="explore.logs"
+      theme={{ source: themeSource, initialMode: "dark", fixed: true }}
+    />,
+  );
+  try {
+    await h.click(PILL_X, STATUS_ROW);
+    await h.wait(50);
+    expect(h.frame()).toContain("Search logs");
+    expect(h.frame()).not.toContain("Feed  High and medium priority issues");
+  } finally {
+    consoleError.mockRestore();
     await h.cleanup();
   }
 });

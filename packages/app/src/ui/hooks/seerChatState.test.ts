@@ -37,6 +37,15 @@ function reduce(
 }
 
 describe("seerConversationReducer", () => {
+  test("starts a restored run without carrying its fetched transcript", () => {
+    expect(initialSeerConversationState("run-42")).toMatchObject({
+      runId: "run-42",
+      optimistic: null,
+      pollToken: 0,
+      session: { state: "idle" },
+    });
+  });
+
   test("moves an optimistic send atomically into a settled server session", () => {
     const state = reduce(
       initialSeerConversationState(),

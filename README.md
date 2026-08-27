@@ -54,9 +54,11 @@ to the verified full-host restart path; a host-only fix is discovered through
 the same independent check and offered as a restart. Routine UI and application
 changes do not replace the host.
 
-The payload swap currently remounts the application tree, so in-memory screen
-and navigation state is not preserved yet. The terminal shell no longer has to
-shut down; moving that state above the payload boundary is a separate step.
+The payload swap remounts the application tree, but keeps the open organization,
+screen, detail stack, filters, cursor, project selections, and active Seer run.
+Fetched API bodies are deliberately reloaded by the new payload rather than
+serialized. The long-lived host only carries a bounded, versioned JSON snapshot
+between the two app versions; schema validation and migrations belong to the app.
 
 Set `SENTRY_TUI_NO_UPDATE=1` to pin whatever you have; `CI` is treated the same
 way. A binary downloaded by hand from the releases page never updates itself,

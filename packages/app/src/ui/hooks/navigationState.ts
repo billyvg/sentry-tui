@@ -35,7 +35,7 @@ export type NavigationAction =
 export function initialNavigationModel(
   group: NavGroupId,
   item: string,
-  initialView?: ViewStackEntry,
+  initialViews: readonly ViewStackEntry[] = [],
 ): NavigationModel {
   return {
     railGroup: group,
@@ -45,7 +45,7 @@ export function initialNavigationModel(
     showSecondary: false,
     secondaryItem: item,
     gotoMode: false,
-    viewStack: initialView ? [initialView] : [],
+    viewStack: [...initialViews],
   };
 }
 

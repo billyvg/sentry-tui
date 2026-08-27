@@ -42,11 +42,13 @@ export type SeerConversationAction =
   | { type: "switchRun"; runId: SeerRunId }
   | { type: "reset" };
 
-/** Build the empty state for a Seer conversation. */
-export function initialSeerConversationState(): SeerConversationState {
+/** Build the empty state for a Seer conversation, optionally ready to refetch a run. */
+export function initialSeerConversationState(
+  runId: SeerRunId | null = null,
+): SeerConversationState {
   return {
     session: idle(),
-    runId: null,
+    runId,
     optimistic: null,
     timedOut: false,
     interrupting: false,

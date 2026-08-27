@@ -235,6 +235,7 @@ the detail's domain:
 ```ts
 interface ViewStackEntry {
   id: string;
+  sentryLocation: Omit<SentryUrlLocation, "org" | "seerRunId">;
   label?: string;
   issue?: Group;
   stateKey?: string;
@@ -248,6 +249,10 @@ A view without `stateKey` is a static detail pane. A view with one receives a
 work as they do on a top-level screen. Use one non-screen key per kind of
 stateful view, not one key per row. Current examples are saved-view results,
 replay details, and dashboard details.
+
+`sentryLocation` is both the production escape hatch and the serializable
+identity used to rebuild the stack after an in-process payload update. It must
+contain ids and filter state, never fetched response objects or render closures.
 
 `initialState` is applied before the view opens. Use `ctx.width` and
 `ctx.height`, not dimensions captured when the entry was created. A detail

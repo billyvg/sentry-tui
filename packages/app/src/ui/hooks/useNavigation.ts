@@ -5,6 +5,7 @@ import type { Group } from "~/api/types";
 import { buildGotoHotkeys, type GotoHotkeys } from "~/core/goto";
 import { getNavGroup, soleNavItem, type NavGroup, type NavGroupId } from "~/core/nav";
 import { findScreen, getScreen, stateKeyOf, type ScreenDef, type ScreenId } from "~/core/screens";
+import type { ScreenSessionSnapshot } from "~/core/sessionSnapshot";
 import { breadcrumbTrail } from "~/lib/breadcrumb";
 import { detailBackWidth } from "~/ui/components/DetailBackRow";
 import { COLLAPSED_NAV_RAIL_WIDTH, NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
@@ -48,6 +49,9 @@ export interface UseNavigationOptions {
   width: number;
   initialScreen: ScreenId;
   initialLocation?: SentryUrlLocation;
+  /** Parsed canonical locations for a restored detail stack. */
+  initialViewLocations?: readonly SentryUrlLocation[];
+  initialScreenSnapshots?: Readonly<Record<string, ScreenSessionSnapshot>>;
   initialSelectedProjects?: readonly string[];
   availableNavGroups: readonly NavGroup[];
   focus: NavigationFocus;
@@ -63,6 +67,8 @@ export interface NavigationState extends NavigationModel {
   screen?: ScreenDef;
   ScreenComponent?: ScreenComponent;
   state: ScreenState;
+  viewLocations: ReadonlyArray<Omit<SentryUrlLocation, "org" | "seerRunId">>;
+  screenSnapshots: Readonly<Record<string, ScreenSessionSnapshot>>;
   resetOrgScoped: (selectedProjects?: readonly string[]) => void;
   seed: (key: string, values: ScreenStateSeed) => void;
   navExtras: SecondaryNavExtras;
@@ -96,17 +102,24 @@ export function useNavigation({
   width,
   initialScreen,
   initialLocation,
+  initialViewLocations,
+  initialScreenSnapshots,
   initialSelectedProjects = [],
   availableNavGroups,
   focus,
   canOpen,
 }: UseNavigationOptions): NavigationState {
   const initial = getScreen(initialLocation?.screen ?? initialScreen);
-  const [initialView] = useState(() =>
-    viewForSentryUrl(initialLocation?.detail, initialLocation?.state),
-  );
+  const [initialViews] = useState(() => {
+    const restored = (initialViewLocations ?? [])
+      .map((location) => viewForSentryUrl(location.detail, location.state))
+      .filter((view): view is ViewStackEntry => view !== undefined);
+    if (restored.length > 0) return restored;
+    const initialView = viewForSentryUrl(initialLocation?.detail, initialLocation?.state);
+    return initialView ? [initialView] : [];
+  });
   const [navigation, dispatch] = useReducer(navigationReducer, undefined, () =>
-    initialNavigationModel(initial.group, initial.item, initialView),
+    initialNavigationModel(initial.group, initial.item, initialViews),
   );
   const { railGroup, activeGroup, activeItem, navExpanded, showSecondary, gotoMode, viewStack } =
     navigation;
@@ -119,16 +132,20 @@ export function useNavigation({
   const activeStatefulView = [...viewStack].reverse().find((view) => view.stateKey);
   const activeKey = activeStatefulView?.stateKey ?? (screen ? stateKeyOf(screen) : undefined);
   const activeSource = activeStatefulView?.id ?? screen?.id ?? activeKey ?? "__unregistered__";
+  const initialTopView = initialViews.at(-1);
   const {
     active: state,
     resetOrgScoped,
     seed,
+    snapshots: screenSnapshots,
   } = useScreenState(
     activeKey,
     activeSource,
     initialSelectedProjects,
-    initialView?.stateKey ? initialView.initialState : initialLocation?.state,
+    initialTopView?.stateKey ? initialTopView.initialState : initialLocation?.state,
+    initialScreenSnapshots,
   );
+  const viewLocations = useMemo(() => viewStack.map((view) => view.sentryLocation), [viewStack]);
 
   const navExtras = useSecondaryNavExtras(client, org, railGroup, reloadToken);
   const secondaryItems = useMemo(() => navItemsFor(railGroup, navExtras), [railGroup, navExtras]);
@@ -307,6 +324,8 @@ export function useNavigation({
     screen,
     ScreenComponent,
     state,
+    viewLocations,
+    screenSnapshots,
     resetOrgScoped,
     seed,
     navExtras,
