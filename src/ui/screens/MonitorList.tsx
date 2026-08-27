@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { DETECTOR_SORT_OPTIONS, detectorSort, type Detector } from "~/api/detectors";
+import { timelineWindowSeconds } from "~/api/monitorStats";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { buildDetectorQuery, getMonitorListView, type MonitorListView } from "~/core/monitors";
 import { useTheme } from "~/ui/theme";
@@ -48,8 +49,11 @@ import type { ScreenProps } from "~/ui/screens/types";
 /** The two lines of screen heading between the search box and the table. */
 const HEADING_ROWS = 4;
 
-/** Detector lists deliberately expose only the filter their endpoint supports. */
+/** Every detector list can be narrowed by project. */
 const MONITOR_FILTERS = ["project"] as const;
+
+/** Cron and Uptime also use the selected period for their check-in timeline. */
+const MONITOR_TIMELINE_FILTERS = ["project", "date"] as const;
 
 /**
  * What a screen falls back to when its id has no configuration.
@@ -166,6 +170,7 @@ export function MonitorList(props: ScreenProps) {
    */
   const timelineKind = timelineKindFor(view.type);
   const trackWidth = timelineColumnWidth(width);
+  const windowSeconds = timelineWindowSeconds(state.statsPeriod);
   const { monitorIds, uptimeDetectorIds } = useMemo(
     () => (timelineKind ? timelineStatsIds(rows) : { monitorIds: [], uptimeDetectorIds: [] }),
     [timelineKind, rows],
@@ -179,6 +184,7 @@ export function MonitorList(props: ScreenProps) {
     monitorIds,
     uptimeDetectorIds,
     width: trackWidth,
+    statsPeriod: state.statsPeriod,
     reloadToken,
   });
   const stats = valueOf(statsStatus);
@@ -215,12 +221,13 @@ export function MonitorList(props: ScreenProps) {
                 stats,
                 failed: statsFailed,
                 width: trackWidth,
+                windowSeconds,
                 theme,
               }),
             }
           : undefined,
       ),
-    [timelineKind, stats, statsFailed, trackWidth, theme],
+    [timelineKind, stats, statsFailed, trackWidth, windowSeconds, theme],
   );
   const renderDetail = useCallback(
     (detector: Detector, _selected: boolean, detailWidth: number) =>
@@ -253,7 +260,7 @@ export function MonitorList(props: ScreenProps) {
         selectedProjects={state.selectedProjects}
         selectedEnvs={state.selectedEnvs}
         statsPeriod={state.statsPeriod}
-        filters={MONITOR_FILTERS}
+        filters={timelineKind ? MONITOR_TIMELINE_FILTERS : MONITOR_FILTERS}
         sort={{
           value: sort,
           items: DETECTOR_SORT_OPTIONS,
@@ -263,7 +270,7 @@ export function MonitorList(props: ScreenProps) {
         anchorTop={SEARCH_ROWS + 1}
         onProjectChange={onProjectSelect}
         onEnvChange={() => {}}
-        onPeriodChange={() => {}}
+        onPeriodChange={(period) => dispatch({ type: "setStatsPeriod", payload: period })}
         onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
         onDropdownClose={closeDropdown}
       />

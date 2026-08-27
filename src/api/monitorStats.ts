@@ -28,6 +28,7 @@ import {
   type StatsBucket,
   type UptimeCheckStatus,
 } from "~/lib/checkInTimeline";
+import { statsPeriodMinutes } from "~/lib/interval";
 
 /** One cron monitor's buckets, still nested by environment. */
 export type CronEnvironmentBucket = readonly [
@@ -126,6 +127,19 @@ export const MAX_UPTIME_DETECTORS_PER_REQUEST = 100;
  * shows today's.
  */
 export const DEFAULT_TIMELINE_WINDOW_SECONDS = 24 * 60 * 60;
+
+/**
+ * Turn a page-filter period into the number of seconds the timeline spans.
+ *
+ * Invalid or empty values fall back to the existing one-day window. Screen
+ * state can be seeded from a copied URL, so the API layer must not assume the
+ * value came from `FilterBar`'s finite list.
+ */
+export function timelineWindowSeconds(statsPeriod?: string): number {
+  const minutes = statsPeriodMinutes(statsPeriod);
+  if (minutes === undefined || minutes <= 0) return DEFAULT_TIMELINE_WINDOW_SECONDS;
+  return Math.floor(minutes * 60);
+}
 
 /** The time window and bucket size one request covers. */
 export interface StatsWindow {

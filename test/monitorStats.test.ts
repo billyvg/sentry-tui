@@ -18,6 +18,7 @@ import {
   fetchUptimeStats,
   selectEnvironment,
   timelineWindow,
+  timelineWindowSeconds,
   uptimeResolution,
 } from "~/api/monitorStats";
 import { resolutionForWidth } from "~/lib/checkInTimeline";
@@ -65,6 +66,14 @@ test("a wider column asks for finer buckets", () => {
   expect(timelineWindow(96, { now }).resolution).toBeLessThan(
     timelineWindow(24, { now }).resolution,
   );
+});
+
+test("timelineWindowSeconds reads page-filter periods and rejects invalid windows", () => {
+  expect(timelineWindowSeconds("1h")).toBe(60 * 60);
+  expect(timelineWindowSeconds("7d")).toBe(7 * 24 * 60 * 60);
+  expect(timelineWindowSeconds("2w")).toBe(14 * 24 * 60 * 60);
+  expect(timelineWindowSeconds("not a period")).toBe(DEFAULT_TIMELINE_WINDOW_SECONDS);
+  expect(timelineWindowSeconds("0h")).toBe(DEFAULT_TIMELINE_WINDOW_SECONDS);
 });
 
 // ---------------------------------------------------------------------------

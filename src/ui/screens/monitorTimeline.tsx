@@ -93,6 +93,8 @@ export interface TimelineColumnContext {
   failed: boolean;
   /** Cells the column occupies — `timelineColumnWidth(paneWidth)`. */
   width: number;
+  /** Selected window, used for the label before the first request settles. */
+  windowSeconds: number;
 }
 
 /**
@@ -107,15 +109,17 @@ export function timelineColumn({
   stats,
   failed,
   width,
+  windowSeconds,
   theme,
 }: TimelineColumnContext): Column<Detector> {
   const timelineStyles = timelineStylesFor(theme);
+  const displayedWindowSeconds = stats ? stats.window.until - stats.window.since : windowSeconds;
   return {
     key: "check-ins",
     // There is no axis under the row, so the header is where the window is
     // stated. It is the only place a reader can learn what the cells span, and
     // it comes from the window itself so the two cannot disagree.
-    label: timelineWindowLabel(),
+    label: timelineWindowLabel(displayedWindowSeconds),
     width,
     render: (detector, _selected, cellWidth) => {
       const kind = rowKind(detector);
