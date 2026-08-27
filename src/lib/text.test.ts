@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { fitText, measureTextWidth, middleEllipsis, padText } from "~/lib/text";
+import { fitText, measureTextWidth, middleEllipsis, padText, wrapText } from "~/lib/text";
 
 describe("middleEllipsis", () => {
   test("leaves a value that already fits alone", () => {
@@ -52,5 +52,20 @@ describe("single-line cells", () => {
     expect(fitText(coloured, 40)).toBe("Error: expect(jest.fn()");
     expect(padText(coloured, 30)).toBe("Error: expect(jest.fn()       ");
     expect(middleEllipsis(coloured, 12)).not.toContain("\u001b");
+  });
+});
+
+describe("multiline text", () => {
+  test("preserves newlines while stripping ANSI escapes and other controls", () => {
+    const text = "\u001b[31malpha beta\u001b[0m\nx\r y";
+
+    expect(wrapText(text, 6)).toEqual(["alpha", "beta", "x y"]);
+  });
+
+  test("wraps sanitized wide text to its measured display width", () => {
+    const lines = wrapText("\u001b[32m日本語 abc\u001b[0m\n🙂🙂🙂", 5);
+
+    expect(lines).toEqual(["日本", "語", "abc", "🙂🙂", "🙂"]);
+    expect(lines.map(measureTextWidth)).toEqual([4, 2, 3, 4, 2]);
   });
 });
