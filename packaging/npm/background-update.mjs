@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import { cacheRoot, downloadIfNewer } from "./update.mjs";
 
-const [packageName, localVersion] = process.argv.slice(2);
+const [packageName, localVersion, artifact = "binary"] = process.argv.slice(2);
 
 /** Last few update attempts, for when someone asks why they are not current. */
 function note(message) {
@@ -24,7 +24,11 @@ function note(message) {
 if (!packageName) process.exit(0);
 
 try {
-  const result = await downloadIfNewer({ packageName, localVersion: localVersion || undefined });
+  const result = await downloadIfNewer({
+    packageName,
+    localVersion: localVersion || undefined,
+    artifact,
+  });
   if (result.status === "updated") note(`downloaded ${result.version}`);
 } catch (error) {
   note(`failed: ${error instanceof Error ? error.message : String(error)}`);

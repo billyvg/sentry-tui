@@ -12,9 +12,21 @@ import { join } from "node:path";
 
 import { APP_FIRST_CHECK_MS } from "../packaging/npm/launch.mjs";
 import { UPDATE_FIRST_CHECK_MS } from "../src/app/selfUpdate.ts";
-import { aliasManifest, launcherManifest, packageDirName, platformManifest } from "./build-npm.ts";
+import {
+  aliasManifest,
+  appManifest,
+  launcherManifest,
+  packageDirName,
+  platformManifest,
+} from "./build-npm.ts";
+import { HOST_MODULES, rewriteHostModuleSpecifiers } from "./build-app.ts";
 import { COMMANDS } from "./release.ts";
-import { ALIAS_PACKAGE, LAUNCHER_PACKAGE, RELEASE_TARGETS } from "./release-targets.ts";
+import {
+  ALIAS_PACKAGE,
+  APP_PACKAGE,
+  LAUNCHER_PACKAGE,
+  RELEASE_TARGETS,
+} from "./release-targets.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -43,6 +55,8 @@ describe("npm launcher", () => {
   test("its platform table matches the release targets", async () => {
     const source = await read("packaging/npm/launch.mjs");
 
+    expect(source).toContain(`APP_PACKAGE = "${APP_PACKAGE}"`);
+
     for (const target of RELEASE_TARGETS) {
       expect(source).toContain(`"${target.key}": "${target.npmPackage}"`);
     }
@@ -66,7 +80,7 @@ describe("npm launcher", () => {
   });
 
   test("it marks the process it launches, which is what unlocks the in-app update", async () => {
-    // The app offers a restart into a cached build only when it sees this, and
+    // The app offers a cached payload only when it sees this, and
     // nothing else sets it. Drop the marker and the pill silently never
     // appears — no test in src/ would notice, because none of them run the
     // launcher.
@@ -79,7 +93,7 @@ describe("npm launcher", () => {
       ...source.matchAll(/spawnSync\((?:binary|bundled\.path), argv, (\{[^}]*\})\)/g),
     ];
     expect(spawns.length).toBe(3);
-    for (const [, options] of spawns) expect(options).toContain("env: childEnv()");
+    for (const [, options] of spawns) expect(options).toContain("env: childEnv(appPayload)");
   });
 
   test("it discards a permanently broken cached build before falling back", async () => {
@@ -133,7 +147,15 @@ describe("generated manifests", () => {
     expect(Object.keys(optional).sort()).toEqual(RELEASE_TARGETS.map((t) => t.npmPackage).sort());
     for (const pinned of Object.values(optional)) expect(pinned).toBe(version);
     expect(manifest.name).toBe(LAUNCHER_PACKAGE);
+    expect(manifest.dependencies[APP_PACKAGE]).toBe(version);
     expect(manifest.bin["sentry-tui"]).toBe("bin/sentry-tui.mjs");
+  });
+
+  test("the app package exposes the payload and its manifest", () => {
+    const manifest = appManifest(version);
+    expect(manifest.name).toBe(APP_PACKAGE);
+    expect(manifest.exports["./app"]).toBe("./app/app.mjs");
+    expect(manifest.files).toContain("app");
   });
 
   test("the alias forwards to the launcher at the same version", () => {
@@ -166,15 +188,46 @@ describe("generated manifests", () => {
     expect(notice).toContain("Copyright (c) 2016 Max Brunsfeld");
     expect(npmBuilder).toContain('join(dir, "THIRD_PARTY_NOTICES")');
     expect(npmBuilder).toContain('join(dir, "LICENSE")');
-    expect(releasePackager).toContain("sentry-tui LICENSE THIRD_PARTY_NOTICES");
+    expect(releasePackager).toContain("sentry-tui app LICENSE THIRD_PARTY_NOTICES");
   });
 
   test("package directories stay one level deep", () => {
     expect(packageDirName(LAUNCHER_PACKAGE)).toBe("billyvg-sentry-tui");
+    expect(packageDirName(APP_PACKAGE)).toBe("billyvg-sentry-tui-app");
     expect(packageDirName(ALIAS_PACKAGE)).toBe("sentry-tui");
     for (const target of RELEASE_TARGETS) {
       expect(packageDirName(target.npmPackage)).not.toContain("/");
     }
+  });
+});
+
+describe("app payload", () => {
+  test("runtime-owned imports are rewritten to host virtual modules", () => {
+    const imports = [...HOST_MODULES.keys()]
+      .map((name) => `import ${JSON.stringify(name)};`)
+      .join("\n");
+    const rewritten = rewriteHostModuleSpecifiers(imports);
+
+    for (const [dependency, hosted] of HOST_MODULES) {
+      expect(hosted.length).toBe(dependency.length);
+      expect(rewritten).not.toContain(JSON.stringify(dependency));
+      expect(rewritten).toContain(JSON.stringify(hosted));
+    }
+  });
+
+  test("the release builds the payload before packaging it", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+    const build = workflow.indexOf("run: bun run build:app");
+    expect(build).toBeGreaterThan(-1);
+    expect(workflow.indexOf("run: .github/scripts/package-release.sh")).toBeGreaterThan(build);
+    expect(workflow.indexOf("run: bun run build:npm --strict")).toBeGreaterThan(build);
+  });
+
+  test("every compiled host smoke-loads a payload", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+    const buildJob = workflow.split(/^  build:/m)[1]!.split(/^  package:/m)[0]!;
+    expect(buildJob).toContain("SENTRY_TUI_VERIFY_PAYLOAD=");
+    expect(buildJob).toContain("bun run build:app");
   });
 });
 
@@ -237,7 +290,7 @@ describe("release workflow", () => {
   test("a partly-published release can be re-run", async () => {
     const script = await read(".github/scripts/publish-npm.sh");
 
-    // Six uploads, and a failure partway leaves some of them on the registry.
+    // Seven uploads, and a failure partway leaves some of them on the registry.
     // Without this the retry dies on "cannot publish over the previously
     // published version" and the release can never be completed.
     expect(script).toContain("already published — skipping");

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Publish everything under dist/npm to the public registry.
 #
-# Order matters: the platform packages go first so the launcher's optional
-# dependencies resolve the moment it lands, and the unscoped alias goes last
+# Order matters: the payload and platform packages go first so every launcher
+# dependency resolves the moment it lands, and the unscoped alias goes last
 # because it depends on the launcher.
 #
 # Authentication is OIDC — npm trusted publishing. The workflow's
@@ -58,7 +58,7 @@ publish() {
   name="$(node -p "require('./${dir}/package.json').name")"
   version="$(node -p "require('./${dir}/package.json').version")"
 
-  # Six uploads of ~28MB each, and a release that dies partway leaves some of
+  # Seven uploads, and a release that dies partway leaves some of
   # them on the registry. Skipping what already landed lets a re-run finish the
   # job instead of failing on "cannot publish over the previously published
   # version" — the same reasoning as the local path in scripts/release.ts.
@@ -86,7 +86,7 @@ automation-class token. See docs/releasing.md."
   rm -f "$log"
 }
 
-# Platform packages, then the launcher, then the alias.
+# Payload and platform packages, then the launcher, then the alias.
 for dir in "$NPM_DIR"/billyvg-sentry-tui-*; do
   publish "$dir"
 done

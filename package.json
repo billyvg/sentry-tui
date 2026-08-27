@@ -35,6 +35,7 @@
     "deps:baseline": "depcruise src --config .dependency-cruiser.cjs --output-type baseline --output-to .dependency-cruiser-known-violations.json",
     "test:packaging": "bun test scripts/packaging.test.ts",
     "build:bin": "bun run ./scripts/build-bin.ts",
+    "build:app": "bun run ./scripts/build-app.ts",
     "build:npm": "bun run ./scripts/build-npm.ts",
     "build:formula": "bun run ./scripts/build-formula.ts",
     "icons:build": "bun run ./scripts/build-platform-icons.ts",

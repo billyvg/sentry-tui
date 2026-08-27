@@ -8,14 +8,14 @@ mirroring Sentry's real information architecture and screen layouts.
 Every destination in the current navigation opens a real screen across Issues,
 Explore, Dashboards, Seer, and Monitors — 30 in all, with no placeholder panes.
 
-| Area       | What's built                                                                                                                                        |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Issues     | Query-backed views, saved views, cursor pagination, full event detail and stack traces, plus resolve, archive, bookmark, and review actions         |
-| Explore    | Traces, Logs, Metrics, Errors, Discover, Profiles, Replays, Releases, Conversations, saved queries, charts, and the trace query builder             |
-| Dashboards | All, Sentry Built, and starred dashboard lists, with a terminal widget grid for supported chart, table, number, and categorical widgets             |
-| Seer       | Ask Seer, conversation history, rich responses, and feature-gated Code Mode workflows                                                               |
-| Monitors   | Detector lists by type, check-in timelines, monitor detail, and Alerts workflows                                                                    |
-| App shell  | OAuth device-flow login, command palette, org and project switching, filters, Sentry URL navigation, telemetry, and self-updating compiled binaries |
+| Area       | What's built                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Issues     | Query-backed views, saved views, cursor pagination, full event detail and stack traces, plus resolve, archive, bookmark, and review actions |
+| Explore    | Traces, Logs, Metrics, Errors, Discover, Profiles, Replays, Releases, Conversations, saved queries, charts, and the trace query builder     |
+| Dashboards | All, Sentry Built, and starred dashboard lists, with a terminal widget grid for supported chart, table, number, and categorical widgets     |
+| Seer       | Ask Seer, conversation history, rich responses, and feature-gated Code Mode workflows                                                       |
+| Monitors   | Detector lists by type, check-in timelines, monitor detail, and Alerts workflows                                                            |
+| App shell  | OAuth device-flow login, command palette, org and project switching, filters, Sentry URL navigation, telemetry, and in-process app updates  |
 
 Settings is intentionally left on sentry.io rather than mirrored as a stub.
 Most non-Issues data screens are read-only today. Next is deeper pagination,
@@ -24,7 +24,8 @@ tracked in the [open issues](https://github.com/billyvg/sentry-tui/issues).
 
 ## Install
 
-npm installs a self-contained binary — no Bun or Node needed at runtime.
+npm installs a compiled runtime host and a platform-neutral app payload — no
+Bun installation is needed at runtime.
 
 ```bash
 # one-off, or installed globally
@@ -32,23 +33,29 @@ npx sentry-tui
 npm install -g sentry-tui
 ```
 
-`sentry-tui` and `@billyvg/sentry-tui` are the same package; the platform
-binary arrives as an optional dependency, so you download one binary rather
-than four. Binaries are also attached to every
+`sentry-tui` and `@billyvg/sentry-tui` are the same package; the platform host
+arrives as an optional dependency, so you download one binary rather than
+four. The replaceable app payload is shared by every platform. Complete host
+and payload bundles are also attached to every
 [release](https://github.com/billyvg/sentry-tui/releases).
 
 The npm install **keeps itself current**. Launching starts the app
-immediately on the build you already have, and a background process fetches
-anything newer — so a release reaches you without `npm i -g` again, and
-without ever making you wait on a 24MB download. Nothing about starting the
-app touches the network.
+immediately on what you already have, and a background process fetches any
+newer app payload — so a release reaches you without `npm i -g` again and
+without waiting on a full native binary. Nothing about starting the app
+touches the network.
 
-When a new build has finished downloading, a bold pink **Update** appears in
-the bottom-left corner. Click it or press `U` and the app restarts into it on
-the spot; ignore it and you get the new version next launch either way. The
-app looks again every 15 minutes while it is open, and only ever offers a build
-it
-has already downloaded.
+When a new payload has finished downloading, a bold pink **Update** appears in
+the bottom-left corner. Click it or press `U` and the long-lived host swaps the
+app tree while keeping the process, terminal mode, renderer, and React root
+alive. The app looks again every 15 minutes while it is open and only offers
+bytes already on disk. A release that changes the host/payload API falls back
+to the verified full-host restart path; routine UI and application changes do
+not.
+
+The payload swap currently remounts the application tree, so in-memory screen
+and navigation state is not preserved yet. The terminal shell no longer has to
+shut down; moving that state above the payload boundary is a separate step.
 
 Set `SENTRY_TUI_NO_UPDATE=1` to pin whatever you have; `CI` is treated the same
 way. A binary downloaded by hand from the releases page never updates itself,

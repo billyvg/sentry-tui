@@ -5,7 +5,7 @@ import { accessSync, chmodSync, constants } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-import { bestLocal, removeCachedVersion, updatesDisabled } from "./update.mjs";
+import { bestLocal, bestLocalPayload, removeCachedArtifact, updatesDisabled } from "./update.mjs";
 
 /** @typedef {{version?: string, path: string}} Binary */
 
@@ -20,6 +20,9 @@ export const PLATFORM_PACKAGES = {
   "linux-x64": "@billyvg/sentry-tui-linux-x64",
   "linux-arm64": "@billyvg/sentry-tui-linux-arm64",
 };
+
+/** Platform-neutral package carrying the replaceable application tree. */
+export const APP_PACKAGE = "@billyvg/sentry-tui-app";
 
 const INSTALL_HELP = `Or download the binary for your platform by hand:
   https://github.com/billyvg/sentry-tui/releases`;
@@ -76,17 +79,33 @@ export function resolveBinary() {
   }
 }
 
+/** The app payload installed beside the launcher, when npm left it intact. */
+export function resolveAppPayload() {
+  try {
+    return createRequire(import.meta.url).resolve(`${APP_PACKAGE}/app`);
+  } catch {
+    // The compiled host contains a fallback payload, so a damaged npm install
+    // is still usable and can repair itself on its next update check.
+    return undefined;
+  }
+}
+
 /**
  * Environment for the binary: ours, plus the marker saying we launched it.
  *
- * The app offers an in-app update — a pill in the status bar that restarts
- * into a build already sitting in the cache. That only sticks when something
+ * The app offers an in-app update — a pill in the status bar that loads a
+ * payload already sitting in the cache. That only sticks when something
  * prefers the cache on the next launch, which is this launcher and nothing
- * else. A binary downloaded from the releases page and run directly sees no
- * marker, so it never makes an offer it cannot keep.
+ * else. A release bundle run directly sees no marker, so it never makes an
+ * offer it cannot keep.
  */
-function childEnv() {
-  return { ...process.env, SENTRY_TUI_MANAGED: "1" };
+function childEnv(appPayload) {
+  return {
+    ...process.env,
+    SENTRY_TUI_MANAGED: "1",
+    SENTRY_TUI_APP_PACKAGE: APP_PACKAGE,
+    ...(appPayload?.path ? { SENTRY_TUI_APP_PAYLOAD: appPayload.path } : {}),
+  };
 }
 
 /**
@@ -142,7 +161,7 @@ export function discardFailedCachedBuild(binary, error, env = process.env) {
   if (!binary.version || !BROKEN_BINARY_ERRORS.has(error?.code)) return false;
 
   try {
-    removeCachedVersion(binary.version, env);
+    removeCachedArtifact(binary.version, "binary", env);
     return true;
   } catch {
     return false;
@@ -154,20 +173,26 @@ export function discardFailedCachedBuild(binary, error, env = process.env) {
  *
  * Detached with stdio ignored, so it outlives this process and cannot write
  * over a terminal it no longer owns. The new build lands in the cache and the
- * next launch runs it — nobody waits on a 24MB download to read `--help`.
+ * the next launch loads it — nobody waits on a download to read `--help`.
  *
  * @param {object} [options]
- * @param {string} [options.packageName] platform package to look for
+ * @param {string} [options.packageName] npm package to look for
  * @param {string} [options.localVersion] newest version already on disk
+ * @param {"binary" | "payload"} [options.artifact]
  * @param {Record<string, string | undefined>} [options.env]
  * @returns {boolean} whether a worker was started
  */
-export function startBackgroundUpdate({ packageName, localVersion, env = process.env } = {}) {
+export function startBackgroundUpdate({
+  packageName,
+  localVersion,
+  artifact = "binary",
+  env = process.env,
+} = {}) {
   if (!packageName || updatesDisabled(env)) return false;
 
   try {
     const worker = fileURLToPath(new URL("./background-update.mjs", import.meta.url));
-    const child = spawn(process.execPath, [worker, packageName, localVersion ?? ""], {
+    const child = spawn(process.execPath, [worker, packageName, localVersion ?? "", artifact], {
       detached: true,
       stdio: "ignore",
     });
@@ -199,10 +224,14 @@ export function main(argv = process.argv.slice(2)) {
   // Run what is already here: the binary npm installed, or a newer one that an
   // earlier launch fetched. Starting the app never waits on the network.
   const local = bestLocal(bundled);
+  const bundledPayloadPath = resolveAppPayload();
+  const appPayload = bestLocalPayload(
+    bundledPayloadPath ? { version: bundled.version, path: bundledPayloadPath } : undefined,
+  );
 
   const binary = local.path;
   const startedAt = Date.now();
-  let result = spawnSync(binary, argv, { stdio: "inherit", env: childEnv() });
+  let result = spawnSync(binary, argv, { stdio: "inherit", env: childEnv(appPayload) });
 
   // npm preserves the executable bit, but tarballs unpacked by other tooling
   // sometimes don't. One retry costs nothing and saves a confusing failure.
@@ -214,7 +243,7 @@ export function main(argv = process.argv.slice(2)) {
     } catch {
       try {
         chmodSync(binary, 0o755);
-        result = spawnSync(binary, argv, { stdio: "inherit", env: childEnv() });
+        result = spawnSync(binary, argv, { stdio: "inherit", env: childEnv(appPayload) });
       } catch {
         /* keep the original spawn error */
       }
@@ -228,7 +257,7 @@ export function main(argv = process.argv.slice(2)) {
     process.stderr.write(
       `sentry-tui ${local.version} did not start, falling back to ${bundled.version}\n`,
     );
-    result = spawnSync(bundled.path, argv, { stdio: "inherit", env: childEnv() });
+    result = spawnSync(bundled.path, argv, { stdio: "inherit", env: childEnv(appPayload) });
   }
 
   // Nothing of ours is running now, so this is the launcher's turn — if the
@@ -239,13 +268,13 @@ export function main(argv = process.argv.slice(2)) {
   // back by the time a download starts, and the next launch runs whatever it
   // leaves behind. `SENTRY_TUI_NO_UPDATE=1` and `CI` switch off both halves.
   //
-  // `bestLocal` again rather than `local`: a session that took the update
-  // offer downloaded a newer build than the one we started, and asking for it
-  // twice would cost 24MB for nothing.
+  // A session may have downloaded or applied a newer payload than the one we
+  // started, and asking for it twice would waste the same release download.
   if (shouldCheckAfterRun(Date.now() - startedAt)) {
     startBackgroundUpdate({
-      packageName: platformPackage(),
-      localVersion: bestLocal(bundled).version,
+      packageName: APP_PACKAGE,
+      localVersion: bestLocalPayload(appPayload)?.version,
+      artifact: "payload",
     });
   }
 

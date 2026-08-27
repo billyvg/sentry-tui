@@ -18,6 +18,7 @@ import { join } from "node:path";
 
 import {
   ALIAS_PACKAGE,
+  APP_PACKAGE,
   BINARY_NAME,
   LAUNCHER_PACKAGE,
   RELEASE_TARGETS,
@@ -44,9 +45,10 @@ const RELEASE_RUN_POLL_MS = 2 * 1000;
 const SEMVER_VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-[\w.]+)?$/;
 const VERSION_BUMPS = ["major", "minor", "patch"] as const;
 type VersionBump = (typeof VERSION_BUMPS)[number];
-/** Packages in publish order: platforms first, then the launcher, then the alias. */
+/** Packages in publish order: hosts and payload first, then launcher and alias. */
 const PUBLISH_ORDER = [
   ...RELEASE_TARGETS.map((target) => target.npmPackage),
+  APP_PACKAGE,
   LAUNCHER_PACKAGE,
   ALIAS_PACKAGE,
 ];
@@ -117,7 +119,7 @@ async function run(command: string[], env?: Record<string, string>): Promise<voi
  * An npmrc holding `NPM_TOKEN`, when one is set.
  *
  * An automation token is the calm way through a first publish: it authenticates
- * six uploads without a 2FA prompt between them, and it is the same token CI
+ * seven uploads without a 2FA prompt between them, and it is the same token CI
  * uses. Written 0600 into a temp dir and deleted afterwards, so the credential
  * never lands in the repo or in shell history.
  */
@@ -199,7 +201,7 @@ async function preflight(): Promise<void> {
   }
 
   // The registry is the authority on whether these names are still ours to take.
-  for (const name of [ALIAS_PACKAGE, LAUNCHER_PACKAGE]) {
+  for (const name of [ALIAS_PACKAGE, APP_PACKAGE, LAUNCHER_PACKAGE]) {
     const { latest, targetPublished } = await releasePackageStatus(name, version);
     if (targetPublished) {
       bad(`${name}@${version} is already published — choose another version`);
@@ -737,6 +739,7 @@ async function publish(): Promise<void> {
   }
 
   step("Assembling packages");
+  await run(["bun", "run", "build:app"]);
   await run(["bun", "run", "build:npm", "--strict"]);
 
   step(`Publishing ${PUBLISH_ORDER.length} packages at ${version}`);
@@ -749,7 +752,7 @@ async function publish(): Promise<void> {
 
   try {
     for (const name of PUBLISH_ORDER) {
-      // Six uploads of ~24MB each: one can fail on a flaky connection or an
+      // Seven uploads: one can fail on a flaky connection or an
       // OTP that expired mid-run. Skipping what already landed lets a re-run
       // finish the job rather than die on "cannot publish over the previously
       // published version".

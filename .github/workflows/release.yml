@@ -186,6 +186,12 @@ jobs:
       - name: Smoke test
         run: dist/bin/${{ matrix.target }}/sentry-tui --help
 
+      - name: Smoke test runtime payload loading
+        run: |
+          bun run build:app
+          SENTRY_TUI_VERIFY_PAYLOAD="$PWD/dist/app/app.mjs" \
+            dist/bin/${{ matrix.target }}/sentry-tui
+
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
@@ -213,6 +219,9 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           path: dist/bin
+
+      - name: Build app payload
+        run: bun run build:app
 
       - name: Archive binaries and checksums
         run: .github/scripts/package-release.sh

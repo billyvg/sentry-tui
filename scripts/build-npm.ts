@@ -2,9 +2,10 @@
 /**
  * Assemble the publishable npm package trees under `dist/npm/`.
  *
- * Three kinds of package come out of this:
+ * Four kinds of package come out of this:
  *
  *   @billyvg/sentry-tui-<platform>  one compiled binary each, `os`/`cpu` gated
+ *   @billyvg/sentry-tui-app         platform-neutral replaceable app payload
  *   @billyvg/sentry-tui             the launcher; optionally depends on all of them
  *   sentry-tui                      unscoped alias, so `npx sentry-tui` works
  *
@@ -23,6 +24,7 @@ import { join } from "node:path";
 
 import {
   ALIAS_PACKAGE,
+  APP_PACKAGE,
   BINARY_NAME,
   LAUNCHER_PACKAGE,
   RELEASE_TARGETS,
@@ -35,6 +37,8 @@ const ROOT = join(import.meta.dirname, "..");
 const BIN_DIR = join(ROOT, "dist", "bin");
 /** Where the assembled package trees go, one directory per package. */
 const OUT_DIR = join(ROOT, "dist", "npm");
+/** Where `build-app.ts` writes the platform-neutral payload. */
+const APP_DIR = join(ROOT, "dist", "app");
 
 const DESCRIPTION = "sentry.io in your terminal — a TUI client for Sentry";
 const KEYWORDS = ["sentry", "tui", "terminal", "cli", "errors", "observability", "opentui"];
@@ -65,6 +69,23 @@ export function platformManifest(target: ReleaseTarget, version: string) {
   };
 }
 
+/** Manifest for the replaceable platform-neutral application payload. */
+export function appManifest(version: string) {
+  return {
+    ...COMMON,
+    name: APP_PACKAGE,
+    version,
+    description: `${DESCRIPTION} (app payload)`,
+    type: "module",
+    exports: {
+      "./app": "./app/app.mjs",
+      "./manifest": "./app/manifest.json",
+      "./package.json": "./package.json",
+    },
+    files: ["app", "LICENSE", "README.md", "THIRD_PARTY_NOTICES"],
+  };
+}
+
 /** Manifest for the scoped package users actually depend on. */
 export function launcherManifest(version: string) {
   return {
@@ -81,6 +102,7 @@ export function launcherManifest(version: string) {
     },
     files: ["bin", "lib", "README.md", "LICENSE"],
     engines: { node: ">=18.0.0" },
+    dependencies: { [APP_PACKAGE]: version },
     // Optional so that an unsupported platform still installs — the launcher
     // then prints how to get a binary instead of npm failing the install.
     optionalDependencies: Object.fromEntries(
@@ -119,6 +141,11 @@ async function main(): Promise<void> {
 
   if (!version) {
     console.error("package.json has no version — set one before building release packages.");
+    process.exit(1);
+  }
+
+  if (!existsSync(join(APP_DIR, "app.mjs")) || !existsSync(join(APP_DIR, "manifest.json"))) {
+    console.error("Missing app payload — run bun run build:app before build:npm.");
     process.exit(1);
   }
 
@@ -161,6 +188,19 @@ async function main(): Promise<void> {
     console.warn(`⚠ Skipping platforms with no binary: ${names}`);
   }
 
+  // Platform-neutral payload package.
+  const appDir = join(OUT_DIR, packageDirName(APP_PACKAGE));
+  await mkdir(appDir, { recursive: true });
+  await cp(APP_DIR, join(appDir, "app"), { recursive: true });
+  await writeManifest(appDir, appManifest(version));
+  await writeFile(
+    join(appDir, "README.md"),
+    `# ${APP_PACKAGE}\n\nThe replaceable application payload for [sentry-tui](https://github.com/${REPOSITORY}).\n` +
+      `Installed automatically by \`${LAUNCHER_PACKAGE}\`; there is no reason to depend on it directly.\n`,
+  );
+  await cp(join(ROOT, "LICENSE"), join(appDir, "LICENSE"));
+  await cp(join(ROOT, "THIRD_PARTY_NOTICES"), join(appDir, "THIRD_PARTY_NOTICES"));
+
   // Launcher package.
   const launcherDir = join(OUT_DIR, packageDirName(LAUNCHER_PACKAGE));
   await mkdir(join(launcherDir, "bin"), { recursive: true });
@@ -188,6 +228,7 @@ async function main(): Promise<void> {
 
   console.log(`Assembled npm packages in dist/npm (version ${version}):`);
   for (const target of built) console.log(`  ${target.npmPackage}`);
+  console.log(`  ${APP_PACKAGE}`);
   console.log(`  ${LAUNCHER_PACKAGE}`);
   console.log(`  ${ALIAS_PACKAGE}`);
 }
