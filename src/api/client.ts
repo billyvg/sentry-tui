@@ -173,6 +173,12 @@ export interface GeneratedRequestOptions {
   throwOnError: true;
 }
 
+interface GeneratedPage<T> {
+  data: T;
+  nextCursor?: string;
+  prevCursor?: string;
+}
+
 export class SentryClient {
   private readonly auth: AuthProvider;
   private readonly baseUrl: string;
@@ -211,6 +217,16 @@ export class SentryClient {
       parseAs: "json",
       signal,
       throwOnError: true,
+    };
+  }
+
+  /** Adapt an `@sentry/api` cursor page to the app's stable page shape. */
+  generatedPage<T>({ data, nextCursor, prevCursor }: GeneratedPage<T>): Page<T> {
+    return {
+      data,
+      nextCursor: nextCursor ?? null,
+      prevCursor: prevCursor ?? null,
+      rateLimit: this.rateLimit,
     };
   }
 

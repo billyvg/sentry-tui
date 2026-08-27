@@ -10,6 +10,11 @@
  * Read-only: nothing here stars, duplicates, or deletes a dashboard.
  */
 
+import {
+  fetchPage_listOrganizationDashboards,
+  type ListOrganizationDashboardsData,
+} from "@sentry/api";
+
 import type { Page, SentryClient } from "~/api/client";
 
 /**
@@ -81,7 +86,9 @@ export interface DashboardListItem {
  * Server-side filters the list endpoint accepts, as `DashboardFilter` in
  * `views/dashboards/types.tsx:13-21`. Only `onlyPrebuilt` is used today.
  */
-export type DashboardListFilter = "onlyPrebuilt" | "onlyFavorites" | "owned" | (string & {});
+export type DashboardListFilter = NonNullable<
+  NonNullable<ListOrganizationDashboardsData["query"]>["filter"]
+>[number];
 
 /**
  * Sort orders `organization_dashboards.py:533-627` understands. An unknown one
@@ -147,20 +154,23 @@ export async function listDashboards(
   client: SentryClient,
   { org, filter, query, sort, limit = DASHBOARDS_PAGE_SIZE, cursor, signal }: ListDashboardsParams,
 ): Promise<Page<DashboardListItem[]>> {
-  const page = await client.request<DashboardListItem[]>(`/organizations/${org}/dashboards/`, {
-    query: {
-      filter,
-      query: query || undefined,
-      sort,
-      // Match Web's manage list: favorites must stay on the loaded page even
-      // when an organization has more dashboards than `per_page` can hold.
-      pin: "favorites",
-      per_page: limit,
-      cursor,
+  const page = await fetchPage_listOrganizationDashboards(
+    {
+      ...client.generatedOptions(signal),
+      path: { organization_id_or_slug: org },
+      query: {
+        filter: filter ? [filter] : undefined,
+        query: query || undefined,
+        sort,
+        // Match Web's manage list: favorites must stay on the loaded page even
+        // when an organization has more dashboards than `per_page` can hold.
+        pin: "favorites",
+        per_page: limit,
+      },
     },
-    signal,
-  });
-  return page;
+    cursor,
+  );
+  return client.generatedPage(page);
 }
 
 /**

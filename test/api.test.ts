@@ -4,6 +4,8 @@ import { createTokenAuthProvider, MissingTokenError } from "~/api/auth";
 import { ApiError, parseLinkHeader, SentryClient } from "~/api/client";
 import { queryDiscover, queryDiscoverTimeseries, queryExploreTimeseries } from "~/api/discover";
 import { fetchIssueStats, listIssues, updateIssue } from "~/api/issues";
+import { listReplays } from "~/api/replays";
+import { listTraceItemAttributes } from "~/api/traceItemAttributes";
 import { groupsFixture } from "./fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
@@ -193,6 +195,34 @@ describe("SentryClient", () => {
     expect(url.searchParams.getAll("project")).toEqual(["1", "2"]);
     expect(url.searchParams.get("per_page")).toBe("50");
     expect(url.searchParams.get("referrer")).toBe("sentry-tui.logs");
+  });
+
+  test("serializes repeated filters through the completed generated operations", async () => {
+    const { impl, calls } = stubFetch((url) => json(url.includes("/replays/") ? { data: [] } : []));
+    const client = new SentryClient({ auth, fetchImpl: impl });
+
+    await listReplays(client, {
+      org: "acme",
+      project: ["1", "2"],
+      environment: ["production", "staging"],
+    });
+    await listTraceItemAttributes(client, {
+      org: "acme",
+      itemType: "spans",
+      attributeType: "number",
+      project: ["1", "2"],
+      environment: ["production", "staging"],
+    });
+
+    const replayUrl = new URL(calls[0]!.url);
+    expect(replayUrl.searchParams.getAll("project")).toEqual(["1", "2"]);
+    expect(replayUrl.searchParams.getAll("environment")).toEqual(["production", "staging"]);
+    expect(replayUrl.searchParams.get("queryReferrer")).toBe("replayList");
+
+    const attributesUrl = new URL(calls[1]!.url);
+    expect(attributesUrl.searchParams.getAll("project")).toEqual(["1", "2"]);
+    expect(attributesUrl.searchParams.getAll("environment")).toEqual(["production", "staging"]);
+    expect(attributesUrl.searchParams.getAll("attributeType")).toEqual(["number"]);
   });
 
   test("PUT sends a JSON body", async () => {

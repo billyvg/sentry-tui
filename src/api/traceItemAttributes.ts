@@ -15,11 +15,18 @@
  * Read-only, and manual-refresh only: nothing here polls.
  */
 
+import {
+  listOrganizationTraceItemAttributes,
+  type ListOrganizationTraceItemAttributesData,
+} from "@sentry/api";
+
 import type { SentryClient } from "~/api/client";
 import { projectParams } from "~/api/projectParams";
 
-/** Trace item types the endpoint knows about. Left open — Sentry adds them. */
-export type TraceItemType = "spans" | "logs" | "tracemetrics" | (string & {});
+/** Trace item types the generated endpoint knows about. */
+export type TraceItemType = NonNullable<
+  NonNullable<ListOrganizationTraceItemAttributesData["query"]>["itemType"]
+>;
 
 /** How a value is stored, which decides the aggregates that can read it. */
 export type TraceItemAttributeType = "string" | "number" | "boolean";
@@ -30,13 +37,6 @@ export interface TraceItemAttribute {
   /** Sentry's display name for it, which for a user-defined tag is the key. */
   name: string;
   type: TraceItemAttributeType;
-}
-
-/** One entry as the endpoint returns it. */
-interface RawAttribute {
-  key?: unknown;
-  name?: unknown;
-  attributeType?: unknown;
 }
 
 export interface ListTraceItemAttributesParams {
@@ -68,23 +68,21 @@ export async function listTraceItemAttributes(
     signal,
   }: ListTraceItemAttributesParams,
 ): Promise<TraceItemAttribute[]> {
-  const page = await client.request<RawAttribute[]>(
-    `/organizations/${org}/trace-items/attributes/`,
-    {
-      query: {
-        itemType,
-        attributeType,
-        project: projectParams(project),
-        environment,
-        statsPeriod,
-      },
-      signal,
+  const { data } = await listOrganizationTraceItemAttributes({
+    ...client.generatedOptions(signal),
+    path: { organization_id_or_slug: org },
+    query: {
+      itemType,
+      attributeType: [attributeType],
+      project: projectParams(project),
+      environment,
+      statsPeriod,
     },
-  );
+  });
 
   const seen = new Set<string>();
   const attributes: TraceItemAttribute[] = [];
-  for (const raw of Array.isArray(page.data) ? page.data : []) {
+  for (const raw of Array.isArray(data) ? data : []) {
     const key = typeof raw?.key === "string" ? raw.key : "";
     if (!key || seen.has(key)) continue;
     seen.add(key);

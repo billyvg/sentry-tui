@@ -64,14 +64,6 @@ export const DISCOVER_PAGE_SIZE = 50;
 
 type GeneratedDiscoverDataset = NonNullable<ListOrganizationEventsData["query"]>["dataset"];
 
-/**
- * Attribution is accepted by Sentry but is not yet present in the schema.
- * Tracked in https://github.com/getsentry/sentry-api-schema/issues/91.
- */
-type GeneratedDiscoverQuery = NonNullable<ListOrganizationEventsData["query"]> & {
-  referrer?: string;
-};
-
 const GENERATED_DISCOVER_DATASETS = new Set<DiscoverDataset>([
   "errors",
   "logs",
@@ -108,22 +100,21 @@ export async function queryDiscover(
   }: QueryDiscoverParams,
 ): Promise<DiscoverPage> {
   if (isGeneratedDiscoverDataset(dataset)) {
-    const generatedQuery: GeneratedDiscoverQuery = {
-      dataset,
-      field: [...fields],
-      sort,
-      query: query || undefined,
-      statsPeriod,
-      per_page: limit,
-      project: projectParams(project),
-      environment,
-      referrer,
-    };
     const page = await fetchPage_listOrganizationEvents(
       {
         ...client.generatedOptions(signal),
         path: { organization_id_or_slug: org },
-        query: generatedQuery,
+        query: {
+          dataset,
+          field: [...fields],
+          sort,
+          query: query || undefined,
+          statsPeriod,
+          per_page: limit,
+          project: projectParams(project),
+          environment,
+          referrer,
+        },
       },
       cursor,
     );
