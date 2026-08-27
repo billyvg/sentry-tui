@@ -39,10 +39,11 @@ const DATE_OPTIONS: readonly DropdownItem[] = [
 
 export type FilterDropdownType = "project" | "env" | "date" | "sort" | null;
 
+/** Filter chips a screen can choose to expose. */
+export type FilterKind = Exclude<FilterDropdownType, "sort" | null>;
+
 /** Chip order in the filter row, so a click and the open state agree. */
-const CHIP_ORDER = ["project", "env", "date"] as const satisfies ReadonlyArray<
-  Exclude<FilterDropdownType, null>
->;
+const CHIP_ORDER = ["project", "env", "date"] as const satisfies ReadonlyArray<FilterKind>;
 
 /**
  * Share a cell budget fairly, then give any cells a short label did not need
@@ -83,6 +84,8 @@ export interface FilterBarProps {
   selectedEnvs: string[];
   /** Selected stats period. */
   statsPeriod: string;
+  /** Filter chips to show. Defaults to project, environment, and date. */
+  filters?: readonly FilterKind[];
   /** Screen-specific sort control. Omit when the screen has one fixed order. */
   sort?: {
     value: string;
@@ -120,11 +123,12 @@ export interface FilterBarProps {
  * of its screen's render and is already there when the key arrives, unlike the
  * `Dropdown` the key itself is what mounts.
  */
-let mountedFilterBars = 0;
+const mountedFilters: Record<FilterKind, number> = { project: 0, env: 0, date: 0 };
 
-/** Is a filter row on screen to answer the filter keys? */
-export function isFilterBarMounted(): boolean {
-  return mountedFilterBars > 0;
+/** Is a filter row on screen that can answer this filter key? */
+export function isFilterBarMounted(filter?: FilterKind): boolean {
+  if (filter) return mountedFilters[filter] > 0;
+  return CHIP_ORDER.some((kind) => mountedFilters[kind] > 0);
 }
 
 /**
@@ -139,6 +143,7 @@ export function FilterBar({
   selectedProjects,
   selectedEnvs,
   statsPeriod,
+  filters = CHIP_ORDER,
   sort,
   width,
   anchorTop,
@@ -148,20 +153,26 @@ export function FilterBar({
   onDropdownClose,
   onDropdownOpen,
 }: FilterBarProps) {
+  const filterKey = filters.join(",");
+  const shownFilters = useMemo(() => new Set(filters), [filterKey]);
   // What has been typed into the project picker, held here rather than inside
   // the dropdown because the search that answers it goes to the API.
   const [projectQuery, setProjectQuery] = useState("");
-  const { projects, loading: projectsLoading } = useProjectSearch(client, org, projectQuery);
+  const { projects, loading: projectsLoading } = useProjectSearch(
+    shownFilters.has("project") ? client : null,
+    org,
+    projectQuery,
+  );
   const [environments, setEnvironments] = useState<Environment[]>([]);
 
   // Counted here so the router can ask whether a filter row is on screen
   // before it opens one of these dropdowns.
   useEffect(() => {
-    mountedFilterBars += 1;
+    for (const filter of shownFilters) mountedFilters[filter] += 1;
     return () => {
-      mountedFilterBars -= 1;
+      for (const filter of shownFilters) mountedFilters[filter] -= 1;
     };
-  }, []);
+  }, [shownFilters]);
 
   // A closed picker holds no query, so reopening it starts on the full list
   // rather than on whatever the last visit narrowed it to.
@@ -172,7 +183,7 @@ export function FilterBar({
   // Fetch environments once when the client is available. Short enough that
   // one request holds them all, unlike the projects above.
   useEffect(() => {
-    if (!client) return;
+    if (!client || !shownFilters.has("env")) return;
     const controller = new AbortController();
 
     void listEnvironments(client, { org, signal: controller.signal })
@@ -180,7 +191,7 @@ export function FilterBar({
       .catch(() => {});
 
     return () => controller.abort();
-  }, [client, org]);
+  }, [client, org, shownFilters]);
 
   // Slugs only, never display names: the slug is what the chip shows once a
   // project is picked, what the API takes, and what a filter query is typed
@@ -247,31 +258,38 @@ export function FilterBar({
       }
     : undefined;
 
-  // The chip frames, keys, gaps, date and optional sort are fixed. The two
-  // org-owned labels fairly share what remains.
-  const chipCount = sortChip ? 4 : 3;
+  // The chip frames, keys, gaps, date and optional sort are fixed. Labels on
+  // the project/environment chips share what remains, or take it all when a
+  // screen deliberately exposes only one of them.
+  const shownOrder = CHIP_ORDER.filter((filter) => shownFilters.has(filter));
+  const chipCount = shownOrder.length + (sortChip ? 1 : 0);
   const fixedWidth =
-    chipWidth({ ...projectChip, label: "" }) +
-    chipWidth({ ...envChip, label: "" }) +
-    chipWidth(dateChip) +
+    (shownFilters.has("project") ? chipWidth({ ...projectChip, label: "" }) : 0) +
+    (shownFilters.has("env") ? chipWidth({ ...envChip, label: "" }) : 0) +
+    (shownFilters.has("date") ? chipWidth(dateChip) : 0) +
     (sortChip ? chipWidth(sortChip) : 0) +
-    CHIP_GAP * (chipCount - 1);
+    CHIP_GAP * Math.max(0, chipCount - 1);
   const labelBudget = width - fixedWidth;
-  const [projectLabelWidth, envLabelWidth] = filterLabelWidths(
-    fullProjectLabel,
-    fullEnvLabel,
-    labelBudget,
-  );
+  const [projectLabelWidth, envLabelWidth] =
+    shownFilters.has("project") && shownFilters.has("env")
+      ? filterLabelWidths(fullProjectLabel, fullEnvLabel, labelBudget)
+      : shownFilters.has("project")
+        ? [Math.max(0, labelBudget), 0]
+        : [0, Math.max(0, labelBudget)];
 
   // The three filter dropdowns drop from their chip's left edge. Sort is
   // separately pinned to the row's right edge.
-  const chips: ChipSpec[] = [
-    { ...projectChip, label: fitText(fullProjectLabel, projectLabelWidth) },
-    { ...envChip, label: fitText(fullEnvLabel, envLabelWidth) },
-    dateChip,
-  ];
+  const chipByFilter: Record<FilterKind, ChipSpec> = {
+    project: { ...projectChip, label: fitText(fullProjectLabel, projectLabelWidth) },
+    env: { ...envChip, label: fitText(fullEnvLabel, envLabelWidth) },
+    date: dateChip,
+  };
+  const chips = shownOrder.map((filter) => chipByFilter[filter]);
   const offsets = chipOffsets(chips);
-  const [projectAnchorLeft = 0, envAnchorLeft = 0, dateAnchorLeft = 0] = offsets;
+  const anchorByFilter = new Map(shownOrder.map((filter, index) => [filter, offsets[index] ?? 0]));
+  const projectAnchorLeft = anchorByFilter.get("project") ?? 0;
+  const envAnchorLeft = anchorByFilter.get("env") ?? 0;
+  const dateAnchorLeft = anchorByFilter.get("date") ?? 0;
   const sortAnchorLeft = sortChip ? Math.max(0, width - chipWidth(sortChip)) : 0;
   // A dropdown hangs off the bottom edge of its chip. The chip's own height
   // now covers the whole row, sliver edges included, so clearing it clears
@@ -319,9 +337,9 @@ export function FilterBar({
         <ChipRow
           chips={chips}
           activeIndex={
-            openDropdown && openDropdown !== "sort" ? CHIP_ORDER.indexOf(openDropdown) : undefined
+            openDropdown && openDropdown !== "sort" ? shownOrder.indexOf(openDropdown) : undefined
           }
-          onPress={(_chip, index) => onDropdownOpen?.(CHIP_ORDER[index] ?? null)}
+          onPress={(_chip, index) => onDropdownOpen?.(shownOrder[index] ?? null)}
         />
         <box style={{ flexGrow: 1 }} />
         {sort && sortChip ? (
@@ -337,7 +355,7 @@ export function FilterBar({
         ) : null}
       </box>
 
-      {openDropdown === "project" ? (
+      {openDropdown === "project" && shownFilters.has("project") ? (
         <Dropdown
           title="Project"
           items={projectItems}
@@ -360,7 +378,7 @@ export function FilterBar({
         />
       ) : null}
 
-      {openDropdown === "env" ? (
+      {openDropdown === "env" && shownFilters.has("env") ? (
         <Dropdown
           title="Environment"
           items={envItems}
@@ -374,7 +392,7 @@ export function FilterBar({
         />
       ) : null}
 
-      {openDropdown === "date" ? (
+      {openDropdown === "date" && shownFilters.has("date") ? (
         <Dropdown
           title="Date Range"
           items={DATE_OPTIONS as DropdownItem[]}

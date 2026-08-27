@@ -202,8 +202,10 @@ test("WorkflowList resolves only the projects its detectors reference", async ()
   try {
     await h.waitForFrame((frame) => frame.includes("backend, frontend"));
     expect(h.frame()).toContain("Page on-call for checkout");
-    expect(requests.map((request) => request.ids)).toEqual([["42", "43"]]);
-    expect(requests[0]?.cursor).toBeNull();
+    expect(
+      requests.filter((request) => request.ids.length > 0).map((request) => request.ids),
+    ).toEqual([["42", "43"]]);
+    expect(requests.every((request) => request.cursor === null)).toBe(true);
   } finally {
     await h.cleanup();
   }

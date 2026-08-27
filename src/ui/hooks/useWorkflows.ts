@@ -3,13 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SentryClient } from "~/api/client";
 import { listDetectorsByIds, type Detector } from "~/api/detectors";
 import { listWorkflows, type Workflow, type WorkflowSort } from "~/api/workflows";
-import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
-import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
+import { mapAsyncStatus, type AsyncStatus } from "~/core/async";
+import { useCursorPages } from "~/ui/hooks/useCursorPages";
 
 export interface WorkflowsQuery {
   org: string;
   /** Committed search query; the endpoint matches it against the name. */
   query?: string;
+  /** Project ids or slugs selected in the Alerts filter. */
+  project?: string[];
   sortBy?: WorkflowSort;
   /** Bump to refetch an unchanged query — the app's global refresh. */
   reloadToken?: number;
@@ -18,34 +20,39 @@ export interface WorkflowsQuery {
 export interface WorkflowsState {
   workflows: AsyncStatus<Workflow[]>;
   nextCursor: string | null;
+  page: number;
+  nextPage: () => boolean;
+  previousPage: () => boolean;
 }
 
 /**
  * Fetch the org's workflows for `Monitors › Alerts`.
  *
- * Shaped like `useDashboards`: one request per query, the superseded one
- * aborted so typing in the search bar can't land an older page on top of a
- * newer one. Manual refresh only — nothing here polls.
+ * Cursor history makes PageUp/PageDown reversible. A changed search, project
+ * filter, or sort resets to page one; manual refresh retains the current page.
  */
 export function useWorkflows(
   client: SentryClient | null,
-  { org, query = "", sortBy, reloadToken = 0 }: WorkflowsQuery,
+  { org, query = "", project, sortBy, reloadToken = 0 }: WorkflowsQuery,
 ): WorkflowsState {
   const loader = useCallback(
-    (signal: AbortSignal) => {
-      if (!client) return null;
-      return listWorkflows(client, { org, query, sortBy, signal }).then((page) => ({
-        data: Array.isArray(page.data) ? page.data : [],
-        nextCursor: page.nextCursor,
-      }));
-    },
-    [client, org, query, sortBy],
+    (cursor: string | undefined, signal: AbortSignal) =>
+      client
+        ? listWorkflows(client, { org, query, project, sortBy, cursor, signal }).then((page) => ({
+            data: Array.isArray(page.data) ? page.data : [],
+            nextCursor: page.nextCursor,
+          }))
+        : null,
+    [client, org, query, project, sortBy],
   );
-  const { status } = useAsyncFetch(loader, { reloadKey: reloadToken });
+  const pages = useCursorPages(loader, reloadToken);
 
   return {
-    workflows: mapAsyncStatus(status, (page) => page.data),
-    nextCursor: valueOf(status)?.nextCursor ?? null,
+    workflows: mapAsyncStatus(pages.status, (page) => page.data),
+    nextCursor: pages.nextCursor,
+    page: pages.page,
+    nextPage: pages.nextPage,
+    previousPage: pages.previousPage,
   };
 }
 

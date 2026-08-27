@@ -18,7 +18,7 @@
  * edits a workflow, and Enter does nothing until there is a detail to open.
  */
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { Detector } from "~/api/detectors";
 import {
@@ -34,11 +34,11 @@ import type { Theme } from "~/core/theme";
 import { timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
-import { SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
-import { SortBar } from "~/ui/components/SortBar";
 import { useProjectSlugs } from "~/ui/hooks/useProjects";
+import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { useWorkflowDetectors, useWorkflows } from "~/ui/hooks/useWorkflows";
 import { BOLD } from "~/ui/lib/attributes";
 import type { ScreenProps } from "~/ui/screens/types";
@@ -55,6 +55,9 @@ const MIN_NAME_WIDTH = 24;
 
 /** Stand-in for a cell the workflow has no value for, as the web's `EmptyCell`. */
 const EMPTY = "—";
+
+/** Alerts deliberately expose only their one supported filter. */
+const ALERT_FILTERS = ["project"] as const;
 
 /** One workflow, with every cell already resolved to the string it draws. */
 interface WorkflowRow {
@@ -132,13 +135,21 @@ function workflowColumns(theme: Theme): ReadonlyArray<Column<WorkflowRow>> {
 
 export function WorkflowList(props: ScreenProps) {
   const theme = useTheme();
-  const { client, org, state, focused, width, height, reloadToken } = props;
+  const { client, org, state, focused, width, height, reloadToken, onProjectSelect } = props;
   const { dispatch, focusSearch, handleSearchBlur } = state;
 
   const sort = workflowSort(state.sort);
-  const { workflows: status, nextCursor } = useWorkflows(client, {
+  const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
+  const {
+    workflows: status,
+    nextCursor,
+    page,
+    nextPage,
+    previousPage,
+  } = useWorkflows(client, {
     org,
     query: state.committedQuery,
+    project,
     sortBy: sort,
     reloadToken,
   });
@@ -171,12 +182,26 @@ export function WorkflowList(props: ScreenProps) {
     if (rows) dispatch({ type: "setEntries", payload: rows });
   }, [rows, dispatch]);
 
+  const reportedPage = useRef(page);
+  useEffect(() => {
+    if (reportedPage.current === page) return;
+    reportedPage.current = page;
+    dispatch({ type: "setSelected", payload: 0 });
+  }, [page, dispatch]);
+
   useEffect(() => {
     dispatch({
       type: "setStatus",
       payload: { loading, since, error: error?.message, noun: "alerts" },
     });
   }, [loading, since, error, dispatch]);
+
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
+
+  useScreenActions(props.registerActions, { nextPage, previousPage });
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
@@ -211,15 +236,26 @@ export function WorkflowList(props: ScreenProps) {
         </text>
         <text fg={theme.muted}>{"  Automations that run when a monitor fires."}</text>
       </box>
-      <SortBar
-        value={sort}
-        items={WORKFLOW_SORT_OPTIONS}
-        open={state.openDropdown === "sort"}
+      <FilterBar
+        client={client}
+        org={org}
+        openDropdown={state.openDropdown}
+        selectedProjects={state.selectedProjects}
+        selectedEnvs={state.selectedEnvs}
+        statsPeriod={state.statsPeriod}
+        filters={ALERT_FILTERS}
+        sort={{
+          value: sort,
+          items: WORKFLOW_SORT_OPTIONS,
+          onChange: (value) => dispatch({ type: "setSort", payload: value }),
+        }}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
-        onChange={(sort) => dispatch({ type: "setSort", payload: sort })}
-        onOpen={() => dispatch({ type: "setOpenDropdown", payload: "sort" })}
-        onClose={() => dispatch({ type: "setOpenDropdown", payload: null })}
+        onProjectChange={onProjectSelect}
+        onEnvChange={() => {}}
+        onPeriodChange={() => {}}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
+        onDropdownClose={closeDropdown}
       />
 
       <DataTable
@@ -249,7 +285,23 @@ export function WorkflowList(props: ScreenProps) {
         }}
         layout={[height, HEADING_ROWS]}
       />
-      <ResultFooter count={rows?.length} noun="alert" hasMore={nextCursor !== null} />
+      <ResultFooter
+        count={rows?.length}
+        noun="alert"
+        hasMore={nextCursor !== null}
+        pagination={
+          nextCursor !== null || page > 1
+            ? {
+                page,
+                hasPrevious: page > 1,
+                hasNext: nextCursor !== null,
+                loading,
+                onPrevious: previousPage,
+                onNext: nextPage,
+              }
+            : undefined
+        }
+      />
     </box>
   );
 }
