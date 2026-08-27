@@ -1,5 +1,5 @@
 import { type AuthProvider, MissingTokenError, resolveAuthProvider } from "~/api/auth";
-import { SentryClient } from "~/api/client";
+import { ApiError, SentryClient } from "~/api/client";
 import {
   configPath,
   credentialsPath,
@@ -43,17 +43,47 @@ export class SentryUrlInputError extends Error {
   }
 }
 
+/** Expected startup state when the authenticated token can see no organizations. */
 export class MissingOrgError extends Error {
   constructor() {
-    super(
-      [
-        "No Sentry organization configured.",
-        "",
-        "Pass one with --org <slug>, or set SENTRY_ORG.",
-      ].join("\n"),
-    );
+    super("No organizations found for this token. Check your auth token scopes.");
     this.name = "MissingOrgError";
   }
+}
+
+/** Expected CLI input failure when the organization picker cannot use an answer. */
+export class InvalidOrgSelectionError extends Error {
+  constructor() {
+    super("Invalid selection. Run again to retry.");
+    this.name = "InvalidOrgSelectionError";
+  }
+}
+
+export type StartupFailureKind =
+  | "missing_credentials"
+  | "missing_organizations"
+  | "invalid_org_selection"
+  | "handled_at_source"
+  | "unexpected";
+
+/** Decide whether a startup failure needs a metric, no action, or an error report. */
+export function classifyStartupFailure(error: unknown): StartupFailureKind {
+  if (error instanceof MissingTokenError) return "missing_credentials";
+  if (error instanceof MissingOrgError) return "missing_organizations";
+  if (error instanceof InvalidOrgSelectionError) return "invalid_org_selection";
+  // URL failures count themselves at the parser, and the API client has
+  // already applied its report-or-ignore policy based on the response status.
+  if (error instanceof SentryUrlInputError || error instanceof ApiError) return "handled_at_source";
+  return "unexpected";
+}
+
+/** Turn the picker answer into the zero-based organization index. */
+export function parseOrgSelection(answer: string, organizationCount: number): number {
+  const index = Number.parseInt(answer.trim(), 10) - 1;
+  if (Number.isNaN(index) || index < 0 || index >= organizationCount) {
+    throw new InvalidOrgSelectionError();
+  }
+  return index;
 }
 
 /**
@@ -64,17 +94,10 @@ async function promptForOrg(client: SentryClient): Promise<string> {
   process.stderr.write("No default organization configured.\n\n");
   process.stderr.write("Fetching your organizations…\n");
 
-  let orgs: Awaited<ReturnType<typeof listOrganizations>>;
-  try {
-    orgs = await listOrganizations(client);
-  } catch (err) {
-    throw new Error(
-      `Failed to fetch organizations: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
+  const orgs = await listOrganizations(client);
 
   if (orgs.length === 0) {
-    throw new Error("No organizations found for this token. Check your auth token scopes.");
+    throw new MissingOrgError();
   }
 
   if (orgs.length === 1) {
@@ -97,12 +120,7 @@ async function promptForOrg(client: SentryClient): Promise<string> {
   });
   rl.close();
 
-  const index = Number.parseInt(answer.trim(), 10) - 1;
-  if (Number.isNaN(index) || index < 0 || index >= orgs.length) {
-    throw new Error("Invalid selection. Run again to retry.");
-  }
-
-  const selected = orgs[index]!;
+  const selected = orgs[parseOrgSelection(answer, orgs.length)]!;
   await writeConfig({ org: selected.slug });
   process.stderr.write(`\nSaved "${selected.slug}" as default org.\n\n`);
   return selected.slug;
@@ -202,7 +220,10 @@ async function resolveCredentials(options: LoginOptions = {}): Promise<AuthProvi
  * Resolve everything the UI needs before the renderer starts, so credential
  * problems print as plain text instead of flashing inside an alternate screen.
  */
-export async function bootstrap(args: CliArgs): Promise<AppContext> {
+export async function bootstrap(
+  args: CliArgs,
+  options: Pick<LoginOptions, "fetchImpl"> = {},
+): Promise<AppContext> {
   const config = await readConfig();
 
   let initialLocation: SentryUrlLocation | undefined;
@@ -225,7 +246,7 @@ export async function bootstrap(args: CliArgs): Promise<AppContext> {
   }
 
   const auth = await traceStartupStep("resolve credentials", async () => {
-    const provider = await resolveCredentials({ noBrowser: args.noBrowser });
+    const provider = await resolveCredentials({ noBrowser: args.noBrowser, ...options });
     // Surface a missing or unrenewable token now rather than mid-render.
     await provider.getToken();
     return provider;
@@ -233,7 +254,7 @@ export async function bootstrap(args: CliArgs): Promise<AppContext> {
 
   let org = initialLocation?.org ?? args.org ?? process.env["SENTRY_ORG"] ?? config.org;
 
-  const client = new SentryClient({ auth });
+  const client = new SentryClient({ auth, ...options });
 
   if (!org) {
     org = await traceStartupStep("resolve organization", () => promptForOrg(client));

@@ -126,24 +126,26 @@ reporting exists for, while a counter still answers how often they happen.
 
 The names in use today:
 
-| name                            | kind        | where                                 |
-| ------------------------------- | ----------- | ------------------------------------- |
-| `app.session.started`           | log         | `src/ui/runApp.tsx`                   |
-| `app.session.ended`             | log         | `src/ui/runApp.tsx`                   |
-| `app.session.crashed`           | log         | `src/telemetry/index.ts`              |
-| `app.startup.failed`            | error       | `src/main.tsx`                        |
-| `app.crash.uncaught_exception`  | error       | `src/telemetry/index.ts`              |
-| `app.crash.unhandled_rejection` | error       | `src/telemetry/index.ts`              |
-| `api.request.failed`            | log + error | `src/api/client.ts`                   |
-| `api.request.rate_limited`      | log         | `src/api/client.ts`                   |
-| `api.request.unauthorized`      | log         | `src/api/client.ts`                   |
-| `api.response.unreadable`       | error       | `src/core/async.ts`                   |
-| `auth.credentials.missing`      | metric      | `src/main.tsx`                        |
-| `nav.screen.opened`             | log         | `src/telemetry/index.ts`              |
-| `nav.url.invalid`               | metric      | `src/core/sentryUrl.ts`               |
-| `nav.url.unsupported`           | metric      | `src/core/sentryUrl.ts`               |
-| `ui.org.switched`               | log         | `src/ui/App.tsx`                      |
-| `ui.render.crashed`             | error       | `src/ui/components/ErrorBoundary.tsx` |
+| name                              | kind        | where                                 |
+| --------------------------------- | ----------- | ------------------------------------- |
+| `app.session.started`             | log         | `src/ui/runApp.tsx`                   |
+| `app.session.ended`               | log         | `src/ui/runApp.tsx`                   |
+| `app.session.crashed`             | log         | `src/telemetry/index.ts`              |
+| `app.startup.failed`              | error       | `src/main.tsx`                        |
+| `app.crash.uncaught_exception`    | error       | `src/telemetry/index.ts`              |
+| `app.crash.unhandled_rejection`   | error       | `src/telemetry/index.ts`              |
+| `api.request.failed`              | log + error | `src/api/client.ts`                   |
+| `api.request.rate_limited`        | log         | `src/api/client.ts`                   |
+| `api.request.unauthorized`        | log         | `src/api/client.ts`                   |
+| `api.response.unreadable`         | error       | `src/core/async.ts`                   |
+| `auth.credentials.missing`        | metric      | `src/main.tsx`                        |
+| `auth.organizations.missing`      | metric      | `src/main.tsx`                        |
+| `nav.screen.opened`               | log         | `src/telemetry/index.ts`              |
+| `nav.url.invalid`                 | metric      | `src/core/sentryUrl.ts`               |
+| `nav.url.unsupported`             | metric      | `src/core/sentryUrl.ts`               |
+| `ui.org_picker.invalid_selection` | metric      | `src/main.tsx`                        |
+| `ui.org.switched`                 | log         | `src/ui/App.tsx`                      |
+| `ui.render.crashed`               | error       | `src/ui/components/ErrorBoundary.tsx` |
 
 ## images
 

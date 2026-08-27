@@ -7,11 +7,10 @@
 import { runLogin, runLogout, runStatus } from "~/app/login";
 import {
   bootstrap,
+  classifyStartupFailure,
   HELP_TEXT,
   migrateLegacyCredentials,
-  MissingTokenError,
   parseArgs,
-  SentryUrlInputError,
 } from "~/app/startup";
 import { VERSION_LABEL } from "~/lib/version";
 import {
@@ -73,15 +72,21 @@ try {
   // session here would file every run as over seconds after it started.
   if (args.command !== "run") await shutdownTelemetry();
 } catch (error) {
-  if (error instanceof MissingTokenError) {
-    // Not a bug: a first run, or a machine with no terminal to log in from.
-    // The message below already says how to fix it, and filing an issue for
-    // every one of them would bury the crashes this reporting exists for.
-    // Still worth a number — it is how often the app is opened by someone who
-    // cannot get in, and whether they had a terminal to be prompted in.
-    countMetric("auth.credentials.missing", { interactive: process.stdin.isTTY === true });
-  } else if (!(error instanceof SentryUrlInputError)) {
-    reportError(error, { source: "app.startup.failed" });
+  switch (classifyStartupFailure(error)) {
+    case "missing_credentials":
+      countMetric("auth.credentials.missing", { interactive: process.stdin.isTTY === true });
+      break;
+    case "missing_organizations":
+      countMetric("auth.organizations.missing");
+      break;
+    case "invalid_org_selection":
+      countMetric("ui.org_picker.invalid_selection");
+      break;
+    case "handled_at_source":
+      break;
+    case "unexpected":
+      reportError(error, { source: "app.startup.failed" });
+      break;
   }
   await shutdownTelemetry();
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
