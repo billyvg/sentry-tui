@@ -8,10 +8,11 @@
  * can't hold it — a release is one thing with *n* projects inside it, and
  * flattening that into rows loses which release you are looking at.
  *
- * Two async statuses drive it. The list request paints the cards; the health
- * request fills in adoption, crash-free rate and crashes when it lands, and
- * until then those three cells render as pending rather than as zero. That
- * split is upstream's too (`releasesRequest.tsx`, `showHealthPlaceholders`).
+ * Three async statuses drive it. The list request paints the cards; health
+ * fills in adoption, crash-free rate and crashes; the two session-series
+ * requests fill the adoption mini chart. Until those land, the affected cells
+ * render as pending rather than as zero. That split is upstream's too
+ * (`releasesRequest.tsx`, `showHealthPlaceholders`).
  */
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -24,6 +25,8 @@ import {
   releaseSort,
   releaseSortOptions,
   type Release,
+  type ReleaseAdoptionIndex,
+  type ReleaseAdoptionSeries,
   type ReleaseHealth,
   type ReleaseHealthIndex,
   type ReleaseProject,
@@ -31,13 +34,14 @@ import {
 import { errorOf, loadingSince, valueOf } from "~/core/async";
 import { useTheme } from "~/ui/theme";
 import type { Theme } from "~/core/theme";
-import { formatCount, timeAgo } from "~/lib/sparkline";
+import { formatCount, stretch, timeAgo } from "~/lib/sparkline";
 import { padText } from "~/lib/text";
 import type { Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInputHint } from "~/ui/components/SearchInputHint";
 import { useCardScrollFollow } from "~/ui/hooks/useCardScrollFollow";
+import { useReleaseAdoption } from "~/ui/hooks/useReleaseAdoption";
 import { useReleaseHealth, useReleases } from "~/ui/hooks/useReleases";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD, ITALIC } from "~/ui/lib/attributes";
@@ -62,8 +66,11 @@ const COLLAPSED_PROJECTS = 3;
 const SKELETON_CARDS = 4;
 /** Projects a skeleton card holds space for. */
 const SKELETON_PROJECTS = 2;
-/** Cells of the adoption bar itself, before its percentage. */
-const ADOPTION_BAR = 12;
+/** Cells of the paired hourly chart beside its percentage. */
+const ADOPTION_CHART = 12;
+/** Percentage label and its trailing gap. */
+const ADOPTION_LABEL = 5;
+const ADOPTION_BLOCKS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"] as const;
 
 /**
  * Crash-free thresholds, verbatim from `releaseCardProjectRow.tsx:46-47`,
@@ -79,6 +86,10 @@ interface ProjectRow {
   health?: ReleaseHealth;
   /** The health request has not answered yet — draw pending, not absent. */
   pending: boolean;
+  /** Hourly release/project session counts behind the adoption mini chart. */
+  adoption?: ReleaseAdoptionSeries;
+  /** The two session-series requests have not answered yet. */
+  adoptionPending: boolean;
 }
 
 /**
@@ -87,8 +98,8 @@ interface ProjectRow {
  * Project and crash-free rate carry no priority, so they survive any width: a
  * release health row that says neither which project nor how healthy it is has
  * nothing left to say. New Issues sheds first (it is the one number that isn't
- * session health), then crashes, then the adoption bar — which is the last to
- * go because a bar is the thing this view renders better than the web does.
+ * session health), then crashes, then the adoption chart — which is the last
+ * to go because its 24-hour shape adds context the percentage cannot.
  */
 function projectColumns(theme: Theme): ReadonlyArray<Column<ProjectRow>> {
   return [
@@ -103,7 +114,7 @@ function projectColumns(theme: Theme): ReadonlyArray<Column<ProjectRow>> {
     {
       key: "adoption",
       label: "Adoption",
-      width: ADOPTION_BAR + 2 + 4,
+      width: ADOPTION_LABEL + ADOPTION_CHART,
       priority: 3,
       render: (row, _selected, width) => <AdoptionCell row={row} width={width} />,
     },
@@ -219,10 +230,15 @@ export function ReleaseCards({
   const healthStatus = useReleaseHealth(client, { ...params, cursor });
 
   const releases = valueOf(releasesStatus);
+  const adoptionStatus = useReleaseAdoption(client, { org, releases, project, environment });
   const listError = errorOf(releasesStatus);
   const health = valueOf(healthStatus);
   const healthError = errorOf(healthStatus);
   const healthPending = health === undefined && healthStatus.state === "loading";
+  const adoption = valueOf(adoptionStatus);
+  const adoptionError = errorOf(adoptionStatus);
+  const adoptionPending =
+    releases !== undefined && adoption === undefined && adoptionStatus.state !== "error";
 
   const loading = releasesStatus.state === "loading";
   const since = loadingSince(releasesStatus);
@@ -247,11 +263,14 @@ export function ReleaseCards({
         // A failed health request is worth saying out loud: the cards render
         // fine without it, so the only other signal would be three columns of
         // em-dashes that look like absent data rather than a failed fetch.
-        error: listError?.message ?? (healthError ? `health: ${healthError.message}` : undefined),
+        error:
+          listError?.message ??
+          (healthError ? `health: ${healthError.message}` : undefined) ??
+          (adoptionError ? `adoption: ${adoptionError.message}` : undefined),
         noun: "releases",
       },
     });
-  }, [loading, since, listError, healthError, releasesStatus, dispatch]);
+  }, [loading, since, listError, healthError, adoptionError, releasesStatus, dispatch]);
 
   const closeDropdown = useCallback(
     () => dispatch({ type: "setOpenDropdown", payload: null }),
@@ -389,6 +408,8 @@ export function ReleaseCards({
             index={index}
             health={health}
             healthPending={healthPending}
+            adoption={adoption}
+            adoptionPending={adoptionPending}
             resolved={resolved}
             width={cardWidth}
             selected={focused && index === state.selected}
@@ -466,6 +487,8 @@ function ReleaseCard({
   index,
   health,
   healthPending,
+  adoption,
+  adoptionPending,
   resolved,
   width,
   selected,
@@ -476,6 +499,8 @@ function ReleaseCard({
   index: number;
   health?: ReleaseHealthIndex;
   healthPending: boolean;
+  adoption?: ReleaseAdoptionIndex;
+  adoptionPending: boolean;
   resolved: readonly ResolvedColumn[];
   width: number;
   selected: boolean;
@@ -538,6 +563,8 @@ function ReleaseCard({
                   project,
                   health: health?.get(healthKey(release.version, project.id)),
                   pending: healthPending,
+                  adoption: adoption?.get(healthKey(release.version, project.id)),
+                  adoptionPending,
                 },
                 selected,
                 cellWidth,
@@ -584,17 +611,13 @@ function releaseSummary(release: Release): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Adoption as a proportional bar plus its percentage.
- *
- * The web draws a 24-hour mini bar chart here and puts the percentage beside
- * it. A terminal has neither the pixels for the chart nor a tooltip to explain
- * it, but it renders a proportion better than a browser does, so the bar shows
- * the share itself rather than the series behind it.
+ * Adoption percentage followed by the web card's two 24-hour session series.
+ * Each hour is a muted project bar beside an accent release bar; a shared
+ * scale preserves their relative size without needing a tooltip or legend.
  */
 function AdoptionCell({ row, width }: { row: ProjectRow; width: number }) {
   const theme = useTheme();
-  const barWidth = Math.max(1, width - 6);
-  if (row.pending) return <PendingCell width={width} />;
+  if (row.pending || row.adoptionPending) return <PendingCell width={width} />;
 
   const adoption = row.health?.adoption;
   if (adoption === undefined) {
@@ -602,14 +625,80 @@ function AdoptionCell({ row, width }: { row: ProjectRow; width: number }) {
   }
 
   const clamped = Math.max(0, Math.min(100, adoption));
-  const filled = Math.round((clamped / 100) * barWidth);
+  const labelWidth = Math.min(ADOPTION_LABEL, width);
+  const chartWidth = Math.max(0, width - labelWidth);
+  const chart = row.adoption ? adoptionChart(row.adoption, chartWidth) : [];
   return (
     <>
-      <text fg={theme.accent}>{"█".repeat(filled)}</text>
-      <text fg={theme.panelAlt}>{"░".repeat(barWidth - filled)}</text>
-      <text fg={theme.muted}>{padText(`${Math.round(clamped)}%`, width - barWidth, "right")}</text>
+      <text fg={theme.muted}>{padText(`${Math.round(clamped)}%`, labelWidth)}</text>
+      {chart.length > 0 ? (
+        chart.map((cell, index) => (
+          <text key={index} fg={cell.series === "release" ? theme.accent : theme.subText}>
+            {cell.glyph}
+          </text>
+        ))
+      ) : (
+        <text>{" ".repeat(chartWidth)}</text>
+      )}
     </>
   );
+}
+
+export interface AdoptionChartCell {
+  glyph: string;
+  series: "project" | "release";
+}
+
+/**
+ * Render grouped project/release mini bars on one shared scale.
+ *
+ * Each sampled time bucket occupies two cells, matching the web's grouped
+ * mini bar chart: total project first, this release second. The result always
+ * occupies exactly `width` cells when either series has data.
+ */
+export function adoptionChart(series: ReleaseAdoptionSeries, width: number): AdoptionChartCell[] {
+  if (width <= 0 || (series.project.length === 0 && series.release.length === 0)) return [];
+  const pairCount = Math.max(1, Math.floor(width / 2));
+  const length = Math.max(series.project.length, series.release.length);
+  const pairs = Array.from({ length }, (_, index): readonly [number, number] => [
+    series.project[index] ?? 0,
+    series.release[index] ?? 0,
+  ]);
+  const sampled =
+    pairs.length > pairCount ? downsampleAdoption(pairs, pairCount) : stretch(pairs, pairCount);
+  const max = Math.max(1, ...sampled.flatMap(([project, release]) => [project, release]));
+  const cells = sampled.flatMap(([project, release]): AdoptionChartCell[] => [
+    { glyph: adoptionGlyph(project, max), series: "project" },
+    { glyph: adoptionGlyph(release, max), series: "release" },
+  ]);
+  while (cells.length < width) cells.push({ glyph: " ", series: "project" });
+  return cells.slice(0, width);
+}
+
+/** Sum neighbouring hourly pairs so both series keep the same time buckets. */
+function downsampleAdoption(
+  pairs: ReadonlyArray<readonly [number, number]>,
+  width: number,
+): Array<readonly [number, number]> {
+  const bucketSize = pairs.length / width;
+  return Array.from({ length: width }, (_, index): readonly [number, number] => {
+    const start = Math.floor(index * bucketSize);
+    const end = Math.min(pairs.length, Math.floor((index + 1) * bucketSize));
+    let project = 0;
+    let release = 0;
+    for (let point = start; point < end; point++) {
+      project += pairs[point]?.[0] ?? 0;
+      release += pairs[point]?.[1] ?? 0;
+    }
+    return [project, release];
+  });
+}
+
+/** Map a session count onto the terminal's eight vertical block levels. */
+function adoptionGlyph(value: number, max: number): string {
+  if (value <= 0) return ADOPTION_BLOCKS[0];
+  const level = Math.ceil((value / max) * ADOPTION_BLOCKS.length) - 1;
+  return ADOPTION_BLOCKS[Math.max(0, Math.min(ADOPTION_BLOCKS.length - 1, level))]!;
 }
 
 /** Crash-free rate, coloured by the same thresholds the web picks icons with. */

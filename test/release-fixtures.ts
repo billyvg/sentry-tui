@@ -103,3 +103,51 @@ export const rawReleasesWithHealthFixture: unknown[] = rawReleasesFixture.map((r
     })),
   };
 });
+
+const ADOPTION_INTERVALS = Array.from({ length: 24 }, (_, hour) =>
+  new Date(Date.UTC(2026, 7, 19, hour)).toISOString(),
+);
+
+/** `/sessions/` grouped by project and release for the 24-hour mini chart. */
+export const rawReleaseAdoptionByReleaseFixture = {
+  intervals: ADOPTION_INTERVALS,
+  groups: [
+    {
+      by: { project: 2, release: "frontend@1.4.2" },
+      series: {
+        "sum(session)": Array.from({ length: 24 }, (_, hour) => 12 + (hour % 6) * 7),
+      },
+    },
+    {
+      by: { project: 3, release: "frontend@1.4.2" },
+      series: {
+        "sum(session)": Array.from({ length: 24 }, (_, hour) => 5 + (hour % 4) * 3),
+      },
+    },
+    {
+      by: { project: 2, release: "frontend@1.4.1" },
+      series: {
+        "sum(session)": Array.from({ length: 24 }, (_, hour) => 18 - (hour % 6) * 2),
+      },
+    },
+  ],
+};
+
+/** `/sessions/` grouped by project for the mini chart's shared baseline. */
+export const rawReleaseAdoptionByProjectFixture = {
+  intervals: ADOPTION_INTERVALS,
+  groups: [
+    {
+      by: { project: 2 },
+      series: {
+        "sum(session)": Array.from({ length: 24 }, (_, hour) => 80 + (hour % 6) * 20),
+      },
+    },
+    {
+      by: { project: 3 },
+      series: {
+        "sum(session)": Array.from({ length: 24 }, (_, hour) => 35 + (hour % 4) * 10),
+      },
+    },
+  ],
+};
