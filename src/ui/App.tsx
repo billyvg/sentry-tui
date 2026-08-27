@@ -34,6 +34,7 @@ import { APP_REGIONS, useNavigation } from "~/ui/hooks/useNavigation";
 import { useNavigationTrace } from "~/ui/hooks/useNavigationTrace";
 import { SeerChatContext, useSeerChat } from "~/ui/hooks/useSeerChat";
 import { useUpdateCheck } from "~/ui/hooks/useUpdateCheck";
+import type { ReadyUpdate } from "~/app/selfUpdate";
 import { rowsOf, type ScreenStatus } from "~/ui/hooks/useScreenState";
 import { useTriage } from "~/ui/hooks/useTriage";
 import { createAppKeyHandlers, FILTER_COMMAND_DROPDOWN } from "~/ui/lib/appKeyHandlers";
@@ -62,13 +63,10 @@ export interface AppProps {
   initialSeerBashModeByOrg?: Readonly<Record<string, boolean>>;
   initialSeerShowThinkingByOrg?: Readonly<Record<string, boolean>>;
   /**
-   * Hand the terminal to a newly downloaded build and exit.
-   *
-   * Owned by `runApp`, which has to tear the renderer down before the exec.
-   * Absent — as in every test that does not pass one — means the update pill
-   * never appears, so nothing can offer a restart it cannot perform.
+   * Apply a downloaded payload in-process, or restart for a host update.
+   * Absent — as in most tests — means the update pill never appears.
    */
-  onRestart?: (binaryPath: string) => void;
+  onApplyUpdate?: (update: ReadyUpdate) => boolean | Promise<boolean>;
 }
 
 /** Issues › Feed — where the app opens when nothing says otherwise. */
@@ -85,7 +83,7 @@ export function App({
   initialSeerCodeModeByOrg = {},
   initialSeerBashModeByOrg = {},
   initialSeerShowThinkingByOrg = {},
-  onRestart,
+  onApplyUpdate,
 }: AppProps) {
   const theme = useTheme();
   const { width, height } = useTerminalDimensions();
@@ -400,24 +398,22 @@ export function App({
   // A newer build sitting in the cache, if there is one. Undefined the whole
   // time for anyone the launcher did not start — see `canSelfUpdate`.
   const pendingUpdate = useUpdateCheck();
-  const updateReady = Boolean(pendingUpdate && onRestart);
+  const updateReady = Boolean(pendingUpdate && onApplyUpdate);
 
   /**
-   * Restart into the downloaded build, or say why there is nothing to do.
-   *
-   * No success notice: `onRestart` tears the renderer down and hands the
-   * terminal over, so anything written here would be painted and dropped in
-   * the same frame. `runApp` prints the line that covers the gap instead.
+   * Apply the downloaded release, or say why there is nothing to do.
    */
   const runUpdate = useCallback(() => {
-    if (!pendingUpdate || !onRestart) {
+    if (!pendingUpdate || !onApplyUpdate) {
       // Short on purpose: the hints row owns the other end of the bar, and at
       // 100 cells anything longer than this is clipped mid-word.
       showNotice({ kind: "idle", text: "already up to date" });
       return;
     }
-    onRestart(pendingUpdate.path);
-  }, [pendingUpdate, onRestart, showNotice]);
+    void Promise.resolve(onApplyUpdate(pendingUpdate)).then((applied) => {
+      if (!applied) showNotice({ kind: "error", text: "update could not be applied" });
+    });
+  }, [pendingUpdate, onApplyUpdate, showNotice]);
 
   const paletteActions = useMemo(
     () =>

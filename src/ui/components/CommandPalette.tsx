@@ -13,7 +13,7 @@ import {
 } from "~/core/palette";
 import { useTheme } from "~/ui/theme";
 import { fitText } from "~/lib/text";
-import { VERSION_LABEL } from "~/lib/version";
+import { APP_VERSION_LABEL } from "~/app/version";
 import { HighlightedLabel } from "~/ui/components/HighlightedLabel";
 import { ModalFrame } from "~/ui/components/ModalFrame";
 import {
@@ -186,10 +186,10 @@ export function CommandPalette({ actions, onRun, onClose }: CommandPaletteProps)
 
       <box style={{ flexDirection: "row", flexShrink: 0, marginTop: 1 }}>
         <text fg={theme.muted}>
-          {fitText(PALETTE_HINT, Math.max(0, contentWidth - VERSION_LABEL.length - DETAIL_GAP))}
+          {fitText(PALETTE_HINT, Math.max(0, contentWidth - APP_VERSION_LABEL.length - DETAIL_GAP))}
         </text>
         <box style={{ flexGrow: 1 }} />
-        <text fg={theme.subText}>{VERSION_LABEL}</text>
+        <text fg={theme.subText}>{APP_VERSION_LABEL}</text>
       </box>
     </ModalFrame>
   );

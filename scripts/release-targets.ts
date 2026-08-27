@@ -13,6 +13,9 @@ export const NPM_SCOPE = "@billyvg";
 /** Scoped package that carries the launcher and the platform optional deps. */
 export const LAUNCHER_PACKAGE = `${NPM_SCOPE}/sentry-tui`;
 
+/** Platform-neutral app payload loaded by the compiled runtime host. */
+export const APP_PACKAGE = `${NPM_SCOPE}/sentry-tui-app`;
+
 /** Unscoped alias, so `npx sentry-tui` keeps working. */
 export const ALIAS_PACKAGE = "sentry-tui";
 

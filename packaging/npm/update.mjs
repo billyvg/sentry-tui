@@ -1,14 +1,14 @@
 // Plain JS, no dependencies: this ships to npm and runs under Node.
 //
-// Keeping the binary current without the user thinking about it, and without
+// Keeping the host and app payload current without the user thinking about it, and without
 // making them wait. The app starts immediately on whatever is already here;
-// a detached worker fetches anything newer into a cache alongside it, and the
-// next launch picks that up. Releases land often enough that "run `npm i -g`
-// again" is not a reasonable thing to ask of anyone.
+// a detached worker fetches a newer payload into a cache alongside it, and the
+// running host can load it in-process. Releases land often enough that "run
+// `npm i -g` again" is not a reasonable thing to ask of anyone.
 //
 // Everything here fails open. An update is a nice-to-have; starting the app is
 // not. Offline, slow, rate-limited, corrupt download, unwritable cache — each
-// one leaves the binary already on disk in place.
+// one leaves the artifacts already on disk in place.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -16,6 +16,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
   renameSync,
   rmSync,
@@ -88,11 +89,47 @@ export function cachedBinary(version, env = process.env) {
   return join(cacheRoot(env), version, "sentry-tui");
 }
 
+/** Path a given version's app payload entry would occupy. */
+export function cachedPayload(version, env = process.env) {
+  return join(cacheRoot(env), version, "app", "app.mjs");
+}
+
+/** Validated sidecar for a cached payload, or undefined for incomplete bytes. */
+export function cachedPayloadManifest(version, env = process.env) {
+  try {
+    const manifest = JSON.parse(
+      readFileSync(join(cacheRoot(env), version, "app", "manifest.json"), "utf8"),
+    );
+    if (
+      manifest?.version !== version ||
+      manifest?.entry !== "app.mjs" ||
+      !Number.isInteger(manifest?.hostApiVersion) ||
+      !existsSync(cachedPayload(version, env))
+    ) {
+      return undefined;
+    }
+    return manifest;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Versions present in the cache, newest first. */
 export function cachedVersions(env = process.env) {
   try {
     return readdirSync(cacheRoot(env))
       .filter((name) => existsSync(cachedBinary(name, env)))
+      .sort((a, b) => compareVersions(b, a));
+  } catch {
+    return [];
+  }
+}
+
+/** Payload versions present in the cache, newest first. */
+export function cachedPayloadVersions(env = process.env) {
+  try {
+    return readdirSync(cacheRoot(env))
+      .filter((name) => cachedPayloadManifest(name, env))
       .sort((a, b) => compareVersions(b, a));
   } catch {
     return [];
@@ -118,9 +155,28 @@ export function bestLocal(bundled, env = process.env) {
   return best;
 }
 
-/** Remove one cached version and everything stored beneath it. */
-export function removeCachedVersion(version, env = process.env) {
-  rmSync(join(cacheRoot(env), version), { recursive: true, force: true });
+/** The newest app payload on this machine, installed or cached. */
+export function bestLocalPayload(bundled, env = process.env) {
+  let best = bundled;
+  for (const version of cachedPayloadVersions(env)) {
+    if (!best?.version || compareVersions(version, best.version) > 0) {
+      best = { version, path: cachedPayload(version, env) };
+      break;
+    }
+  }
+  return best;
+}
+
+/** Remove one kind of cached release without deleting its sibling artifact. */
+export function removeCachedArtifact(version, artifact, env = process.env) {
+  const versionDir = join(cacheRoot(env), version);
+  const target = artifact === "payload" ? join(versionDir, "app") : cachedBinary(version, env);
+  rmSync(target, { recursive: true, force: true });
+  try {
+    if (readdirSync(versionDir).length === 0) rmSync(versionDir, { recursive: true, force: true });
+  } catch {
+    // It was already empty or disappeared in another cache cleanup.
+  }
 }
 
 /**
@@ -169,14 +225,14 @@ export function verifyIntegrity(bytes, integrity) {
   if (!algorithm?.startsWith("sha")) throw new Error(`unsupported integrity ${integrity}`);
 
   const actual = createHash(algorithm).update(bytes).digest("base64");
-  if (actual !== expected) throw new Error("downloaded binary failed its integrity check");
+  if (actual !== expected) throw new Error("downloaded release failed its integrity check");
 }
 
 /**
- * Download a release into the cache and return the path to its binary.
+ * Download one release artifact into the cache and return its entry path.
  *
  * Unpacked into a temp directory inside the cache and moved into place with a
- * rename, so a half-written binary is never visible under its version — and so
+ * rename, so a half-written artifact is never visible under its version — and so
  * two copies of the app racing each other cannot collide.
  */
 /**
@@ -184,9 +240,15 @@ export function verifyIntegrity(bytes, integrity) {
  * @param {Release} options.release
  * @param {Record<string, string | undefined>} [options.env]
  * @param {FetchLike} [options.fetchImpl]
+ * @param {"binary" | "payload"} [options.artifact]
  * @returns {Promise<string>}
  */
-export async function installRelease({ release, env = process.env, fetchImpl = fetch }) {
+export async function installRelease({
+  release,
+  env = process.env,
+  fetchImpl = fetch,
+  artifact = "binary",
+}) {
   const root = cacheRoot(env);
   mkdirSync(root, { recursive: true });
 
@@ -203,30 +265,47 @@ export async function installRelease({ release, env = process.env, fetchImpl = f
 
     // `tar` rather than a JS implementation: this runs on macOS and Linux only,
     // where it is always present, and the alternative is a dependency.
-    const extracted = spawnSync("tar", ["-xzf", archive, "-C", staging, "package/bin/sentry-tui"], {
+    const archivePath = artifact === "payload" ? "package/app" : "package/bin/sentry-tui";
+    const extracted = spawnSync("tar", ["-xzf", archive, "-C", staging, archivePath], {
       stdio: "ignore",
     });
     if (extracted.status !== 0) throw new Error("could not unpack the downloaded release");
 
+    const destination = join(root, release.version);
+    mkdirSync(destination, { recursive: true });
+    if (artifact === "payload") {
+      const payload = join(staging, "package", "app");
+      const manifest = join(payload, "manifest.json");
+      if (!existsSync(join(payload, "app.mjs")) || !existsSync(manifest)) {
+        throw new Error("the release contained no app payload");
+      }
+      const metadata = JSON.parse(readFileSync(manifest, "utf8"));
+      if (metadata?.version !== release.version || metadata?.entry !== "app.mjs") {
+        throw new Error("the app payload manifest did not match its release");
+      }
+      removeCachedArtifact(release.version, "payload", env);
+      mkdirSync(destination, { recursive: true });
+      renameSync(payload, join(destination, "app"));
+      return join(destination, "app", "app.mjs");
+    }
+
     const binary = join(staging, "package", "bin", "sentry-tui");
     if (!existsSync(binary)) throw new Error("the release contained no sentry-tui binary");
     chmodSync(binary, 0o755);
-
-    const destination = join(root, release.version);
-    removeCachedVersion(release.version, env);
+    removeCachedArtifact(release.version, "binary", env);
     mkdirSync(destination, { recursive: true });
     renameSync(binary, join(destination, "sentry-tui"));
-
     return join(destination, "sentry-tui");
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
 }
 
-/** Drop old cached builds, keeping the newest few. */
-export function pruneCache(env = process.env, keep = KEEP_VERSIONS) {
-  for (const version of cachedVersions(env).slice(keep)) {
-    removeCachedVersion(version, env);
+/** Drop old cached artifacts of one kind, keeping the newest few. */
+export function pruneCache(env = process.env, keep = KEEP_VERSIONS, artifact = "binary") {
+  const versions = artifact === "payload" ? cachedPayloadVersions(env) : cachedVersions(env);
+  for (const version of versions.slice(keep)) {
+    removeCachedArtifact(version, artifact, env);
   }
 }
 
@@ -275,7 +354,7 @@ export function acquireUpdateLock(env = process.env, staleMs = LOCK_STALE_MS) {
  * Fetch the newest release when it beats `localVersion`, into the cache.
  *
  * This is what the background worker runs. Nothing here is on the path of a
- * launch, so it is free to take as long as a 24MB download takes.
+ * launch, so it is free to take as long as the download takes.
  *
  * @param {object} options
  * @param {string} options.packageName
@@ -283,6 +362,7 @@ export function acquireUpdateLock(env = process.env, staleMs = LOCK_STALE_MS) {
  * @param {Record<string, string | undefined>} [options.env]
  * @param {FetchLike} [options.fetchImpl]
  * @param {number} [options.timeoutMs]
+ * @param {"binary" | "payload"} [options.artifact]
  * @returns {Promise<{status: "updated" | "current" | "locked", version?: string}>}
  */
 export async function downloadIfNewer({
@@ -291,6 +371,7 @@ export async function downloadIfNewer({
   env = process.env,
   fetchImpl = fetch,
   timeoutMs = CHECK_TIMEOUT_MS,
+  artifact = "binary",
 }) {
   const release = await fetchLatestRelease({ packageName, timeoutMs, fetchImpl });
   if (localVersion && compareVersions(release.version, localVersion) <= 0) {
@@ -301,9 +382,9 @@ export async function downloadIfNewer({
   if (!unlock) return { status: "locked" };
 
   try {
-    await installRelease({ release, env, fetchImpl });
+    await installRelease({ release, env, fetchImpl, artifact });
     try {
-      pruneCache(env);
+      pruneCache(env, KEEP_VERSIONS, artifact);
     } catch {
       // A cache we cannot tidy is not worth failing an update over.
     }

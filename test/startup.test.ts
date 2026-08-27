@@ -15,7 +15,7 @@ import {
   parseOrgSelection,
   SentryUrlInputError,
 } from "~/app/startup";
-import { APP_VERSION, VERSION_LABEL } from "~/lib/version";
+import { HOST_VERSION, VERSION_LABEL } from "~/lib/version";
 
 /** Bootstrap against one throwaway user config and restore the process env. */
 async function bootstrapWithConfig(config: unknown, argv: string[] = [], fetchImpl?: typeof fetch) {
@@ -256,12 +256,10 @@ describe("help text", () => {
 });
 
 describe("--version output", () => {
-  // Built from APP_VERSION rather than VERSION_LABEL, so the `v` prefix is
-  // pinned too. The label is shared with the palette footer, whose hint is fit
-  // to the width the version leaves over — shaving that `v` for a cell would
-  // otherwise quietly rewrite what the CLI prints.
+  // Built from HOST_VERSION rather than VERSION_LABEL, so the `v` prefix is
+  // pinned too.
   test("the label carries a v prefix", () => {
-    expect(VERSION_LABEL).toBe(`v${APP_VERSION}`);
+    expect(VERSION_LABEL).toBe(`v${HOST_VERSION}`);
   });
 
   // The one spawn in the suite. `main.tsx` is a top-level script with a
@@ -274,7 +272,7 @@ describe("--version output", () => {
       stderr: "pipe",
     });
 
-    expect(result.stdout.toString()).toBe(`sentry-tui v${APP_VERSION}\n`);
+    expect(result.stdout.toString()).toBe(`sentry-tui v${HOST_VERSION}\n`);
     expect(result.exitCode).toBe(0);
   });
 });
