@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
-import { readConfig } from "~/api/config";
+import { readConfig } from "@sentry-tui/runtime-host/config/index";
 import { App } from "~/ui/App";
 import { eventFixture, groupFixture } from "./fixtures";
 import { renderHarness } from "./helpers";

@@ -3,11 +3,14 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { HOST_API_VERSION, HOST_MODULE_SPECIFIERS } from "../src/app/runtimeContract.ts";
+import {
+  HOST_API_VERSION,
+  HOST_MODULE_SPECIFIERS,
+} from "../packages/runtime-contract/src/runtime.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const OUT_DIR = join(ROOT, "dist", "app");
-const ENTRY = join(ROOT, "src", "ui", "runtime", "payloadEntry.tsx");
+const ENTRY = join(ROOT, "packages", "app", "src", "payloadEntry.tsx");
 
 /**
  * Modules whose identity belongs to the host.

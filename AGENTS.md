@@ -9,22 +9,29 @@ Built with OpenTUI React on Bun.
 
 ## architecture
 
-Four tiers, each importing strictly downward:
+The repository is a workspace monorepo with four explicit packages:
 
 ```text
-src/lib/       → dependency-free helpers (text width, sparkline, stacktrace)
-src/telemetry/ → Sentry SDK wrapper; a leaf like lib, called from every tier
-src/api/       → Sentry HTTP client, auth, response normalization, domain types
-src/core/      → store, reducer, commands, theme, async status, nav
-src/ui/        → OpenTUI surface — screens, components, hooks
-src/main.tsx   → CLI entry
+packages/app/              → replaceable product UI, core, API, assets
+packages/runtime-contract/ → injected config, telemetry, and update interfaces
+packages/runtime-host/     → compiled startup, renderer, loader, persistence, telemetry
+packages/launcher/         → plain Node launcher and background update worker
 ```
+
+The package dependency shape is `app → runtime-contract ← runtime-host`; the
+host also embeds the app as its cold-start fallback and reuses launcher update
+modules. The app must never import runtime-host or launcher implementations.
+
+Inside `packages/app/src/`, tiers import strictly downward: `lib/` contains
+dependency-free helpers, `api/` owns the Sentry client and domain types,
+`core/` owns domain state and commands, and `ui/` owns the OpenTUI surface.
 
 API modules keep their domain types in TypeScript and defensively normalize
 unstable response fields at the boundary. A runtime schema library would be a
 tier-wide architectural choice, not a second file-local pattern.
 
-`src/telemetry/` is how sentry-tui reports its own errors. Two rules it has to
+`packages/runtime-host/src/telemetry/` is how sentry-tui reports its own errors.
+The app calls it only through `runtime-contract`. Two rules the implementation has to
 keep: it never writes to stdout or stderr — a TUI owns the screen — and it is
 inert until `initTelemetry` says otherwise, loading the SDK by dynamic import
 so a run with reporting off never evaluates it. Reporting is off when running
@@ -63,12 +70,13 @@ bun run release:verify          # check what landed on npm
 
 ## distribution
 
-Load the `distribution` skill before touching `packaging/`, `scripts/release*`,
-`scripts/build-*`, or `src/app/selfUpdate.ts`. Two rules that
-hold whether or not you've read it: `packaging/npm/background-update.mjs` must
-never write to stdout or stderr — a TUI owns the screen — and `src/app/
-selfUpdate.ts` reuses the launcher's own modules rather than restating the
-cache layout or the lock.
+Load the `distribution` skill before touching `packages/launcher/`,
+`packages/runtime-contract/`, `packages/runtime-host/src/update/`,
+`packages/runtime-host/src/ui/`, `scripts/release*`, or `scripts/build-*`. Two
+rules hold whether or not you've read it:
+`packages/launcher/src/background-update.mjs` must never write to stdout or
+stderr — a TUI owns the screen — and the host updater reuses the launcher's own
+modules rather than restating the cache layout or the lock.
 
 ## telemetry names
 
@@ -113,7 +121,7 @@ Span names and ops are the exception, and are left alone: `http.client`,
 `GET /organizations/{org}/issues/` and the rest follow Sentry's own semantic
 conventions, because the product reads them.
 
-`TelemetryName` in `src/telemetry/index.ts` makes the compiler reject a name
+`TelemetryName` in `packages/runtime-contract/src/telemetry.ts` makes the compiler reject a name
 without three segments; `scripts/telemetry-names.test.ts` catches the rest.
 
 ### error, or metric?
@@ -126,26 +134,26 @@ reporting exists for, while a counter still answers how often they happen.
 
 The names in use today:
 
-| name                              | kind        | where                                 |
-| --------------------------------- | ----------- | ------------------------------------- |
-| `app.session.started`             | log         | `src/ui/runApp.tsx`                   |
-| `app.session.ended`               | log         | `src/ui/runApp.tsx`                   |
-| `app.session.crashed`             | log         | `src/telemetry/index.ts`              |
-| `app.startup.failed`              | error       | `src/main.tsx`                        |
-| `app.crash.uncaught_exception`    | error       | `src/telemetry/index.ts`              |
-| `app.crash.unhandled_rejection`   | error       | `src/telemetry/index.ts`              |
-| `api.request.failed`              | log + error | `src/api/client.ts`                   |
-| `api.request.rate_limited`        | log         | `src/api/client.ts`                   |
-| `api.request.unauthorized`        | log         | `src/api/client.ts`                   |
-| `api.response.unreadable`         | error       | `src/core/async.ts`                   |
-| `auth.credentials.missing`        | metric      | `src/main.tsx`                        |
-| `auth.organizations.missing`      | metric      | `src/main.tsx`                        |
-| `nav.screen.opened`               | log         | `src/telemetry/index.ts`              |
-| `nav.url.invalid`                 | metric      | `src/core/sentryUrl.ts`               |
-| `nav.url.unsupported`             | metric      | `src/core/sentryUrl.ts`               |
-| `ui.org_picker.invalid_selection` | metric      | `src/main.tsx`                        |
-| `ui.org.switched`                 | log         | `src/ui/App.tsx`                      |
-| `ui.render.crashed`               | error       | `src/ui/components/ErrorBoundary.tsx` |
+| name                              | kind        | where                                            |
+| --------------------------------- | ----------- | ------------------------------------------------ |
+| `app.session.started`             | log         | `packages/runtime-host/src/ui/runApp.tsx`        |
+| `app.session.ended`               | log         | `packages/runtime-host/src/ui/runApp.tsx`        |
+| `app.session.crashed`             | log         | `packages/runtime-host/src/telemetry/index.ts`   |
+| `app.startup.failed`              | error       | `packages/runtime-host/src/main.tsx`             |
+| `app.crash.uncaught_exception`    | error       | `packages/runtime-host/src/telemetry/index.ts`   |
+| `app.crash.unhandled_rejection`   | error       | `packages/runtime-host/src/telemetry/index.ts`   |
+| `api.request.failed`              | log + error | `packages/app/src/api/client.ts`                 |
+| `api.request.rate_limited`        | log         | `packages/app/src/api/client.ts`                 |
+| `api.request.unauthorized`        | log         | `packages/app/src/api/client.ts`                 |
+| `api.response.unreadable`         | error       | `packages/app/src/core/async.ts`                 |
+| `auth.credentials.missing`        | metric      | `packages/runtime-host/src/main.tsx`             |
+| `auth.organizations.missing`      | metric      | `packages/runtime-host/src/main.tsx`             |
+| `nav.screen.opened`               | log         | `packages/runtime-host/src/telemetry/index.ts`   |
+| `nav.url.invalid`                 | metric      | `packages/app/src/core/sentryUrl.ts`             |
+| `nav.url.unsupported`             | metric      | `packages/app/src/core/sentryUrl.ts`             |
+| `ui.org_picker.invalid_selection` | metric      | `packages/runtime-host/src/main.tsx`             |
+| `ui.org.switched`                 | log         | `packages/app/src/ui/App.tsx`                    |
+| `ui.render.crashed`               | error       | `packages/runtime-host/src/ui/ErrorBoundary.tsx` |
 
 ## images
 
@@ -164,14 +172,14 @@ binary while it still renders from source. Add a new PNG by adding its import
 beside the others.
 
 Every bundled PNG ships inside a binary that is already too big, so keep them
-at the size they render at. Nav icons in `src/assets/icons/` are laid out at 2
+at the size they render at. Nav icons in `packages/app/src/assets/icons/` are laid out at 2
 columns by 1 row — about 40x40 device pixels on a HiDPI cell — and are capped at
-128x128 by a test in `src/assets/navIcons.test.ts`. They have no generator, so
+128x128 by a test in `packages/app/src/assets/navIcons.test.ts`. They have no generator, so
 downscale in place with `sips -Z 128 <file> --out <file>` when adding one.
 
-Platform icons in `src/assets/platform-icons/`, the lookup table in
-`src/lib/platformIcons.generated.ts`, and the imports in
-`src/assets/platformIcons.generated.ts` are all generated by
+Platform icons in `packages/app/src/assets/platform-icons/`, the lookup table in
+`packages/app/src/lib/platformIcons.generated.ts`, and the imports in
+`packages/app/src/assets/platformIcons.generated.ts` are all generated by
 `bun run icons:build` from the `platformicons` package. All are committed;
 rerun only when that package is upgraded.
 

@@ -16,7 +16,7 @@ import {
   type StoredCredentials,
   writeConfig,
   writeCredentials,
-} from "~/api/config";
+} from "@sentry-tui/runtime-host/config/index";
 
 /** Every test in this file writes to a throwaway config directory. */
 let dir: string;

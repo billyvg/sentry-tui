@@ -58,7 +58,7 @@ variable either.
 ### The app runs from source, not from `dist`
 
 The tape types `sentry-tui`, but that resolves to a shim the harness writes
-(`writeShim` in `lib/paths.ts`) which execs `bun run src/main.tsx`.
+(`writeShim` in `lib/paths.ts`) which execs the runtime host entrypoint.
 
 This started as a workaround: `bun build --compile` used to leave `src/assets/**`
 out of the bundle, so every `<image>` resolved to a path that wasn't there and

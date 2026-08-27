@@ -22,7 +22,7 @@ export interface ChildResult {
  *
  * The file lands outside the repo, so imports in `source` must be absolute —
  * Bun still applies the `~/` aliases of whatever project the imported file
- * belongs to, so reaching into `src/` works from there.
+ * belongs to, so reaching into workspace source works from there.
  *
  * `args` arrive as the program's own `process.argv.slice(2)`, for code that
  * reads them.

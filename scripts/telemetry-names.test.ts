@@ -1,7 +1,7 @@
 /**
  * Telemetry names stay one vocabulary.
  *
- * `TelemetryName` in `src/telemetry/index.ts` is the type-level half of this:
+ * `TelemetryName` in runtime-contract is the type-level half of this:
  * it makes the compiler reject anything without three dotted segments. What it
  * cannot see is casing, the shape of a segment, or whether a name invented a
  * sixth namespace nobody documented — a template literal type accepts
@@ -20,7 +20,10 @@ import { describe, expect, test } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
-const SRC = join(import.meta.dirname, "..", "src");
+const SOURCE_ROOTS = [
+  join(import.meta.dirname, "..", "packages", "app", "src"),
+  join(import.meta.dirname, "..", "packages", "runtime-host", "src"),
+];
 
 /** The top-level subsystems telemetry names may describe. See `AGENTS.md`. */
 const NAMESPACES = new Set([
@@ -61,21 +64,23 @@ interface Found {
   literal: string;
 }
 
-/** Every telemetry name written down in `src/`, in the form it was written. */
+/** Every telemetry name written down in app or host source, as written. */
 async function collect(): Promise<Found[]> {
   const found: Found[] = [];
 
-  for await (const file of walkTs(SRC)) {
-    const source = await readFile(file, "utf8");
-    const where = relative(SRC, file);
+  for (const root of SOURCE_ROOTS) {
+    for await (const file of walkTs(root)) {
+      const source = await readFile(file, "utf8");
+      const where = relative(join(import.meta.dirname, ".."), file);
 
-    const patterns = [LOG_CALL, METRIC_CALL];
-    if (source.includes("reportError")) patterns.push(SOURCE_PROPERTY);
+      const patterns = [LOG_CALL, METRIC_CALL];
+      if (source.includes("reportError")) patterns.push(SOURCE_PROPERTY);
 
-    for (const pattern of patterns) {
-      pattern.lastIndex = 0;
-      for (let m = pattern.exec(source); m; m = pattern.exec(source)) {
-        found.push({ where, literal: m[1]!.trim() });
+      for (const pattern of patterns) {
+        pattern.lastIndex = 0;
+        for (let m = pattern.exec(source); m; m = pattern.exec(source)) {
+          found.push({ where, literal: m[1]!.trim() });
+        }
       }
     }
   }

@@ -1,0 +1,6 @@
+{
+  "name": "@sentry-tui/runtime-contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module"
+}

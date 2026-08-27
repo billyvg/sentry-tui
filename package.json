@@ -14,25 +14,28 @@
     "url": "git+https://github.com/billyvg/sentry-tui.git"
   },
   "bin": {
-    "sentry-tui": "src/main.tsx"
+    "sentry-tui": "packages/runtime-host/src/main.tsx"
   },
+  "workspaces": [
+    "packages/*"
+  ],
   "type": "module",
-  "module": "src/main.tsx",
+  "module": "packages/runtime-host/src/main.tsx",
   "scripts": {
-    "start": "bun run src/main.tsx",
-    "dev": "bun --watch src/main.tsx",
+    "start": "bun run packages/runtime-host/src/main.tsx",
+    "dev": "bun --watch packages/runtime-host/src/main.tsx",
     "typecheck": "tsc --noEmit",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint . --deny-warnings",
     "lint:fix": "oxlint . --fix",
-    "test": "bun test ./src ./test ./demos",
+    "test": "bun test ./packages ./test ./demos",
     "test:shard": "bun run ./scripts/test-shard.ts",
     "test:parallel": "bun run ./scripts/test-parallel.ts",
     "test:theme-contrast": "bun test scripts/check-theme-contrast.test.ts",
     "test:boundaries": "bun test scripts/source-boundaries.test.ts",
-    "deps:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known",
-    "deps:baseline": "depcruise src --config .dependency-cruiser.cjs --output-type baseline --output-to .dependency-cruiser-known-violations.json",
+    "deps:check": "depcruise packages --config .dependency-cruiser.cjs --ignore-known",
+    "deps:baseline": "depcruise packages --config .dependency-cruiser.cjs --output-type baseline --output-to .dependency-cruiser-known-violations.json",
     "test:packaging": "bun test scripts/packaging.test.ts",
     "build:bin": "bun run ./scripts/build-bin.ts",
     "build:app": "bun run ./scripts/build-app.ts",
@@ -53,14 +56,6 @@
     "demo": "bun run demo:tts && bun run demo:record && bun run demo:mux",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run deps:check && bun run test:parallel",
     "prepare": "simple-git-hooks"
-  },
-  "dependencies": {
-    "@opentui/core": "0.5.4",
-    "@opentui/react": "0.5.4",
-    "@sentry/api": "0.286.0",
-    "@sentry/bun": "^10.70.0",
-    "react": "^19.2.0",
-    "string-width": "^8.2.2"
   },
   "devDependencies": {
     "@types/bun": "latest",

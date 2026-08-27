@@ -21,7 +21,7 @@ The first five surfaces compare against
 `scripts/sentry-frontend-baseline.json`. This reviewed semantic snapshot records
 intentional product differences without treating formatting or comments in Web
 as drift. Prebuilt dashboards compare directly against
-`src/core/prebuiltDashboards.generated.json`, because that file is runtime data
+`packages/app/src/core/prebuiltDashboards.generated.json`, because that file is runtime data
 rather than only a compatibility declaration.
 
 The scheduled workflow is informational: it does not run on pull requests and

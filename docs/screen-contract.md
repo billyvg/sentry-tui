@@ -10,17 +10,17 @@ a future destination can be registered before its UI lands.
 The main pieces are:
 
 ```text
-src/core/nav.ts                       static navigation groups and items
-src/core/screens.ts                   screen ids, metadata, state keys, defaults
-src/ui/screens/registry.tsx           screen id -> component
-src/ui/screens/types.ts               ScreenProps, ScreenActions, pushed views
-src/ui/hooks/useNavigation.ts         route, view stack, and active state slice
-src/ui/hooks/useScreenState.ts        reducer-managed state keyed by screen
-src/ui/hooks/useScreenActions.ts      action registration lifecycle
-src/ui/components/DataTable.tsx       shared table rendering and load states
-src/ui/lib/tableLayout.ts             responsive column shedding
-src/ui/lib/navSections.ts             static and dynamic secondary-nav items
-src/ui/hooks/useSecondaryNavExtras.ts dynamic per-organization nav sections
+packages/app/src/core/nav.ts                       static navigation groups and items
+packages/app/src/core/screens.ts                   screen ids, metadata, state keys, defaults
+packages/app/src/ui/screens/registry.tsx           screen id -> component
+packages/app/src/ui/screens/types.ts               ScreenProps, ScreenActions, pushed views
+packages/app/src/ui/hooks/useNavigation.ts         route, view stack, and active state slice
+packages/app/src/ui/hooks/useScreenState.ts        reducer-managed state keyed by screen
+packages/app/src/ui/hooks/useScreenActions.ts      action registration lifecycle
+packages/app/src/ui/components/DataTable.tsx       shared table rendering and load states
+packages/app/src/ui/lib/tableLayout.ts             responsive column shedding
+packages/app/src/ui/lib/navSections.ts             static and dynamic secondary-nav items
+packages/app/src/ui/hooks/useSecondaryNavExtras.ts dynamic per-organization nav sections
 ```
 
 The source files above are authoritative. This document records the decisions
@@ -28,8 +28,8 @@ that are easy to miss when reading any one of them.
 
 ## Registry and routing
 
-Every static item in `src/core/nav.ts` has exactly one `ScreenDef` in
-`src/core/screens.ts`. `scripts/nav-coverage.test.ts` enforces both directions:
+Every static item in `packages/app/src/core/nav.ts` has exactly one `ScreenDef` in
+`packages/app/src/core/screens.ts`. `scripts/nav-coverage.test.ts` enforces both directions:
 no nav item can be unregistered, and no registered screen can be unreachable.
 
 The registered ids are:
@@ -74,7 +74,7 @@ or the default `open`.
 
 ### Adding a top-level destination
 
-1. Add the item to `src/core/nav.ts` and its stable id to `ScreenId`.
+1. Add the item to `packages/app/src/core/nav.ts` and its stable id to `ScreenId`.
 2. Add its `ScreenDef` to `SCREENS`, including defaults and a state key only
    when they are intentional.
 3. Implement a component taking `ScreenProps`, then add one entry to the flat
@@ -93,13 +93,13 @@ component was registered.
 Screens that differ only by a base query or endpoint option use one component
 and a configuration table keyed by `ScreenId`:
 
-| Screens                       | Configuration                   | Component       |
-| ----------------------------- | ------------------------------- | --------------- |
-| Issue views                   | `src/core/issueViews.ts`        | `IssueFeed`     |
-| Traces, Logs, Metrics, Errors | `src/core/exploreTables.ts`     | `ExploreTable`  |
-| Discover, All Queries         | `src/core/savedQueryScreens.ts` | `SavedQueries`  |
-| Dashboard lists               | `src/core/dashboards.ts`        | `DashboardList` |
-| Detector lists                | `src/core/monitors.ts`          | `MonitorList`   |
+| Screens                       | Configuration                                | Component       |
+| ----------------------------- | -------------------------------------------- | --------------- |
+| Issue views                   | `packages/app/src/core/issueViews.ts`        | `IssueFeed`     |
+| Traces, Logs, Metrics, Errors | `packages/app/src/core/exploreTables.ts`     | `ExploreTable`  |
+| Discover, All Queries         | `packages/app/src/core/savedQueryScreens.ts` | `SavedQueries`  |
+| Dashboard lists               | `packages/app/src/core/dashboards.ts`        | `DashboardList` |
+| Detector lists                | `packages/app/src/core/monitors.ts`          | `MonitorList`   |
 
 The base filter that makes siblings different belongs in that configuration,
 not in shared screen state. Prefer ids over labels as configuration keys unless
@@ -290,10 +290,10 @@ async lifecycle. Include `org`, committed filters, pagination cursor, and
 poll Sentry endpoints.
 
 Discover-style screens should build on `queryDiscover` and
-`queryDiscoverTimeseries` in `src/api/discover.ts`. The row endpoint returns
-flat `Record<string, unknown>` values; normalize them in `src/api/` with
-`rowString` and `rowNumber` before rendering. `src/api/exploreEvents.ts` and
-`src/ui/screens/ExploreTable.tsx` are the current generic pattern. Logs are a
+`queryDiscoverTimeseries` in `packages/app/src/api/discover.ts`. The row endpoint returns
+flat `Record<string, unknown>` values; normalize them in `packages/app/src/api/` with
+`rowString` and `rowNumber` before rendering. `packages/app/src/api/exploreEvents.ts` and
+`packages/app/src/ui/screens/ExploreTable.tsx` are the current generic pattern. Logs are a
 smaller endpoint-specific example.
 
 ## Dynamic secondary navigation

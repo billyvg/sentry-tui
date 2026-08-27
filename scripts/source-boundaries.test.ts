@@ -3,7 +3,7 @@
  * complement dependency-cruiser's full traversal.
  *
  * These tests catch common patterns that slip past the cruiser rules:
- * - src/lib/ files importing from anywhere else in src/
+ * - app lib files importing from anywhere else in the app
  * - circular re-exports between api/ and core/
  * - UI components importing store internals directly
  * - a second animation clock appearing anywhere in the UI
@@ -12,7 +12,7 @@ import { test, expect, describe } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
-const SRC = join(import.meta.dirname, "..", "src");
+const SRC = join(import.meta.dirname, "..", "packages", "app", "src");
 
 // Known violations — these are tracked in .dependency-cruiser-known-violations.json
 // and should be resolved, not added to. This list is shrink-only.
@@ -53,8 +53,7 @@ function importsFrom(importPath: string, srcDir: string): boolean {
 /**
  * Every `~/` import out of `dir` that doesn't land in one of `allowed`.
  *
- * Shared by the two leaf tiers: `lib` may reach nowhere in `src/`, `telemetry`
- * may reach `lib` and nothing else.
+ * Shared by leaf tiers that may reach only explicitly allowed app directories.
  */
 async function leafViolations(dir: string, allowed: string[], known = new Set<string>()) {
   const violations: string[] = [];
@@ -73,15 +72,11 @@ async function leafViolations(dir: string, allowed: string[], known = new Set<st
 }
 
 describe("source boundaries", () => {
-  test("src/lib/ does not import from other src/ directories", async () => {
+  test("app lib does not import from other app directories", async () => {
     expect(await leafViolations("lib", ["lib"], KNOWN_LIB_VIOLATIONS)).toEqual([]);
   });
 
-  test("src/telemetry/ imports nothing above src/lib/", async () => {
-    expect(await leafViolations("telemetry", ["telemetry", "lib"])).toEqual([]);
-  });
-
-  test("src/api/ does not import from core/ or ui/", async () => {
+  test("app api does not import from core or ui", async () => {
     const violations: string[] = [];
     const apiDir = join(SRC, "api");
 
@@ -98,7 +93,7 @@ describe("source boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  test("src/core/ does not import from ui/ or app/", async () => {
+  test("app core does not import from ui", async () => {
     const violations: string[] = [];
     const coreDir = join(SRC, "core");
 

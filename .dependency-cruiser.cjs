@@ -1,79 +1,80 @@
 /**
- * Enforces module boundaries on the production import graph.
+ * Enforces both workspace ownership and the app's internal production tiers.
  *
- * The architecture has four tiers, each importing strictly downward:
+ *   app -> runtime-contract <- runtime-host
+ *                                  |
+ *                               launcher
  *
- *   src/lib/       → dependency-free helpers (text width, color, time-ago, sparkline)
- *   src/telemetry/ → Sentry SDK wrapper; a leaf, called from every tier above
- *   src/api/    → Sentry HTTP client, auth, zod schemas, domain types
- *   src/core/   → store, actions, reducer, selectors, commands, theme
- *   src/ui/     → OpenTUI surface — screens, components, hooks
- *   src/main.tsx → CLI entry
- *
- * Pre-existing violations live in .dependency-cruiser-known-violations.json;
- * that baseline is shrink-only. `bun run deps:check` fails on any violation
- * not in the baseline.
+ * The host also embeds the app as its cold-start fallback. The inverse edge is
+ * forbidden: a replaceable app payload can only use host behavior through the
+ * implementation-independent runtime contract.
  */
-
 module.exports = {
   forbidden: [
     {
       name: "no-circular",
-      comment:
-        "Import cycles make every member file one module in disguise: none can be understood, tested, or extracted alone.",
+      comment: "Import cycles make every member file one module in disguise.",
       severity: "error",
       from: {},
       to: { circular: true },
     },
     {
-      name: "lib-is-a-leaf",
-      comment:
-        "src/lib holds dependency-free helpers usable from any tier; it must not import from other src/ directories.",
+      name: "app-does-not-import-host",
+      comment: "The replaceable app may use runtime-contract, never runtime-host.",
       severity: "error",
-      from: { path: "^src/lib/" },
-      to: { path: "^src/", pathNot: "^src/lib/" },
+      from: { path: "^packages/app/" },
+      to: { path: "^packages/runtime-host/" },
     },
     {
-      name: "telemetry-is-a-leaf",
-      comment:
-        "src/telemetry wraps the Sentry SDK and is called from every tier, so it must depend on none of them; it may use src/lib.",
+      name: "app-does-not-import-launcher",
+      comment: "Launcher and cache implementation belong to the runtime host.",
       severity: "error",
-      from: { path: "^src/telemetry/" },
-      to: { path: "^src/", pathNot: "^src/(telemetry|lib)/" },
+      from: { path: "^packages/app/" },
+      to: { path: "^packages/launcher/" },
+    },
+    {
+      name: "runtime-contract-is-independent",
+      comment: "The shared contract defines interfaces and depends on no implementation package.",
+      severity: "error",
+      from: { path: "^packages/runtime-contract/" },
+      to: { path: "^packages/(app|runtime-host|launcher)/" },
+    },
+    {
+      name: "launcher-is-standalone",
+      comment: "The plain Node launcher cannot depend on Bun or application source.",
+      severity: "error",
+      from: { path: "^packages/launcher/" },
+      to: { path: "^packages/(app|runtime-host|runtime-contract)/" },
+    },
+    {
+      name: "lib-is-a-leaf",
+      comment: "App lib holds dependency-free helpers usable from every app tier.",
+      severity: "error",
+      from: { path: "^packages/app/src/lib/" },
+      to: { path: "^packages/app/src/", pathNot: "^packages/app/src/lib/" },
     },
     {
       name: "api-stays-below-core-and-ui",
-      comment:
-        "src/api provides the Sentry HTTP client and domain types. It may use src/lib but never the store, commands, or UI above it.",
+      comment: "The app API may use lib and runtime contracts, never core or UI.",
       severity: "error",
-      from: { path: "^src/api/" },
-      to: { path: "^src/(core|ui|app)/" },
+      from: { path: "^packages/app/src/api/" },
+      to: { path: "^packages/app/src/(core|ui)/" },
     },
     {
       name: "core-stays-domain",
-      comment:
-        "src/core is the domain model (store, reducer, commands, theme). It may use src/lib and src/api types, but never the UI or app composition above it.",
+      comment: "The app core may use lib and API types, never UI composition.",
       severity: "error",
-      from: { path: "^src/core/" },
-      to: { path: "^src/(ui|app)/" },
-    },
-    {
-      name: "app-stays-below-ui",
-      comment:
-        "src/app wires core + api together for startup. The UI imports app — never the reverse.",
-      severity: "error",
-      from: { path: "^src/app/" },
-      to: { path: "^src/ui/" },
+      from: { path: "^packages/app/src/core/" },
+      to: { path: "^packages/app/src/ui/" },
     },
   ],
   options: {
     doNotFollow: { path: "node_modules" },
-    // Production graph only: tests are free to reach across boundaries.
     exclude: { path: ["\\.test\\.(ts|tsx)$", "(^|/)node_modules/", "^test/"] },
     tsConfig: { fileName: "tsconfig.json" },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {
-      extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
+      extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".json"],
       mainFields: ["module", "main", "types"],
     },
   },
