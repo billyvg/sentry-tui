@@ -53,6 +53,38 @@ function stubClient({
   return new SentryClient({ auth, fetchImpl, maxRetries: 0 });
 }
 
+/** Two detector pages and the cursors requested from their endpoint. */
+function paginatedDetectorClient() {
+  const cursors: Array<string | null> = [];
+  const secondPage = [
+    {
+      ...detectorListFixture[0]!,
+      id: "51",
+      name: "second-page detector",
+    },
+  ];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    const json = (body: unknown, headers: Record<string, string> = {}) =>
+      new Response(JSON.stringify(body), {
+        headers: { "Content-Type": "application/json", ...headers },
+      });
+    if (url.pathname.endsWith("/detectors/")) {
+      const cursor = url.searchParams.get("cursor");
+      cursors.push(cursor);
+      const headers: Record<string, string> = {};
+      if (cursor === null) {
+        headers.Link =
+          '<https://sentry.io/api/0/organizations/acme/detectors/?cursor=next>; rel="next"; results="true"; cursor="next"';
+      }
+      return json(cursor === "next" ? secondPage : detectorListFixture, headers);
+    }
+    if (url.pathname.endsWith("/projects/")) return json(monitorProjectsFixture);
+    return json([]);
+  }) as unknown as typeof fetch;
+  return { client: new SentryClient({ auth, fetchImpl, maxRetries: 0 }), cursors };
+}
+
 /** Mount straight onto a Monitors screen; the rail walk has its own test. */
 async function renderMonitors(
   client: SentryClient | null = stubClient(),
@@ -120,6 +152,28 @@ test("All Monitors lists detectors with the web's columns", async () => {
     expect(frame).toContain("Uptime");
     expect(frame).toContain("Ada Lovelace");
     expect(frame).toContain("#billing-team");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("page keys follow the detector cursor in both directions", async () => {
+  const { client, cursors } = paginatedDetectorClient();
+  const h = await renderMonitors(client);
+  try {
+    await h.waitForFrame(
+      (frame) => frame.includes("checkout p95 latency") && frame.includes("pgdn"),
+    );
+    expect(h.frame()).toContain("6+ monitors");
+
+    await h.press((input) => input.pressKey("d", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("second-page detector"));
+    expect(h.frame()).toContain("pgup");
+    expect(cursors).toEqual([null, "next"]);
+
+    await h.press((input) => input.pressKey("u", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("checkout p95 latency"));
+    expect(cursors).toEqual([null, "next", null]);
   } finally {
     await h.cleanup();
   }
@@ -355,29 +409,31 @@ test("the skeleton holds the table's geometry while the list is in flight", asyn
   }
 });
 
-/**
- * `P` / `E` / `D` must not be able to wedge the keyboard.
- *
- * The router opens a filter dropdown for any list screen and only `Dropdown`
- * closes one, so a screen with no filter row has to close it itself — see the
- * same test on the dashboards list.
- */
-for (const key of ["P", "E", "D"]) {
-  test(`${key} is a no-op on the monitor list, not a keyboard lock`, async () => {
-    const h = await renderMonitors();
-    try {
-      await h.waitForFrame((f) => f.includes("checkout p95 latency"));
+test("P filters monitors by project while E and D remain ordinary keys", async () => {
+  const calls: string[] = [];
+  const h = await renderMonitors(stubClient({ calls }));
+  try {
+    await h.waitForFrame((frame) => frame.includes("checkout p95 latency"));
+    expect(h.frame()).toContain("P all projects");
 
-      await h.press((i) => i.pressKey(key, { shift: true }));
-      // The keyboard still answers: the cursor moves.
-      await h.press((i) => i.pressKey("j"));
-      expect(h.frame()).toContain("checkout p95 latency");
-      expect(h.frame()).not.toContain("Project");
-    } finally {
-      await h.cleanup();
-    }
-  });
-}
+    await h.press((input) => input.pressKey("P"));
+    await h.waitForFrame((frame) => frame.includes("─ Project "));
+    await h.press((input) => input.pressKey("j"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame(() =>
+      calls
+        .filter((url) => url.includes("/detectors/"))
+        .some((url) => new URL(url).searchParams.getAll("project").includes("checkout")),
+    );
+    await h.pressEscape();
+
+    for (const key of ["E", "D"]) await h.press((input) => input.pressKey(key));
+    await h.press((input) => input.pressKey("?"));
+    expect(h.frame()).toContain("Keyboard");
+  } finally {
+    await h.cleanup();
+  }
+});
 
 test("the screen fits an 80-column terminal without wrapping", async () => {
   const h = await renderHarness(

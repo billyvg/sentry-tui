@@ -23,10 +23,9 @@ import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { buildDetectorQuery, getMonitorListView, type MonitorListView } from "~/core/monitors";
 import { useTheme } from "~/ui/theme";
 import { DataTable } from "~/ui/components/DataTable";
-import { SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
-import { SortBar } from "~/ui/components/SortBar";
 import { useCheckInStats } from "~/ui/hooks/useCheckInStats";
 import { useDetectors } from "~/ui/hooks/useDetectors";
 import { useProjectSlugs } from "~/ui/hooks/useProjects";
@@ -49,6 +48,9 @@ import type { ScreenProps } from "~/ui/screens/types";
 /** The two lines of screen heading between the search box and the table. */
 const HEADING_ROWS = 4;
 
+/** Detector lists deliberately expose only the filter their endpoint supports. */
+const MONITOR_FILTERS = ["project"] as const;
+
 /**
  * What a screen falls back to when its id has no configuration.
  *
@@ -68,17 +70,26 @@ function fallbackView(item: string): MonitorListView {
 
 export function MonitorList(props: ScreenProps) {
   const theme = useTheme();
-  const { client, org, screen, state, focused, width, height, reloadToken } = props;
+  const { client, org, screen, state, focused, width, height, reloadToken, onProjectSelect } =
+    props;
   const { dispatch, focusSearch, handleSearchBlur } = state;
 
   const view = getMonitorListView(screen.id) ?? fallbackView(screen.item);
   const query = buildDetectorQuery(view, state.committedQuery);
   const sort = detectorSort(state.sort);
+  const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
 
-  const { detectors: status, nextCursor } = useDetectors(client, {
+  const {
+    detectors: status,
+    nextCursor,
+    page,
+    nextPage,
+    previousPage,
+  } = useDetectors(client, {
     org,
     query,
     sortBy: sort,
+    project,
     reloadToken,
   });
   const rows = valueOf(status);
@@ -89,6 +100,13 @@ export function MonitorList(props: ScreenProps) {
   useEffect(() => {
     if (rows) dispatch({ type: "setEntries", payload: rows });
   }, [rows, dispatch]);
+
+  const reportedPage = useRef(page);
+  useEffect(() => {
+    if (reportedPage.current === page) return;
+    reportedPage.current = page;
+    dispatch({ type: "setSelected", payload: 0 });
+  }, [page, dispatch]);
 
   useEffect(() => {
     dispatch({
@@ -132,7 +150,12 @@ export function MonitorList(props: ScreenProps) {
     },
     [rows, pushView, projectSlugs],
   );
-  useScreenActions(props.registerActions, { open });
+  useScreenActions(props.registerActions, { open, nextPage, previousPage });
+
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   /**
    * Cron and Uptime trade their three middle columns for a check-in timeline.
@@ -223,15 +246,26 @@ export function MonitorList(props: ScreenProps) {
         </text>
         <text fg={theme.muted}>{`  ${view.description}`}</text>
       </box>
-      <SortBar
-        value={sort}
-        items={DETECTOR_SORT_OPTIONS}
-        open={state.openDropdown === "sort"}
+      <FilterBar
+        client={client}
+        org={org}
+        openDropdown={state.openDropdown}
+        selectedProjects={state.selectedProjects}
+        selectedEnvs={state.selectedEnvs}
+        statsPeriod={state.statsPeriod}
+        filters={MONITOR_FILTERS}
+        sort={{
+          value: sort,
+          items: DETECTOR_SORT_OPTIONS,
+          onChange: (value) => dispatch({ type: "setSort", payload: value }),
+        }}
         width={width}
         anchorTop={SEARCH_ROWS + 1}
-        onChange={(sort) => dispatch({ type: "setSort", payload: sort })}
-        onOpen={() => dispatch({ type: "setOpenDropdown", payload: "sort" })}
-        onClose={() => dispatch({ type: "setOpenDropdown", payload: null })}
+        onProjectChange={onProjectSelect}
+        onEnvChange={() => {}}
+        onPeriodChange={() => {}}
+        onDropdownOpen={(dropdown) => dispatch({ type: "setOpenDropdown", payload: dropdown })}
+        onDropdownClose={closeDropdown}
       />
 
       <DataTable
@@ -253,7 +287,23 @@ export function MonitorList(props: ScreenProps) {
         }}
         layout={[height, HEADING_ROWS]}
       />
-      <ResultFooter count={rows?.length} noun="monitor" hasMore={nextCursor !== null} />
+      <ResultFooter
+        count={rows?.length}
+        noun="monitor"
+        hasMore={nextCursor !== null}
+        pagination={
+          nextCursor !== null || page > 1
+            ? {
+                page,
+                hasPrevious: page > 1,
+                hasNext: nextCursor !== null,
+                loading,
+                onPrevious: previousPage,
+                onNext: nextPage,
+              }
+            : undefined
+        }
+      />
     </box>
   );
 }
