@@ -20,3 +20,9 @@ export function useSpinnerFrame(active = true): string {
 
   return FRAMES[index]!;
 }
+
+/** Animate one inline glyph without making its surrounding text own the timer. */
+export function SpinnerGlyph() {
+  const frame = useSpinnerFrame();
+  return <span>{frame}</span>;
+}

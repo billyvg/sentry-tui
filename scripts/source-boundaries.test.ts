@@ -118,7 +118,7 @@ describe("source boundaries", () => {
 
 describe("animation clocks", () => {
   /**
-   * The status bar is the only thing in the app allowed to animate.
+   * Only small leaf components are allowed to animate.
    *
    * A `setInterval` in a screen re-renders that screen — table and all — on
    * every tick, which is how a loading Replays list came to redraw twenty
@@ -127,7 +127,7 @@ describe("animation clocks", () => {
    * always finds fresh work waiting: #98 and #66 were both that.
    *
    * Anything that needs to re-render while a request is in flight belongs in
-   * the status bar, riding the spinner's tick.
+   * the status bar or its own leaf, never at a screen root.
    */
   /**
    * Intervals that are not render clocks: they tick on a timescale where the
@@ -139,6 +139,11 @@ describe("animation clocks", () => {
     join("ui", "hooks", "useUpdateCheck.ts"),
   ]);
 
+  const SPINNER_FRAME_LEAVES = new Set([
+    join("ui", "components", "Spinner.tsx"),
+    join("ui", "components", "StatusBar.tsx"),
+  ]);
+
   test("only the spinner drives one", async () => {
     const offenders: string[] = [];
     for await (const file of walkTs(join(SRC, "ui"))) {
@@ -146,6 +151,17 @@ describe("animation clocks", () => {
       if (path === join("ui", "components", "Spinner.tsx")) continue;
       if (NOT_A_RENDER_CLOCK.has(path)) continue;
       if (/\bsetInterval\s*\(/.test(await readFile(file, "utf8"))) offenders.push(path);
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  test("spinner frames are owned by approved leaves", async () => {
+    const offenders: string[] = [];
+    for await (const file of walkTs(join(SRC, "ui"))) {
+      const path = relative(SRC, file);
+      if (SPINNER_FRAME_LEAVES.has(path)) continue;
+      if (/\buseSpinnerFrame\s*\(/.test(await readFile(file, "utf8"))) offenders.push(path);
     }
 
     expect(offenders).toEqual([]);
