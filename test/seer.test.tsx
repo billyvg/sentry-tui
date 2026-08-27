@@ -4,6 +4,7 @@ import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import type { Group } from "~/api/types";
 import { App, type AppProps } from "~/ui/App";
+import { SpinnerGlyph } from "~/ui/components/Spinner";
 import { groupFixture } from "./fixtures";
 import { seerSessionFixture } from "./seer-fixtures";
 import { renderHarness } from "./helpers";
@@ -610,6 +611,43 @@ test("the optimistic thinking spinner and text share one row", async () => {
       .split("\n")
       .find((line) => line.includes("Looking around…"));
     expect(thinkingLine).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Looking around…/);
+    const composerLine = h
+      .frame()
+      .split("\n")
+      .find((line) => line.includes("Ask Seer a question"));
+    expect(composerLine).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Ask Seer a question/);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("spinner ticks stay inside their text leaf", async () => {
+  let containerRenders = 0;
+  /** A transcript parent whose render count exposes animation-clock leakage. */
+  const TranscriptContainer = () => {
+    containerRenders += 1;
+    return (
+      <box style={{ flexDirection: "column" }}>
+        <text>Settled transcript</text>
+        <text>
+          <SpinnerGlyph />
+          {" Thinking…"}
+        </text>
+      </box>
+    );
+  };
+
+  const h = await renderHarness(<TranscriptContainer />, { width: 40, height: 3 });
+  try {
+    const rendersAfterMount = containerRenders;
+    const initialGlyph = h.frame().match(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/)?.[0];
+    expect(initialGlyph).toBeDefined();
+
+    await h.wait(120);
+
+    expect(h.frame()).toContain("Settled transcript");
+    expect(h.frame().match(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/)?.[0]).not.toBe(initialGlyph);
+    expect(containerRenders).toBe(rendersAfterMount);
   } finally {
     await h.cleanup();
   }

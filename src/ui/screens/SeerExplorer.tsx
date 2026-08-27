@@ -20,7 +20,7 @@ import {
 } from "~/core/seer";
 import { fitText, wrapText } from "~/lib/text";
 import { timeAgo } from "~/lib/sparkline";
-import { useSpinnerFrame } from "~/ui/components/Spinner";
+import { SpinnerGlyph } from "~/ui/components/Spinner";
 import { SeerMarkdown } from "~/ui/components/SeerMarkdown";
 import type { SeerChatState } from "~/ui/hooks/useSeerChat";
 import { BOLD, DIM, ITALIC, NONE } from "~/ui/lib/attributes";
@@ -77,7 +77,6 @@ export function SeerExplorer({
   const inner = Math.max(10, width - 2);
   const slashMenuHeight = slashCommands.length > 0 ? slashCommands.length + 2 : 0;
   const transcriptHeight = Math.max(1, height - 1 - COMPOSER_HEIGHT - slashMenuHeight);
-  const spinner = useSpinnerFrame(chat.thinking);
   const latestTodos = useMemo(() => latestSeerTodos(chat.blocks), [chat.blocks]);
   const hasAgentApprovalEmbed = useMemo(
     () =>
@@ -169,7 +168,6 @@ export function SeerExplorer({
                 key={block.id}
                 block={block}
                 width={inner}
-                spinner={spinner}
                 chat={chat}
                 client={client}
                 org={org}
@@ -222,9 +220,13 @@ export function SeerExplorer({
           paddingRight: 1,
         }}
       >
-        <text fg={chat.thinking ? theme.accent : theme.subText}>
-          {chat.thinking ? `${spinner} ` : "› "}
-        </text>
+        {chat.thinking ? (
+          <text fg={theme.accent}>
+            <SpinnerGlyph />{" "}
+          </text>
+        ) : (
+          <text fg={theme.subText}>› </text>
+        )}
         <input
           ref={inputRefCallback}
           value={value}
@@ -404,7 +406,6 @@ function SeerHistory({
 function SeerBlockView({
   block,
   width,
-  spinner,
   chat,
   client,
   org,
@@ -412,7 +413,6 @@ function SeerBlockView({
 }: {
   block: SeerBlock;
   width: number;
-  spinner: string;
   chat: SeerChatState;
   client: SentryClient | null;
   org: string;
@@ -424,7 +424,6 @@ function SeerBlockView({
       <ToolUseBlock
         block={block}
         width={width}
-        spinner={spinner}
         chat={chat}
         client={client}
         org={org}
@@ -432,16 +431,7 @@ function SeerBlockView({
       />
     );
   }
-  return (
-    <AssistantBlock
-      block={block}
-      width={width}
-      spinner={spinner}
-      chat={chat}
-      client={client}
-      org={org}
-    />
-  );
+  return <AssistantBlock block={block} width={width} chat={chat} client={client} org={org} />;
 }
 
 /** The user's own message, marked with a caret so turns are scannable. */
@@ -463,14 +453,12 @@ function UserBlock({ block, width }: { block: SeerBlock; width: number }) {
 function AssistantBlock({
   block,
   width,
-  spinner,
   chat,
   client,
   org,
 }: {
   block: SeerBlock;
   width: number;
-  spinner: string;
   chat: SeerChatState;
   client: SentryClient | null;
   org: string;
@@ -478,7 +466,13 @@ function AssistantBlock({
   const theme = useTheme();
   const content = block.message.content ?? "";
   if (block.loading && content.trim() === "") {
-    return <text fg={theme.muted}>{`  ${spinner} Thinking…`}</text>;
+    return (
+      <text fg={theme.muted}>
+        {"  "}
+        <SpinnerGlyph />
+        {" Thinking…"}
+      </text>
+    );
   }
 
   // Optimistic placeholders are deliberately one row: this is the same flex
@@ -486,7 +480,11 @@ function AssistantBlock({
   if (block.loading && block.id.startsWith("optimistic-assistant-")) {
     return (
       <box style={{ paddingLeft: 1, paddingTop: 1, flexDirection: "row" }}>
-        <text fg={theme.muted}>{`  ${spinner} ${content}`}</text>
+        <text fg={theme.muted}>
+          {"  "}
+          <SpinnerGlyph />
+          {` ${content}`}
+        </text>
       </box>
     );
   }
@@ -510,7 +508,6 @@ function AssistantBlock({
 function ToolUseBlock({
   block,
   width,
-  spinner,
   chat,
   client,
   org,
@@ -518,7 +515,6 @@ function ToolUseBlock({
 }: {
   block: SeerBlock;
   width: number;
-  spinner: string;
   chat: SeerChatState;
   client: SentryClient | null;
   org: string;
@@ -526,7 +522,6 @@ function ToolUseBlock({
 }) {
   const theme = useTheme();
   const status = getBlockStatus(block);
-  const blockGlyph = status === "loading" ? spinner : SEER_STATUS_GLYPH[status];
   const blockColor =
     status === "failure"
       ? theme.danger
@@ -581,14 +576,21 @@ function ToolUseBlock({
                   record={record}
                   label={label}
                   settled={Boolean(result)}
-                  spinner={spinner}
                 />
               ))
             : !isCodeMode
               ? [
-                  <text key={`${tool.id ?? index}-classic`} fg={blockColor} attributes={ITALIC}>
-                    {`  ${blockGlyph} ${classicLines[index] ?? tool.function}`}
-                  </text>,
+                  status === "loading" ? (
+                    <text key={`${tool.id ?? index}-classic`} fg={blockColor} attributes={ITALIC}>
+                      {"  "}
+                      <SpinnerGlyph />
+                      {` ${classicLines[index] ?? tool.function}`}
+                    </text>
+                  ) : (
+                    <text key={`${tool.id ?? index}-classic`} fg={blockColor} attributes={ITALIC}>
+                      {`  ${SEER_STATUS_GLYPH[status]} ${classicLines[index] ?? tool.function}`}
+                    </text>
+                  ),
                 ]
               : []),
           ...links
@@ -637,16 +639,13 @@ function CodeModeCallRow({
   record,
   label,
   settled,
-  spinner,
 }: {
   record: SeerCallRecord;
   label: string;
   settled: boolean;
-  spinner: string;
 }) {
   const theme = useTheme();
   const status = getCallRecordStatus(record, settled);
-  const glyph = status === "loading" ? spinner : status === "failure" ? "✗" : "✓";
   const color = status === "failure" ? theme.danger : theme.muted;
   const details = describeCallRecordDetail(record);
   const suffix = record.error
@@ -656,9 +655,17 @@ function CodeModeCallRow({
       : "";
   return (
     <box style={{ flexDirection: "column" }}>
-      <text fg={color} attributes={ITALIC}>
-        {`  ${glyph} ${label}${suffix}`}
-      </text>
+      {status === "loading" ? (
+        <text fg={color} attributes={ITALIC}>
+          {"  "}
+          <SpinnerGlyph />
+          {` ${label}${suffix}`}
+        </text>
+      ) : (
+        <text fg={color} attributes={ITALIC}>
+          {`  ${status === "failure" ? "✗" : "✓"} ${label}${suffix}`}
+        </text>
+      )}
       {details.map((detail, index) => (
         <text key={index} fg={theme.subText}>{`      ${detail}`}</text>
       ))}
