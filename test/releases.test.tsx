@@ -3,8 +3,13 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
-import { displayCrashFreePercent } from "~/ui/screens/ReleaseCards";
-import { rawReleasesFixture, rawReleasesWithHealthFixture } from "./release-fixtures";
+import { adoptionChart, displayCrashFreePercent } from "~/ui/screens/ReleaseCards";
+import {
+  rawReleaseAdoptionByProjectFixture,
+  rawReleaseAdoptionByReleaseFixture,
+  rawReleasesFixture,
+  rawReleasesWithHealthFixture,
+} from "./release-fixtures";
 import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
@@ -21,6 +26,8 @@ interface StubOptions {
   healthGate?: Promise<void>;
   /** Fail the health request while the list succeeds. */
   healthStatus?: number;
+  /** Fail both adoption-series requests while list and health succeed. */
+  adoptionStatus?: number;
   /** Record release requests so sort parameters can be asserted. */
   calls?: string[];
 }
@@ -30,6 +37,7 @@ function stubClient({
   health = rawReleasesWithHealthFixture,
   healthGate,
   healthStatus,
+  adoptionStatus,
   calls,
 }: StubOptions = {}) {
   const json = (body: unknown, status = 200) =>
@@ -50,6 +58,15 @@ function stubClient({
         return json(health);
       }
       return json(releases);
+    }
+    if (url.includes("/sessions/")) {
+      if (adoptionStatus) return json({ detail: "adoption unavailable" }, adoptionStatus);
+      const grouped = new URL(url).searchParams.getAll("groupBy");
+      return json(
+        grouped.includes("release")
+          ? rawReleaseAdoptionByReleaseFixture
+          : rawReleaseAdoptionByProjectFixture,
+      );
     }
     return json([]);
   }) as unknown as typeof fetch;
@@ -231,6 +248,38 @@ test("cards render with health pending, then fill in when it lands", async () =>
   }
 });
 
+test("adoption uses the web's paired 24-hour session series", async () => {
+  const calls: string[] = [];
+  const h = await openReleases(stubClient({ calls }));
+  try {
+    await h.waitForFrame((frame) => frame.includes("99.982%") && frame.includes("64%"));
+    await h.waitForFrame(() => calls.filter((url) => url.includes("/sessions/")).length === 2);
+
+    const sessions = calls.filter((url) => url.includes("/sessions/")).map((url) => new URL(url));
+    const byRelease = sessions.find((url) =>
+      url.searchParams.getAll("groupBy").includes("release"),
+    );
+    const byProject = sessions.find(
+      (url) => !url.searchParams.getAll("groupBy").includes("release"),
+    );
+    expect(byRelease?.searchParams.getAll("field")).toEqual(["sum(session)"]);
+    expect(byRelease?.searchParams.getAll("groupBy")).toEqual(["project", "release"]);
+    expect(byRelease?.searchParams.get("interval")).toBe("1h");
+    expect(byRelease?.searchParams.get("statsPeriod")).toBe("24h");
+    expect(byRelease?.searchParams.get("query")).toContain('release:"frontend@1.4.2"');
+    expect(byProject?.searchParams.getAll("groupBy")).toEqual(["project"]);
+    expect(byProject?.searchParams.has("query")).toBe(false);
+
+    const projectRow = h
+      .frame()
+      .split("\n")
+      .find((line) => line.includes("javascript"));
+    expect(projectRow).toMatch(/[▁▂▃▄▅▆▇█]{4,}/);
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("a project with no session data reads as unavailable, not as zero", async () => {
   const h = await openReleases();
   try {
@@ -257,6 +306,18 @@ test("a failed health request is named in the status bar and leaves the cards up
     // The list is intact; only the health half failed.
     expect(frame).toContain("1.4.2");
     expect(frame).toContain("health:");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a failed adoption request keeps the percentage and names the missing chart", async () => {
+  const h = await openReleases(stubClient({ adoptionStatus: 403 }));
+  try {
+    await h.waitForFrame((frame) => frame.includes("64%") && frame.includes("adoption:"));
+    expect(h.frame()).toContain("1.4.2");
+    expect(h.frame()).toContain("adoption:");
+    expect(h.frame()).toContain("64%");
   } finally {
     await h.cleanup();
   }
@@ -373,4 +434,10 @@ test("crash-free percentages are formatted the way Sentry formats them", () => {
   expect(displayCrashFreePercent(99.99999)).toBe("99.999%");
   expect(displayCrashFreePercent(0.4)).toBe("<1%");
   expect(displayCrashFreePercent(0)).toBe("0%");
+});
+
+test("adoption chart groups project and release bars on one scale", () => {
+  const cells = adoptionChart({ project: [100, 100], release: [25, 100] }, 4);
+  expect(cells.map((cell) => cell.series)).toEqual(["project", "release", "project", "release"]);
+  expect(cells.map((cell) => cell.glyph).join("")).toBe("█▂██");
 });
