@@ -10,6 +10,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
 import { CI_SHARD_TOTAL, discoverTestFiles, planShards, weighTestFiles } from "./test-shard.ts";
+import { runTestShards } from "./test-parallel.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const read = (path: string) => Bun.file(join(ROOT, path)).text();
@@ -74,4 +75,48 @@ describe("CI matrices", () => {
       expect(workflow).toContain(`bun run test:shard "$SHARD" "${CI_SHARD_TOTAL}"`);
     });
   }
+});
+
+describe("local parallel runner", () => {
+  test("launches every shard before it waits", async () => {
+    const launched: string[][] = [];
+    const release: Array<(code: number) => void> = [];
+    const commands = [
+      ["bun", "test", "one"],
+      ["bun", "test", "two"],
+      ["bun", "test", "three"],
+    ];
+
+    const result = runTestShards(commands, (command) => {
+      launched.push(command);
+      return {
+        exited: new Promise((resolve) => release.push(resolve)),
+      };
+    });
+
+    expect(launched).toEqual(commands);
+    for (const resolve of release) resolve(0);
+    expect(await result).toBe(0);
+  });
+
+  test("propagates a shard failure after every shard settles", async () => {
+    const exitCodes = [0, 7, 0];
+    let launched = 0;
+    const result = await runTestShards(
+      exitCodes.map((_, index) => ["shard", String(index + 1)]),
+      () => ({ exited: Promise.resolve(exitCodes[launched++]!) }),
+    );
+
+    expect(launched).toBe(exitCodes.length);
+    expect(result).toBe(7);
+  });
+
+  test("bun run check uses the process-isolated local runner", async () => {
+    const packageJson = (await Bun.file(join(ROOT, "package.json")).json()) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts["test:parallel"]).toBe("bun run ./scripts/test-parallel.ts");
+    expect(packageJson.scripts.check).toEndWith("bun run test:parallel");
+  });
 });

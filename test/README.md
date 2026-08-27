@@ -12,6 +12,7 @@
 
 ```bash
 bun test                              # all tests
+bun run test:parallel                 # all tests in four local processes
 bun test ./test                       # integration tests only
 bun run test:shard 1 4                # shard 1 of 4, the way CI runs it
 bun run test:theme-contrast           # WCAG contrast compliance
@@ -22,11 +23,16 @@ bun run check                         # all CI checks (format, lint, typecheck, 
 
 ## Sharding
 
-CI runs the suite as four parallel jobs. `bun test` has no `--shard`, so
+CI runs the suite as four parallel jobs, and `bun run check` launches the same
+four process-isolated shards locally. `bun test` has no `--shard`, so
 `scripts/test-shard.ts` does the split: it discovers every test file the bare
 command would run and packs them into shards of roughly equal weight, using
 file size as a stand-in for runtime. A new test file joins a shard on its own —
 there is no list to update.
+
+`scripts/test-parallel.ts` starts every shard before waiting for any of them.
+Separate processes keep module-global test state isolated while render waits in
+one shard overlap useful work in the others.
 
 `scripts/test-shard.test.ts` keeps it honest: the shards must partition the
 suite exactly once each, and the workflow matrices must ask for every shard the
