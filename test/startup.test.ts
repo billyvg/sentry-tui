@@ -3,11 +3,22 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { bootstrap, HELP_TEXT, parseArgs } from "~/app/startup";
+import { ApiError } from "~/api/client";
+import {
+  bootstrap,
+  classifyStartupFailure,
+  HELP_TEXT,
+  InvalidOrgSelectionError,
+  MissingOrgError,
+  MissingTokenError,
+  parseArgs,
+  parseOrgSelection,
+  SentryUrlInputError,
+} from "~/app/startup";
 import { APP_VERSION, VERSION_LABEL } from "~/lib/version";
 
 /** Bootstrap against one throwaway user config and restore the process env. */
-async function bootstrapWithConfig(config: unknown, argv: string[] = []) {
+async function bootstrapWithConfig(config: unknown, argv: string[] = [], fetchImpl?: typeof fetch) {
   const configDir = mkdtempSync(join(tmpdir(), "sentry-tui-startup-"));
   const previousConfigDir = process.env["SENTRY_TUI_CONFIG_DIR"];
   const previousToken = process.env["SENTRY_AUTH_TOKEN"];
@@ -16,7 +27,7 @@ async function bootstrapWithConfig(config: unknown, argv: string[] = []) {
 
   try {
     await Bun.write(join(configDir, "config.json"), JSON.stringify(config));
-    return await bootstrap(parseArgs(argv));
+    return await bootstrap(parseArgs(argv), fetchImpl ? { fetchImpl } : {});
   } finally {
     if (previousConfigDir === undefined) delete process.env["SENTRY_TUI_CONFIG_DIR"];
     else process.env["SENTRY_TUI_CONFIG_DIR"] = previousConfigDir;
@@ -25,6 +36,13 @@ async function bootstrapWithConfig(config: unknown, argv: string[] = []) {
     rmSync(configDir, { recursive: true, force: true });
   }
 }
+
+const json = (body: unknown, init: ResponseInit = {}) =>
+  new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
 
 describe("parseArgs", () => {
   test("defaults to running the TUI", () => {
@@ -168,6 +186,45 @@ test("a valid unsupported Sentry URL is reported as not implemented", async () =
   expect(
     bootstrapWithConfig({ org: "acme" }, ["https://acme.sentry.io/settings/projects/"]),
   ).rejects.toThrow("Not implemented: That Sentry page is not implemented");
+});
+
+describe("startup failures", () => {
+  test("raises a typed expected error when the token has no organizations", async () => {
+    const fetchImpl = (async () => json([])) as unknown as typeof fetch;
+    const error = await bootstrapWithConfig({}, [], fetchImpl).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(MissingOrgError);
+    expect(classifyStartupFailure(error)).toBe("missing_organizations");
+  });
+
+  test("keeps the API error from a failed organization request", async () => {
+    const fetchImpl = (async () =>
+      json({ detail: "missing scope" }, { status: 403 })) as unknown as typeof fetch;
+    const error = await bootstrapWithConfig({}, [], fetchImpl).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(403);
+    expect(classifyStartupFailure(error)).toBe("handled_at_source");
+  });
+
+  test("raises a typed expected error for an invalid organization selection", () => {
+    expect(() => parseOrgSelection("not a number", 2)).toThrow(InvalidOrgSelectionError);
+    expect(classifyStartupFailure(new InvalidOrgSelectionError())).toBe("invalid_org_selection");
+  });
+
+  test("classifies only unknown failures for a startup error report", () => {
+    expect(classifyStartupFailure(new MissingTokenError())).toBe("missing_credentials");
+    expect(
+      classifyStartupFailure(
+        new SentryUrlInputError({
+          kind: "invalid",
+          reason: "malformed",
+          message: "Not a Sentry URL.",
+        }),
+      ),
+    ).toBe("handled_at_source");
+    expect(classifyStartupFailure(new Error("boom"))).toBe("unexpected");
+  });
 });
 
 describe("help text", () => {
