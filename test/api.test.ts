@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { createTokenAuthProvider, MissingTokenError } from "~/api/auth";
 import { ApiError, parseLinkHeader, SentryClient } from "~/api/client";
-import { queryDiscover, queryDiscoverTimeseries } from "~/api/discover";
+import { queryDiscover, queryDiscoverTimeseries, queryExploreTimeseries } from "~/api/discover";
 import { fetchIssueStats, listIssues, updateIssue } from "~/api/issues";
 import { groupsFixture } from "./fixtures";
 
@@ -299,5 +299,58 @@ describe("queryDiscoverTimeseries", () => {
 
   test("omits the param when the period isn't one it can read", async () => {
     expect((await paramsFor(undefined)).has("interval")).toBe(false);
+  });
+});
+
+describe("queryExploreTimeseries", () => {
+  test("uses Explore's canonical endpoint and requests the partial bucket", async () => {
+    const { impl, calls } = stubFetch(() => json({ timeSeries: [] }));
+    const client = new SentryClient({ auth, fetchImpl: impl });
+    await queryExploreTimeseries(client, {
+      org: "acme",
+      dataset: "spans",
+      yAxis: "count(span.duration)",
+      statsPeriod: "24h",
+      groupBy: ["span.op", "transaction"],
+      sort: "-count(span.duration)",
+      topEvents: 9,
+    });
+
+    const url = new URL(calls[0]!.url);
+    expect(url.pathname).toEndWith("/events-timeseries/");
+    expect(url.searchParams.get("partial")).toBe("1");
+    expect(url.searchParams.get("excludeOther")).toBe("0");
+    expect(url.searchParams.get("sampling")).toBe("NORMAL");
+    expect(url.searchParams.getAll("groupBy")).toEqual(["span.op", "transaction"]);
+    expect(url.searchParams.get("sort")).toBe("-count(span.duration)");
+    expect(url.searchParams.get("topEvents")).toBe("9");
+  });
+
+  test("normalizes millisecond timestamps and provisional values for BarChart", async () => {
+    const response = {
+      timeSeries: [
+        {
+          yAxis: "count()",
+          values: [
+            { timestamp: 1_700_000_000_000, value: 42 },
+            { timestamp: 1_700_000_300_000, value: 7, incomplete: true },
+          ],
+        },
+        {
+          yAxis: "count()",
+          values: [
+            { timestamp: 1_700_000_000_000, value: 8 },
+            { timestamp: 1_700_000_300_000, value: 3 },
+          ],
+        },
+      ],
+    };
+    const { impl } = stubFetch(() => json(response));
+    const client = new SentryClient({ auth, fetchImpl: impl });
+
+    expect(await queryExploreTimeseries(client, { org: "acme", dataset: "logs" })).toEqual([
+      [1_700_000_000, [{ count: 50 }], { incomplete: undefined }],
+      [1_700_000_300, [{ count: 10 }], { incomplete: true }],
+    ]);
   });
 });

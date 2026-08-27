@@ -27,6 +27,8 @@ export interface ExploreEventsQuery {
    */
   request: ResolvedExploreQuery;
   statsPeriod: string;
+  /** Bucket width chosen for the chart. */
+  interval?: string;
   project?: string[];
   environment?: string[];
   /** Bump to refetch an unchanged query — the app's global refresh. */
@@ -52,7 +54,16 @@ export interface ExploreEventsState {
 export function useExploreEvents(
   client: SentryClient | null,
   table: ExploreTable,
-  { org, query, request, statsPeriod, project, environment, reloadToken = 0 }: ExploreEventsQuery,
+  {
+    org,
+    query,
+    request,
+    statsPeriod,
+    interval,
+    project,
+    environment,
+    reloadToken = 0,
+  }: ExploreEventsQuery,
 ): ExploreEventsState {
   const combined = exploreQuery(table, query);
   const eventsLoader = useCallback(
@@ -82,15 +93,19 @@ export function useExploreEvents(
             org,
             query: combined,
             statsPeriod,
+            interval,
             project,
             environment,
             signal,
             dataset: table.dataset,
             yAxis: request.yAxis,
+            groupBy: request.groupBys.length > 0 ? request.groupBys : undefined,
+            sort: request.sort,
+            topEvents: request.groupBys.length > 0 ? 9 : undefined,
             referrer: `${table.referrer}-chart`,
           })
         : null,
-    [client, org, combined, request, statsPeriod, project, environment, table],
+    [client, org, combined, request, statsPeriod, interval, project, environment, table],
   );
   const eventsPages = useCursorPages(eventsLoader, reloadToken);
   const timeseries = useAsyncFetch(timeseriesLoader, { reloadKey: reloadToken }).status;

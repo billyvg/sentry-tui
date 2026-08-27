@@ -13,7 +13,7 @@ import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
 import {
-  exploreTimeseriesFixture,
+  exploreEventsTimeseriesFixture,
   rawMetricRowsFixture,
   rawSpanRowsFixture,
 } from "./explore-fixtures";
@@ -95,9 +95,9 @@ function recordingClient(): Recorder {
       }
       return json(type === "number" ? NUMBER_ATTRIBUTES : STRING_ATTRIBUTES);
     }
-    if (url.pathname.endsWith("/events-stats/")) {
+    if (url.pathname.endsWith("/events-timeseries/")) {
       timeseries.push(url);
-      return json({ data: exploreTimeseriesFixture });
+      return json(exploreEventsTimeseriesFixture);
     }
     if (url.pathname.endsWith("/events/")) {
       events.push(url);
@@ -145,8 +145,8 @@ describe("the query builder row", () => {
   test(
     "draws the table's defaults, labelled",
     async () => {
-      const { client } = recordingClient();
-      const h = await openTraces(client);
+      const recorder = recordingClient();
+      const h = await openTraces(recorder.client);
       const frame = h.frame();
 
       expect(frame).toContain("Visualize");
@@ -158,6 +158,12 @@ describe("the query builder row", () => {
       expect(frame).toContain("Sort");
       expect(frame).toContain("timestamp");
       expect(frame).toContain("Desc");
+      expect(frame).toContain("Interval");
+      expect(frame).toContain("1m");
+
+      const chart = recorder.lastTimeseries();
+      expect(chart.pathname).toEndWith("/events-timeseries/");
+      expect(chart.searchParams.get("partial")).toBe("1");
 
       await h.cleanup();
     },
@@ -201,11 +207,34 @@ describe("the query builder row", () => {
       await h.waitForFrame((f) => f.includes("Search error events"));
 
       expect(h.frame()).not.toContain("Visualize");
+      expect(h.frame()).toContain("Interval");
 
       await h.cleanup();
     },
     SLOW_TEST_TIMEOUT_MS,
   );
+});
+
+describe("chart interval", () => {
+  test("choosing a coarser bucket re-fetches only the chart", async () => {
+    const recorder = recordingClient();
+    const h = await openTraces(recorder.client);
+    try {
+      expect(recorder.lastTimeseries().searchParams.get("interval")).toBe("1m");
+      const eventRequests = recorder.events.length;
+
+      await h.press((input) => input.pressKey("I", { shift: true }));
+      await h.waitForFrame((frame) => frame.includes("Chart Interval"));
+      await h.press((input) => input.pressKey("j"));
+      await h.press((input) => input.pressEnter());
+      await h.waitForFrame(() => recorder.lastTimeseries().searchParams.get("interval") === "5m");
+
+      expect(recorder.events).toHaveLength(eventRequests);
+      expect(h.frame()).toContain("5m");
+    } finally {
+      await h.cleanup();
+    }
+  });
 });
 
 describe("grouping", () => {
@@ -227,6 +256,13 @@ describe("grouping", () => {
       const url = recorder.last();
       expect(url.searchParams.getAll("field")).toEqual(["span.op", "count(span.duration)"]);
       expect(url.searchParams.get("sort")).toBe("-count(span.duration)");
+      await h.waitForFrame(() =>
+        recorder.lastTimeseries().searchParams.getAll("groupBy").includes("span.op"),
+      );
+      const chart = recorder.lastTimeseries();
+      expect(chart.searchParams.getAll("groupBy")).toEqual(["span.op"]);
+      expect(chart.searchParams.get("sort")).toBe("-count(span.duration)");
+      expect(chart.searchParams.get("topEvents")).toBe("9");
 
       // The table is now one row per group, headed by what it grouped on.
       const frame = h.frame();

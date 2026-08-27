@@ -22,7 +22,7 @@ import {
   messagePreview,
 } from "~/ui/screens/exploreColumns";
 import {
-  exploreTimeseriesFixture,
+  exploreEventsTimeseriesFixture,
   rawErrorRowsFixture,
   rawMetricRowsFixture,
   rawSpanRowsFixture,
@@ -67,7 +67,7 @@ function stubClient(
     tracemetrics: rawMetricRowsFixture,
     errors: rawErrorRowsFixture,
   },
-  timeseries: unknown = exploreTimeseriesFixture,
+  timeseries: unknown = exploreEventsTimeseriesFixture,
 ) {
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
@@ -78,7 +78,7 @@ function stubClient(
         headers: { "Content-Type": "application/json" },
       });
 
-    if (url.includes("/events-stats/")) return json({ data: timeseries });
+    if (url.includes("/events-timeseries/")) return json(timeseries);
     if (url.includes("/events/")) return json({ data: rowsByDataset[dataset] ?? [] });
     return json([]);
   }) as unknown as typeof fetch;
@@ -88,6 +88,7 @@ function stubClient(
 /** Two Discover pages which record the cursor followed by the table. */
 function paginatedExploreClient() {
   const cursors: Array<string | null> = [];
+  const timeseriesUrls: URL[] = [];
   const secondPage = [
     {
       ...rawSpanRowsFixture[0],
@@ -104,7 +105,10 @@ function paginatedExploreClient() {
           ...(link ? { Link: link } : {}),
         },
       });
-    if (url.pathname.endsWith("/events-stats/")) return json({ data: exploreTimeseriesFixture });
+    if (url.pathname.endsWith("/events-timeseries/")) {
+      timeseriesUrls.push(url);
+      return json(exploreEventsTimeseriesFixture);
+    }
     if (url.pathname.endsWith("/events/")) {
       const cursor = url.searchParams.get("cursor");
       cursors.push(cursor);
@@ -117,7 +121,7 @@ function paginatedExploreClient() {
     }
     return json([]);
   }) as unknown as typeof fetch;
-  return { client: new SentryClient({ auth, fetchImpl }), cursors };
+  return { client: new SentryClient({ auth, fetchImpl }), cursors, timeseriesUrls };
 }
 
 async function renderApp(client: SentryClient, width = WIDTH, height = HEIGHT) {
@@ -440,6 +444,9 @@ describe("Explore › Traces", () => {
     try {
       await h.waitForFrame((f) => f.includes("count(span.duration)"));
       expect(h.frame()).toMatch(/[▁▂▃▄▅▆▇█]/);
+      // The server's current partial bucket is stippled rather than presented
+      // with the same certainty as settled history.
+      expect(h.frame()).toContain("░");
     } finally {
       await h.cleanup();
     }
@@ -500,12 +507,16 @@ describe("Explore › Traces", () => {
   });
 
   test("page keys follow Discover cursors in both directions", async () => {
-    const { client, cursors } = paginatedExploreClient();
+    const { client, cursors, timeseriesUrls } = paginatedExploreClient();
     const h = await renderTable(client, "Traces");
     try {
       await h.waitForFrame(
         (frame) => frame.includes("SELECT * FROM orders") && frame.includes("pgdn"),
       );
+      expect(timeseriesUrls.map((url) => url.pathname)).toEqual([
+        "/api/0/organizations/acme/events-timeseries/",
+      ]);
+      expect(timeseriesUrls[0]?.searchParams.get("interval")).toBe("1m");
       await h.press((input) => input.pressKey("d", { ctrl: true }));
       await h.waitForFrame((frame) => frame.includes("loaded from the second Explore page"));
       expect(cursors).toEqual([null, "next"]);
@@ -762,7 +773,7 @@ function slowMetricsClient() {
         );
       });
     }
-    if (url.includes("/events-stats/")) return json({ data: exploreTimeseriesFixture });
+    if (url.includes("/events-timeseries/")) return json(exploreEventsTimeseriesFixture);
     if (url.includes("/events/")) return json({ data: rawSpanRowsFixture });
     return json([]);
   }) as unknown as typeof fetch;

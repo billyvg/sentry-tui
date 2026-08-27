@@ -149,6 +149,20 @@ export const logTimeseriesFixture: LogTimeseriesBucket[] = Array.from(
   },
 );
 
+/** `/events-timeseries/` response containing the log-volume fixture. */
+export const logEventsTimeseriesFixture = {
+  timeSeries: [
+    {
+      yAxis: "count()",
+      values: logTimeseriesFixture.map(([timestamp, values]) => ({
+        timestamp: timestamp * 1000,
+        value: values[0]?.count ?? 0,
+      })),
+      meta: { interval: 300_000, valueType: "integer", valueUnit: null },
+    },
+  ],
+};
+
 // ---------------------------------------------------------------------------
 // Normalised entries (what the UI sees after listLogs)
 // ---------------------------------------------------------------------------
