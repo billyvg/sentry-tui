@@ -157,11 +157,6 @@ export function MonitorList(props: ScreenProps) {
     [dispatch],
   );
 
-  const closeDropdown = useCallback(
-    () => dispatch({ type: "setOpenDropdown", payload: null }),
-    [dispatch],
-  );
-
   /**
    * Cron and Uptime trade their three middle columns for a check-in timeline.
    *
