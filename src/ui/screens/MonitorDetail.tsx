@@ -42,6 +42,7 @@ import {
 import type { Notice } from "~/ui/components/StatusBar";
 import { useDetectorOpenPeriods, useDetectorWorkflows } from "~/ui/hooks/useDetectorDetail";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
+import { useOrganizationMembers } from "~/ui/hooks/useOrganizationMembers";
 import { BOLD } from "~/ui/lib/attributes";
 import { DetectorTimelineSection, hasDetectorTimeline } from "~/ui/screens/monitorTimelineSlot";
 import type { DetailContext, ViewStackEntry } from "~/ui/screens/types";
@@ -370,7 +371,7 @@ function SectionBody({
       return <ConnectedAlerts status={workflows} width={width} />;
 
     case "details":
-      return <Details detector={detector} width={width} />;
+      return <Details detector={detector} width={width} client={client} org={org} />;
   }
 }
 
@@ -474,9 +475,27 @@ function AlertRow({ workflow, width }: { workflow: Workflow; width: number }) {
 }
 
 /** The facts that are true of every monitor whatever its type. */
-function Details({ detector, width }: { detector: Detector; width: number }) {
+function Details({
+  detector,
+  width,
+  client,
+  org,
+}: {
+  detector: Detector;
+  width: number;
+  client: SentryClient | null;
+  org: string;
+}) {
   const environment = detectorEnvironment(detector);
   const group = detector.latestGroup;
+  const members = useOrganizationMembers(client, org, Boolean(detector.createdBy));
+  const createdBy = detector.createdBy
+    ? members.state === "ready"
+      ? (members.value.get(detector.createdBy)?.user?.name ?? "Deactivated user")
+      : members.state === "error"
+        ? "Unavailable"
+        : "Loading…"
+    : "Sentry";
 
   return (
     <box style={{ flexDirection: "column", width }}>
@@ -490,12 +509,7 @@ function Details({ detector, width }: { detector: Detector; width: number }) {
         />
       ) : null}
       <Field name="Created" value={dateTimeText(detector.dateCreated)} width={width} />
-      {/*
-       * `createdBy` is a bare user id and there is no cheap way to name it, so
-       * only the case that needs no lookup is shown: null means Sentry made it
-       * (`extraDetails.tsx:64`).
-       */}
-      {detector.createdBy ? null : <Field name="Created by" value="Sentry" width={width} />}
+      <Field name="Created by" value={createdBy} width={width} />
       <Field name="Last modified" value={dateTimeText(detector.dateUpdated)} width={width} />
     </box>
   );
