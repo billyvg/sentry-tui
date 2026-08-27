@@ -16,6 +16,7 @@ import {
   type AppPayloadManifest,
   type AppPayloadMetadata,
 } from "~/app/runtimeContract";
+import * as HostVersion from "~/lib/version";
 import * as Telemetry from "~/telemetry/index";
 import type { PayloadAppProps } from "~/ui/runtime/payloadEntry";
 
@@ -43,6 +44,7 @@ const HOST_MODULES = new Map<string, Record<string, unknown>>([
   [HOST_MODULE_SPECIFIERS["@opentui/react/jsx-dev-runtime"], OpenTuiJsxDevRuntime],
   [HOST_MODULE_SPECIFIERS["~/telemetry/index"], Telemetry],
   [HOST_MODULE_SPECIFIERS["~/api/config"], Config],
+  [HOST_MODULE_SPECIFIERS["~/lib/version"], HostVersion],
 ]);
 
 let hostModulesRegistered = false;

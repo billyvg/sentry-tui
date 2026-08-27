@@ -42,8 +42,9 @@ import {
   UPDATE_POLL_MS,
   watchForUpdate,
 } from "../src/app/selfUpdate.ts";
-import { APP_VERSION } from "../src/lib/version.ts";
+import { APP_VERSION } from "../src/app/version.ts";
 import { HOST_API_VERSION } from "../src/app/runtimeContract.ts";
+import { HOST_VERSION } from "../src/lib/version.ts";
 
 /** A cache directory holding the given versions, each with a stub binary. */
 function cacheWith(versions: string[]): { env: Record<string, string>; dir: string } {
@@ -440,15 +441,32 @@ describe("what the running app is offered", () => {
   });
 
   test("an incompatible payload falls back to a cached host release", () => {
-    const next = bumped(APP_VERSION);
-    const { env, dir } = payloadCacheWith([next], HOST_API_VERSION + 1);
+    const nextApp = bumped(APP_VERSION);
+    const nextHost = bumped(HOST_VERSION);
+    const { env, dir } = payloadCacheWith([nextApp], HOST_API_VERSION + 1);
     try {
-      mkdirSync(join(dir, next), { recursive: true });
-      writeFileSync(join(dir, next, "sentry-tui"), "#!/bin/sh\nexit 0\n");
+      mkdirSync(join(dir, nextHost), { recursive: true });
+      writeFileSync(join(dir, nextHost, "sentry-tui"), "#!/bin/sh\nexit 0\n");
       expect(readyUpdate(env)).toEqual({
-        version: next,
+        version: nextHost,
         kind: "host",
-        path: join(dir, next, "sentry-tui"),
+        path: join(dir, nextHost, "sentry-tui"),
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a host-only release is offered even when the app is current", () => {
+    const nextHost = bumped(HOST_VERSION);
+    const { env, dir } = payloadCacheWith([APP_VERSION]);
+    try {
+      mkdirSync(join(dir, nextHost), { recursive: true });
+      writeFileSync(join(dir, nextHost, "sentry-tui"), "#!/bin/sh\nexit 0\n");
+      expect(readyUpdate(env)).toEqual({
+        version: nextHost,
+        kind: "host",
+        path: join(dir, nextHost, "sentry-tui"),
       });
     } finally {
       rmSync(dir, { recursive: true, force: true });

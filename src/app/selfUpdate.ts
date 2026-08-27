@@ -16,8 +16,8 @@
  * `--version`, `login`, `logout`, `status`), a session too short to have
  * checked, and a host that would not start at all.
  *
- * So a launch costs exactly one check, in one place or the other, never both
- * — and the `mkdir` lock in `update.mjs` is left guarding what it was written
+ * So a launch checks each independent release line in one place or the other,
+ * never both — and the `mkdir` lock in `update.mjs` is left guarding what it was written
  * for, several terminals launching at once, rather than our own two schedules.
  * The launcher decides that with a clock, not by reading the arguments it was
  * handed, so a command added to the app needs nothing added there.
@@ -41,7 +41,8 @@ import {
   updatesDisabled,
 } from "../../packaging/npm/update.mjs";
 import { HOST_API_VERSION } from "~/app/runtimeContract";
-import { APP_VERSION } from "~/lib/version";
+import { APP_VERSION } from "~/app/version";
+import { HOST_VERSION } from "~/lib/version";
 
 /** A release on disk, newer than the app running now, ready to apply. */
 export interface ReadyUpdate {
@@ -106,7 +107,7 @@ export function readyUpdate(env: NodeJS.ProcessEnv = process.env): ReadyUpdate |
   // A payload requiring another host API cannot be executed. Once its matching
   // compiled release is cached, use the old process-replacement path.
   const newestHost = cachedVersions(env)[0];
-  if (!newestHost || compareVersions(newestHost, APP_VERSION) <= 0) return undefined;
+  if (!newestHost || compareVersions(newestHost, HOST_VERSION) <= 0) return undefined;
   return { version: newestHost, kind: "host", path: cachedBinary(newestHost, env) };
 }
 
@@ -131,26 +132,23 @@ export async function checkForUpdate(
       artifact: "payload",
       env,
     });
+  } catch {
+    // The host check is independent. A payload registry failure must not hide
+    // a runtime fix, and the cache read below may still have an old answer.
+  }
 
-    const payloadVersion = cachedPayloadVersions(env)[0];
-    const manifest = payloadVersion ? cachedPayloadManifest(payloadVersion, env) : undefined;
+  try {
     const hostPackage = platformPackage();
-    if (
-      payloadVersion &&
-      manifest?.hostApiVersion !== HOST_API_VERSION &&
-      hostPackage &&
-      compareVersions(payloadVersion, APP_VERSION) > 0
-    ) {
+    if (hostPackage) {
       await downloadIfNewer({
         packageName: hostPackage,
-        localVersion: cachedVersions(env)[0] || APP_VERSION,
+        localVersion: cachedVersions(env)[0] || HOST_VERSION,
         artifact: "binary",
         env,
       });
     }
   } catch {
-    // Nothing to say and nowhere to say it. The cache read below still runs:
-    // the launcher's worker may have landed a build while this call failed.
+    // Nothing to say and nowhere to say it. Both release lines fail open.
   }
   return readyUpdate(env);
 }

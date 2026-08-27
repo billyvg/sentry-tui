@@ -1,16 +1,15 @@
-// The repo's manifest is the single source of truth for the version — the
-// released binaries, the npm packages, and the Homebrew formula all derive
-// theirs from it. Importing it statically also means `bun build --compile`
+// release.json is the source of truth for the host release line. Importing it
+// statically also means `bun build --compile`
 // inlines the value, so a compiled binary reports the version it was cut at
 // rather than reading a file that isn't shipped beside it.
-import { version } from "../../package.json";
+import { host } from "../../release.json";
 
-/** The running build's version, e.g. `0.2.0`. */
-export const APP_VERSION: string = version;
+/** The compiled runtime host version, e.g. `0.2.0`. */
+export const HOST_VERSION: string = host;
 
 /**
  * The one rendering of the version: `sentry-tui --version`, `sentry-tui
- * status`, and the command palette's footer all print this, so a version in a
- * bug report is recognisable as the same string wherever it was copied from.
+ * status`, and login output all print this, so a host version in a bug report
+ * is recognisable as the same string wherever it was copied from.
  */
-export const VERSION_LABEL = `v${APP_VERSION}`;
+export const VERSION_LABEL = `v${HOST_VERSION}`;

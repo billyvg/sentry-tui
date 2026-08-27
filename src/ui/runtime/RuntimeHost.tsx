@@ -2,7 +2,7 @@ import { Component, useCallback, useRef, useState, type ErrorInfo, type ReactNod
 
 import { HOST_API_VERSION } from "~/app/runtimeContract";
 import { discardFailedPayload, type ReadyUpdate } from "~/app/selfUpdate";
-import { APP_VERSION } from "~/lib/version";
+import { APP_VERSION } from "~/app/version";
 import { reportError } from "~/telemetry/index";
 import { PayloadApp as FallbackApp, type PayloadAppProps } from "~/ui/runtime/payloadEntry";
 import { loadAppPayload, type LoadedAppPayload } from "~/ui/runtime/loadPayload";

@@ -1,4 +1,4 @@
-import { APP_VERSION } from "~/lib/version";
+import { APP_VERSION } from "~/app/version";
 import { HOST_API_VERSION, type AppPayloadMetadata } from "~/app/runtimeContract";
 import { App, type AppProps } from "~/ui/App";
 import { ThemeProvider, type ThemeProviderProps } from "~/ui/theme";

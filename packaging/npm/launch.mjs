@@ -1,7 +1,7 @@
 // Plain JS on purpose: this file is what an npm consumer runs under Node, so
 // it must have no build step, no dependencies, and no TypeScript.
 import { spawn, spawnSync } from "node:child_process";
-import { accessSync, chmodSync, constants } from "node:fs";
+import { accessSync, chmodSync, constants, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
@@ -86,6 +86,20 @@ export function resolveAppPayload() {
   } catch {
     // The compiled host contains a fallback payload, so a damaged npm install
     // is still usable and can repair itself on its next update check.
+    return undefined;
+  }
+}
+
+/** The independently-versioned payload npm installed beside the launcher. */
+export function bundledPayload() {
+  const path = resolveAppPayload();
+  if (!path) return undefined;
+
+  try {
+    const manifestPath = createRequire(import.meta.url).resolve(`${APP_PACKAGE}/manifest`);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    return typeof manifest?.version === "string" ? { version: manifest.version, path } : undefined;
+  } catch {
     return undefined;
   }
 }
@@ -224,10 +238,7 @@ export function main(argv = process.argv.slice(2)) {
   // Run what is already here: the binary npm installed, or a newer one that an
   // earlier launch fetched. Starting the app never waits on the network.
   const local = bestLocal(bundled);
-  const bundledPayloadPath = resolveAppPayload();
-  const appPayload = bestLocalPayload(
-    bundledPayloadPath ? { version: bundled.version, path: bundledPayloadPath } : undefined,
-  );
+  const appPayload = bestLocalPayload(bundledPayload());
 
   const binary = local.path;
   const startedAt = Date.now();
@@ -263,8 +274,8 @@ export function main(argv = process.argv.slice(2)) {
   // Nothing of ours is running now, so this is the launcher's turn — if the
   // app did not already take it. Whoever is running decides when to check, and
   // a child that was up long enough checked for itself; `src/app/selfUpdate.ts`
-  // states that schedule in full. So exactly one check happens per launch,
-  // here or in there, never both. Detached, so the shell prompt is already
+  // states that schedule in full. So each release line is checked in one
+  // place per launch, here or in there, never both. Detached, so the shell prompt is already
   // back by the time a download starts, and the next launch runs whatever it
   // leaves behind. `SENTRY_TUI_NO_UPDATE=1` and `CI` switch off both halves.
   //
@@ -275,6 +286,11 @@ export function main(argv = process.argv.slice(2)) {
       packageName: APP_PACKAGE,
       localVersion: bestLocalPayload(appPayload)?.version,
       artifact: "payload",
+    });
+    startBackgroundUpdate({
+      packageName: platformPackage(),
+      localVersion: bestLocal(local).version,
+      artifact: "binary",
     });
   }
 

@@ -5,7 +5,7 @@
  *
  *   bun run release:preflight   check readiness for the next minor
  *   bun run release:dry-run     build and package on CI, publish nothing
- *   bun run release:cut --minor cut from remote main and watch CI publish it
+ *   bun run release:cut --minor infer changed components and publish them
  *   bun run release:publish     publish from CI artifacts, by hand
  *   bun run release:verify      check what actually landed
  *
@@ -24,6 +24,11 @@ import {
   RELEASE_TARGETS,
   REPOSITORY,
 } from "./release-targets.ts";
+import {
+  changedReleaseComponents,
+  packagesForComponents,
+  type ReleaseComponent,
+} from "./release-components.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const WORKFLOW = "release.yml";
@@ -45,13 +50,25 @@ const RELEASE_RUN_POLL_MS = 2 * 1000;
 const SEMVER_VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-[\w.]+)?$/;
 const VERSION_BUMPS = ["major", "minor", "patch"] as const;
 type VersionBump = (typeof VERSION_BUMPS)[number];
-/** Packages in publish order: hosts and payload first, then launcher and alias. */
-const PUBLISH_ORDER = [
-  ...RELEASE_TARGETS.map((target) => target.npmPackage),
-  APP_PACKAGE,
-  LAUNCHER_PACKAGE,
-  ALIAS_PACKAGE,
-];
+interface ReleaseVersions {
+  host: string;
+  app: string;
+}
+
+interface ReleasePackage {
+  name: string;
+  component: ReleaseComponent;
+}
+
+/** Packages selected for a component release, in dependency order. */
+function publishOrder(components: readonly ReleaseComponent[]): ReleasePackage[] {
+  return packagesForComponents(components, {
+    hosts: RELEASE_TARGETS.map((target) => target.npmPackage),
+    app: APP_PACKAGE,
+    launcher: LAUNCHER_PACKAGE,
+    alias: ALIAS_PACKAGE,
+  });
+}
 
 const bold = (text: string) => `\x1b[1m${text}\x1b[0m`;
 const dim = (text: string) => `\x1b[2m${text}\x1b[0m`;
@@ -138,9 +155,27 @@ function npmrcFromToken(): { env: Record<string, string>; cleanup: () => void } 
   };
 }
 
-async function packageVersion(): Promise<string> {
-  const { version } = (await Bun.file(join(ROOT, "package.json")).json()) as { version: string };
-  return version;
+async function releaseVersions(): Promise<ReleaseVersions> {
+  return (await Bun.file(join(ROOT, "release.json")).json()) as ReleaseVersions;
+}
+
+/** Explicit component selectors, or undefined to infer from shipped changes. */
+function explicitlyRequestedComponents(): ReleaseComponent[] | undefined {
+  const all = process.argv.includes("--all");
+  const host = process.argv.includes("--host");
+  const app = process.argv.includes("--app");
+  if (all && (host || app)) die("choose --all or individual --host/--app selectors");
+  if (all) return ["host", "app"];
+  if (host || app)
+    return [host ? "host" : undefined, app ? "app" : undefined].filter(
+      (component): component is ReleaseComponent => component !== undefined,
+    );
+  return undefined;
+}
+
+/** Version assigned to a package from one component's release line. */
+function versionFor(component: ReleaseComponent, versions: ReleaseVersions): string {
+  return versions[component];
 }
 
 // ---------------------------------------------------------------------------
@@ -157,10 +192,13 @@ async function preflight(): Promise<void> {
   const ghAuth = await capture(["gh", "auth", "status"]);
   if (ghAuth.code !== 0) die("gh: not authenticated — run `gh auth login`");
   const source = await remoteReleaseSource();
-  const version = requestedReleaseVersion(source.version);
+  const plan = await releasePlan(source);
   let blocking = 0;
 
-  step(`Preflight for v${version} from ${source.branch}@${source.head.slice(0, 7)}`);
+  step(`Preflight from ${source.branch}@${source.head.slice(0, 7)}`);
+  for (const component of plan.components) {
+    console.log(`  ${component}: ${source.versions[component]} → ${plan.versions[component]}`);
+  }
 
   const configured = await capture(["npm", "config", "get", "registry"]);
   if (configured.out === REGISTRY || configured.out === `${REGISTRY}/`) {
@@ -201,7 +239,8 @@ async function preflight(): Promise<void> {
   }
 
   // The registry is the authority on whether these names are still ours to take.
-  for (const name of [ALIAS_PACKAGE, APP_PACKAGE, LAUNCHER_PACKAGE]) {
+  for (const { name, component } of publishOrder(plan.components)) {
+    const version = versionFor(component, plan.versions);
     const { latest, targetPublished } = await releasePackageStatus(name, version);
     if (targetPublished) {
       bad(`${name}@${version} is already published — choose another version`);
@@ -225,8 +264,9 @@ async function preflight(): Promise<void> {
 /** Trigger the release workflow in dry-run mode and follow it to completion. */
 async function dryRun(): Promise<void> {
   const branch = (await capture(["git", "rev-parse", "--abbrev-ref", "HEAD"])).out;
+  const components = explicitlyRequestedComponents() ?? ["host", "app"];
 
-  step(`Triggering ${WORKFLOW} (dry run) on ${branch}`);
+  step(`Triggering ${WORKFLOW} (${components.join(" + ")} dry run) on ${branch}`);
   await run([
     "gh",
     "workflow",
@@ -238,6 +278,8 @@ async function dryRun(): Promise<void> {
     branch,
     "-f",
     "dry_run=true",
+    "-f",
+    `components=${components.join(",")}`,
   ]);
 
   // The run does not exist the instant the dispatch returns.
@@ -391,7 +433,7 @@ async function requireGreenCi(sha: string): Promise<void> {
   }
 }
 
-/** Resolve an exact version or increment from the version in package.json. */
+/** Resolve an exact version or increment from one component's current version. */
 export function resolveReleaseVersion(
   current: string,
   requested: readonly string[],
@@ -449,10 +491,10 @@ interface RemoteReleaseSource {
   branch: string;
   head: string;
   manifest: string;
-  version: string;
+  versions: ReleaseVersions;
 }
 
-/** Read package.json and the default branch head from GitHub, never local Git. */
+/** Read release.json and the default branch head from GitHub, never local Git. */
 async function remoteReleaseSource(): Promise<RemoteReleaseSource> {
   const repository = await capture(["gh", "api", `repos/${REPOSITORY}`, "--jq", ".default_branch"]);
   if (repository.code !== 0 || !repository.out) die(`could not read ${REPOSITORY}`);
@@ -470,38 +512,108 @@ async function remoteReleaseSource(): Promise<RemoteReleaseSource> {
   const file = await capture([
     "gh",
     "api",
-    `repos/${REPOSITORY}/contents/package.json?ref=${ref.out}`,
+    `repos/${REPOSITORY}/contents/release.json?ref=${ref.out}`,
   ]);
-  if (file.code !== 0 || !file.out) die(`could not read package.json from ${branch}`);
+  if (file.code !== 0 || !file.out) die(`could not read release.json from ${branch}`);
 
   let manifest: string;
-  let version: unknown;
+  let versions: Partial<ReleaseVersions>;
   try {
     const encoded = (JSON.parse(file.out) as { content?: string }).content;
-    if (!encoded) throw new Error("package.json has no content");
+    if (!encoded) throw new Error("release.json has no content");
     manifest = Buffer.from(encoded.replaceAll("\n", ""), "base64").toString();
-    version = (JSON.parse(manifest) as { version?: unknown }).version;
+    versions = JSON.parse(manifest) as Partial<ReleaseVersions>;
   } catch (error) {
-    die(`could not decode package.json from ${branch}: ${String(error)}`);
+    die(`could not decode release.json from ${branch}: ${String(error)}`);
   }
-  if (typeof version !== "string") die(`package.json on ${branch} has no version`);
+  if (typeof versions.host !== "string" || typeof versions.app !== "string") {
+    die(`release.json on ${branch} needs host and app versions`);
+  }
 
-  return { branch, head: ref.out, manifest, version };
+  return { branch, head: ref.out, manifest, versions: versions as ReleaseVersions };
 }
 
-/** Change only package.json's top-level version field. */
-export function bumpManifestVersion(manifest: string, current: string, version: string): string {
-  if (current === version) return manifest;
-  const bumped = manifest.replace(`"version": "${current}"`, `"version": "${version}"`);
-  if (bumped === manifest) throw new Error("could not find the version field in package.json");
+/** Change only the selected fields in release.json. */
+export function bumpReleaseVersions(
+  manifest: string,
+  current: ReleaseVersions,
+  next: ReleaseVersions,
+): string {
+  let bumped = manifest;
+  for (const component of ["host", "app"] as const) {
+    if (current[component] === next[component]) continue;
+    const before = bumped;
+    bumped = bumped.replace(
+      `"${component}": "${current[component]}"`,
+      `"${component}": "${next[component]}"`,
+    );
+    if (bumped === before) throw new Error(`could not find ${component} in release.json`);
+  }
   return bumped;
 }
 
-/** Commit a bumped package.json straight to GitHub's current default-branch head. */
+/** Canonical component tag, with the old unified tag accepted as the baseline. */
+async function releaseBaseTag(component: ReleaseComponent, version: string): Promise<string> {
+  for (const tag of [`${component}-v${version}`, `v${version}`]) {
+    const found = await capture([
+      "gh",
+      "api",
+      `repos/${REPOSITORY}/git/ref/tags/${tag}`,
+      "--silent",
+    ]);
+    if (found.code === 0) return tag;
+  }
+  die(`could not find a ${component} release tag for v${version}`);
+}
+
+/** Files changed on the remote release head since one component last shipped. */
+async function changedPathsSince(tag: string, head: string): Promise<string[]> {
+  const compared = await capture([
+    "gh",
+    "api",
+    `repos/${REPOSITORY}/compare/${tag}...${head}`,
+    "--paginate",
+    "--jq",
+    ".files[].filename",
+  ]);
+  if (compared.code !== 0) die(`could not compare ${tag} with ${head.slice(0, 7)}`);
+  return compared.out.split("\n").filter(Boolean);
+}
+
+/** Infer what needs a release from each component's own last shipped tag. */
+async function inferredReleaseComponents(source: RemoteReleaseSource): Promise<ReleaseComponent[]> {
+  const selected: ReleaseComponent[] = [];
+  for (const component of ["host", "app"] as const) {
+    const tag = await releaseBaseTag(component, source.versions[component]);
+    const paths = await changedPathsSince(tag, source.head);
+    if (changedReleaseComponents(paths).includes(component)) selected.push(component);
+  }
+  if (selected.length === 0) {
+    die("there are no unreleased host or app changes; use --host, --app, or --all to override");
+  }
+  return selected;
+}
+
+interface ReleasePlan {
+  components: ReleaseComponent[];
+  versions: ReleaseVersions;
+}
+
+/** Components and their independently bumped target versions. */
+async function releasePlan(source: RemoteReleaseSource): Promise<ReleasePlan> {
+  const components = explicitlyRequestedComponents() ?? (await inferredReleaseComponents(source));
+  const versions = { ...source.versions };
+  for (const component of components) {
+    versions[component] = requestedReleaseVersion(source.versions[component]);
+  }
+  return { components, versions };
+}
+
+/** Commit bumped release metadata straight to GitHub's current default-branch head. */
 async function createReleaseCommit(
   source: RemoteReleaseSource,
   manifest: string,
-  version: string,
+  plan: ReleasePlan,
 ): Promise<string> {
   const mutation = `
     mutation(
@@ -535,9 +647,9 @@ async function createReleaseCommit(
     "-f",
     `head=${source.head}`,
     "-f",
-    `message=chore: release v${version}`,
+    `message=chore: release ${plan.components.map((component) => `${component} v${plan.versions[component]}`).join(", ")}`,
     "-f",
-    "path=package.json",
+    "path=release.json",
     "-f",
     `contents=${Buffer.from(manifest).toString("base64")}`,
     "--jq",
@@ -553,7 +665,11 @@ async function createReleaseCommit(
 }
 
 /** Dispatch the remote release workflow with enough identity to find its run. */
-async function dispatchRelease(version: string, commit: string, requestId: string): Promise<void> {
+async function dispatchRelease(
+  plan: ReleasePlan,
+  commit: string,
+  requestId: string,
+): Promise<void> {
   const dispatched = await capture([
     "gh",
     "api",
@@ -563,7 +679,9 @@ async function dispatchRelease(version: string, commit: string, requestId: strin
     "-f",
     "event_type=release_cut",
     "-f",
-    `client_payload[version]=${version}`,
+    `client_payload[components]=${plan.components.join(",")}`,
+    `client_payload[host_version]=${plan.versions.host}`,
+    `client_payload[app_version]=${plan.versions.app}`,
     "-f",
     `client_payload[sha]=${commit}`,
     "-f",
@@ -612,50 +730,63 @@ async function cut(): Promise<void> {
   }
 
   const source = await remoteReleaseSource();
-  const version = requestedReleaseVersion(source.version);
+  const plan = await releasePlan(source);
   let manifest: string;
   try {
-    manifest = bumpManifestVersion(source.manifest, source.version, version);
+    manifest = bumpReleaseVersions(source.manifest, source.versions, plan.versions);
   } catch (error) {
     die(error instanceof Error ? error.message : String(error));
   }
 
-  const existingTag = await capture([
-    "gh",
-    "api",
-    `repos/${REPOSITORY}/git/ref/tags/v${version}`,
-    "--silent",
-  ]);
-  if (existingTag.code === 0) die(`tag v${version} already exists`);
+  for (const component of plan.components) {
+    const tag = `${component}-v${plan.versions[component]}`;
+    const existingTag = await capture([
+      "gh",
+      "api",
+      `repos/${REPOSITORY}/git/ref/tags/${tag}`,
+      "--silent",
+    ]);
+    if (existingTag.code === 0) die(`tag ${tag} already exists`);
+  }
 
   if (flags.force) warn("--force: releasing without checking CI");
   else await requireGreenCi(source.head);
 
-  step(`Releasing v${version} from GitHub`);
+  step(`Releasing ${plan.components.join(" + ")} from GitHub`);
   console.log(`  ${REPOSITORY} ${source.branch}@${source.head.slice(0, 7)}`);
-  if (version === source.version) console.log(`  tag the existing v${version} manifest`);
-  else console.log(`  commit package.json ${source.version} → ${version}, then tag v${version}`);
-  console.log(`  CI then builds ${RELEASE_TARGETS.length} binaries and publishes:`);
-  for (const name of PUBLISH_ORDER) console.log(`    ${name}@${version}`);
-  check(`\nRelease v${version}? This publishes to npm.`);
+  for (const component of plan.components) {
+    console.log(
+      `  ${component}: ${source.versions[component]} → ${plan.versions[component]}, tag ${component}-v${plan.versions[component]}`,
+    );
+  }
+  if (plan.components.includes("host")) {
+    console.log(`  CI builds ${RELEASE_TARGETS.length} native binaries`);
+  }
+  console.log("  npm publishes:");
+  for (const pkg of publishOrder(plan.components)) {
+    console.log(`    ${pkg.name}@${versionFor(pkg.component, plan.versions)}`);
+  }
+  check(`\nRelease ${plan.components.join(" + ")}? This publishes to npm.`);
 
   let releaseCommit = source.head;
-  if (version !== source.version) {
-    step(`Committing ${source.version} → ${version} on ${source.branch}`);
-    releaseCommit = await createReleaseCommit(source, manifest, version);
+  if (manifest !== source.manifest) {
+    step(`Committing release versions on ${source.branch}`);
+    releaseCommit = await createReleaseCommit(source, manifest, plan);
     ok(`${source.branch} is now ${releaseCommit.slice(0, 7)}`);
   }
 
   const requestId = crypto.randomUUID();
   step("Triggering the Release workflow");
-  await dispatchRelease(version, releaseCommit, requestId);
+  await dispatchRelease(plan, releaseCommit, requestId);
 
   step("Waiting for the Release run");
   const runId = await releaseRunFor(requestId);
   step(`Watching Release run ${runId}`);
   await run(["gh", "run", "watch", runId, "--repo", REPOSITORY, "--exit-status"]);
 
-  console.log(`\n${green(`Released v${version}.`)}`);
+  console.log(
+    `\n${green(`Released ${plan.components.map((component) => `${component} v${plan.versions[component]}`).join(" and ")}.`)}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -707,9 +838,14 @@ async function isPublished(name: string, version: string): Promise<boolean> {
  * bit and `npm publish` ships whatever mode the file has on disk.
  */
 async function publish(): Promise<void> {
-  const version = await packageVersion();
+  const versions = await releaseVersions();
+  const components = explicitlyRequestedComponents() ?? ["host", "app"];
+  const packages = publishOrder(components);
+  const includesHost = components.includes("host");
 
-  if (flags.skipDownload) {
+  if (!includesHost) {
+    step("App-only publish: no native artifacts needed");
+  } else if (flags.skipDownload) {
     step("Using the binaries already in dist/bin");
   } else {
     const runId = positionals[0] ?? (await latestRunId());
@@ -732,18 +868,25 @@ async function publish(): Promise<void> {
     ]);
   }
 
-  for (const target of RELEASE_TARGETS) {
-    const binary = Bun.file(join(ROOT, "dist", "bin", target.key, BINARY_NAME));
-    if (!(await binary.exists())) die(`no ${target.key} binary at dist/bin/${target.key}`);
-    ok(`${target.key} (${(binary.size / 1_048_576).toFixed(1)} MB)`);
+  if (includesHost) {
+    for (const target of RELEASE_TARGETS) {
+      const binary = Bun.file(join(ROOT, "dist", "bin", target.key, BINARY_NAME));
+      if (!(await binary.exists())) die(`no ${target.key} binary at dist/bin/${target.key}`);
+      ok(`${target.key} (${(binary.size / 1_048_576).toFixed(1)} MB)`);
+    }
   }
 
   step("Assembling packages");
-  await run(["bun", "run", "build:app"]);
-  await run(["bun", "run", "build:npm", "--strict"]);
+  if (components.includes("app")) await run(["bun", "run", "build:app"]);
+  const component = components.length === 2 ? "all" : components[0]!;
+  const buildCommand = ["bun", "run", "build:npm", "--component", component];
+  if (includesHost) buildCommand.push("--strict");
+  await run(buildCommand);
 
-  step(`Publishing ${PUBLISH_ORDER.length} packages at ${version}`);
-  for (const name of PUBLISH_ORDER) console.log(`  ${name}@${version}`);
+  step(`Publishing ${packages.length} packages`);
+  for (const pkg of packages) {
+    console.log(`  ${pkg.name}@${versionFor(pkg.component, versions)}`);
+  }
   if (flags.npmDryRun) warn("--npm-dry-run: nothing will be uploaded");
   else check(`\nPublish to npm? Unpublishing is only possible for 72 hours.`);
 
@@ -751,7 +894,8 @@ async function publish(): Promise<void> {
   if (auth) ok("authenticating with NPM_TOKEN from the environment");
 
   try {
-    for (const name of PUBLISH_ORDER) {
+    for (const { name, component: packageComponent } of packages) {
+      const version = versionFor(packageComponent, versions);
       // Seven uploads: one can fail on a flaky connection or an
       // OTP that expired mid-run. Skipping what already landed lets a re-run
       // finish the job rather than die on "cannot publish over the previously
@@ -780,22 +924,27 @@ async function publish(): Promise<void> {
 
 /** Confirm what is actually on the registry, and that it runs. */
 async function verify(): Promise<void> {
-  const version = await packageVersion();
+  const versions = await releaseVersions();
+  const components = explicitlyRequestedComponents() ?? ["host", "app"];
+  const packages = publishOrder(components);
 
-  step(`Registry, expecting ${version}`);
-  for (const name of PUBLISH_ORDER) {
+  step("Registry");
+  for (const { name, component } of packages) {
+    const version = versionFor(component, versions);
     const published = await publishedVersion(name);
     if (!published) bad(`${name}: not published`);
     else if (published === version) ok(`${name}@${published}`);
     else warn(`${name}@${published}, expected ${version}`);
   }
 
+  if (!components.includes("host")) return;
+  const version = versions.host;
   step(`Running npx ${ALIAS_PACKAGE}@${version}`);
   console.log(dim("  downloads the launcher and this platform's binary, ~24 MB"));
   // `--version` rather than `--help`: it proves everything `--help` would —
   // the launcher resolved a binary, and that binary runs — and additionally
   // that the bytes npm just served are the ones cut, since the string is
-  // inlined from package.json at compile time. Help text is identical in
+  // inlined from release.json at compile time. Help text is identical in
   // every build ever published, so it cannot tell a stale cache or a
   // mismatched optional dependency from the real thing.
   const expected = `sentry-tui v${version}`;

@@ -58,7 +58,7 @@ publish() {
   name="$(node -p "require('./${dir}/package.json').name")"
   version="$(node -p "require('./${dir}/package.json').version")"
 
-  # Seven uploads, and a release that dies partway leaves some of
+# A component release that dies partway can leave some packages on the
   # them on the registry. Skipping what already landed lets a re-run finish the
   # job instead of failing on "cannot publish over the previously published
   # version" — the same reasoning as the local path in scripts/release.ts.
@@ -86,12 +86,13 @@ automation-class token. See docs/releasing.md."
   rm -f "$log"
 }
 
-# Payload and platform packages, then the launcher, then the alias.
+# Publish whichever component package trees the release planner assembled.
+shopt -s nullglob
 for dir in "$NPM_DIR"/billyvg-sentry-tui-*; do
   publish "$dir"
 done
 
-publish "$NPM_DIR/billyvg-sentry-tui"
-publish "$NPM_DIR/sentry-tui"
+[ ! -d "$NPM_DIR/billyvg-sentry-tui" ] || publish "$NPM_DIR/billyvg-sentry-tui"
+[ ! -d "$NPM_DIR/sentry-tui" ] || publish "$NPM_DIR/sentry-tui"
 
-echo "Published $(ls -d "$NPM_DIR"/*/ | wc -l | tr -d ' ') packages."
+echo "Published $(find "$NPM_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ') packages."

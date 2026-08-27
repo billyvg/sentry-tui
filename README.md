@@ -36,7 +36,7 @@ npm install -g sentry-tui
 `sentry-tui` and `@billyvg/sentry-tui` are the same package; the platform host
 arrives as an optional dependency, so you download one binary rather than
 four. The replaceable app payload is shared by every platform. Complete host
-and payload bundles are also attached to every
+and payload bundles are also attached to every host
 [release](https://github.com/billyvg/sentry-tui/releases).
 
 The npm install **keeps itself current**. Launching starts the app
@@ -50,8 +50,9 @@ the bottom-left corner. Click it or press `U` and the long-lived host swaps the
 app tree while keeping the process, terminal mode, renderer, and React root
 alive. The app looks again every 15 minutes while it is open and only offers
 bytes already on disk. A release that changes the host/payload API falls back
-to the verified full-host restart path; routine UI and application changes do
-not.
+to the verified full-host restart path; a host-only fix is discovered through
+the same independent check and offered as a restart. Routine UI and application
+changes do not replace the host.
 
 The payload swap currently remounts the application tree, so in-memory screen
 and navigation state is not preserved yet. The terminal shell no longer has to

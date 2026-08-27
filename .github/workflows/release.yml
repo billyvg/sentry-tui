@@ -1,15 +1,15 @@
 name: Release
-run-name: ${{ github.event_name == 'repository_dispatch' && format('Release v{0} [{1}]', github.event.client_payload.version, github.event.client_payload.request_id) || github.ref_name }}
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release {0} [{1}]', github.event.client_payload.components, github.event.client_payload.request_id) || github.ref_name }}
 
 # Hand-pushed tags still start a release. `release:cut` instead dispatches the
 # exact remote commit, lets this workflow validate it, then creates the same
-# annotated tag before building. Either path must match `package.json`.
+# component tags before building. Either path must match `release.json`.
 #
 # Run it by hand first (workflow_dispatch, dry_run: true) to build and package
 # everything without publishing anything.
 on:
   push:
-    tags: ["v*"]
+    tags: ["host-v*", "app-v*"]
   repository_dispatch:
     types: [release_cut]
   workflow_dispatch:
@@ -18,6 +18,11 @@ on:
         description: "Build and package, but publish nothing"
         type: boolean
         default: true
+      components:
+        description: "Release components to build"
+        type: choice
+        options: [all, host, app]
+        default: all
 
 env:
   SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
@@ -31,10 +36,14 @@ permissions:
 
 jobs:
   verify:
-    name: Verify version
+    name: Verify release plan
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      host_version: ${{ steps.version.outputs.host_version }}
+      app_version: ${{ steps.version.outputs.app_version }}
+      release_host: ${{ steps.version.outputs.release_host }}
+      release_app: ${{ steps.version.outputs.release_app }}
+      components: ${{ steps.version.outputs.components }}
       dry_run: ${{ steps.version.outputs.dry_run }}
       release_sha: ${{ steps.version.outputs.release_sha }}
     steps:
@@ -46,24 +55,74 @@ jobs:
       - name: Resolve and check version
         id: version
         env:
-          REF_NAME: ${{ github.event_name == 'repository_dispatch' && format('v{0}', github.event.client_payload.version) || github.ref_name }}
-          IS_TAG: ${{ github.ref_type == 'tag' || github.event_name == 'repository_dispatch' }}
+          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          COMPONENTS_INPUT: ${{ github.event.client_payload.components || inputs.components || 'all' }}
+          HOST_VERSION_INPUT: ${{ github.event.client_payload.host_version }}
+          APP_VERSION_INPUT: ${{ github.event.client_payload.app_version }}
           RELEASE_SHA_INPUT: ${{ github.event.client_payload.sha }}
           DRY_RUN_INPUT: ${{ inputs.dry_run }}
         run: |
-          version="$(node -p "require('./package.json').version")"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "release_sha=${RELEASE_SHA_INPUT:-$GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          host_version="$(node -p "require('./release.json').host")"
+          app_version="$(node -p "require('./release.json').app")"
+          release_host=false
+          release_app=false
 
-          if [ "$IS_TAG" = "true" ]; then
-            if [ "$REF_NAME" != "v$version" ]; then
-              echo "::error::tag $REF_NAME does not match package.json version $version"
+          if [ "$EVENT_NAME" = "repository_dispatch" ]; then
+            [ "$HOST_VERSION_INPUT" = "$host_version" ] || {
+              echo "::error::requested host $HOST_VERSION_INPUT does not match release.json $host_version"
               exit 1
-            fi
-            echo "dry_run=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "dry_run=${DRY_RUN_INPUT:-true}" >> "$GITHUB_OUTPUT"
+            }
+            [ "$APP_VERSION_INPUT" = "$app_version" ] || {
+              echo "::error::requested app $APP_VERSION_INPUT does not match release.json $app_version"
+              exit 1
+            }
+          elif [ "$EVENT_NAME" = "push" ]; then
+            case "$REF_NAME" in
+              host-v*)
+                COMPONENTS_INPUT=host
+                [ "$REF_NAME" = "host-v$host_version" ] || {
+                  echo "::error::tag $REF_NAME does not match host v$host_version"
+                  exit 1
+                }
+                ;;
+              app-v*)
+                COMPONENTS_INPUT=app
+                [ "$REF_NAME" = "app-v$app_version" ] || {
+                  echo "::error::tag $REF_NAME does not match app v$app_version"
+                  exit 1
+                }
+                ;;
+            esac
           fi
+
+          case ",$COMPONENTS_INPUT," in *,host,*|*,all,*) release_host=true ;; esac
+          case ",$COMPONENTS_INPUT," in *,app,*|*,all,*) release_app=true ;; esac
+          if [ "$release_host" != true ] && [ "$release_app" != true ]; then
+            echo "::error::components must be host, app, host,app, or all"
+            exit 1
+          fi
+
+          components=""
+          if [ "$release_host" = true ]; then components=host; fi
+          if [ "$release_app" = true ]; then
+            [ -n "$components" ] && components="$components,app" || components=app
+          fi
+          if [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "repository_dispatch" ]; then
+            dry_run=false
+          else
+            dry_run="${DRY_RUN_INPUT:-true}"
+          fi
+
+          {
+            echo "host_version=$host_version"
+            echo "app_version=$app_version"
+            echo "release_host=$release_host"
+            echo "release_app=$release_app"
+            echo "components=$components"
+            echo "release_sha=${RELEASE_SHA_INPUT:-$GITHUB_SHA}"
+            echo "dry_run=$dry_run"
+          } >> "$GITHUB_OUTPUT"
 
   # A release must not be able to ship code the suite rejects, however its
   # request got here. `main`'s CI covers the normal remote-cut path, but a
@@ -123,7 +182,7 @@ jobs:
 
   # `release:cut` dispatches this workflow without a tag so validation can fail
   # cleanly first. Its authenticated caller already made the version commit;
-  # GITHUB_TOKEN only creates the tag, and therefore cannot recursively trigger
+  # GITHUB_TOKEN only creates the component tags, and therefore cannot recursively trigger
   # another Release run. Hand-pushed tags and dry runs have nothing to do here.
   tag:
     name: Create release tag
@@ -141,16 +200,26 @@ jobs:
       - name: Create annotated tag
         if: github.event_name == 'repository_dispatch'
         env:
-          VERSION: ${{ needs.verify.outputs.version }}
+          HOST_VERSION: ${{ needs.verify.outputs.host_version }}
+          APP_VERSION: ${{ needs.verify.outputs.app_version }}
+          RELEASE_HOST: ${{ needs.verify.outputs.release_host }}
+          RELEASE_APP: ${{ needs.verify.outputs.release_app }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${VERSION}" -m "v${VERSION}"
-          git push origin "v${VERSION}"
+          if [ "$RELEASE_HOST" = true ]; then
+            git tag -a "host-v${HOST_VERSION}" -m "host v${HOST_VERSION}"
+            git push origin "host-v${HOST_VERSION}"
+          fi
+          if [ "$RELEASE_APP" = true ]; then
+            git tag -a "app-v${APP_VERSION}" -m "app v${APP_VERSION}"
+            git push origin "app-v${APP_VERSION}"
+          fi
 
   build:
     name: Build ${{ matrix.target }}
     needs: [verify, validate, test, tag]
+    if: needs.verify.outputs.release_host == 'true'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -202,7 +271,14 @@ jobs:
 
   package:
     name: Package release
-    needs: [verify, build]
+    needs: [verify, validate, test, tag, build]
+    if: >-
+      always() &&
+      needs.verify.result == 'success' &&
+      needs.validate.result == 'success' &&
+      needs.test.result == 'success' &&
+      needs.tag.result == 'success' &&
+      (needs.verify.outputs.release_host != 'true' || needs.build.result == 'success')
     runs-on: ubuntu-latest
     env:
       DRY_RUN: ${{ needs.verify.outputs.dry_run }}
@@ -216,6 +292,7 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Download binaries
+        if: needs.verify.outputs.release_host == 'true'
         uses: actions/download-artifact@v7
         with:
           path: dist/bin
@@ -224,10 +301,21 @@ jobs:
         run: bun run build:app
 
       - name: Archive binaries and checksums
+        if: needs.verify.outputs.release_host == 'true'
         run: .github/scripts/package-release.sh
 
       - name: Assemble npm packages
-        run: bun run build:npm --strict
+        env:
+          RELEASE_HOST: ${{ needs.verify.outputs.release_host }}
+          RELEASE_APP: ${{ needs.verify.outputs.release_app }}
+        run: |
+          if [ "$RELEASE_HOST" = true ] && [ "$RELEASE_APP" = true ]; then
+            bun run build:npm --component all --strict
+          elif [ "$RELEASE_HOST" = true ]; then
+            bun run build:npm --component host --strict
+          else
+            bun run build:npm --component app
+          fi
 
       # A dry run has no publish job to hand this to, so it gets the longer
       # retention — this artifact is the whole point of running one. A real
@@ -259,7 +347,11 @@ jobs:
       deployments: write # record the successful npm deployment
       id-token: write # npm trusted publishing (OIDC), and provenance
     env:
-      VERSION: ${{ needs.verify.outputs.version }}
+      HOST_VERSION: ${{ needs.verify.outputs.host_version }}
+      APP_VERSION: ${{ needs.verify.outputs.app_version }}
+      RELEASE_HOST: ${{ needs.verify.outputs.release_host }}
+      RELEASE_APP: ${{ needs.verify.outputs.release_app }}
+      COMPONENTS: ${{ needs.verify.outputs.components }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -294,15 +386,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ "$RELEASE_HOST" = true ]; then
+            release_ref="host-v${HOST_VERSION}"
+            release_url="https://www.npmjs.com/package/sentry-tui/v/${HOST_VERSION}"
+          else
+            release_ref="app-v${APP_VERSION}"
+            release_url="https://www.npmjs.com/package/@billyvg/sentry-tui-app/v/${APP_VERSION}"
+          fi
           deployment_id="$(
             gh api \
               --method POST \
               --header "Accept: application/vnd.github+json" \
               --header "X-GitHub-Api-Version: 2026-03-10" \
               "/repos/${GITHUB_REPOSITORY}/deployments" \
-              --field "ref=v${VERSION}" \
+              --field "ref=${release_ref}" \
               --field "environment=production" \
-              --field "description=sentry-tui v${VERSION} published to npm" \
+              --field "description=sentry-tui ${COMPONENTS} published to npm" \
               --field "auto_merge=false" \
               --field "required_contexts[]" \
               --field "transient_environment=false" \
@@ -317,17 +416,18 @@ jobs:
             "/repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" \
             --field "state=success" \
             --field "environment=production" \
-            --field "environment_url=https://www.npmjs.com/package/sentry-tui/v/${VERSION}" \
+            --field "environment_url=${release_url}" \
             --field "log_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            --field "description=Published sentry-tui v${VERSION} to npm" \
+            --field "description=Published sentry-tui ${COMPONENTS} to npm" \
             --silent
 
       - name: Create GitHub Release
+        if: needs.verify.outputs.release_host == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${VERSION}" \
+          gh release create "host-v${HOST_VERSION}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "v${VERSION}" \
+            --title "Runtime host v${HOST_VERSION}" \
             --generate-notes \
             dist/release/*

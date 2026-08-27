@@ -5,7 +5,7 @@
  * environment: no SDK, no globals, testable as a table.
  */
 
-import pkg from "../../package.json";
+import { host } from "../../release.json";
 
 /**
  * Where sentry-tui's own errors go.
@@ -23,7 +23,7 @@ export const DEFAULT_DSN =
   "https://1ce8f37a1435bc3dc3ff6dbe7f7a72d6@o1.ingest.us.sentry.io/4511949151469569";
 
 /** `sentry-tui@0.2.0` — the release these events belong to. */
-export const RELEASE = `sentry-tui@${pkg.version}`;
+export const RELEASE = `sentry-tui@${host}`;
 
 /**
  * True when running from `bun build --compile` output rather than source.

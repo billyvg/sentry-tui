@@ -37,8 +37,10 @@ export function rewriteHostModuleSpecifiers(source: string): string {
 
 /** Build one immutable payload plus the manifest inspected before import. */
 export async function buildAppPayload(): Promise<void> {
-  const { version } = (await Bun.file(join(ROOT, "package.json")).json()) as { version?: string };
-  if (!version) throw new Error("package.json has no version");
+  const { app } = (await Bun.file(join(ROOT, "release.json")).json()) as {
+    app?: string;
+  };
+  if (!app) throw new Error("release.json has no app version");
 
   await rm(OUT_DIR, { recursive: true, force: true });
   await mkdir(OUT_DIR, { recursive: true });
@@ -64,9 +66,9 @@ export async function buildAppPayload(): Promise<void> {
 
   await writeFile(
     join(OUT_DIR, "manifest.json"),
-    `${JSON.stringify({ version, hostApiVersion: HOST_API_VERSION, entry: "app.mjs" }, null, 2)}\n`,
+    `${JSON.stringify({ version: app, hostApiVersion: HOST_API_VERSION, entry: "app.mjs" }, null, 2)}\n`,
   );
-  console.log(`App payload v${version} (host API ${HOST_API_VERSION}) written to dist/app`);
+  console.log(`App payload v${app} (host API ${HOST_API_VERSION}) written to dist/app`);
 }
 
 if (import.meta.main) await buildAppPayload();

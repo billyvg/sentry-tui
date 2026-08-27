@@ -15,8 +15,9 @@
  * which keeps devDependencies, hooks, and source layout out of the tarballs.
  *
  * Usage:
- *   bun run ./scripts/build-npm.ts               # whatever binaries exist
- *   bun run ./scripts/build-npm.ts --strict      # every target must be present
+ *   bun run ./scripts/build-npm.ts                         # both components
+ *   bun run ./scripts/build-npm.ts --component app         # payload only
+ *   bun run ./scripts/build-npm.ts --component host --strict # hosts + launchers
  */
 import { chmodSync, existsSync } from "node:fs";
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
@@ -102,7 +103,9 @@ export function launcherManifest(version: string) {
     },
     files: ["bin", "lib", "README.md", "LICENSE"],
     engines: { node: ">=18.0.0" },
-    dependencies: { [APP_PACKAGE]: version },
+    // The payload has an independent release line. A fresh install should
+    // resolve its newest release without requiring a launcher republish.
+    dependencies: { [APP_PACKAGE]: "*" },
     // Optional so that an unsupported platform still installs — the launcher
     // then prints how to get a binary instead of npm failing the install.
     optionalDependencies: Object.fromEntries(
@@ -137,14 +140,33 @@ async function writeManifest(dir: string, manifest: object): Promise<void> {
 
 async function main(): Promise<void> {
   const strict = process.argv.includes("--strict");
-  const { version } = (await Bun.file(join(ROOT, "package.json")).json()) as { version?: string };
-
-  if (!version) {
-    console.error("package.json has no version — set one before building release packages.");
+  const componentIndex = process.argv.indexOf("--component");
+  const component = componentIndex === -1 ? "all" : process.argv[componentIndex + 1];
+  if (!component || !["all", "host", "app"].includes(component)) {
+    console.error("--component must be one of: all, host, app");
     process.exit(1);
   }
+  const includeHost = component !== "app";
+  const includeApp = component !== "host";
+  const { host: version, app: appVersion } = (await Bun.file(
+    join(ROOT, "release.json"),
+  ).json()) as {
+    host?: string;
+    app?: string;
+  };
 
-  if (!existsSync(join(APP_DIR, "app.mjs")) || !existsSync(join(APP_DIR, "manifest.json"))) {
+  if (!version) {
+    console.error("release.json has no host version — set it before building packages.");
+    process.exit(1);
+  }
+  if (!appVersion) {
+    console.error("release.json has no app version — set it before building packages.");
+    process.exit(1);
+  }
+  if (
+    includeApp &&
+    (!existsSync(join(APP_DIR, "app.mjs")) || !existsSync(join(APP_DIR, "manifest.json")))
+  ) {
     console.error("Missing app payload — run bun run build:app before build:npm.");
     process.exit(1);
   }
@@ -155,7 +177,7 @@ async function main(): Promise<void> {
   const built: ReleaseTarget[] = [];
   const missing: ReleaseTarget[] = [];
 
-  for (const target of RELEASE_TARGETS) {
+  for (const target of includeHost ? RELEASE_TARGETS : []) {
     const binary = join(BIN_DIR, target.key, BINARY_NAME);
     if (!existsSync(binary)) {
       missing.push(target);
@@ -188,49 +210,54 @@ async function main(): Promise<void> {
     console.warn(`⚠ Skipping platforms with no binary: ${names}`);
   }
 
-  // Platform-neutral payload package.
-  const appDir = join(OUT_DIR, packageDirName(APP_PACKAGE));
-  await mkdir(appDir, { recursive: true });
-  await cp(APP_DIR, join(appDir, "app"), { recursive: true });
-  await writeManifest(appDir, appManifest(version));
-  await writeFile(
-    join(appDir, "README.md"),
-    `# ${APP_PACKAGE}\n\nThe replaceable application payload for [sentry-tui](https://github.com/${REPOSITORY}).\n` +
-      `Installed automatically by \`${LAUNCHER_PACKAGE}\`; there is no reason to depend on it directly.\n`,
-  );
-  await cp(join(ROOT, "LICENSE"), join(appDir, "LICENSE"));
-  await cp(join(ROOT, "THIRD_PARTY_NOTICES"), join(appDir, "THIRD_PARTY_NOTICES"));
+  if (includeApp) {
+    const appDir = join(OUT_DIR, packageDirName(APP_PACKAGE));
+    await mkdir(appDir, { recursive: true });
+    await cp(APP_DIR, join(appDir, "app"), { recursive: true });
+    await writeManifest(appDir, appManifest(appVersion));
+    await writeFile(
+      join(appDir, "README.md"),
+      `# ${APP_PACKAGE}\n\nThe replaceable application payload for [sentry-tui](https://github.com/${REPOSITORY}).\n` +
+        `Installed automatically by \`${LAUNCHER_PACKAGE}\`; there is no reason to depend on it directly.\n`,
+    );
+    await cp(join(ROOT, "LICENSE"), join(appDir, "LICENSE"));
+    await cp(join(ROOT, "THIRD_PARTY_NOTICES"), join(appDir, "THIRD_PARTY_NOTICES"));
+  }
 
-  // Launcher package.
-  const launcherDir = join(OUT_DIR, packageDirName(LAUNCHER_PACKAGE));
-  await mkdir(join(launcherDir, "bin"), { recursive: true });
-  await mkdir(join(launcherDir, "lib"), { recursive: true });
-  await cp(join(ROOT, "packaging/npm/launch.mjs"), join(launcherDir, "lib/launch.mjs"));
-  await cp(join(ROOT, "packaging/npm/update.mjs"), join(launcherDir, "lib/update.mjs"));
-  await cp(
-    join(ROOT, "packaging/npm/background-update.mjs"),
-    join(launcherDir, "lib/background-update.mjs"),
-  );
-  await cp(join(ROOT, "packaging/npm/bin-launcher.mjs"), join(launcherDir, "bin/sentry-tui.mjs"));
-  chmodSync(join(launcherDir, "bin/sentry-tui.mjs"), 0o755);
-  await cp(join(ROOT, "README.md"), join(launcherDir, "README.md"));
-  await cp(join(ROOT, "LICENSE"), join(launcherDir, "LICENSE"));
-  await writeManifest(launcherDir, launcherManifest(version));
+  if (includeHost) {
+    // Launcher package.
+    const launcherDir = join(OUT_DIR, packageDirName(LAUNCHER_PACKAGE));
+    await mkdir(join(launcherDir, "bin"), { recursive: true });
+    await mkdir(join(launcherDir, "lib"), { recursive: true });
+    await cp(join(ROOT, "packaging/npm/launch.mjs"), join(launcherDir, "lib/launch.mjs"));
+    await cp(join(ROOT, "packaging/npm/update.mjs"), join(launcherDir, "lib/update.mjs"));
+    await cp(
+      join(ROOT, "packaging/npm/background-update.mjs"),
+      join(launcherDir, "lib/background-update.mjs"),
+    );
+    await cp(join(ROOT, "packaging/npm/bin-launcher.mjs"), join(launcherDir, "bin/sentry-tui.mjs"));
+    chmodSync(join(launcherDir, "bin/sentry-tui.mjs"), 0o755);
+    await cp(join(ROOT, "README.md"), join(launcherDir, "README.md"));
+    await cp(join(ROOT, "LICENSE"), join(launcherDir, "LICENSE"));
+    await writeManifest(launcherDir, launcherManifest(version));
 
-  // Unscoped alias.
-  const aliasDir = join(OUT_DIR, packageDirName(ALIAS_PACKAGE));
-  await mkdir(join(aliasDir, "bin"), { recursive: true });
-  await cp(join(ROOT, "packaging/npm/bin-alias.mjs"), join(aliasDir, "bin/sentry-tui.mjs"));
-  chmodSync(join(aliasDir, "bin/sentry-tui.mjs"), 0o755);
-  await cp(join(ROOT, "README.md"), join(aliasDir, "README.md"));
-  await cp(join(ROOT, "LICENSE"), join(aliasDir, "LICENSE"));
-  await writeManifest(aliasDir, aliasManifest(version));
+    // Unscoped alias.
+    const aliasDir = join(OUT_DIR, packageDirName(ALIAS_PACKAGE));
+    await mkdir(join(aliasDir, "bin"), { recursive: true });
+    await cp(join(ROOT, "packaging/npm/bin-alias.mjs"), join(aliasDir, "bin/sentry-tui.mjs"));
+    chmodSync(join(aliasDir, "bin/sentry-tui.mjs"), 0o755);
+    await cp(join(ROOT, "README.md"), join(aliasDir, "README.md"));
+    await cp(join(ROOT, "LICENSE"), join(aliasDir, "LICENSE"));
+    await writeManifest(aliasDir, aliasManifest(version));
+  }
 
-  console.log(`Assembled npm packages in dist/npm (version ${version}):`);
+  console.log(`Assembled npm packages in dist/npm (host ${version}, app ${appVersion}):`);
   for (const target of built) console.log(`  ${target.npmPackage}`);
-  console.log(`  ${APP_PACKAGE}`);
-  console.log(`  ${LAUNCHER_PACKAGE}`);
-  console.log(`  ${ALIAS_PACKAGE}`);
+  if (includeApp) console.log(`  ${APP_PACKAGE}`);
+  if (includeHost) {
+    console.log(`  ${LAUNCHER_PACKAGE}`);
+    console.log(`  ${ALIAS_PACKAGE}`);
+  }
 }
 
 if (import.meta.main) {

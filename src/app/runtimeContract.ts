@@ -17,6 +17,7 @@ const HOST_DEPENDENCIES = [
   "@opentui/react/jsx-dev-runtime",
   "~/telemetry/index",
   "~/api/config",
+  "~/lib/version",
 ] as const;
 
 /**
