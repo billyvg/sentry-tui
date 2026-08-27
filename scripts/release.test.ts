@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
-import { bumpReleaseVersions, releasePackageStatus, resolveReleaseVersion } from "./release.ts";
+import {
+  bumpReleaseVersions,
+  pendingReleaseComponents,
+  releaseDispatchCommand,
+  releasePackageStatus,
+  resolveReleaseVersion,
+} from "./release.ts";
 
 describe("release version", () => {
   test("defaults to the next minor version", () => {
@@ -98,5 +104,39 @@ describe("release package status", () => {
 
     expect(status).toEqual({ latest: "2.0.0", targetPublished: true });
     expect(requested).toEqual(["example", "example@1.5.0"]);
+  });
+});
+
+describe("remote release cut", () => {
+  test("recognizes only generated pending release commits", () => {
+    const versions = { host: "0.11.0", app: "0.12.0" };
+
+    expect(pendingReleaseComponents("chore: release host v0.11.0, app v0.12.0", versions)).toEqual([
+      "host",
+      "app",
+    ]);
+    expect(pendingReleaseComponents("chore: release app v0.12.0", versions)).toEqual(["app"]);
+    expect(pendingReleaseComponents("chore: release host v0.10.0", versions)).toBeUndefined();
+    expect(pendingReleaseComponents("chore: update release.json", versions)).toBeUndefined();
+  });
+
+  test("marks every repository dispatch payload value as a form field", () => {
+    const command = releaseDispatchCommand(
+      ["host", "app"],
+      { host: "0.11.0", app: "0.12.0" },
+      "abc123",
+      "request-1",
+    );
+
+    for (const field of [
+      "event_type=release_cut",
+      "client_payload[components]=host,app",
+      "client_payload[host_version]=0.11.0",
+      "client_payload[app_version]=0.12.0",
+      "client_payload[sha]=abc123",
+      "client_payload[request_id]=request-1",
+    ]) {
+      expect(command[command.indexOf(field) - 1]).toBe("-f");
+    }
   });
 });
