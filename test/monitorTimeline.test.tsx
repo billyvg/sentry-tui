@@ -23,15 +23,18 @@ import { UPTIME_RESOLUTIONS_SECONDS } from "~/api/monitorStats";
 import { App } from "~/ui/App";
 import { TIMELINE_MAX_WIDTH, timelineColumnWidth } from "~/ui/screens/monitorTimeline";
 import { renderHarness } from "./helpers";
-import { detectorListFixture, monitorProjectsFixture } from "./monitor-fixtures";
+import {
+  detectorListFixture,
+  monitorProjectsFixture,
+  NIGHTLY_ROLLUP_ID,
+  SESSION_CLEANUP_ID,
+} from "./monitor-fixtures";
 import { cronDay, uptimeDay } from "./timeline-fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 140;
 const HEIGHT = 30;
 
-/** The cron monitor guid behind `nightly-billing-rollup` in the fixture. */
-const CRON_MONITOR_ID = "cron-1";
 /** The uptime detector's own id — what `uptime-stats/` is keyed by. */
 const UPTIME_DETECTOR_ID = "3";
 
@@ -47,6 +50,8 @@ interface StubOptions {
   emptyUptime?: boolean;
   /** Give the cron fixture independent production and staging histories. */
   multipleEnvironments?: boolean;
+  /** Corrupt only `session-cleanup` to exercise a missing monitor record. */
+  missingSessionQuery?: boolean;
 }
 
 /**
@@ -61,6 +66,7 @@ function stubClient({
   ignoreTypeFilter = false,
   emptyUptime = false,
   multipleEnvironments = false,
+  missingSessionQuery = false,
 }: StubOptions = {}) {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -85,14 +91,15 @@ function stubClient({
             failures: { 6: { ok: 0, error: 2 } },
           });
           return json({
-            [CRON_MONITOR_ID]: production.map(([timestamp, environments], index) => [
+            [NIGHTLY_ROLLUP_ID]: production.map(([timestamp, environments], index) => [
               timestamp,
               { ...environments, ...staging[index]![1] },
             ]),
           });
         }
         return json({
-          [CRON_MONITOR_ID]: cronDay(since, { failures: { 6: { ok: 0, error: 2 } } }),
+          [NIGHTLY_ROLLUP_ID]: cronDay(since, { failures: { 6: { ok: 0, error: 2 } } }),
+          [SESSION_CLEANUP_ID]: cronDay(since),
         });
       }
       return json(
@@ -110,6 +117,13 @@ function stubClient({
           (candidate) => candidate.type === "cron_monitor",
         ) as CronMonitorDataSource;
         source.queryObj!.environments = [{ name: "production" }, { name: "staging" }];
+      }
+      if (missingSessionQuery) {
+        const cleanup = detectors.find((detector) => detector.id === "6")!;
+        const source = cleanup.dataSources?.find(
+          (candidate) => candidate.type === "cron_monitor",
+        ) as CronMonitorDataSource;
+        source.queryObj = null;
       }
       const rows =
         wanted && !ignoreTypeFilter
@@ -203,7 +217,7 @@ test("Cron asks monitors-stats for the monitor behind the detector, not the dete
     await h.waitForFrame((f) => f.includes(CRON_GLYPHS.ok));
 
     const url = new URL(calls.find((candidate) => candidate.includes("/monitors-stats/"))!);
-    expect(url.searchParams.getAll("monitor")).toEqual([CRON_MONITOR_ID]);
+    expect(url.searchParams.getAll("monitor")).toEqual([NIGHTLY_ROLLUP_ID, SESSION_CLEANUP_ID]);
     expect(url.searchParams.get("resolution")).toMatch(/^\d+s$/);
     const span = Number(url.searchParams.get("until")) - Number(url.searchParams.get("since"));
     expect(span).toBe(14 * 24 * 60 * 60);
@@ -358,12 +372,10 @@ test("a narrow row sheds the environment stack without leaving blank lines", asy
 });
 
 test("a cron row with no monitor behind it draws the track, not a rail it waits on", async () => {
-  const h = await renderMonitors("monitors.cron");
+  const h = await renderMonitors("monitors.cron", { missingSessionQuery: true });
   try {
     await h.waitForFrame((f) => f.includes(CRON_GLYPHS.ok));
 
-    // `session-cleanup`'s data source came back with a null `queryObj`, so
-    // there is no guid to ask for and never will be.
     const row = lineFor(h.frame(), "session-cleanup");
     expect(row).toContain(TIMELINE_EMPTY_GLYPH);
     expect(row).not.toContain(TIMELINE_PENDING_GLYPH);

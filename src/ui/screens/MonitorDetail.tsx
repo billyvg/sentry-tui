@@ -48,7 +48,9 @@ import {
 } from "~/ui/hooks/useDetectorDetail";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useOrganizationMembers } from "~/ui/hooks/useOrganizationMembers";
+import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
+import { issueUrlView } from "~/ui/screens/IssueFeed";
 import { DetectorTimelineSection, hasDetectorTimeline } from "~/ui/screens/monitorTimelineSlot";
 import type { DetailContext, ViewStackEntry } from "~/ui/screens/types";
 
@@ -168,8 +170,14 @@ export function MonitorDetail({
   focused,
   reloadToken,
   notify,
+  pushView,
+  registerActions,
 }: MonitorDetailProps) {
   const theme = useTheme();
+  const latestIssueId = detector.latestGroup?.id;
+  useScreenActions(registerActions, {
+    openDetail: latestIssueId ? () => pushView(issueUrlView(latestIssueId)) : undefined,
+  });
   const periods = useDetectorOpenPeriods(client, {
     org,
     detectorId: detector.id,

@@ -398,15 +398,19 @@ export function createSecondaryNavHandler({
   };
 }
 
-/** Offer keys to a non-list screen body after global and nav commands. */
+/** Offer keys to a detail or non-list screen body after global and nav commands. */
 export function createScreenKeyHandler({
   screenActions,
   focus,
 }: Pick<AppKeyHandlerOptions, "screenActions" | "focus">): KeyOwnerHandler {
   return (key) => {
     const actions = screenActions.current;
-    if (!actions?.handleKey || !focus.isFocused("content")) return "notMine";
-    return actions.handleKey(key) ? "mine" : "notMine";
+    if (!actions || !focus.isFocused("content")) return "notMine";
+    if (actions.openDetail && matchesCommand("sentry.nav.open", key)) {
+      actions.openDetail();
+      return "mine";
+    }
+    return actions.handleKey?.(key) ? "mine" : "notMine";
   };
 }
 

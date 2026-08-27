@@ -9,14 +9,13 @@
 
 import type { CronEnvironmentBucket, MonitorStats, UptimeStats } from "~/api/monitorStats";
 import type { CronCheckInStatus, StatsBucket, UptimeCheckStatus } from "~/lib/checkInTimeline";
+import { NIGHTLY_ROLLUP_ID, SESSION_CLEANUP_ID } from "./monitor-fixtures";
+
+export { NIGHTLY_ROLLUP_ID, SESSION_CLEANUP_ID } from "./monitor-fixtures";
 
 export const HOUR_SECONDS = 3600;
 export const DAY_SECONDS = 24 * HOUR_SECONDS;
 
-/** Monitor guid of the healthy cron fixture — `dataSources[0].queryObj.id`. */
-export const NIGHTLY_ROLLUP_ID = "0b9c1d2e-3f40-5162-8394-a5b6c7d8e9f0";
-/** Monitor guid of the cron fixture that fails and times out. */
-export const SESSION_CLEANUP_ID = "1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809";
 /** Detector id of the uptime fixture. */
 export const CHECKOUT_UPTIME_ID = "774";
 

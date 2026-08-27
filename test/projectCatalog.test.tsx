@@ -5,17 +5,13 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { listProjectReferences } from "~/api/issues";
-import type { Project } from "~/api/types";
 import { App } from "~/ui/App";
 import { useProjectSlugs } from "~/ui/hooks/useProjects";
 import { renderHarness } from "./helpers";
+import { monitorProjectsFixture } from "./monitor-fixtures";
 import { workflowDetectorsFixture, workflowsFixture } from "./workflow-fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
-const PROJECTS: Project[] = [
-  { id: "42", slug: "backend", name: "Backend", platform: "python" },
-  { id: "43", slug: "frontend", name: "Frontend", platform: "javascript" },
-];
 
 interface ProjectRequest {
   ids: string[];
@@ -63,11 +59,13 @@ function projectClient({
       }
       const wanted = new Set(ids);
       return json(
-        PROJECTS.filter((project) => wanted.has(project.id)).map((project) => ({
-          ...project,
-          latestDeploys: { production: { version: "ignored" } },
-          features: ["ignored"],
-        })),
+        monitorProjectsFixture
+          .filter((project) => wanted.has(project.id))
+          .map((project) => ({
+            ...project,
+            latestDeploys: { production: { version: "ignored" } },
+            features: ["ignored"],
+          })),
       );
     }
     if (workflows && url.pathname.endsWith("/workflows/")) return json(workflowsFixture);
@@ -103,8 +101,8 @@ test("the API asks for lightweight summaries and retains only id and slug", asyn
   const projects = await listProjectReferences(client, { org: "acme", ids: ["42", "43"] });
 
   expect(projects).toEqual([
-    { id: "42", slug: "backend" },
-    { id: "43", slug: "frontend" },
+    { id: "42", slug: "checkout" },
+    { id: "43", slug: "billing" },
   ]);
   expect(requests).toEqual([
     {
@@ -139,7 +137,7 @@ test("concurrent mounts share one targeted request and a remount reuses it", asy
   );
   try {
     await first.waitForFrame(
-      (frame) => frame.includes("one:backend,frontend") && frame.includes("two:backend,frontend"),
+      (frame) => frame.includes("one:checkout,billing") && frame.includes("two:checkout,billing"),
     );
     expect(requests).toHaveLength(1);
   } finally {
@@ -151,7 +149,7 @@ test("concurrent mounts share one targeted request and a remount reuses it", asy
     { width: 60, height: 2 },
   );
   try {
-    await remounted.waitForFrame((frame) => frame.includes("three:backend,frontend"));
+    await remounted.waitForFrame((frame) => frame.includes("three:checkout,billing"));
     expect(requests).toHaveLength(1);
   } finally {
     await remounted.cleanup();
@@ -161,14 +159,14 @@ test("concurrent mounts share one targeted request and a remount reuses it", asy
 test("a later lookup requests only ids absent from the session cache", async () => {
   const { client, requests } = projectClient();
   const first = await renderHarness(<ProjectProbe client={client} label="one" ids={["42"]} />);
-  await first.waitForFrame((frame) => frame.includes("one:backend"));
+  await first.waitForFrame((frame) => frame.includes("one:checkout"));
   await first.cleanup();
 
   const second = await renderHarness(
     <ProjectProbe client={client} label="two" ids={["42", "43"]} />,
   );
   try {
-    await second.waitForFrame((frame) => frame.includes("two:backend,frontend"));
+    await second.waitForFrame((frame) => frame.includes("two:checkout,billing"));
     expect(requests.map((request) => request.ids)).toEqual([["42"], ["43"]]);
   } finally {
     await second.cleanup();
@@ -186,7 +184,7 @@ test("failed ids are evicted so a later mount retries", async () => {
     <ProjectProbe client={client} label="retried" ids={["42"]} />,
   );
   try {
-    await retried.waitForFrame((frame) => frame.includes("retried:backend"));
+    await retried.waitForFrame((frame) => frame.includes("retried:checkout"));
     expect(requests).toHaveLength(2);
   } finally {
     await retried.cleanup();
@@ -200,7 +198,7 @@ test("WorkflowList resolves only the projects its detectors reference", async ()
     { width: 120, height: 30 },
   );
   try {
-    await h.waitForFrame((frame) => frame.includes("backend, frontend"));
+    await h.waitForFrame((frame) => frame.includes("checkout, billing"));
     expect(h.frame()).toContain("Page on-call for checkout");
     expect(
       requests.filter((request) => request.ids.length > 0).map((request) => request.ids),
