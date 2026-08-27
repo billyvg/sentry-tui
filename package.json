@@ -1,6 +1,6 @@
 {
   "name": "sentry-tui",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "sentry.io in your terminal — a TUI client for Sentry",
   "homepage": "https://github.com/billyvg/sentry-tui#readme",
