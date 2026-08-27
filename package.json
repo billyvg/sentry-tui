@@ -28,6 +28,7 @@
     "lint:fix": "oxlint . --fix",
     "test": "bun test ./src ./test ./demos",
     "test:shard": "bun run ./scripts/test-shard.ts",
+    "test:parallel": "bun run ./scripts/test-parallel.ts",
     "test:theme-contrast": "bun test scripts/check-theme-contrast.test.ts",
     "test:boundaries": "bun test scripts/source-boundaries.test.ts",
     "deps:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known",
@@ -47,7 +48,7 @@
     "demo:record": "bun run ./demos/record.ts",
     "demo:mux": "bun run ./demos/mux.ts",
     "demo": "bun run demo:tts && bun run demo:record && bun run demo:mux",
-    "check": "bun run format:check && bun run lint && bun run typecheck && bun run deps:check && bun test",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run deps:check && bun run test:parallel",
     "prepare": "simple-git-hooks"
   },
   "dependencies": {
