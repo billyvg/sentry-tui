@@ -2,8 +2,8 @@ import { useCallback } from "react";
 
 import type { SentryClient } from "~/api/client";
 import { listDetectors, type Detector, type DetectorSort } from "~/api/detectors";
-import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
-import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
+import { mapAsyncStatus, type AsyncStatus } from "~/core/async";
+import { useCursorPages } from "~/ui/hooks/useCursorPages";
 
 export interface DetectorsQuery {
   org: string;
@@ -20,33 +20,40 @@ export interface DetectorsQuery {
 export interface DetectorsState {
   detectors: AsyncStatus<Detector[]>;
   nextCursor: string | null;
+  page: number;
+  nextPage: () => boolean;
+  previousPage: () => boolean;
 }
 
 /**
  * Fetch the detectors one Monitors screen lists.
  *
- * Shaped like `useDashboards`: one request per query, the superseded one
- * aborted so typing in the search bar cannot land an older page on top of a
- * newer one. Manual refresh only — nothing here polls.
+ * Cursor history makes PageUp/PageDown reversible. A changed search or sort
+ * resets to page one; manual refresh retains the current page.
  */
 export function useDetectors(
   client: SentryClient | null,
   { org, query, sortBy, project, reloadToken = 0 }: DetectorsQuery,
 ): DetectorsState {
   const loader = useCallback(
-    (signal: AbortSignal) => {
+    (cursor: string | undefined, signal: AbortSignal) => {
       if (!client) return null;
-      return listDetectors(client, { org, query, sortBy, project, signal }).then((page) => ({
-        data: Array.isArray(page.data) ? page.data : [],
-        nextCursor: page.nextCursor,
-      }));
+      return listDetectors(client, { org, query, sortBy, project, cursor, signal }).then(
+        (page) => ({
+          data: Array.isArray(page.data) ? page.data : [],
+          nextCursor: page.nextCursor,
+        }),
+      );
     },
     [client, org, query, sortBy, project],
   );
-  const { status } = useAsyncFetch(loader, { reloadKey: reloadToken });
+  const pages = useCursorPages(loader, reloadToken);
 
   return {
-    detectors: mapAsyncStatus(status, (page) => page.data),
-    nextCursor: valueOf(status)?.nextCursor ?? null,
+    detectors: mapAsyncStatus(pages.status, (page) => page.data),
+    nextCursor: pages.nextCursor,
+    page: pages.page,
+    nextPage: pages.nextPage,
+    previousPage: pages.previousPage,
   };
 }
