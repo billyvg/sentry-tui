@@ -61,6 +61,12 @@ export const TIMELINE_MAX_WIDTH = 72;
 /** Share of the content pane the timeline asks for before the clamps apply. */
 const TIMELINE_PANE_SHARE = 0.45;
 
+/** Most cells an environment label may take from its timeline. */
+const ENVIRONMENT_LABEL_MAX_WIDTH = 16;
+
+/** A labelled timeline keeps enough cells to show a useful history shape. */
+const ENVIRONMENT_TRACK_MIN_WIDTH = 8;
+
 /**
  * Cells to give the timeline in a pane this wide.
  *
@@ -78,6 +84,23 @@ const TIMELINE_PANE_SHARE = 0.45;
 export function timelineColumnWidth(paneWidth: number): number {
   const share = Math.floor(Math.max(0, paneWidth) * TIMELINE_PANE_SHARE);
   return Math.max(TIMELINE_MIN_WIDTH, Math.min(TIMELINE_MAX_WIDTH, share));
+}
+
+/**
+ * Width of the actual check-in track inside a visualization column.
+ *
+ * Cron rows reserve a leading label for the environment; uptime rows use the
+ * whole column. Stats resolution follows the cells that will really be drawn,
+ * rather than requesting finer buckets for the label's cells too.
+ */
+export function timelineDataWidth(kind: TimelineKind, columnWidth: number): number {
+  return kind === "cron" ? environmentTimelineWidths(columnWidth).track : columnWidth;
+}
+
+/** Lines the column area needs for one detector's environment tracks. */
+export function timelineRowContentHeight(detector: Detector): number {
+  if (rowKind(detector) !== "cron") return 1;
+  return Math.max(1, cronEnvironmentNames(detector).length);
 }
 
 export interface TimelineColumnContext {
@@ -142,18 +165,72 @@ export function timelineColumn({
 
       // A cron detector with no monitor behind it can never have stats, so it
       // draws the track rather than waiting forever on a request nothing sent.
-      const monitorId = cronMonitor(detector)?.id;
+      const monitor = cronMonitor(detector);
+      const monitorId = monitor?.id;
+      const environments = cronEnvironmentNames(detector);
+
+      // Old or partial detector payloads can omit the environment list. Keep
+      // the previous unscoped track for that shape: there is no honest label
+      // to print, but any stats that did arrive remain useful.
+      if (environments.length === 0) {
+        return (
+          <CheckInTimeline
+            buckets={failed || !monitorId ? [] : cronBuckets(stats, monitorId)}
+            style={timelineStyles.cron}
+            width={cellWidth}
+            since={since}
+            until={until}
+          />
+        );
+      }
+
+      const environmentWidths = environmentTimelineWidths(cellWidth);
       return (
-        <CheckInTimeline
-          buckets={failed || !monitorId ? [] : cronBuckets(stats, monitorId)}
-          style={timelineStyles.cron}
-          width={cellWidth}
-          since={since}
-          until={until}
-        />
+        <box style={{ flexDirection: "column", width: cellWidth }}>
+          {environments.map((environment) => (
+            <box key={environment} style={{ flexDirection: "row", width: cellWidth }}>
+              {environmentWidths.label > 0 ? (
+                <>
+                  <text fg={theme.subText}>{padText(environment, environmentWidths.label)}</text>
+                  <text>{" ".repeat(environmentWidths.gap)}</text>
+                </>
+              ) : null}
+              <CheckInTimeline
+                buckets={failed || !monitorId ? [] : cronBuckets(stats, monitorId, environment)}
+                style={timelineStyles.cron}
+                width={environmentWidths.track}
+                since={since}
+                until={until}
+              />
+            </box>
+          ))}
+        </box>
       );
     },
   };
+}
+
+/** Environment names in the same display order as the detector payload. */
+function cronEnvironmentNames(detector: Detector): string[] {
+  const names = (cronMonitor(detector)?.environments ?? [])
+    .map((environment) => environment.name)
+    .filter((name) => name.length > 0);
+  return [...new Set(names)];
+}
+
+/** Split a cron visualization column between its label and its track. */
+function environmentTimelineWidths(width: number): { label: number; gap: number; track: number } {
+  const available = Math.max(0, Math.floor(width));
+  if (available <= ENVIRONMENT_TRACK_MIN_WIDTH + 1) {
+    return { label: 0, gap: 0, track: available };
+  }
+
+  const gap = 1;
+  const label = Math.min(
+    ENVIRONMENT_LABEL_MAX_WIDTH,
+    available - ENVIRONMENT_TRACK_MIN_WIDTH - gap,
+  );
+  return { label, gap, track: available - label - gap };
 }
 
 /**

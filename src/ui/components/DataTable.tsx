@@ -75,6 +75,14 @@ export interface DataTableProps<T> {
    * rows need. Its presence makes every row, skeleton included, two lines tall.
    */
   renderDetail?: (row: T, selected: boolean, width: number) => ReactNode;
+  /**
+   * Lines occupied by the column cells for this row. Detail and separator
+   * lines are added by the table. `visibleColumns` excludes columns shed at
+   * the current width. Omit for the usual one-line column area.
+   */
+  rowContentHeight?: (row: T, index: number, visibleColumns: readonly Column<T>[]) => number;
+  /** Column-area lines a loading skeleton row occupies. Defaults to one. */
+  skeletonContentHeight?: number;
   /** Draw a rule under each row, as the issue stream does. */
   separator?: boolean;
   skeletonRows?: number;
@@ -102,8 +110,19 @@ export interface DataTableProps<T> {
 }
 
 /** Terminal lines one row occupies, separators and detail lines included. */
-export function rowHeightOf(options: { renderDetail?: unknown; separator?: boolean }): number {
-  return 1 + (options.renderDetail ? 1 : 0) + (options.separator ? 1 : 0);
+export function rowHeightOf(options: {
+  contentHeight?: number;
+  renderDetail?: unknown;
+  separator?: boolean;
+}): number {
+  const contentHeight = normalizeContentHeight(options.contentHeight);
+  return contentHeight + (options.renderDetail ? 1 : 0) + (options.separator ? 1 : 0);
+}
+
+/** Keep caller-provided row geometry finite and at least one line tall. */
+function normalizeContentHeight(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 1;
+  return Math.max(1, Math.floor(value));
 }
 
 export function DataTable<T>({
@@ -117,6 +136,8 @@ export function DataTable<T>({
   error,
   onRowClick,
   renderDetail,
+  rowContentHeight,
+  skeletonContentHeight = 1,
   separator = false,
   skeletonRows = DEFAULT_SKELETON_ROWS,
   empty,
@@ -130,7 +151,17 @@ export function DataTable<T>({
   const listRef = useRef<ScrollBoxRenderable>(null);
   const rowWidth = Math.max(1, width - gutter);
   const resolved = layoutColumns(columns, rowWidth, { gap, minFlex });
-  const rowHeight = rowHeightOf({ renderDetail, separator });
+  const visibleColumns = resolved.map(({ column }) => column);
+  const fixedRowHeight = rowHeightOf({ renderDetail, separator });
+  const contentHeights =
+    rows && rowContentHeight
+      ? rows.map((row, index) =>
+          normalizeContentHeight(rowContentHeight(row, index, visibleColumns)),
+        )
+      : undefined;
+  const rowHeight = contentHeights
+    ? contentHeights.map((contentHeight) => rowHeightOf({ contentHeight, renderDetail, separator }))
+    : fixedRowHeight;
 
   useRowScrollFollow(listRef, {
     index: selectedIndex,
@@ -171,6 +202,7 @@ export function DataTable<T>({
                 width={rowWidth}
                 gap={gap}
                 seed={i}
+                contentHeight={skeletonContentHeight}
                 detail={Boolean(renderDetail)}
                 separator={separator}
               />
@@ -188,6 +220,7 @@ export function DataTable<T>({
             width={rowWidth}
             gap={gap}
             selected={focused && index === selectedIndex}
+            contentHeight={contentHeights?.[index] ?? 1}
             renderDetail={renderDetail}
             separator={separator}
             onRowClick={onRowClick}
@@ -274,6 +307,7 @@ function Row<T>({
   width,
   gap,
   selected,
+  contentHeight,
   renderDetail,
   separator,
   onRowClick,
@@ -284,6 +318,7 @@ function Row<T>({
   width: number;
   gap: number;
   selected: boolean;
+  contentHeight: number;
   renderDetail?: (row: T, selected: boolean, width: number) => ReactNode;
   separator: boolean;
   onRowClick?: (index: number, row: T) => void;
@@ -301,7 +336,13 @@ function Row<T>({
       }}
       onMouseDown={onRowClick ? () => onRowClick(index, row) : undefined}
     >
-      <box style={{ flexDirection: "row" }}>
+      <box
+        style={{
+          flexDirection: "row",
+          height: contentHeight,
+          flexShrink: 0,
+        }}
+      >
         {resolved.map(({ column, width: cellWidth }, i) => (
           <Cell key={column.key} width={cellWidth} gap={i > 0 ? gap : 0}>
             {column.render(row, selected, cellWidth)}
@@ -328,6 +369,7 @@ function SkeletonRow<T>({
   width,
   gap,
   seed,
+  contentHeight,
   detail,
   separator,
 }: {
@@ -335,21 +377,24 @@ function SkeletonRow<T>({
   width: number;
   gap: number;
   seed: number;
+  contentHeight: number;
   detail: boolean;
   separator: boolean;
 }) {
   const theme = useTheme();
   return (
     <box style={{ flexDirection: "column", width, flexShrink: 0 }}>
-      <box style={{ flexDirection: "row" }}>
-        {resolved.map(({ column, width: cellWidth }, i) => (
-          <Cell key={column.key} width={cellWidth} gap={i > 0 ? gap : 0}>
-            <text fg={theme.panelAlt}>
-              {padText(bar(cellWidth, seed + i), cellWidth, column.align ?? "left")}
-            </text>
-          </Cell>
-        ))}
-      </box>
+      {Array.from({ length: normalizeContentHeight(contentHeight) }, (_, line) => (
+        <box key={line} style={{ flexDirection: "row" }}>
+          {resolved.map(({ column, width: cellWidth }, i) => (
+            <Cell key={column.key} width={cellWidth} gap={i > 0 ? gap : 0}>
+              <text fg={theme.panelAlt}>
+                {padText(bar(cellWidth, seed + line + i), cellWidth, column.align ?? "left")}
+              </text>
+            </Cell>
+          ))}
+        </box>
+      ))}
       {detail ? (
         <box style={{ flexDirection: "row", width }}>
           <text fg={theme.panelAlt}>{padText(bar(width, seed + 7), width)}</text>

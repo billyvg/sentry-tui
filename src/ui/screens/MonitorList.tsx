@@ -23,7 +23,7 @@ import { timelineWindowSeconds } from "~/api/monitorStats";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { buildDetectorQuery, getMonitorListView, type MonitorListView } from "~/core/monitors";
 import { useTheme } from "~/ui/theme";
-import { DataTable } from "~/ui/components/DataTable";
+import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
@@ -41,7 +41,9 @@ import {
 import {
   timelineColumn,
   timelineColumnWidth,
+  timelineDataWidth,
   timelineKindFor,
+  timelineRowContentHeight,
   timelineStatsIds,
 } from "~/ui/screens/monitorTimeline";
 import type { ScreenProps } from "~/ui/screens/types";
@@ -70,6 +72,22 @@ function fallbackView(item: string): MonitorListView {
     emptyTitle: "No monitors found.",
     emptyLines: ["This organization may not have monitors (the workflow engine) enabled."],
   };
+}
+
+/**
+ * Height of a monitor's column area at the current table width.
+ *
+ * A narrow table can shed the visualization entirely; in that case the row
+ * returns to one line instead of keeping blank space for hidden tracks.
+ */
+function monitorRowContentHeight(
+  detector: Detector,
+  _index: number,
+  visibleColumns: readonly Column<Detector>[],
+): number {
+  return visibleColumns.some((column) => column.key === "check-ins")
+    ? timelineRowContentHeight(detector)
+    : 1;
 }
 
 export function MonitorList(props: ScreenProps) {
@@ -183,7 +201,7 @@ export function MonitorList(props: ScreenProps) {
     org,
     monitorIds,
     uptimeDetectorIds,
-    width: trackWidth,
+    width: timelineKind ? timelineDataWidth(timelineKind, trackWidth) : trackWidth,
     statsPeriod: state.statsPeriod,
     reloadToken,
   });
@@ -288,6 +306,7 @@ export function MonitorList(props: ScreenProps) {
         errorTitle="Failed to load monitors"
         onRowClick={props.activateRow}
         renderDetail={renderDetail}
+        rowContentHeight={timelineKind === "cron" ? monitorRowContentHeight : undefined}
         empty={{
           title: view.emptyTitle,
           lines: [state.committedQuery || undefined, ...view.emptyLines],
