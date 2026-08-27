@@ -13,9 +13,10 @@ import { listConversations, type Conversation } from "~/api/aiConversations";
 import type { SentryClient } from "~/api/client";
 import type { TimeseriesBucket } from "~/api/discover";
 import { listExploreTimeseries } from "~/api/exploreEvents";
-import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
+import { mapAsyncStatus, type AsyncStatus } from "~/core/async";
 import { CONVERSATION_CHART, CONVERSATION_SPAN_FILTER } from "~/core/conversations";
 import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
+import { useCursorPages } from "~/ui/hooks/useCursorPages";
 
 export interface ConversationsQuery {
   org: string;
@@ -32,6 +33,9 @@ export interface ConversationsState {
   conversations: AsyncStatus<Conversation[]>;
   timeseries: AsyncStatus<TimeseriesBucket[]>;
   nextCursor: string | null;
+  page: number;
+  nextPage: () => boolean;
+  previousPage: () => boolean;
 }
 
 export function useConversations(
@@ -39,9 +43,17 @@ export function useConversations(
   { org, query, statsPeriod, project, environment, reloadToken = 0 }: ConversationsQuery,
 ): ConversationsState {
   const conversationsLoader = useCallback(
-    (signal: AbortSignal) =>
+    (cursor: string | undefined, signal: AbortSignal) =>
       client
-        ? listConversations(client, { org, query, statsPeriod, project, environment, signal })
+        ? listConversations(client, {
+            org,
+            query,
+            statsPeriod,
+            project,
+            environment,
+            cursor,
+            signal,
+          })
         : null,
     [client, org, query, statsPeriod, project, environment],
   );
@@ -64,14 +76,15 @@ export function useConversations(
         : null,
     [client, org, query, statsPeriod, project, environment],
   );
-  const conversationsStatus = useAsyncFetch(conversationsLoader, {
-    reloadKey: reloadToken,
-  }).status;
+  const conversationPages = useCursorPages(conversationsLoader, reloadToken);
   const timeseries = useAsyncFetch(timeseriesLoader, { reloadKey: reloadToken }).status;
 
   return {
-    conversations: mapAsyncStatus(conversationsStatus, (page) => page.data),
+    conversations: mapAsyncStatus(conversationPages.status, (page) => page.data),
     timeseries,
-    nextCursor: valueOf(conversationsStatus)?.nextCursor ?? null,
+    nextCursor: conversationPages.nextCursor,
+    page: conversationPages.page,
+    nextPage: conversationPages.nextPage,
+    previousPage: conversationPages.previousPage,
   };
 }

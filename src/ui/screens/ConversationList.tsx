@@ -14,7 +14,7 @@
  * reply; nothing here writes.
  */
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import {
   conversationIdLabel,
@@ -186,14 +186,17 @@ export function ConversationList({
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
   const environment = state.selectedEnvs.length > 0 ? state.selectedEnvs : undefined;
 
-  const { conversations, timeseries, nextCursor } = useConversations(client, {
-    org,
-    query,
-    statsPeriod: state.statsPeriod,
-    project,
-    environment,
-    reloadToken,
-  });
+  const { conversations, timeseries, nextCursor, page, nextPage, previousPage } = useConversations(
+    client,
+    {
+      org,
+      query,
+      statsPeriod: state.statsPeriod,
+      project,
+      environment,
+      reloadToken,
+    },
+  );
 
   const loading = conversations.state === "loading";
   const since = loadingSince(conversations);
@@ -205,6 +208,13 @@ export function ConversationList({
   useEffect(() => {
     if (rows) dispatch({ type: "setEntries", payload: rows });
   }, [rows, dispatch]);
+
+  const reportedPage = useRef(page);
+  useEffect(() => {
+    if (reportedPage.current === page) return;
+    reportedPage.current = page;
+    dispatch({ type: "setSelected", payload: 0 });
+  }, [page, dispatch]);
 
   useEffect(() => {
     dispatch({
@@ -227,6 +237,8 @@ export function ConversationList({
   // Explore screens do: the cursor keys keep working while it is open.
   useScreenActions(registerActions, {
     open: () => dispatch({ type: "setDetailOpen", payload: (open) => !open }),
+    nextPage,
+    previousPage,
     back: () => {
       if (!state.detailOpen) return false;
       dispatch({ type: "setDetailOpen", payload: false });
@@ -302,7 +314,23 @@ export function ConversationList({
       />
 
       {showDetail && selected ? <ConversationDetail conversation={selected} width={inner} /> : null}
-      <ResultFooter count={rows?.length} noun="conversation" hasMore={nextCursor !== null} />
+      <ResultFooter
+        count={rows?.length}
+        noun="conversation"
+        hasMore={nextCursor !== null}
+        pagination={
+          nextCursor !== null || page > 1
+            ? {
+                page,
+                hasPrevious: page > 1,
+                hasNext: nextCursor !== null,
+                loading,
+                onPrevious: previousPage,
+                onNext: nextPage,
+              }
+            : undefined
+        }
+      />
     </box>
   );
 }

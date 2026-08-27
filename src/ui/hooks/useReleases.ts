@@ -8,7 +8,7 @@
  * request.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
 import {
@@ -21,11 +21,13 @@ import {
 import {
   type AsyncStatus,
   idle,
+  mapAsyncStatus,
   rejected,
   resolved,
   startLoading,
   toAsyncError,
 } from "~/core/async";
+import { useCursorPages } from "~/ui/hooks/useCursorPages";
 
 export interface ReleasesQuery {
   org: string;
@@ -41,6 +43,15 @@ export interface ReleasesQuery {
 export interface ReleasesState {
   releases: AsyncStatus<Release[]>;
   nextCursor: string | null;
+  cursor: string | undefined;
+  page: number;
+  nextPage: () => boolean;
+  previousPage: () => boolean;
+}
+
+export interface ReleaseHealthQuery extends ReleasesQuery {
+  /** Cursor of the release page whose health belongs on screen. */
+  cursor?: string;
 }
 
 /** Fetch the release list, without health data. */
@@ -48,48 +59,32 @@ export function useReleases(
   client: SentryClient | null,
   { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ReleasesQuery,
 ): ReleasesState {
-  const [releases, setReleases] = useState<AsyncStatus<Release[]>>(idle);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loader = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      client
+        ? listReleases(client, {
+            org,
+            query,
+            statsPeriod,
+            project,
+            environment,
+            sort,
+            cursor,
+            signal,
+          })
+        : null,
+    [client, org, query, statsPeriod, project, environment, sort],
+  );
+  const pages = useCursorPages(loader, reloadToken);
 
-  const releasesRef = useRef(releases);
-  releasesRef.current = releases;
-
-  useEffect(() => {
-    if (!client) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-    let cancelled = false;
-
-    setReleases(startLoading(releasesRef.current, Date.now()));
-
-    void (async () => {
-      try {
-        const result = await listReleases(client, {
-          org,
-          query,
-          statsPeriod,
-          project,
-          environment,
-          sort,
-          signal,
-        });
-        if (cancelled) return;
-        setReleases(resolved(result.data, Date.now()));
-        setNextCursor(result.nextCursor);
-      } catch (error) {
-        if (cancelled || signal.aborted) return;
-        setReleases(rejected(releasesRef.current, toAsyncError(error)));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
-
-  return { releases, nextCursor };
+  return {
+    releases: mapAsyncStatus(pages.status, (result) => result.data),
+    nextCursor: pages.nextCursor,
+    cursor: pages.cursor,
+    page: pages.page,
+    nextPage: pages.nextPage,
+    previousPage: pages.previousPage,
+  };
 }
 
 /**
@@ -103,7 +98,16 @@ export function useReleases(
  */
 export function useReleaseHealth(
   client: SentryClient | null,
-  { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ReleasesQuery,
+  {
+    org,
+    query,
+    statsPeriod,
+    project,
+    environment,
+    sort,
+    cursor,
+    reloadToken = 0,
+  }: ReleaseHealthQuery,
 ): AsyncStatus<ReleaseHealthIndex> {
   const [health, setHealth] = useState<AsyncStatus<ReleaseHealthIndex>>(idle);
 
@@ -128,6 +132,7 @@ export function useReleaseHealth(
           project,
           environment,
           sort,
+          cursor,
           signal,
         });
         if (cancelled) return;
@@ -142,7 +147,7 @@ export function useReleaseHealth(
       cancelled = true;
       controller.abort();
     };
-  }, [client, org, query, statsPeriod, project, environment, sort, reloadToken]);
+  }, [client, org, query, statsPeriod, project, environment, sort, cursor, reloadToken]);
 
   return health;
 }

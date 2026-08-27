@@ -208,8 +208,15 @@ export function ReleaseCards({
     reloadToken,
   };
 
-  const { releases: releasesStatus, nextCursor } = useReleases(client, params);
-  const healthStatus = useReleaseHealth(client, params);
+  const {
+    releases: releasesStatus,
+    nextCursor,
+    cursor,
+    page,
+    nextPage,
+    previousPage,
+  } = useReleases(client, params);
+  const healthStatus = useReleaseHealth(client, { ...params, cursor });
 
   const releases = valueOf(releasesStatus);
   const listError = errorOf(releasesStatus);
@@ -223,6 +230,13 @@ export function ReleaseCards({
   useEffect(() => {
     if (releases) dispatch({ type: "setEntries", payload: releases });
   }, [releases, dispatch]);
+
+  const reportedPage = useRef(page);
+  useEffect(() => {
+    if (reportedPage.current === page) return;
+    reportedPage.current = page;
+    dispatch({ type: "setSelected", payload: 0 });
+  }, [page, dispatch]);
 
   useEffect(() => {
     dispatch({
@@ -252,6 +266,8 @@ export function ReleaseCards({
    */
   useScreenActions(registerActions, {
     open: () => dispatch({ type: "setDetailOpen", payload: (open) => !open }),
+    nextPage,
+    previousPage,
     back: () => {
       if (!state.detailOpen) return false;
       dispatch({ type: "setDetailOpen", payload: false });
@@ -389,7 +405,23 @@ export function ReleaseCards({
           </box>
         ) : null}
       </scrollbox>
-      <ResultFooter count={releases?.length} noun="release" hasMore={nextCursor !== null} />
+      <ResultFooter
+        count={releases?.length}
+        noun="release"
+        hasMore={nextCursor !== null}
+        pagination={
+          nextCursor !== null || page > 1
+            ? {
+                page,
+                hasPrevious: page > 1,
+                hasNext: nextCursor !== null,
+                loading,
+                onPrevious: previousPage,
+                onNext: nextPage,
+              }
+            : undefined
+        }
+      />
     </box>
   );
 }

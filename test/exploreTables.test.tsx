@@ -85,6 +85,41 @@ function stubClient(
   return new SentryClient({ auth, fetchImpl });
 }
 
+/** Two Discover pages which record the cursor followed by the table. */
+function paginatedExploreClient() {
+  const cursors: Array<string | null> = [];
+  const secondPage = [
+    {
+      ...rawSpanRowsFixture[0],
+      id: "second-page-span",
+      "span.description": "loaded from the second Explore page",
+    },
+  ];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    const json = (body: unknown, link?: string) =>
+      new Response(JSON.stringify(body), {
+        headers: {
+          "Content-Type": "application/json",
+          ...(link ? { Link: link } : {}),
+        },
+      });
+    if (url.pathname.endsWith("/events-stats/")) return json({ data: exploreTimeseriesFixture });
+    if (url.pathname.endsWith("/events/")) {
+      const cursor = url.searchParams.get("cursor");
+      cursors.push(cursor);
+      return cursor === "next"
+        ? json({ data: secondPage })
+        : json(
+            { data: rawSpanRowsFixture },
+            '<https://sentry.io/api/0/organizations/acme/events/?cursor=next>; rel="next"; results="true"; cursor="next"',
+          );
+    }
+    return json([]);
+  }) as unknown as typeof fetch;
+  return { client: new SentryClient({ auth, fetchImpl }), cursors };
+}
+
 async function renderApp(client: SentryClient, width = WIDTH, height = HEIGHT) {
   return renderHarness(<App onQuit={() => {}} client={client} org="acme" />, { width, height });
 }
@@ -459,6 +494,26 @@ describe("Explore › Traces", () => {
 
       expect(h.frame()).toContain("SELECT * FROM orders");
       expect(h.frame()).toContain("publish send_welcome_email");
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("page keys follow Discover cursors in both directions", async () => {
+    const { client, cursors } = paginatedExploreClient();
+    const h = await renderTable(client, "Traces");
+    try {
+      await h.waitForFrame(
+        (frame) => frame.includes("SELECT * FROM orders") && frame.includes("pgdn"),
+      );
+      await h.press((input) => input.pressKey("d", { ctrl: true }));
+      await h.waitForFrame((frame) => frame.includes("loaded from the second Explore page"));
+      expect(cursors).toEqual([null, "next"]);
+      expect(h.frame()).not.toContain("SELECT * FROM orders");
+
+      await h.press((input) => input.pressKey("u", { ctrl: true }));
+      await h.waitForFrame((frame) => frame.includes("SELECT * FROM orders"));
+      expect(cursors).toEqual([null, "next", null]);
     } finally {
       await h.cleanup();
     }

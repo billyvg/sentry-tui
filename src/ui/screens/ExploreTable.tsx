@@ -20,7 +20,7 @@
  * ones the terminal was too narrow to draw — and nothing here writes.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { rowNumber } from "~/api/discover";
 import type { ExploreEvent } from "~/api/exploreEvents";
@@ -123,15 +123,19 @@ function ExploreTableScreen({
     environment,
   });
 
-  const { events, timeseries, nextCursor } = useExploreEvents(client, table, {
-    org,
-    query,
-    request: resolved,
-    statsPeriod: state.statsPeriod,
-    project,
-    environment,
-    reloadToken,
-  });
+  const { events, timeseries, nextCursor, page, nextPage, previousPage } = useExploreEvents(
+    client,
+    table,
+    {
+      org,
+      query,
+      request: resolved,
+      statsPeriod: state.statsPeriod,
+      project,
+      environment,
+      reloadToken,
+    },
+  );
 
   const loading = events.state === "loading";
   const since = loadingSince(events);
@@ -143,6 +147,13 @@ function ExploreTableScreen({
   useEffect(() => {
     if (rows) dispatch({ type: "setEntries", payload: rows });
   }, [rows, dispatch]);
+
+  const reportedPage = useRef(page);
+  useEffect(() => {
+    if (reportedPage.current === page) return;
+    reportedPage.current = page;
+    dispatch({ type: "setSelected", payload: 0 });
+  }, [page, dispatch]);
 
   useEffect(() => {
     dispatch({
@@ -178,6 +189,8 @@ function ExploreTableScreen({
    */
   useScreenActions(registerActions, {
     open: () => dispatch({ type: "setDetailOpen", payload: (open) => !open }),
+    nextPage,
+    previousPage,
     back: () => {
       if (!state.detailOpen) return false;
       dispatch({ type: "setDetailOpen", payload: false });
@@ -333,7 +346,23 @@ function ExploreTableScreen({
           <EventDetail event={selected} fields={resolved.fields} width={inner} />
         )
       ) : null}
-      <ResultFooter count={rows?.length} noun={rowNoun(table)} hasMore={nextCursor !== null} />
+      <ResultFooter
+        count={rows?.length}
+        noun={rowNoun(table)}
+        hasMore={nextCursor !== null}
+        pagination={
+          nextCursor !== null || page > 1
+            ? {
+                page,
+                hasPrevious: page > 1,
+                hasNext: nextCursor !== null,
+                loading,
+                onPrevious: previousPage,
+                onNext: nextPage,
+              }
+            : undefined
+        }
+      />
     </box>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from "~/api/replays";
 import { mapAsyncStatus, valueOf, type AsyncStatus } from "~/core/async";
 import { useAsyncFetch } from "~/ui/hooks/useAsyncFetch";
+import { useCursorPages } from "~/ui/hooks/useCursorPages";
 
 export interface ReplaysQuery {
   org: string;
@@ -25,6 +26,9 @@ export interface ReplaysQuery {
 export interface ReplaysState {
   replays: AsyncStatus<Replay[]>;
   nextCursor: string | null;
+  page: number;
+  nextPage: () => boolean;
+  previousPage: () => boolean;
 }
 
 /**
@@ -39,7 +43,7 @@ export function useReplays(
   { org, query, statsPeriod, project, environment, sort, reloadToken = 0 }: ReplaysQuery,
 ): ReplaysState {
   const loader = useCallback(
-    (signal: AbortSignal) =>
+    (cursor: string | undefined, signal: AbortSignal) =>
       client
         ? listReplays(client, {
             org,
@@ -48,16 +52,20 @@ export function useReplays(
             project,
             environment,
             sort,
+            cursor,
             signal,
           })
         : null,
     [client, org, query, statsPeriod, project, environment, sort],
   );
-  const { status } = useAsyncFetch(loader, { reloadKey: reloadToken });
+  const pages = useCursorPages(loader, reloadToken);
 
   return {
-    replays: mapAsyncStatus(status, (page) => page.data),
-    nextCursor: valueOf(status)?.nextCursor ?? null,
+    replays: mapAsyncStatus(pages.status, (page) => page.data),
+    nextCursor: pages.nextCursor,
+    page: pages.page,
+    nextPage: pages.nextPage,
+    previousPage: pages.previousPage,
   };
 }
 
