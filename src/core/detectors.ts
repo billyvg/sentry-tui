@@ -303,25 +303,95 @@ function priorityOf(condition: MetricCondition): string | undefined {
   return PRIORITY_LABELS[level];
 }
 
+/** Aggregates whose output type comes from their first field argument. */
+const FIELD_TYPED_AGGREGATES = new Set([
+  "any",
+  "avg",
+  "max",
+  "min",
+  "p50",
+  "p75",
+  "p90",
+  "p95",
+  "p99",
+  "p100",
+  "percentile",
+  "sum",
+]);
+
+/** Fields the web's registry currently types as a duration or date. */
+const MILLISECOND_FIELDS = new Set([
+  "event.timestamp",
+  "function.duration",
+  "measurements.app_start_cold",
+  "measurements.app_start_warm",
+  "measurements.fcp",
+  "measurements.fid",
+  "measurements.fp",
+  "measurements.inp",
+  "measurements.lcp",
+  "measurements.stall_longest_time",
+  "measurements.stall_total_time",
+  "measurements.time_to_full_display",
+  "measurements.time_to_initial_display",
+  "measurements.ttfb",
+  "measurements.ttfb.requesttime",
+  "span.duration",
+  "span.self_time",
+  "spans.browser",
+  "spans.db",
+  "spans.http",
+  "spans.resource",
+  "spans.ui",
+  "timestamp",
+  "transaction.duration",
+]);
+
+/** Fields the web's registry currently types as a byte size. */
+const BYTE_FIELDS = new Set([
+  "http.decoded_response_content_length",
+  "http.response_content_length",
+  "http.response_transfer_size",
+  "payload_size",
+]);
+
+/** Session operations whose values are stored as percentages, not ratios. */
+const SESSION_PERCENTAGE_AGGREGATES = new Set([
+  "abnormal_rate",
+  "anr_rate",
+  "crash_free_rate",
+  "crash_rate",
+  "errored_rate",
+  "foreground_anr_rate",
+  "unhandled_rate",
+  "unhealthy_rate",
+]);
+
 /**
  * The unit a static threshold is quoted in — `getStaticDetectorThresholdSuffix`
- * (`utils/metricDetectorSuffix.tsx:31-50`).
+ * (`utils/metricDetectorSuffix.tsx`).
  *
- * That function asks Discover's field registry what an aggregate's output type
- * is. This client has no registry, so it reads the aggregate: durations are
- * `ms`, sizes are `B`, rates are `/s`, and the session crash-rate family is
- * the one percentage stored as a percentage. Anything unrecognised gets no
- * suffix, which is also what the web does for a plain count.
+ * The detector API does not return the aggregate's output type or unit. Keep a
+ * deliberately small copy of the web's known cases: exact session operations,
+ * exact typed fields, and the functions that inherit a field's type. An
+ * unrecognised function or field gets no suffix; its name is not evidence of
+ * its unit, and a missing unit is more honest than a wrong one.
  */
 function thresholdSuffix(aggregate: string): string {
-  const lower = aggregate.toLowerCase();
-  const fn = lower.split("(")[0] ?? "";
-  const field = lower.slice(lower.indexOf("(") + 1, lower.lastIndexOf(")"));
+  const match = aggregate
+    .trim()
+    .toLowerCase()
+    .match(/^([a-z_][a-z0-9_]*)\((.*)\)$/);
+  if (!match) return "";
 
-  if (fn.startsWith("crash_free") || fn.startsWith("crash_rate")) return "%";
-  if (fn === "eps" || fn === "epm" || fn === "spm" || fn === "tpm" || fn === "tps") return "/s";
-  if (/duration|self_time|\b(lcp|fcp|fid|inp|ttfb)\b|app_start|time_to/.test(field)) return "ms";
-  if (/size|bytes/.test(field)) return "B";
+  const fn = match[1]!;
+  if (SESSION_PERCENTAGE_AGGREGATES.has(fn)) return "%";
+  if (fn === "last_seen") return "ms";
+  if (!FIELD_TYPED_AGGREGATES.has(fn)) return "";
+
+  const field = match[2]!.split(",", 1)[0]!.trim();
+  if (MILLISECOND_FIELDS.has(field)) return "ms";
+  if (BYTE_FIELDS.has(field)) return "B";
   return "";
 }
 

@@ -17,6 +17,22 @@ function detector(overrides: Partial<Detector> & Pick<Detector, "type">): Detect
   return { id: "1", name: "monitor", enabled: true, projectId: "42", ...overrides };
 }
 
+/** A static metric detector with one medium-priority threshold. */
+function staticMetric(aggregate: string): Detector {
+  return detector({
+    type: "metric_issue",
+    config: { detectionType: "static" },
+    conditionGroup: { conditions: [{ type: "gte", comparison: 10, conditionResult: 50 }] },
+    dataSources: [
+      {
+        id: "1",
+        type: "snuba_query_subscription",
+        queryObj: { snubaQuery: { aggregate } },
+      },
+    ],
+  });
+}
+
 const METRIC = detector({
   type: "metric_issue",
   config: { detectionType: "static" },
@@ -128,19 +144,29 @@ describe("metricThresholdText", () => {
   });
 
   test("a count has no unit", () => {
-    const counted = detector({
-      type: "metric_issue",
-      config: { detectionType: "static" },
-      conditionGroup: { conditions: [{ type: "gte", comparison: 10, conditionResult: 50 }] },
-      dataSources: [
-        {
-          id: "1",
-          type: "snuba_query_subscription",
-          queryObj: { snubaQuery: { aggregate: "count()" } },
-        },
-      ],
-    });
-    expect(metricThresholdText(counted)).toBe(">=10 medium");
+    expect(metricThresholdText(staticMetric("count()"))).toBe(">=10 medium");
+    expect(metricThresholdText(staticMetric("count(span.duration)"))).toBe(">=10 medium");
+  });
+
+  test.each([
+    ["avg(measurements.inp)", "ms"],
+    ["max(timestamp)", "ms"],
+    ["avg(http.response_transfer_size)", "B"],
+    ["anr_rate()", "%"],
+    ["unhealthy_rate(session)", "%"],
+  ])("uses the known suffix for %s", (aggregate, suffix) => {
+    expect(metricThresholdText(staticMetric(aggregate))).toBe(`>=10${suffix} medium`);
+  });
+
+  test.each([
+    "avg(custom.queue_duration)",
+    "avg(measurements.payload_size)",
+    "crash_rate_custom(session)",
+    "eps()",
+    "failure_rate()",
+    "mystery(span.duration)",
+  ])("does not guess a suffix for %s", (aggregate) => {
+    expect(metricThresholdText(staticMetric(aggregate))).toBe(">=10 medium");
   });
 
   test("a percent threshold is converted from a percentage of the baseline", () => {
