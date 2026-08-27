@@ -13,14 +13,12 @@
  * uptime  GET /organizations/{org}/uptime-stats/    ?uptimeDetectorId=…&since&until&resolution
  * ```
  *
- * The two differ in one respect worth knowing before reading the schemas: a
+ * The two differ in one respect worth knowing before reading the normalizers: a
  * cron bucket is nested one level deeper, by *environment*, because a single
  * monitor checks in under several. `selectEnvironment` is what flattens that.
  *
  * Read-only. Neither endpoint has a write side.
  */
-
-import { z } from "zod";
 
 import type { SentryClient } from "~/api/client";
 import { projectParams } from "~/api/projectParams";
@@ -30,41 +28,6 @@ import {
   type StatsBucket,
   type UptimeCheckStatus,
 } from "~/lib/checkInTimeline";
-
-/**
- * Per-status counts, as both endpoints emit them.
- *
- * Deliberately permissive: `catchall(z.number())` keeps a status added
- * server-side rather than dropping it, and the timeline draws an unrecognised
- * status as `?` instead of pretending the window was quiet. A non-numeric
- * count is dropped, because the alternative is `NaN` reaching a render.
- */
-const statusCountsSchema = z.record(z.string(), z.number()).catch({});
-
-/**
- * `[timestamp, counts]`, uptime's shape — `CheckStatusBucket` in
- * `views/alerts/rules/uptime/types.tsx:87`.
- */
-const uptimeBucketSchema = z.tuple([z.number(), statusCountsSchema]);
-
-/**
- * `[timestamp, {env: counts}]`, cron's shape — `MonitorBucket` in
- * `views/insights/crons/types.tsx:203`.
- */
-const cronBucketSchema = z.tuple([z.number(), z.record(z.string(), statusCountsSchema).catch({})]);
-
-/**
- * `Record<monitorGuid, MonitorBucket[]>`.
- *
- * Every layer is `.catch()`ed to its empty value. A stats response that
- * surprises us should cost the row its sparkline, never the screen: the
- * timeline is decoration beside a monitor's name, and the name is the part
- * someone came for.
- */
-const monitorStatsSchema = z.record(z.string(), z.array(cronBucketSchema).catch([])).catch({});
-
-/** `Record<uptimeDetectorId, CheckStatusBucket[]>`. */
-const uptimeStatsSchema = z.record(z.string(), z.array(uptimeBucketSchema).catch([])).catch({});
 
 /** One cron monitor's buckets, still nested by environment. */
 export type CronEnvironmentBucket = readonly [
@@ -77,6 +40,77 @@ export type MonitorStats = Readonly<Record<string, readonly CronEnvironmentBucke
 
 /** Uptime stats, keyed by uptime detector id. */
 export type UptimeStats = Readonly<Record<string, ReadonlyArray<StatsBucket<UptimeCheckStatus>>>>;
+
+/** Entries from a JSON object, or none when the value is another JSON shape. */
+function recordEntries(value: unknown): Array<[string, unknown]> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? Object.entries(value)
+    : [];
+}
+
+/**
+ * Keep finite status counts and discard malformed fields.
+ *
+ * Status names deliberately stay open-ended: the timeline draws a numeric
+ * status added server-side as `?` instead of pretending the bucket was quiet.
+ */
+function normalizeStatusCounts(value: unknown): Readonly<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const [status, count] of recordEntries(value)) {
+    if (typeof count === "number" && Number.isFinite(count)) counts[status] = count;
+  }
+  return counts;
+}
+
+/** Normalize one uptime `[timestamp, counts]` bucket. */
+function normalizeUptimeBucket(value: unknown): StatsBucket<UptimeCheckStatus> | undefined {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    typeof value[0] !== "number" ||
+    !Number.isFinite(value[0])
+  ) {
+    return undefined;
+  }
+  return [value[0], normalizeStatusCounts(value[1])];
+}
+
+/** Normalize one cron `[timestamp, {environment: counts}]` bucket. */
+function normalizeCronBucket(value: unknown): CronEnvironmentBucket | undefined {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    typeof value[0] !== "number" ||
+    !Number.isFinite(value[0])
+  ) {
+    return undefined;
+  }
+
+  const environments: Record<string, Readonly<Record<string, number>>> = {};
+  for (const [environment, counts] of recordEntries(value[1])) {
+    environments[environment] = normalizeStatusCounts(counts);
+  }
+  return [value[0], environments];
+}
+
+/** Normalize keyed bucket lists without letting one malformed bucket discard its siblings. */
+function normalizeBucketRecord<Bucket>(
+  value: unknown,
+  normalizeBucket: (value: unknown) => Bucket | undefined,
+): Readonly<Record<string, readonly Bucket[]>> {
+  const stats: Record<string, Bucket[]> = {};
+  for (const [id, rawBuckets] of recordEntries(value)) {
+    const buckets: Bucket[] = [];
+    if (Array.isArray(rawBuckets)) {
+      for (const rawBucket of rawBuckets) {
+        const bucket = normalizeBucket(rawBucket);
+        if (bucket !== undefined) buckets.push(bucket);
+      }
+    }
+    stats[id] = buckets;
+  }
+  return stats;
+}
 
 /**
  * Uptime detector ids per request — `MAX_UPTIME_SUBSCRIPTION_IDS`, enforced by
@@ -198,7 +232,7 @@ export async function fetchMonitorStats(
     },
     signal,
   });
-  return monitorStatsSchema.parse(page.data) as MonitorStats;
+  return normalizeBucketRecord(page.data, normalizeCronBucket);
 }
 
 export interface UptimeStatsParams extends StatsWindow {
@@ -229,7 +263,7 @@ export async function fetchUptimeStats(
     },
     signal,
   });
-  return uptimeStatsSchema.parse(page.data) as UptimeStats;
+  return normalizeBucketRecord(page.data, normalizeUptimeBucket);
 }
 
 /**

@@ -53,6 +53,38 @@ function stubClient({
   return new SentryClient({ auth, fetchImpl, maxRetries: 0 });
 }
 
+/** Two detector pages and the cursors requested from their endpoint. */
+function paginatedDetectorClient() {
+  const cursors: Array<string | null> = [];
+  const secondPage = [
+    {
+      ...detectorListFixture[0]!,
+      id: "51",
+      name: "second-page detector",
+    },
+  ];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    const json = (body: unknown, headers: Record<string, string> = {}) =>
+      new Response(JSON.stringify(body), {
+        headers: { "Content-Type": "application/json", ...headers },
+      });
+    if (url.pathname.endsWith("/detectors/")) {
+      const cursor = url.searchParams.get("cursor");
+      cursors.push(cursor);
+      const headers: Record<string, string> = {};
+      if (cursor === null) {
+        headers.Link =
+          '<https://sentry.io/api/0/organizations/acme/detectors/?cursor=next>; rel="next"; results="true"; cursor="next"';
+      }
+      return json(cursor === "next" ? secondPage : detectorListFixture, headers);
+    }
+    if (url.pathname.endsWith("/projects/")) return json(monitorProjectsFixture);
+    return json([]);
+  }) as unknown as typeof fetch;
+  return { client: new SentryClient({ auth, fetchImpl, maxRetries: 0 }), cursors };
+}
+
 /** Mount straight onto a Monitors screen; the rail walk has its own test. */
 async function renderMonitors(
   client: SentryClient | null = stubClient(),
@@ -120,6 +152,28 @@ test("All Monitors lists detectors with the web's columns", async () => {
     expect(frame).toContain("Uptime");
     expect(frame).toContain("Ada Lovelace");
     expect(frame).toContain("#billing-team");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("page keys follow the detector cursor in both directions", async () => {
+  const { client, cursors } = paginatedDetectorClient();
+  const h = await renderMonitors(client);
+  try {
+    await h.waitForFrame(
+      (frame) => frame.includes("checkout p95 latency") && frame.includes("pgdn"),
+    );
+    expect(h.frame()).toContain("6+ monitors");
+
+    await h.press((input) => input.pressKey("d", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("second-page detector"));
+    expect(h.frame()).toContain("pgup");
+    expect(cursors).toEqual([null, "next"]);
+
+    await h.press((input) => input.pressKey("u", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("checkout p95 latency"));
+    expect(cursors).toEqual([null, "next", null]);
   } finally {
     await h.cleanup();
   }

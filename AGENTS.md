@@ -14,11 +14,15 @@ Four tiers, each importing strictly downward:
 ```text
 src/lib/       → dependency-free helpers (text width, sparkline, stacktrace)
 src/telemetry/ → Sentry SDK wrapper; a leaf like lib, called from every tier
-src/api/       → Sentry HTTP client, auth, zod schemas, domain types
+src/api/       → Sentry HTTP client, auth, response normalization, domain types
 src/core/      → store, reducer, commands, theme, async status, nav
 src/ui/        → OpenTUI surface — screens, components, hooks
 src/main.tsx   → CLI entry
 ```
+
+API modules keep their domain types in TypeScript and defensively normalize
+unstable response fields at the boundary. A runtime schema library would be a
+tier-wide architectural choice, not a second file-local pattern.
 
 `src/telemetry/` is how sentry-tui reports its own errors. Two rules it has to
 keep: it never writes to stdout or stderr — a TUI owns the screen — and it is

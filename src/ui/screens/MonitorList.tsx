@@ -79,7 +79,13 @@ export function MonitorList(props: ScreenProps) {
   const sort = detectorSort(state.sort);
   const project = state.selectedProjects.length > 0 ? state.selectedProjects : undefined;
 
-  const { detectors: status, nextCursor } = useDetectors(client, {
+  const {
+    detectors: status,
+    nextCursor,
+    page,
+    nextPage,
+    previousPage,
+  } = useDetectors(client, {
     org,
     query,
     sortBy: sort,
@@ -94,6 +100,13 @@ export function MonitorList(props: ScreenProps) {
   useEffect(() => {
     if (rows) dispatch({ type: "setEntries", payload: rows });
   }, [rows, dispatch]);
+
+  const reportedPage = useRef(page);
+  useEffect(() => {
+    if (reportedPage.current === page) return;
+    reportedPage.current = page;
+    dispatch({ type: "setSelected", payload: 0 });
+  }, [page, dispatch]);
 
   useEffect(() => {
     dispatch({
@@ -137,7 +150,12 @@ export function MonitorList(props: ScreenProps) {
     },
     [rows, pushView, projectSlugs],
   );
-  useScreenActions(props.registerActions, { open });
+  useScreenActions(props.registerActions, { open, nextPage, previousPage });
+
+  const closeDropdown = useCallback(
+    () => dispatch({ type: "setOpenDropdown", payload: null }),
+    [dispatch],
+  );
 
   const closeDropdown = useCallback(
     () => dispatch({ type: "setOpenDropdown", payload: null }),
@@ -274,7 +292,23 @@ export function MonitorList(props: ScreenProps) {
         }}
         layout={[height, HEADING_ROWS]}
       />
-      <ResultFooter count={rows?.length} noun="monitor" hasMore={nextCursor !== null} />
+      <ResultFooter
+        count={rows?.length}
+        noun="monitor"
+        hasMore={nextCursor !== null}
+        pagination={
+          nextCursor !== null || page > 1
+            ? {
+                page,
+                hasPrevious: page > 1,
+                hasNext: nextCursor !== null,
+                loading,
+                onPrevious: previousPage,
+                onNext: nextPage,
+              }
+            : undefined
+        }
+      />
     </box>
   );
 }
