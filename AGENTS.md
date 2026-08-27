@@ -64,7 +64,7 @@ bun run release:verify          # check what landed on npm
 ## distribution
 
 Load the `distribution` skill before touching `packaging/`, `scripts/release*`,
-`scripts/build-*`, `src/app/selfUpdate.ts`, or `src/lib/exec.ts`. Two rules that
+`scripts/build-*`, or `src/app/selfUpdate.ts`. Two rules that
 hold whether or not you've read it: `packaging/npm/background-update.mjs` must
 never write to stdout or stderr — a TUI owns the screen — and `src/app/
 selfUpdate.ts` reuses the launcher's own modules rather than restating the

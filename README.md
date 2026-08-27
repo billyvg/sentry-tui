@@ -73,7 +73,7 @@ when `CI` is set, and when running from source.
 
 ### From source
 
-Running from source needs **Bun ≥ 1.3.0**. OpenTUI reaches its native renderer
+Running from source needs **Bun ≥ 1.4.0**. OpenTUI reaches its native renderer
 through `bun:ffi`; the Node backend wants `node:ffi`, which is Node 26.1+ behind
 `--experimental-ffi`, so Bun is the supported path.
 
