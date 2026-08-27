@@ -23,6 +23,7 @@ export const detectorListFixture: Detector[] = [
     enabled: true,
     projectId: "42",
     owner: { id: "1", name: "Ada Lovelace", type: "user", email: "ada@example.com" },
+    createdBy: "100",
     workflowIds: ["11", "12"],
     latestGroup: {
       id: "900",

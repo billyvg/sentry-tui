@@ -13,6 +13,7 @@ import {
 import { timelineWindowLabel } from "~/core/checkInTimeline";
 import { TIMELINE_MAX_WIDTH } from "~/ui/screens/monitorTimeline";
 import { renderHarness, type Harness } from "./helpers";
+import { membersFixture } from "./fixtures";
 import {
   detectorListFixture,
   detectorWorkflowsFixture,
@@ -32,6 +33,7 @@ interface StubOptions {
   openPeriodsStatus?: number;
   /** Fail both check-in stats endpoints, for the degraded timeline. */
   failStats?: boolean;
+  members?: unknown;
   calls?: string[];
 }
 
@@ -45,6 +47,7 @@ function stubClient({
   workflows = detectorWorkflowsFixture,
   openPeriodsStatus = 200,
   failStats = false,
+  members = membersFixture,
   calls,
 }: StubOptions = {}) {
   const json = (body: unknown, status = 200) =>
@@ -75,6 +78,7 @@ function stubClient({
     }
     if (url.includes("/workflows/")) return json(workflows);
     if (url.includes("/projects/")) return json(monitorProjectsFixture);
+    if (url.includes("/users/")) return json(members);
     return json([]);
   }) as unknown as typeof fetch;
 
@@ -458,6 +462,58 @@ test("the Details section carries the ids and dates the header has no room for",
     expect(frame).toContain("Monitor ID");
     expect(frame).toContain("Last issue");
     expect(frame).toContain("JAVASCRIPT-7");
+    expect(frame.split("\n").find((line) => line.includes("Created by"))).toContain("Ada Lovelace");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a missing monitor creator is identified as a deactivated user", async () => {
+  const h = await renderMonitors(stubClient({ members: [] }));
+  try {
+    await openRow(h);
+    await h.waitForFrame((frame) => frame.includes("Deactivated user"));
+    expect(
+      h
+        .frame()
+        .split("\n")
+        .find((line) => line.includes("Created by")),
+    ).toContain("Deactivated user");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a Sentry-created monitor names Sentry without loading members", async () => {
+  const calls: string[] = [];
+  const h = await renderMonitors(stubClient({ calls }));
+  try {
+    await openRow(h, 1);
+    await h.waitForFrame((frame) => frame.includes("Created by"));
+    expect(
+      h
+        .frame()
+        .split("\n")
+        .find((line) => line.includes("Created by")),
+    ).toContain("Sentry");
+    expect(calls.some((url) => url.includes("/users/"))).toBe(false);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the member directory is reused when a monitor detail is reopened", async () => {
+  const calls: string[] = [];
+  const h = await renderMonitors(stubClient({ calls }));
+  try {
+    await openRow(h);
+    await h.waitForFrame((frame) => frame.includes("Created by"));
+    await h.pressEscape();
+    await h.waitForFrame((frame) => frame.includes("Last Issue"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("Created by"));
+
+    expect(calls.filter((url) => url.includes("/users/"))).toHaveLength(1);
   } finally {
     await h.cleanup();
   }
