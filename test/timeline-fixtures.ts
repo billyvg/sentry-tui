@@ -82,7 +82,7 @@ export function uptimeStatsFixture(since: number): UptimeStats {
 }
 
 /**
- * A response with every kind of junk the schemas have to survive: a null
+ * A response with every kind of junk the normalizers have to survive: a null
  * bucket list, a count that is a string, a status nobody has heard of, and a
  * bucket whose timestamp is missing.
  */

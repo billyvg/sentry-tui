@@ -57,8 +57,7 @@
     "@sentry/api": "0.272.0",
     "@sentry/bun": "^10.70.0",
     "react": "^19.2.0",
-    "string-width": "^8.2.2",
-    "zod": "^4.4.3"
+    "string-width": "^8.2.2"
   },
   "devDependencies": {
     "@types/bun": "latest",

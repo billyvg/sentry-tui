@@ -1,5 +1,5 @@
 /**
- * The two check-in stats endpoints, and the schemas that guard them.
+ * The two check-in stats endpoints, and the normalizers that guard them.
  *
  * A monitor row's timeline is decoration beside its name, so the bar these
  * tests hold the API layer to is: a surprising response costs the row its
@@ -126,11 +126,9 @@ test("a malformed stats response degrades per monitor instead of throwing", asyn
 
   // A null bucket list becomes an empty one.
   expect(stats[NIGHTLY_ROLLUP_ID]).toEqual([]);
-  // The one well-formed bucket survives; the string count and the timestampless
-  // bucket do not take the monitor down with them.
-  const buckets = stats[SESSION_CLEANUP_ID]!;
-  expect(buckets.length).toBeGreaterThanOrEqual(0);
-  for (const bucket of buckets) expect(typeof bucket[0]).toBe("number");
+  // The timestamped bucket survives; its malformed count is discarded while
+  // a numeric status this build does not know is kept for the `?` glyph.
+  expect(stats[SESSION_CLEANUP_ID]).toEqual([[SINCE, { production: { teleported: 2 } }]]);
 });
 
 test("a response that is not an object at all yields no stats, not a crash", async () => {
@@ -161,6 +159,25 @@ test("fetchUptimeStats asks by detector id", async () => {
   expect(url.searchParams.getAll("uptimeDetectorId")).toEqual([CHECKOUT_UPTIME_ID]);
   expect(stats[CHECKOUT_UPTIME_ID]).toHaveLength(24);
   expect(stats[CHECKOUT_UPTIME_ID]![9]).toEqual([SINCE + 9 * 3600, { success: 3, failure: 1 }]);
+});
+
+test("a malformed uptime response keeps valid buckets and counts", async () => {
+  const stats = await fetchUptimeStats(
+    stubClient({
+      [CHECKOUT_UPTIME_ID]: [
+        [SINCE, { success: 3, failure: "1" }],
+        [null, { success: 1 }],
+        "not-a-bucket",
+      ],
+      malformed: null,
+    }),
+    { org: "acme", detectorIds: [CHECKOUT_UPTIME_ID], ...WINDOW },
+  );
+
+  expect(stats).toEqual({
+    [CHECKOUT_UPTIME_ID]: [[SINCE, { success: 3 }]],
+    malformed: [],
+  });
 });
 
 /**
