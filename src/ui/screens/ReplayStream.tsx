@@ -43,7 +43,7 @@ import { DirectDetailStatus } from "~/ui/components/DirectDetailStatus";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInputHint } from "~/ui/components/SearchInputHint";
-import { useProjects } from "~/ui/hooks/useProjects";
+import { useProjectSlugs } from "~/ui/hooks/useProjects";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useReplayErrors, useReplays } from "~/ui/hooks/useReplays";
 import { rowsOf, type ScreenState } from "~/ui/hooks/useScreenState";
@@ -215,12 +215,11 @@ export function ReplayStream({
   const fetched = valueOf(replays);
   const error = errorOf(replays);
 
-  const projects = useProjects(client, org);
-  const slugById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const entry of projects) map.set(entry.id, entry.slug);
-    return map;
-  }, [projects]);
+  const projectIds = useMemo(
+    () => fetched?.flatMap((replay) => (replay.projectId ? [replay.projectId] : [])) ?? [],
+    [fetched],
+  );
+  const slugById = useProjectSlugs(client, org, projectIds);
 
   const rows = useMemo(
     () =>

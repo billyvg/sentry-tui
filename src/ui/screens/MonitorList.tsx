@@ -29,7 +29,7 @@ import { SearchInput } from "~/ui/components/SearchInput";
 import { SortBar } from "~/ui/components/SortBar";
 import { useCheckInStats } from "~/ui/hooks/useCheckInStats";
 import { useDetectors } from "~/ui/hooks/useDetectors";
-import { useProjects } from "~/ui/hooks/useProjects";
+import { useProjectSlugs } from "~/ui/hooks/useProjects";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
 import { monitorDetailView } from "~/ui/screens/MonitorDetail";
@@ -97,13 +97,13 @@ export function MonitorList(props: ScreenProps) {
     });
   }, [loading, since, error, dispatch]);
 
-  // Project slugs for the detail line: a detector carries a numeric
-  // `projectId`, and only the projects list knows what that is called.
-  const projects = useProjects(client, org);
-  const projectSlugs = useMemo(
-    () => new Map(projects.map((project) => [project.id, project.slug])),
-    [projects],
+  // Resolve only the projects on this page: a detector carries a numeric id,
+  // while its detail line wants the slug that project is called.
+  const projectIds = useMemo(
+    () => rows?.flatMap((row) => (row.projectId ? [row.projectId] : [])) ?? [],
+    [rows],
   );
+  const projectSlugs = useProjectSlugs(client, org, projectIds);
 
   /**
    * Enter opens the monitor under the cursor.

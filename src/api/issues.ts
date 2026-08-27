@@ -1,5 +1,6 @@
 import {
   getOrganization as getOrganizationRequest,
+  type ListOrganizationProjectsData,
   listOrganizationEnvironments,
   listOrganizationProjects,
   listOrganizations as listOrganizationsRequest,
@@ -275,6 +276,14 @@ export async function listOrganizationMembers(
 /** The endpoint's documented maximum, and what every caller here asks for. */
 export const PROJECTS_PER_PAGE = 100;
 
+/** Expensive summary fields Sentry's own frontend omits from project lists. */
+const LIGHTWEIGHT_PROJECT_COLLAPSE = ["latestDeploys", "unusedFeatures"];
+
+type LightweightProjectQuery = NonNullable<ListOrganizationProjectsData["query"]> & {
+  /** Supported by the endpoint but missing from its generated OpenAPI query type. */
+  collapse: string[];
+};
+
 export interface ListProjectsOptions {
   org: string;
   /**
@@ -300,11 +309,67 @@ export async function listProjects(
   client: SentryClient,
   { org, query, perPage = PROJECTS_PER_PAGE, signal }: ListProjectsOptions,
 ): Promise<Project[]> {
+  const projectQuery: LightweightProjectQuery = {
+    query: query?.trim() || undefined,
+    per_page: perPage,
+    collapse: LIGHTWEIGHT_PROJECT_COLLAPSE,
+  };
   const { data } = await listOrganizationProjects({
     ...client.generatedOptions(signal),
     path: { organization_id_or_slug: org },
-    query: { query: query?.trim() || undefined, per_page: perPage },
+    query: projectQuery,
   });
+  return projectsFromResponse(data);
+}
+
+export interface ProjectReference {
+  id: string;
+  slug: string;
+}
+
+/**
+ * Resolve only the projects referenced by the current rows.
+ *
+ * The organization-projects list accepts repeated `id:` search tokens and
+ * returns `ProjectSummarySerializer`, rather than full project details. Sentry's
+ * standard collapse flags suppress its expensive deploy and unused-feature
+ * fields; this client retains only the id and slug from that summary. Requests
+ * are bounded to the endpoint's 100-row maximum regardless of org size.
+ */
+export async function listProjectReferences(
+  client: SentryClient,
+  { org, ids, signal }: { org: string; ids: readonly string[]; signal?: AbortSignal },
+): Promise<ProjectReference[]> {
+  const uniqueIds = [...new Set(ids)].filter((id) => /^\d+$/.test(id));
+  const projects: ProjectReference[] = [];
+
+  for (let offset = 0; offset < uniqueIds.length; offset += PROJECTS_PER_PAGE) {
+    const batch = uniqueIds.slice(offset, offset + PROJECTS_PER_PAGE);
+    const projectQuery: LightweightProjectQuery = {
+      query: batch.map((id) => `id:${id}`).join(" "),
+      per_page: batch.length,
+      collapse: LIGHTWEIGHT_PROJECT_COLLAPSE,
+    };
+    const { data } = await listOrganizationProjects({
+      ...client.generatedOptions(signal),
+      path: { organization_id_or_slug: org },
+      query: projectQuery,
+    });
+    projects.push(...data.map(({ id, slug }) => ({ id, slug })));
+  }
+
+  return projects;
+}
+
+/** Keep the app's project model independent of generated response extras. */
+function projectsFromResponse(
+  data: ReadonlyArray<{
+    id: string;
+    slug: string;
+    name: string;
+    platform?: string | null;
+  }>,
+): Project[] {
   return data.map(({ id, slug, name, platform }) => ({ id, slug, name, platform }));
 }
 

@@ -30,7 +30,7 @@ import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { SortBar } from "~/ui/components/SortBar";
-import { useProjects } from "~/ui/hooks/useProjects";
+import { useProjectSlugs } from "~/ui/hooks/useProjects";
 import { useSavedQueries } from "~/ui/hooks/useSavedQueries";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { rowsOf } from "~/ui/hooks/useScreenState";
@@ -164,15 +164,13 @@ export function SavedQueries(props: ScreenProps) {
   const loading = status.state === "loading";
   const since = loadingSince(status);
 
-  // Saved queries carry project *ids* while the rest of the app filters by
-  // slug, so the mapping is resolved here, where a query's results view needs
-  // it to open on the projects it was saved with.
-  const projects = useProjects(client, org);
-  const slugById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const project of projects) map.set(project.id, project.slug);
-    return map;
-  }, [projects]);
+  // Resolve only the ids carried by this page. `-1` is the all-projects
+  // sentinel, not a project the endpoint can look up.
+  const projectIds = useMemo(
+    () => queries?.flatMap((query) => query.projects.filter((id) => id !== -1).map(String)) ?? [],
+    [queries],
+  );
+  const slugById = useProjectSlugs(client, org, projectIds);
 
   useEffect(() => {
     if (queries) dispatch({ type: "setEntries", payload: queries });

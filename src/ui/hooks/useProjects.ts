@@ -1,39 +1,106 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SentryClient } from "~/api/client";
-import { listProjects } from "~/api/issues";
+import { listProjectReferences, listProjects } from "~/api/issues";
 import type { Project } from "~/api/types";
 import { filterByLabel } from "~/ui/lib/listFilter";
 
+type ProjectSlugCache = Map<string, Promise<string | undefined>>;
+
+/** Resolved, missing, and in-flight slugs, scoped to one authenticated session. */
+const projectSlugs = new WeakMap<SentryClient, Map<string, ProjectSlugCache>>();
+const NO_PROJECT_SLUGS: ReadonlyMap<string, string> = new Map();
+
 /**
- * The organization's projects, fetched once per client/org.
+ * Resolve the requested IDs while reusing every answer learned this session.
  *
- * Shared by the filter bar (which lists them, and resolves a selected project
- * id to its slug) and the secondary nav, so both read the same list rather
- * than each keeping their own copy. A failure yields an empty list: every
- * caller degrades to showing no project names, never to dropping a filter —
- * nothing may depend on this list to *apply* one.
- *
- * One page of them, so an org with more projects than that has some missing.
- * The picker covers its own case by searching — see {@link useProjectSearch}.
- *
- * @param enabled Skip the fetch and stay empty. For a caller mounted for the
- *   whole session that only needs projects some of the time — the secondary
- *   nav's dynamic sections — so opening the app doesn't ask for them.
+ * Each id owns a promise before its batch request starts, so overlapping
+ * callers share both completed answers and in-flight work. Missing ids resolve
+ * to `undefined` and stay cached; rejected entries are evicted for retry.
  */
-export function useProjects(client: SentryClient | null, org: string, enabled = true): Project[] {
-  const [projects, setProjects] = useState<Project[]>([]);
+async function loadProjectSlugs(
+  client: SentryClient,
+  org: string,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  let byOrg = projectSlugs.get(client);
+  if (!byOrg) {
+    byOrg = new Map();
+    projectSlugs.set(client, byOrg);
+  }
+
+  let cache = byOrg.get(org);
+  if (!cache) {
+    cache = new Map();
+    byOrg.set(org, cache);
+  }
+
+  const missing = ids.filter((id) => !cache.has(id));
+  if (missing.length > 0) {
+    const batch = listProjectReferences(client, { org, ids: missing }).then(
+      (projects) => new Map(projects.map((project) => [project.id, project.slug])),
+    );
+
+    for (const id of missing) {
+      const entry = batch.then((slugs) => slugs.get(id));
+      cache.set(id, entry);
+      void entry.catch(() => {
+        if (cache.get(id) === entry) cache.delete(id);
+      });
+    }
+  }
+
+  const entries = await Promise.all(
+    ids.map(async (id): Promise<readonly [string, string] | undefined> => {
+      const slug = await cache.get(id);
+      return slug === undefined ? undefined : [id, slug];
+    }),
+  );
+  return new Map(
+    entries.filter((entry): entry is readonly [string, string] => entry !== undefined),
+  );
+}
+
+/**
+ * Project id → slug for only the ids the caller's current rows reference.
+ *
+ * Requests are independent of organization size: ids are de-duplicated,
+ * batched by the API helper, and cached per client/org for the session. The
+ * picker keeps its own one-page text-search path — see {@link useProjectSearch}.
+ *
+ * @param ids Numeric project ids from the rows currently held by the caller.
+ * @param enabled Skip resolution for a caller mounted before its section opens.
+ */
+export function useProjectSlugs(
+  client: SentryClient | null,
+  org: string,
+  ids: readonly string[],
+  enabled = true,
+): ReadonlyMap<string, string> {
+  const key = [...new Set(ids.filter((id) => /^\d+$/.test(id)))].sort().join(",");
+  const [answer, setAnswer] = useState<{
+    client: SentryClient;
+    org: string;
+    key: string;
+    slugs: ReadonlyMap<string, string>;
+  } | null>(null);
 
   useEffect(() => {
-    if (!client || !enabled) return;
-    const controller = new AbortController();
-    void listProjects(client, { org, signal: controller.signal })
-      .then(setProjects)
+    if (!client || !enabled || key === "") return;
+    let mounted = true;
+    void loadProjectSlugs(client, org, key.split(","))
+      .then((slugs) => {
+        if (mounted) setAnswer({ client, org, key, slugs });
+      })
       .catch(() => {});
-    return () => controller.abort();
-  }, [client, org, enabled]);
+    return () => {
+      mounted = false;
+    };
+  }, [client, org, key, enabled]);
 
-  return projects;
+  return answer?.client === client && answer.org === org && answer.key === key
+    ? answer.slugs
+    : NO_PROJECT_SLUGS;
 }
 
 /** How long typing settles before a search goes out. */
