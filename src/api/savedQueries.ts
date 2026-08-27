@@ -424,7 +424,7 @@ export function listSavedQueriesPage(
  * because filtering on a number the app reads as a slug matches nothing at
  * all, and no filter is the honest fallback.
  *
- * @param slugById Slug per project id — build it from `useProjects`.
+ * @param slugById Slug per project id — build it from `useProjectSlugs`.
  */
 export function savedQueryProjectSlugs(
   query: SavedQuery,

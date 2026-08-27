@@ -38,7 +38,7 @@ import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { SortBar } from "~/ui/components/SortBar";
-import { useProjects } from "~/ui/hooks/useProjects";
+import { useProjectSlugs } from "~/ui/hooks/useProjects";
 import { useWorkflowDetectors, useWorkflows } from "~/ui/hooks/useWorkflows";
 import { BOLD } from "~/ui/lib/attributes";
 import type { ScreenProps } from "~/ui/screens/types";
@@ -152,12 +152,14 @@ export function WorkflowList(props: ScreenProps) {
   // behind each, which is a detector lookup and then an id → slug mapping the
   // rest of the app already keeps.
   const detectors = useWorkflowDetectors(client, org, workflows);
-  const projects = useProjects(client, org);
-  const slugById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const project of projects) map.set(project.id, project.slug);
-    return map;
-  }, [projects]);
+  const projectIds = useMemo(
+    () =>
+      [...detectors.byId.values()].flatMap((detector) =>
+        detector.projectId ? [detector.projectId] : [],
+      ),
+    [detectors.byId],
+  );
+  const slugById = useProjectSlugs(client, org, projectIds);
 
   const rows = useMemo(
     () =>

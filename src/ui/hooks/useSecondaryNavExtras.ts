@@ -39,7 +39,7 @@ import {
 import { valueOf } from "~/core/async";
 import type { NavGroupId } from "~/core/nav";
 import { useDashboardsNavExtras } from "~/ui/hooks/useDashboards";
-import { useProjects } from "~/ui/hooks/useProjects";
+import { useProjectSlugs } from "~/ui/hooks/useProjects";
 import { useSavedQueries } from "~/ui/hooks/useSavedQueries";
 import { NO_NAV_EXTRAS, type NavSectionSpec, type SecondaryNavExtras } from "~/ui/lib/navSections";
 import { savedQueryResultsView } from "~/ui/screens/SavedQueryResults";
@@ -94,20 +94,16 @@ function useExploreNavSections(
     reloadToken,
   });
 
-  // Gated on the same flag: a saved query's results open on the projects it was
-  // saved with, which are ids on the wire and slugs everywhere else — but the
-  // nav is mounted for the whole session, so asking on start would be a
-  // request for a sidebar nobody has opened.
-  const projects = useProjects(client, org, enabled);
-  const slugById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const project of projects) map.set(project.id, project.slug);
-    return map;
-  }, [projects]);
-
   // `valueOf` is undefined while loading and after a failure with nothing
   // cached, which is exactly the degradation this wants: no section.
   const starred = valueOf(status);
+  const projectIds = useMemo(
+    () => starred?.flatMap((query) => query.projects.filter((id) => id !== -1).map(String)) ?? [],
+    [starred],
+  );
+  // The nav is mounted for the whole session, so stay inert until Explore is
+  // open, then resolve only the projects its starred-query preview references.
+  const slugById = useProjectSlugs(client, org, projectIds, enabled);
 
   return useMemo(() => starredQueriesSections(starred, slugById), [starred, slugById]);
 }
