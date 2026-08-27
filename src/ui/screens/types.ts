@@ -28,6 +28,8 @@ import type { ScreenState, ScreenStateSeed } from "~/ui/hooks/useScreenState";
 export interface ScreenActions {
   /** Enter, or a second click on the cursor row. */
   open?: (index: number) => void;
+  /** Enter on a static detail whose current resource links to another view. */
+  openDetail?: () => void;
   /** PageDown / Ctrl+D when the current result page has a next cursor. */
   nextPage?: () => boolean;
   /** PageUp / Ctrl+U when the current result page has a previous cursor. */

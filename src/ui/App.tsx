@@ -297,7 +297,7 @@ export function App({
    */
   const registerActions = useCallback((actions: ScreenActions | null) => {
     screenActions.current = actions;
-    setCanOpen(Boolean(actions?.open));
+    setCanOpen(Boolean(actions?.open || actions?.openDetail));
   }, []);
 
   const [transientNotice, setTransientNotice] = useState<Notice | null>(null);

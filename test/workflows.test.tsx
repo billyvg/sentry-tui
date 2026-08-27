@@ -12,11 +12,8 @@ import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { App } from "~/ui/App";
 import { renderHarness, type Harness } from "./helpers";
-import {
-  workflowDetectorsFixture,
-  workflowProjectsFixture,
-  workflowsFixture,
-} from "./workflow-fixtures";
+import { monitorProjectsFixture } from "./monitor-fixtures";
+import { workflowDetectorsFixture, workflowsFixture } from "./workflow-fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
@@ -40,7 +37,7 @@ interface StubOptions {
 function stubClient({
   workflows = workflowsFixture,
   detectors = workflowDetectorsFixture,
-  projects = workflowProjectsFixture,
+  projects = monitorProjectsFixture,
   listStatus = 200,
   calls,
 }: StubOptions = {}) {
@@ -98,7 +95,7 @@ function paginatedWorkflowClient() {
       return json(cursor === "next" ? secondPage : workflowsFixture, headers);
     }
     if (url.pathname.endsWith("/detectors/")) return json(workflowDetectorsFixture);
-    if (url.pathname.endsWith("/projects/")) return json(workflowProjectsFixture);
+    if (url.pathname.endsWith("/projects/")) return json(monitorProjectsFixture);
     return json([]);
   }) as unknown as typeof fetch;
   return { client: new SentryClient({ auth, fetchImpl, maxRetries: 0 }), cursors };
@@ -206,14 +203,14 @@ test("the Monitors cell counts connected detectors, agreeing in number", async (
   }
 });
 
-test("the Projects cell resolves connected detectors to project slugs", async () => {
+test("the Projects cell resolves connected detectors through the shared project catalog", async () => {
   const calls: string[] = [];
   const h = await renderAlerts(stubClient({ calls }));
   try {
-    await h.waitForFrame((f) => f.includes("backend"));
+    await h.waitForFrame((f) => f.includes("checkout"));
 
     const frame = h.frame();
-    expect(frame).toContain("backend, frontend");
+    expect(frame).toContain("checkout, billing");
     // A workflow on the org-wide detector covers every project and says so
     // rather than listing them.
     expect(frame).toContain("All Projects");
@@ -298,7 +295,7 @@ test("P filters alerts by project while E and D remain ordinary keys", async () 
     await h.waitForFrame(() =>
       calls
         .filter((url) => url.includes("/workflows/"))
-        .some((url) => new URL(url).searchParams.getAll("project").includes("backend")),
+        .some((url) => new URL(url).searchParams.getAll("project").includes("checkout")),
     );
     await h.pressEscape();
 
@@ -437,7 +434,7 @@ test("a failed detector lookup costs the Projects column, not the list", async (
         });
       if (url.includes("/workflows/")) return json(workflowsFixture);
       if (url.includes("/detectors/")) return json({ detail: "nope" }, 500);
-      if (url.includes("/projects/")) return json(workflowProjectsFixture);
+      if (url.includes("/projects/")) return json(monitorProjectsFixture);
       return json([]);
     }) as unknown as typeof fetch,
   });

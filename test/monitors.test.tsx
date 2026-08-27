@@ -224,10 +224,18 @@ test("a disabled monitor renders muted", async () => {
 });
 
 test("a data source that came back without its query still renders its row", async () => {
-  const h = await renderMonitors();
+  const sessionCleanup = detectorListFixture.find((detector) => detector.id === "6")!;
+  const h = await renderMonitors(
+    stubClient({
+      detectors: [
+        {
+          ...sessionCleanup,
+          dataSources: [{ id: "31", type: "cron_monitor", queryObj: null }],
+        },
+      ],
+    }),
+  );
   try {
-    // The sixth fixture is a cron detector with `queryObj: null`: it keeps its
-    // name and its project and simply has no schedule to show.
     await h.waitForFrame((f) => f.includes("session-cleanup"));
     expect(h.frame()).not.toContain("Failed to load monitors");
   } finally {

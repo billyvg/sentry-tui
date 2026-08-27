@@ -272,7 +272,9 @@ export function useNavigation({
 
     const back = topView ? [{ command: "sentry.nav.back", label: "back" }] : [];
     const list = detailView
-      ? []
+      ? canOpen
+        ? [{ command: "sentry.nav.open", label: "open" }]
+        : []
       : [
           ...(canOpen
             ? [

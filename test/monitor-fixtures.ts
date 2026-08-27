@@ -14,6 +14,11 @@
 import type { Detector, DetectorOpenPeriod } from "~/api/detectors";
 import type { Workflow } from "~/api/workflows";
 
+/** Monitor guid behind the canonical `nightly-billing-rollup` detector. */
+export const NIGHTLY_ROLLUP_ID = "0b9c1d2e-3f40-5162-8394-a5b6c7d8e9f0";
+/** Monitor guid behind the canonical `session-cleanup` detector. */
+export const SESSION_CLEANUP_ID = "1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809";
+
 /** `GET /organizations/{org}/detectors/` — one of each type. */
 export const detectorListFixture: Detector[] = [
   {
@@ -70,7 +75,7 @@ export const detectorListFixture: Detector[] = [
         id: "30",
         type: "cron_monitor",
         queryObj: {
-          id: "cron-1",
+          id: NIGHTLY_ROLLUP_ID,
           slug: "nightly-billing-rollup",
           name: "nightly-billing-rollup",
           config: { schedule: "0 9 * * *", schedule_type: "crontab", timezone: "UTC" },
@@ -144,9 +149,21 @@ export const detectorListFixture: Detector[] = [
     projectId: "43",
     owner: null,
     workflowIds: [],
-    // A data source with no `queryObj` — the row keeps its project and drops
-    // the schedule rather than throwing.
-    dataSources: [{ id: "31", type: "cron_monitor", queryObj: null }],
+    dataSources: [
+      {
+        id: "31",
+        type: "cron_monitor",
+        queryObj: {
+          id: SESSION_CLEANUP_ID,
+          slug: "session-cleanup",
+          name: "session-cleanup",
+          config: { schedule: "30 * * * *", schedule_type: "crontab", timezone: "UTC" },
+          environments: [
+            { name: "production", status: "error", lastCheckIn: "2026-08-21T10:30:12Z" },
+          ],
+        },
+      },
+    ],
   },
 ];
 

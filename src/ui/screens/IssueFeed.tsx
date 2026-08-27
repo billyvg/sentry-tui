@@ -354,6 +354,7 @@ function IssueFromUrl({
   height,
   focused,
   updateView,
+  issue,
 }: DetailContext & { issueId: string; eventId?: string }) {
   const status = useDirectResource(client, { org, id: issueId, reloadToken, load: loadIssue });
   const group = valueOf(status);
@@ -369,7 +370,7 @@ function IssueFromUrl({
     <IssueDetail
       client={client}
       org={org}
-      group={group}
+      group={issue ?? group}
       eventId={eventId}
       width={width}
       height={height}

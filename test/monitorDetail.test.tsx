@@ -13,11 +13,12 @@ import {
 import { timelineWindowLabel } from "~/core/checkInTimeline";
 import { TIMELINE_MAX_WIDTH } from "~/ui/screens/monitorTimeline";
 import { renderHarness, type Harness } from "./helpers";
-import { membersFixture } from "./fixtures";
+import { eventFixture, groupFixture, membersFixture } from "./fixtures";
 import {
   detectorListFixture,
   detectorWorkflowsFixture,
   monitorProjectsFixture,
+  NIGHTLY_ROLLUP_ID,
   openPeriodsFixture,
 } from "./monitor-fixtures";
 import { cronDay, uptimeDay } from "./timeline-fixtures";
@@ -39,11 +40,11 @@ interface StubOptions {
   /** Fail both check-in stats endpoints, for the degraded timeline. */
   failStats?: boolean;
   members?: unknown;
+  detectors?: unknown;
   calls?: string[];
+  puts?: unknown[];
 }
 
-/** The cron monitor guid behind `nightly-billing-rollup` in the fixture. */
-const CRON_MONITOR_ID = "cron-1";
 /** The uptime detector's own id — what `uptime-stats/` is keyed by. */
 const UPTIME_DETECTOR_ID = "3";
 
@@ -55,7 +56,9 @@ function stubClient({
   openPeriodsStatus = 200,
   failStats = false,
   members = membersFixture,
+  detectors = detectorListFixture,
   calls,
+  puts,
 }: StubOptions = {}) {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -63,21 +66,31 @@ function stubClient({
       headers: { "Content-Type": "application/json" },
     });
 
-  const fetchImpl = (async (input: RequestInfo | URL) => {
+  const fetchImpl = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = String(input);
     calls?.push(url);
+
+    if (init.method === "PUT" && url.endsWith("/issues/900/")) {
+      puts?.push(JSON.parse(String(init.body)));
+      return json({
+        ...groupFixture,
+        id: "900",
+        shortId: "JAVASCRIPT-7",
+        status: "resolved",
+      });
+    }
 
     if (url.includes("/monitors-stats/") || url.includes("/uptime-stats/")) {
       if (failStats) return json({ detail: "nope" }, 500);
       const since = Number(new URL(url).searchParams.get("since"));
       return json(
         url.includes("/monitors-stats/")
-          ? { [CRON_MONITOR_ID]: cronDay(since, { failures: { 6: { ok: 0, error: 2 } } }) }
+          ? { [NIGHTLY_ROLLUP_ID]: cronDay(since, { failures: { 6: { ok: 0, error: 2 } } }) }
           : { [UPTIME_DETECTOR_ID]: uptimeDay(since, { incidents: [10] }) },
       );
     }
 
-    if (url.includes("/detectors/")) return json(detectorListFixture);
+    if (url.includes("/detectors/")) return json(detectors);
     if (url.includes("/open-periods/")) {
       const headers: Record<string, string> = {};
       if (openPeriodsTotal !== undefined) headers["X-Hits"] = String(openPeriodsTotal);
@@ -95,6 +108,10 @@ function stubClient({
     if (url.includes("/workflows/")) return json(workflows);
     if (url.includes("/projects/")) return json(monitorProjectsFixture);
     if (url.includes("/users/")) return json(members);
+    if (url.endsWith("/issues/900/")) {
+      return json({ ...groupFixture, id: "900", shortId: "JAVASCRIPT-7" });
+    }
+    if (url.includes("/issues/900/events/")) return json(eventFixture);
     return json([]);
   }) as unknown as typeof fetch;
 
@@ -142,6 +159,39 @@ test("Enter on a row opens that monitor's detail", async () => {
     expect(frame).toContain("Ada Lovelace");
     // And a way back out, in the pane's border.
     expect(frame).toContain("back to");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("Enter on a monitor detail fetches and opens its latest issue", async () => {
+  const calls: string[] = [];
+  const puts: unknown[] = [];
+  const h = await renderMonitors(stubClient({ calls, puts }));
+  try {
+    await openRow(h);
+    await h.waitForFrame((frame) => frame.includes("Configuration") && frame.includes("open"));
+
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("1.4k events"));
+
+    expect(h.frame()).toContain("JAVASCRIPT-7");
+    expect(calls.some((url) => url.endsWith("/organizations/acme/issues/900/"))).toBe(true);
+
+    await h.press((input) => input.pressKey("r"));
+    await h.waitForFrame((frame) => frame.includes("resolved · javascript"));
+    expect(puts).toEqual([{ status: "resolved" }]);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a monitor detail without a latest issue does not advertise Enter", async () => {
+  const h = await renderMonitors();
+  try {
+    await openRow(h, 1);
+    await h.waitForFrame((frame) => frame.includes("nightly-billing-rollup"));
+    expect(h.frame()).not.toContain("(enter)");
   } finally {
     await h.cleanup();
   }
@@ -680,10 +730,20 @@ test("a monitor with no check-in history has no Check-ins section at all", async
 });
 
 test("a cron detector with no monitor behind it says so rather than drawing nothing", async () => {
-  const h = await renderMonitors();
+  const sessionCleanup = detectorListFixture.find((detector) => detector.id === "6")!;
+  const h = await renderMonitors(
+    stubClient({
+      detectors: [
+        {
+          ...sessionCleanup,
+          dataSources: [{ id: "31", type: "cron_monitor", queryObj: null }],
+        },
+      ],
+    }),
+  );
   try {
-    // The sixth fixture is a cron detector whose data source has no `queryObj`.
-    await openRow(h, 5);
+    await h.waitForFrame((frame) => frame.includes("session-cleanup"));
+    await h.press((input) => input.pressEnter());
     await h.waitForFrame((f) => f.includes("Check-ins"));
     expect(h.frame()).toContain("no check-in source");
   } finally {

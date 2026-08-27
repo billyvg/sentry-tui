@@ -8,7 +8,6 @@
 
 import type { Detector } from "~/api/detectors";
 import type { Workflow } from "~/api/workflows";
-import type { Project } from "~/api/types";
 
 /**
  * `GET /organizations/{org}/workflows/`.
@@ -78,7 +77,7 @@ export const workflowsFixture: Workflow[] = [
  */
 export const workflowDetectorsFixture: Detector[] = [
   { id: "501", name: "Checkout error rate", type: "error", enabled: true, projectId: "42" },
-  { id: "502", name: "Checkout latency", type: "metric_issue", enabled: true, projectId: "43" },
+  { id: "502", name: "Billing latency", type: "metric_issue", enabled: true, projectId: "43" },
   {
     id: "900",
     name: "Issue Stream: All Projects",
@@ -86,10 +85,4 @@ export const workflowDetectorsFixture: Detector[] = [
     enabled: true,
     projectId: null,
   },
-];
-
-/** `GET /organizations/{org}/projects/` — the id → slug mapping. */
-export const workflowProjectsFixture: Project[] = [
-  { id: "42", slug: "backend", name: "Backend", platform: "python" },
-  { id: "43", slug: "frontend", name: "Frontend", platform: "javascript" },
 ];

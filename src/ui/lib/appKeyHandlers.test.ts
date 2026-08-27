@@ -7,6 +7,7 @@ import {
   createGotoHandler,
   createListCursorHandler,
   createOverlayHandler,
+  createScreenKeyHandler,
   createScreenInputHandler,
   createViewStackHandler,
 } from "~/ui/lib/appKeyHandlers";
@@ -100,5 +101,20 @@ describe("app key handler factories", () => {
 
     expect(handler(key("j"))).toBe("mine");
     expect(selected).toBe(2);
+  });
+
+  test("a static detail can own Enter without pretending to be a list", () => {
+    const openDetail = mock(() => {});
+    const handler = createScreenKeyHandler({
+      screenActions: { current: { openDetail } },
+      focus: {
+        focusedRef: { current: "content" },
+        isFocused: (region) => region === "content",
+        focus: () => {},
+      },
+    });
+
+    expect(handler(key("return"))).toBe("mine");
+    expect(openDetail).toHaveBeenCalledTimes(1);
   });
 });
