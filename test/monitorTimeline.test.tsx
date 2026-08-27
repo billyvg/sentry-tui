@@ -11,6 +11,7 @@ import { expect, test } from "bun:test";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
+import type { CronMonitorDataSource, Detector } from "~/api/detectors";
 import type { ScreenId } from "~/core/screens";
 import {
   CRON_GLYPHS,
@@ -44,6 +45,8 @@ interface StubOptions {
   ignoreTypeFilter?: boolean;
   /** Answer `uptime-stats/` with no entry for the detector at all. */
   emptyUptime?: boolean;
+  /** Give the cron fixture independent production and staging histories. */
+  multipleEnvironments?: boolean;
 }
 
 /**
@@ -57,6 +60,7 @@ function stubClient({
   pendingStats = false,
   ignoreTypeFilter = false,
   emptyUptime = false,
+  multipleEnvironments = false,
 }: StubOptions = {}) {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -74,6 +78,19 @@ function stubClient({
       if (failStats) return json({ detail: "nope" }, 500);
       const since = Number(params.get("since"));
       if (url.includes("/monitors-stats/")) {
+        if (multipleEnvironments) {
+          const production = cronDay(since);
+          const staging = cronDay(since, {
+            environment: "staging",
+            failures: { 6: { ok: 0, error: 2 } },
+          });
+          return json({
+            [CRON_MONITOR_ID]: production.map(([timestamp, environments], index) => [
+              timestamp,
+              { ...environments, ...staging[index]![1] },
+            ]),
+          });
+        }
         return json({
           [CRON_MONITOR_ID]: cronDay(since, { failures: { 6: { ok: 0, error: 2 } } }),
         });
@@ -86,10 +103,18 @@ function stubClient({
     if (url.includes("/detectors/")) {
       const query = params.get("query") ?? "";
       const wanted = /(?:^|\s)type:(\S+)/.exec(query)?.[1];
+      const detectors: Detector[] = structuredClone(detectorListFixture);
+      if (multipleEnvironments) {
+        const cron = detectors.find((detector) => detector.id === "2")!;
+        const source = cron.dataSources?.find(
+          (candidate) => candidate.type === "cron_monitor",
+        ) as CronMonitorDataSource;
+        source.queryObj!.environments = [{ name: "production" }, { name: "staging" }];
+      }
       const rows =
         wanted && !ignoreTypeFilter
-          ? detectorListFixture.filter((detector) => detector.type === wanted)
-          : detectorListFixture;
+          ? detectors.filter((detector) => detector.type === wanted)
+          : detectors;
       return json(rows);
     }
 
@@ -294,6 +319,44 @@ test("the timeline draws the day's failures on the row it belongs to", async () 
   }
 });
 
+test("a cron row draws a labelled timeline for each environment", async () => {
+  const h = await renderMonitors("monitors.cron", { multipleEnvironments: true });
+  try {
+    await h.waitForFrame((frame) => frame.includes("staging") && frame.includes(CRON_GLYPHS.error));
+
+    const lines = h.frame().split("\n");
+    const production = lines.find((line) => line.includes("production")) ?? "";
+    const staging = lines.find((line) => line.includes("staging")) ?? "";
+
+    expect(production).toContain("nightly-billing-rollup");
+    expect(production).toContain(CRON_GLYPHS.ok);
+    expect(production).not.toContain(CRON_GLYPHS.error);
+    expect(staging).toContain(CRON_GLYPHS.error);
+    expect(staging).not.toContain("nightly-billing-rollup");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a narrow row sheds the environment stack without leaving blank lines", async () => {
+  const h = await renderMonitors("monitors.cron", { multipleEnvironments: true }, 50);
+  try {
+    await h.waitForFrame(
+      (frame) => frame.includes("nightly-billing-rollup") && frame.includes("session-cleanup"),
+    );
+
+    const lines = h.frame().split("\n");
+    const nightly = lines.findIndex((line) => line.includes("nightly-billing-rollup"));
+    const cleanup = lines.findIndex((line) => line.includes("session-cleanup"));
+    expect(h.frame()).not.toContain("production");
+    expect(h.frame()).not.toContain("staging");
+    // Main line, detail line, then the next row's main line.
+    expect(cleanup - nightly).toBe(2);
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("a cron row with no monitor behind it draws the track, not a rail it waits on", async () => {
   const h = await renderMonitors("monitors.cron");
   try {
@@ -371,9 +434,14 @@ test("stats in flight draw the pending rail, and the row does not shift when the
     await settled.waitForFrame((f) => f.includes(CRON_GLYPHS.ok));
     const settledLine = lineFor(settled.frame(), "nightly-billing-rollup");
     // Same length, and the timeline starts at the same offset — the rail held
-    // the geometry the real row lands in.
+    // the geometry the real row lands in. Over a wide selected window several
+    // check-ins can fold into the first cell, so precedence may make its first
+    // glyph a failure rather than an okay check-in.
     expect(settledLine).toHaveLength(pendingLine.length);
-    expect(settledLine.indexOf(CRON_GLYPHS.ok)).toBe(pendingLine.indexOf(TIMELINE_PENDING_GLYPH));
+    const firstCheckIn = [...settledLine].findIndex((glyph) =>
+      Object.values(CRON_GLYPHS).includes(glyph),
+    );
+    expect(firstCheckIn).toBe(pendingLine.indexOf(TIMELINE_PENDING_GLYPH));
   } finally {
     await settled.cleanup();
   }

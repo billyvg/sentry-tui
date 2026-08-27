@@ -24,7 +24,8 @@ import { cronDay, uptimeDay } from "./timeline-fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 const WIDTH = 120;
-const HEIGHT = 34;
+/** Tall enough that the Details fields clear the open-period summary above them. */
+const HEIGHT = 36;
 
 interface StubOptions {
   openPeriods?: unknown;

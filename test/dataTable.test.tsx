@@ -67,6 +67,24 @@ const COLUMNS: ReadonlyArray<Column<Row>> = [
   },
 ];
 
+const VARIABLE_COLUMNS: ReadonlyArray<Column<Row>> = [
+  {
+    key: "name",
+    label: "Name",
+    width: "flex",
+    render: (row, _selected, width) => (
+      <box style={{ flexDirection: "column", width }}>
+        {Array.from({ length: Number(row.id) + 1 }, (_, line) => (
+          <text key={line} fg={theme.text}>
+            {padText(`${row.name}-line-${line}`, width)}
+          </text>
+        ))}
+      </box>
+    ),
+  },
+  COLUMNS[1]!,
+];
+
 function renderTable(
   props: Partial<Parameters<typeof DataTable<Row>>[0]>,
   { width = 140, height = 20 } = {},
@@ -141,6 +159,53 @@ describe("DataTable geometry", () => {
           starts: inkStarts(realLines[line]!),
         });
       }
+    }
+  });
+
+  test("rows can give their column cells different heights", async () => {
+    const clicks: Array<[number, string]> = [];
+    const h = await renderTable(
+      {
+        columns: VARIABLE_COLUMNS,
+        rowContentHeight: (row) => Number(row.id) + 1,
+        renderDetail: (row, _selected, width) => cell(`${row.name}-detail`, width),
+        onRowClick: (index, row) => clicks.push([index, row.name]),
+      },
+      { height: 30 },
+    );
+    try {
+      const frame = h.frame();
+      expect(frame).toContain("row-0-name-line-0");
+      expect(frame).toContain("row-3-name-line-3");
+      expect(frame).toContain("row-3-name-detail");
+      // Header + rule, ten column lines, and one detail line per row.
+      expect(inkLines(frame)).toHaveLength(2 + 10 + ROWS.length);
+
+      const lastLine = frame.split("\n").findIndex((line) => line.includes("row-3-name-line-3"));
+      await h.click(2, lastLine);
+      expect(clicks).toEqual([[3, "row-3-name"]]);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("a skeleton can reserve a multi-line column area", async () => {
+    const h = await renderTable(
+      {
+        rows: undefined,
+        loading: true,
+        skeletonRows: 2,
+        skeletonContentHeight: 3,
+        renderDetail: (row, _selected, width) => cell(row.name, width),
+      },
+      { height: 20 },
+    );
+    try {
+      // Header + rule, then two skeleton rows of three column lines and one
+      // detail line each.
+      expect(inkLines(h.frame())).toHaveLength(2 + 2 * 4);
+    } finally {
+      await h.cleanup();
     }
   });
 });
