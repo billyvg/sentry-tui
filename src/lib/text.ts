@@ -21,9 +21,24 @@ const OSC_SEQUENCE = /\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g;
 const ESCAPE_SEQUENCE = /\u001b(?:\[[0-9;?]*[ -/]*[@-~]|[@-Z\\-_])/g;
 /** Anything that would start a new line, including the Unicode separators. */
 const LINE_BREAK = /[\n\r\t\v\f\u0085\u2028\u2029]+/g;
-/** Everything else in C0 and DEL, which draw as nothing or as garbage. */
+/** Controls other than LF, plus Unicode separators that terminals may treat as line breaks. */
 // eslint-disable-next-line no-control-regex
-const CONTROL = /[\u0000-\u001f\u007f]/g;
+const NON_NEWLINE_CONTROL = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029]/g;
+/** C0, C1, DEL, and Unicode separators, which draw as nothing or as garbage. */
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+
+/** Remove terminal escape sequences without leaving their payload visible. */
+function stripEscapeSequences(text: string): string {
+  return text.replace(OSC_SEQUENCE, "").replace(ESCAPE_SEQUENCE, "");
+}
+
+/** Make multi-line text safe to draw while preserving intentional LF boundaries. */
+function sanitizeText(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (!/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029]/.test(text)) return text;
+  return stripEscapeSequences(text).replace(NON_NEWLINE_CONTROL, "");
+}
 
 /**
  * One line of printable text, whatever arrived.
@@ -37,12 +52,8 @@ const CONTROL = /[\u0000-\u001f\u007f]/g;
  */
 function sanitizeLine(text: string): string {
   // eslint-disable-next-line no-control-regex
-  if (!/[\u0000-\u001f\u007f\u0085\u2028\u2029]/.test(text)) return text;
-  return text
-    .replace(OSC_SEQUENCE, "")
-    .replace(ESCAPE_SEQUENCE, "")
-    .replace(LINE_BREAK, " ")
-    .replace(CONTROL, "");
+  if (!/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(text)) return text;
+  return stripEscapeSequences(text).replace(LINE_BREAK, " ").replace(CONTROL, "");
 }
 
 /**
@@ -82,7 +93,7 @@ export function wrapText(text: string, width: number): string[] {
   if (width <= 0) return [];
 
   const lines: string[] = [];
-  for (const paragraph of text.split("\n")) {
+  for (const paragraph of sanitizeText(text).split("\n")) {
     if (paragraph === "") {
       lines.push("");
       continue;
