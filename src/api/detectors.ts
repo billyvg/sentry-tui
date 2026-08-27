@@ -24,6 +24,8 @@
  * Read-only: nothing here enables, disables, or deletes a detector.
  */
 
+import { fetchPage_listOrganizationDetectors } from "@sentry/api";
+
 import type { Page, SentryClient } from "~/api/client";
 import { projectParams } from "~/api/projectParams";
 
@@ -332,16 +334,20 @@ export async function listDetectors(
     signal,
   }: ListDetectorsParams,
 ): Promise<Page<Detector[]>> {
-  return client.request<Detector[]>(`/organizations/${org}/detectors/`, {
-    query: {
-      query: query || undefined,
-      sortBy,
-      project: projectParams(project),
-      per_page: limit,
-      cursor,
+  const page = await fetchPage_listOrganizationDetectors(
+    {
+      ...client.generatedOptions(signal),
+      path: { organization_id_or_slug: org },
+      query: {
+        query: query || undefined,
+        sortBy,
+        project: projectParams(project),
+        per_page: limit,
+      },
     },
-    signal,
-  });
+    cursor,
+  );
+  return client.generatedPage({ ...page, data: detectorsFromResponse(page.data) });
 }
 
 /** Fetch one detector by id, for a monitor URL opened directly. */
@@ -461,15 +467,26 @@ export async function listDetectorsByIds(
 
   const pages = await Promise.all(
     chunks.map((chunk) =>
-      client
-        .request<Detector[]>(`/organizations/${org}/detectors/`, {
-          query: { id: chunk, per_page: MAX_DETECTORS_PER_REQUEST },
-          signal,
-        })
-        .then((page) => (Array.isArray(page.data) ? page.data : []))
+      fetchPage_listOrganizationDetectors({
+        ...client.generatedOptions(signal),
+        path: { organization_id_or_slug: org },
+        query: {
+          id: chunk.map(Number),
+          per_page: MAX_DETECTORS_PER_REQUEST,
+        },
+      })
+        .then((page) => detectorsFromResponse(page.data))
         .catch(() => [] as Detector[]),
     ),
   );
 
   return pages.flat();
+}
+
+/**
+ * Retain the richer nested detector fields that the generated response leaves
+ * open, while still rejecting a malformed non-array response at the boundary.
+ */
+function detectorsFromResponse(data: unknown): Detector[] {
+  return Array.isArray(data) ? (data as Detector[]) : [];
 }

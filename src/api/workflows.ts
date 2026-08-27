@@ -17,6 +17,8 @@
  * Read-only: nothing here enables, disables, or deletes a workflow.
  */
 
+import { fetchPage_listOrganizationWorkflows } from "@sentry/api";
+
 import type { Page, SentryClient } from "~/api/client";
 import { projectParams } from "~/api/projectParams";
 
@@ -169,17 +171,29 @@ export async function listWorkflows(
     signal,
   }: ListWorkflowsParams,
 ): Promise<Page<Workflow[]>> {
-  return client.request<Workflow[]>(`/organizations/${org}/workflows/`, {
-    query: {
-      detector,
-      query: query || undefined,
-      project: projectParams(project),
-      sortBy,
-      per_page: limit,
-      cursor,
+  const page = await fetchPage_listOrganizationWorkflows(
+    {
+      ...client.generatedOptions(signal),
+      path: { organization_id_or_slug: org },
+      query: {
+        detector: detector?.map(Number),
+        query: query || undefined,
+        project: projectParams(project),
+        sortBy,
+        per_page: limit,
+      },
     },
-    signal,
-  });
+    cursor,
+  );
+  return client.generatedPage({ ...page, data: workflowsFromResponse(page.data) });
+}
+
+/**
+ * Retain action details that the generated response leaves open, while still
+ * rejecting a malformed non-array response at the boundary.
+ */
+function workflowsFromResponse(data: unknown): Workflow[] {
+  return Array.isArray(data) ? (data as Workflow[]) : [];
 }
 
 // ---------------------------------------------------------------------------

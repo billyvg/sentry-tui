@@ -13,7 +13,7 @@
  * here can.
  */
 
-import { getOrganizationReplay } from "@sentry/api";
+import { fetchPage_listOrganizationReplays, getOrganizationReplay } from "@sentry/api";
 
 import { DEFAULT_BASE_URL, type SentryClient } from "~/api/client";
 import { queryDiscover, rowString, type DiscoverRow } from "~/api/discover";
@@ -203,11 +203,6 @@ export interface ListReplaysParams {
   signal?: AbortSignal;
 }
 
-/** Envelope the replay index returns. */
-interface ReplayIndexResponse {
-  data: unknown[];
-}
-
 /**
  * Fetch a page of the org's replays, newest first.
  *
@@ -227,22 +222,28 @@ export async function listReplays(
     signal,
   }: ListReplaysParams,
 ): Promise<{ data: Replay[]; nextCursor: string | null }> {
-  const page = await client.request<ReplayIndexResponse>(`/organizations/${org}/replays/`, {
-    query: {
-      field: [...REPLAY_FIELDS],
-      sort,
-      query: query || undefined,
-      statsPeriod,
-      per_page: limit,
-      cursor,
-      project: projectParams(project),
-      environment,
-      queryReferrer: "replayList",
+  const page = await fetchPage_listOrganizationReplays(
+    {
+      ...client.generatedOptions(signal),
+      path: { organization_id_or_slug: org },
+      query: {
+        field: [...REPLAY_FIELDS],
+        sort,
+        query: query || undefined,
+        statsPeriod,
+        per_page: limit,
+        project: projectParams(project),
+        environment,
+        queryReferrer: "replayList",
+      },
     },
-    signal,
-  });
+    cursor,
+  );
 
-  return { data: unwrapReplays(page.data).map(normalise), nextCursor: page.nextCursor };
+  return {
+    data: unwrapReplays(page.data).map(normalise),
+    nextCursor: page.nextCursor ?? null,
+  };
 }
 
 /** Fetch one replay by id, for a URL opened without first visiting the list. */
@@ -319,8 +320,8 @@ export function replayUrl(org: string, replayId: string): string {
  * Same defence `queryDiscover` applies to `events/`: the body is `{data: []}`,
  * but a bare array would otherwise reach the renderer as `undefined.map`.
  */
-function unwrapReplays(body: ReplayIndexResponse | unknown[] | undefined): RawReplay[] {
-  const rows = Array.isArray(body) ? body : body?.data;
+function unwrapReplays(body: unknown): RawReplay[] {
+  const rows = Array.isArray(body) ? body : isObject(body) ? body["data"] : undefined;
   return Array.isArray(rows) ? rows.filter(isObject) : [];
 }
 
