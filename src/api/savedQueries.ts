@@ -416,27 +416,6 @@ export function listSavedQueriesPage(
 }
 
 /**
- * A saved query's projects as the slugs the rest of the app filters by.
- *
- * Saved queries carry project *ids* while `FilterBar` and screen state speak
- * slugs. `-1` is Sentry's "all projects" sentinel, and an id with no slug means
- * the project list hasn't landed or the project is gone; both drop out,
- * because filtering on a number the app reads as a slug matches nothing at
- * all, and no filter is the honest fallback.
- *
- * @param slugById Slug per project id — build it from `useProjectSlugs`.
- */
-export function savedQueryProjectSlugs(
-  query: SavedQuery,
-  slugById: ReadonlyMap<string, string>,
-): string[] {
-  return query.projects
-    .filter((id) => id !== -1)
-    .map((id) => slugById.get(String(id)))
-    .filter((slug): slug is string => slug !== undefined);
-}
-
-/**
  * A query with no columns cannot be re-run and has nothing to show, so it is
  * dropped rather than rendered as an empty row.
  */

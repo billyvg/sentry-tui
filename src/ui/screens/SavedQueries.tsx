@@ -13,12 +13,7 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 
-import {
-  savedQueryListSort,
-  savedQueryProjectSlugs,
-  savedQuerySortOptions,
-  type SavedQuery,
-} from "~/api/savedQueries";
+import { savedQueryListSort, savedQuerySortOptions, type SavedQuery } from "~/api/savedQueries";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { savedQueryScreen, type SavedQueryScreenConfig } from "~/core/savedQueryScreens";
 import { useTheme } from "~/ui/theme";
@@ -30,7 +25,6 @@ import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { SortBar } from "~/ui/components/SortBar";
-import { useProjectSlugs } from "~/ui/hooks/useProjects";
 import { useSavedQueries } from "~/ui/hooks/useSavedQueries";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { rowsOf } from "~/ui/hooks/useScreenState";
@@ -164,14 +158,6 @@ export function SavedQueries(props: ScreenProps) {
   const loading = status.state === "loading";
   const since = loadingSince(status);
 
-  // Resolve only the ids carried by this page. `-1` is the all-projects
-  // sentinel, not a project the endpoint can look up.
-  const projectIds = useMemo(
-    () => queries?.flatMap((query) => query.projects.filter((id) => id !== -1).map(String)) ?? [],
-    [queries],
-  );
-  const slugById = useProjectSlugs(client, org, projectIds);
-
   useEffect(() => {
     if (queries) dispatch({ type: "setEntries", payload: queries });
   }, [queries, dispatch]);
@@ -191,9 +177,9 @@ export function SavedQueries(props: ScreenProps) {
   const open = useCallback(
     (index: number) => {
       const query = rowsOf<SavedQuery>(state)[index];
-      if (query) pushView(savedQueryResultsView(query, savedQueryProjectSlugs(query, slugById)));
+      if (query) pushView(savedQueryResultsView(query));
     },
-    [state, pushView, slugById],
+    [state, pushView],
   );
   useScreenActions(registerActions, { open });
 

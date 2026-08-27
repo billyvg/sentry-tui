@@ -4,6 +4,7 @@ import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { listDiscoverSavedQueries, listExploreSavedQueries } from "~/api/savedQueries";
 import { App } from "~/ui/App";
+import { savedQueryResultsView } from "~/ui/screens/SavedQueryResults";
 import { renderHarness } from "./helpers";
 import {
   rawDiscoverSavedQueriesFixture,
@@ -23,6 +24,8 @@ interface StubOptions {
   results?: unknown;
   /** Leave the current Explore saved-query request in flight. */
   hangExplore?: boolean;
+  /** Hold project-list requests until this promise resolves. */
+  projectsGate?: Promise<void>;
   /** Fail every saved-query request, whichever endpoint it went to. */
   failSaved?: boolean;
 }
@@ -33,6 +36,7 @@ function stubClient({
   discover = rawDiscoverSavedQueriesFixture,
   results = savedQueryResultRowsFixture,
   hangExplore = false,
+  projectsGate,
   failSaved = false,
 }: StubOptions = {}) {
   const urls: string[] = [];
@@ -54,7 +58,10 @@ function stubClient({
       }
       return json(url.includes("/explore/saved/") ? explore : discover);
     }
-    if (url.includes("/projects/")) return json(PROJECTS);
+    if (url.includes("/projects/")) {
+      if (projectsGate) await projectsGate;
+      return json(PROJECTS);
+    }
     if (url.includes("/events/")) return json({ data: results });
     return json([]);
   }) as unknown as typeof fetch;
@@ -201,6 +208,15 @@ test("a Discover search is sent as the endpoint's name: syntax", async () => {
   expect(query).toContain('version:2 name:"release"');
 });
 
+test("saved query results stringify project ids and drop the all-projects sentinel", async () => {
+  const { client } = stubClient();
+  const queries = await listExploreSavedQueries(client, { org: "acme" });
+  const billing = queries.find((query) => query.name === "Billing errors");
+
+  expect(billing).toBeDefined();
+  expect(savedQueryResultsView(billing!).initialState?.selectedProjects).toEqual(["42"]);
+});
+
 // ---------------------------------------------------------------------------
 // All Queries
 // ---------------------------------------------------------------------------
@@ -286,18 +302,43 @@ test("Enter runs the saved query and shows its own columns", async () => {
     // Its name labels the view.
     expect(frame).toContain("Slow checkout spans");
 
-    // The request carried the saved query's dataset, fields, sort and filters,
-    // with its project id resolved to the slug the rest of the app filters by.
-    const events = decodeURIComponent(urls.find((url) => url.includes("/events/")) ?? "");
+    // The request carried the saved query's dataset, fields, sort and filters.
+    // Numeric project ids stay authoritative on the wire.
+    const eventsUrl = urls.find((url) => url.includes("/events/"));
+    const events = decodeURIComponent(eventsUrl ?? "");
     expect(events).toContain("dataset=spans");
     expect(events).toContain("field=span.description");
     expect(events).toContain("sort=-span.duration");
     expect(events).toContain("query=span.op:http.client");
     expect(events).toContain("statsPeriod=24h");
-    expect(events).toContain("project=checkout");
+    expect(new URL(eventsUrl!).searchParams.getAll("project")).toEqual(["42"]);
     expect(events).not.toContain("project=remembered-default");
     expect(events).toContain("environment=production");
   } finally {
+    await h.cleanup();
+  }
+});
+
+test("a saved query opened before the project list lands keeps its filter", async () => {
+  let releaseProjects: (() => void) | undefined;
+  const projectsLanded = new Promise<void>((resolve) => {
+    releaseProjects = resolve;
+  });
+  const { client, urls } = stubClient({ projectsGate: projectsLanded });
+  const h = await renderAt(client, "explore.all-queries");
+
+  try {
+    await h.waitForFrame((f) => f.includes("Slow checkout spans"));
+
+    urls.length = 0;
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("POST /api/checkout"));
+
+    const eventsUrl = urls.find((url) => url.includes("/events/"));
+    expect(eventsUrl).toBeDefined();
+    expect(new URL(eventsUrl!).searchParams.getAll("project")).toEqual(["42"]);
+  } finally {
+    releaseProjects?.();
     await h.cleanup();
   }
 });

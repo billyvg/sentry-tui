@@ -42,6 +42,8 @@ interface StubOptions {
   status?: number;
   /** Rows `events/` returns when a query is run. */
   results?: unknown;
+  /** Hold project-list requests until this promise resolves. */
+  projectsGate?: Promise<void>;
   /** Make running a query fail, as a query over a dataset the org lost would. */
   failResults?: boolean;
 }
@@ -50,6 +52,7 @@ function stubClient({
   saved = rawExploreSavedQueriesFixture,
   status = 200,
   results = savedQueryResultRowsFixture,
+  projectsGate,
   failResults = false,
 }: StubOptions = {}) {
   const urls: string[] = [];
@@ -73,7 +76,10 @@ function stubClient({
       );
       return json(status === 200 ? rows : { detail: "nope" }, status);
     }
-    if (url.includes("/projects/")) return json(PROJECTS);
+    if (url.includes("/projects/")) {
+      if (projectsGate) await projectsGate;
+      return json(PROJECTS);
+    }
     if (url.includes("/events/")) {
       return failResults ? json({ detail: "unknown dataset" }, 400) : json({ data: results });
     }
@@ -149,15 +155,37 @@ test("selecting a starred query runs it, on the filters it was saved with", asyn
     // The list is not what's on screen — the results are.
     expect(frame).not.toContain("Saved Explore queries");
 
-    // Its own dataset, fields, sort, period and projects, with the project id
-    // resolved to the slug the rest of the app filters by.
-    const events = decodeURIComponent(urls.find((url) => url.includes("/events/")) ?? "");
+    // Its own dataset, fields, sort, period and numeric project refs.
+    const eventsUrl = urls.find((url) => url.includes("/events/"));
+    const events = decodeURIComponent(eventsUrl ?? "");
     expect(events).toContain("dataset=spans");
     expect(events).toContain("sort=-span.duration");
     expect(events).toContain("statsPeriod=24h");
-    expect(events).toContain("project=checkout");
+    expect(new URL(eventsUrl!).searchParams.getAll("project")).toEqual(["42"]);
     expect(events).toContain("environment=production");
   } finally {
+    await h.cleanup();
+  }
+});
+
+test("a starred query opened before the project list lands keeps its filter", async () => {
+  let releaseProjects: (() => void) | undefined;
+  const projectsLanded = new Promise<void>((resolve) => {
+    releaseProjects = resolve;
+  });
+  const { client, urls } = stubClient({ projectsGate: projectsLanded });
+  const h = await renderApp(client);
+
+  try {
+    await openExploreSidebar(h);
+    await selectFirstStarred(h);
+    await h.waitForFrame((f) => f.includes("POST /api/checkout"));
+
+    const eventsUrl = urls.find((url) => url.includes("/events/"));
+    expect(eventsUrl).toBeDefined();
+    expect(new URL(eventsUrl!).searchParams.getAll("project")).toEqual(["42"]);
+  } finally {
+    releaseProjects?.();
     await h.cleanup();
   }
 });

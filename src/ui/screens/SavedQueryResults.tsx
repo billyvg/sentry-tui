@@ -37,10 +37,13 @@ import type { DetailContext, ViewStackEntry } from "~/ui/screens/types";
  * A saved query's results, ready to push.
  *
  * @param query The row Enter was pressed on.
- * @param projectSlugs Its projects, already resolved from ids — the list
- *   screen has the mapping loaded, and this view has no business refetching it.
+ *   Its numeric project ids remain authoritative filter refs; only the `-1`
+ *   all-projects sentinel is removed. `FilterBar` resolves ids to slugs for
+ *   display without making the filter depend on the project list.
  */
-export function savedQueryResultsView(query: SavedQuery, projectSlugs: string[]): ViewStackEntry {
+export function savedQueryResultsView(query: SavedQuery): ViewStackEntry {
+  const projectRefs = query.projects.filter((id) => id !== -1).map(String);
+
   return {
     id: `saved-query:${query.source}:${query.id}`,
     label: query.name,
@@ -51,7 +54,7 @@ export function savedQueryResultsView(query: SavedQuery, projectSlugs: string[])
       query: query.query,
       sort: query.sort,
       statsPeriod: query.statsPeriod,
-      selectedProjects: projectSlugs,
+      selectedProjects: projectRefs,
       selectedEnvs: query.environment,
     },
     render: (ctx) =>
