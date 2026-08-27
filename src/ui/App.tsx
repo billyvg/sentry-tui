@@ -475,7 +475,7 @@ export function App({
         case "sentry.view.filterProject":
         case "sentry.view.filterEnv":
         case "sentry.view.filterDate": {
-          if (!isFilterBarMounted()) return;
+          if (!isFilterBarMounted(FILTER_COMMAND_DROPDOWN[commandId])) return;
           focus.focus("content");
           state.dispatch({
             type: "setOpenDropdown",

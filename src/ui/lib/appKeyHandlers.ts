@@ -3,7 +3,7 @@ import { matchesCommand } from "~/core/commands";
 import { TRIAGE_ACTIONS } from "~/core/triage";
 import type { NavGroup } from "~/core/nav";
 import { isDropdownMounted } from "~/ui/components/Dropdown";
-import { isFilterBarMounted, type FilterDropdownType } from "~/ui/components/FilterBar";
+import { isFilterBarMounted, type FilterKind } from "~/ui/components/FilterBar";
 import { isSortSelectorMounted } from "~/ui/components/SortSelector";
 import type { AppRegion, NavigationState } from "~/ui/hooks/useNavigation";
 import type { ScreenState } from "~/ui/hooks/useScreenState";
@@ -15,10 +15,10 @@ export const FILTER_COMMAND_DROPDOWN = {
   "sentry.view.filterProject": "project",
   "sentry.view.filterEnv": "env",
   "sentry.view.filterDate": "date",
-} as const satisfies Record<string, Exclude<FilterDropdownType, null>>;
+} as const satisfies Record<string, FilterKind>;
 
 const FILTER_COMMAND_ENTRIES = Object.entries(FILTER_COMMAND_DROPDOWN) as ReadonlyArray<
-  [keyof typeof FILTER_COMMAND_DROPDOWN, Exclude<FilterDropdownType, null>]
+  [keyof typeof FILTER_COMMAND_DROPDOWN, FilterKind]
 >;
 
 interface KeyFocus {
@@ -265,7 +265,7 @@ export function createGlobalCommandHandler({
     if (navigation.listActive && focus.focusedRef.current === "content") {
       for (const [commandId, which] of FILTER_COMMAND_ENTRIES) {
         if (!matchesCommand(commandId, key)) continue;
-        if (isFilterBarMounted()) {
+        if (isFilterBarMounted(which)) {
           state.dispatch({ type: "setOpenDropdown", payload: which });
         }
         return "mine";

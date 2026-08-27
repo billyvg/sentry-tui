@@ -70,6 +70,40 @@ function stubClient({
   return new SentryClient({ auth, fetchImpl, maxRetries: 0 });
 }
 
+/** Two workflow pages and the cursors requested from their endpoint. */
+function paginatedWorkflowClient() {
+  const cursors: Array<string | null> = [];
+  const secondPage = [
+    {
+      ...workflowsFixture[0]!,
+      id: "2001",
+      name: "Second-page alert",
+      detectorIds: [],
+    },
+  ];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    const json = (body: unknown, headers: Record<string, string> = {}) =>
+      new Response(JSON.stringify(body), {
+        headers: { "Content-Type": "application/json", ...headers },
+      });
+    if (url.pathname.endsWith("/workflows/")) {
+      const cursor = url.searchParams.get("cursor");
+      cursors.push(cursor);
+      const headers: Record<string, string> = {};
+      if (cursor === null) {
+        headers.Link =
+          '<https://sentry.io/api/0/organizations/acme/workflows/?cursor=next>; rel="next"; results="true"; cursor="next"';
+      }
+      return json(cursor === "next" ? secondPage : workflowsFixture, headers);
+    }
+    if (url.pathname.endsWith("/detectors/")) return json(workflowDetectorsFixture);
+    if (url.pathname.endsWith("/projects/")) return json(workflowProjectsFixture);
+    return json([]);
+  }) as unknown as typeof fetch;
+  return { client: new SentryClient({ auth, fetchImpl, maxRetries: 0 }), cursors };
+}
+
 /** Mount straight onto the screen, skipping the rail walk. */
 async function renderAlerts(client: SentryClient | null = stubClient(), width = WIDTH) {
   return renderHarness(
@@ -245,6 +279,50 @@ test("S changes the alert sort using workflow fields", async () => {
     );
 
     expect(h.frame()).toContain("S Name (A-Z)");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("P filters alerts by project while E and D remain ordinary keys", async () => {
+  const calls: string[] = [];
+  const h = await renderAlerts(stubClient({ calls }));
+  try {
+    await h.waitForFrame((frame) => frame.includes("Page on-call"));
+    expect(h.frame()).toContain("P all projects");
+
+    await h.press((input) => input.pressKey("P"));
+    await h.waitForFrame((frame) => frame.includes("─ Project "));
+    await h.press((input) => input.pressKey("j"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame(() =>
+      calls
+        .filter((url) => url.includes("/workflows/"))
+        .some((url) => new URL(url).searchParams.getAll("project").includes("backend")),
+    );
+    await h.pressEscape();
+
+    for (const key of ["E", "D"]) await h.press((input) => input.pressKey(key));
+    await h.press((input) => input.pressKey("?"));
+    expect(h.frame()).toContain("Keyboard");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("page keys follow the workflow cursor in both directions", async () => {
+  const { client, cursors } = paginatedWorkflowClient();
+  const h = await renderAlerts(client);
+  try {
+    await h.waitForFrame((frame) => frame.includes("Page on-call") && frame.includes("pgdn"));
+    await h.press((input) => input.pressKey("d", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("Second-page alert"));
+    expect(h.frame()).toContain("pgup");
+    expect(cursors).toEqual([null, "next"]);
+
+    await h.press((input) => input.pressKey("u", { ctrl: true }));
+    await h.waitForFrame((frame) => frame.includes("Page on-call"));
+    expect(cursors).toEqual([null, "next", null]);
   } finally {
     await h.cleanup();
   }
@@ -494,13 +572,13 @@ for (const { width, kept, shed } of [
 }
 
 /**
- * `P` / `E` / `D` must not be able to wedge the keyboard.
+ * Unsupported filter keys must not be able to wedge the keyboard.
  *
  * The router opens a filter dropdown for any list screen, and only a mounted
- * `Dropdown` closes one. This screen renders no filter row, so it closes the
- * dropdown itself — see the effect in `WorkflowList`.
+ * `Dropdown` closes one. Alerts mounts a project-only filter row, so its
+ * environment and date commands must remain ordinary no-ops.
  */
-for (const key of ["P", "E", "D"]) {
+for (const key of ["E", "D"]) {
   test(`${key} is a no-op on the alerts list, not a keyboard lock`, async () => {
     const h = await renderAlerts();
     try {

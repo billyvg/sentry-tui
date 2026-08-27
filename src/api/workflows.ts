@@ -18,6 +18,7 @@
  */
 
 import type { Page, SentryClient } from "~/api/client";
+import { projectParams } from "~/api/projectParams";
 
 /**
  * An action a workflow fires, as `ActionType` in
@@ -146,6 +147,8 @@ export interface ListWorkflowsParams {
   /** Free text, or `name:` / `action:` / `created_by:` — the endpoint's
    * `workflow_search_config` allows those three keys and free text on name. */
   query?: string;
+  /** Project ids or slugs. Empty means every accessible project. */
+  project?: string[];
   sortBy?: WorkflowSort;
   limit?: number;
   cursor?: string;
@@ -159,6 +162,7 @@ export async function listWorkflows(
     org,
     detector,
     query,
+    project,
     sortBy = DEFAULT_WORKFLOW_SORT,
     limit = WORKFLOWS_PAGE_SIZE,
     cursor,
@@ -169,6 +173,7 @@ export async function listWorkflows(
     query: {
       detector,
       query: query || undefined,
+      project: projectParams(project),
       sortBy,
       per_page: limit,
       cursor,
