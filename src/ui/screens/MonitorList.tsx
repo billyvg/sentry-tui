@@ -150,9 +150,9 @@ export function MonitorList(props: ScreenProps) {
       const row = rows?.[index];
       if (!row) return;
       const slug = row.projectId ? projectSlugs.get(row.projectId) : undefined;
-      pushView(monitorDetailView(row, slug ?? row.latestGroup?.project?.slug));
+      pushView(monitorDetailView(row, slug ?? row.latestGroup?.project?.slug, state.statsPeriod));
     },
-    [rows, pushView, projectSlugs],
+    [rows, pushView, projectSlugs, state.statsPeriod],
   );
   useScreenActions(props.registerActions, { open, nextPage, previousPage });
 

@@ -89,7 +89,8 @@ export function Section({
   /** The digit that folds this section, printed so the binding is discoverable. */
   index: number;
   title: string;
-  count?: number;
+  /** A total, or an honest qualified count such as `20 of 47` or `20+`. */
+  count?: number | string;
   collapsed: boolean;
   width: number;
   onToggle: () => void;

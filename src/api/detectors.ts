@@ -408,7 +408,7 @@ export interface ListOpenPeriodsParams {
  * `GET /organizations/{org}/open-periods/?detectorId=…`
  * (`workflow_engine/endpoints/organization_open_periods.py`). The endpoint
  * resolves the detector's *most recent* issue and answers that issue's
- * periods, so an empty list means "this monitor has not fired", not "no data".
+ * periods within the requested window.
  */
 export async function listDetectorOpenPeriods(
   client: SentryClient,

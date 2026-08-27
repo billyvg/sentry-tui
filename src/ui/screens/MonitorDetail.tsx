@@ -18,6 +18,7 @@ import { useEffect, useMemo } from "react";
 
 import type { SentryClient } from "~/api/client";
 import { fetchDetector, type Detector, type DetectorOpenPeriod } from "~/api/detectors";
+import { DEFAULT_STATS_PERIOD } from "~/api/issues";
 import { actionTypeLabel, workflowActionTypes, type Workflow } from "~/api/workflows";
 import { errorOf, valueOf, type AsyncStatus } from "~/core/async";
 import {
@@ -40,7 +41,11 @@ import {
   useSectionFolds,
 } from "~/ui/components/DetailSections";
 import type { Notice } from "~/ui/components/StatusBar";
-import { useDetectorOpenPeriods, useDetectorWorkflows } from "~/ui/hooks/useDetectorDetail";
+import {
+  useDetectorOpenPeriods,
+  useDetectorWorkflows,
+  type DetectorOpenPeriodsPage,
+} from "~/ui/hooks/useDetectorDetail";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useOrganizationMembers } from "~/ui/hooks/useOrganizationMembers";
 import { BOLD } from "~/ui/lib/attributes";
@@ -62,20 +67,33 @@ const SECTION_TITLES: Record<SectionKey, string> = {
  * A monitor's detail, ready to push.
  *
  * No `stateKey`: this is a static detail pane, not a screen — it has no cursor
- * of its own and no filters, so Escape pops it and the list underneath is
- * exactly where it was, cursor included.
+ * of its own. It captures the list's selected date window when pushed, and
+ * Escape leaves that list exactly where it was, cursor and filters included.
  *
  * @param detector The row Enter was pressed on. Complete as it stands — the
  *   list endpoint returns the same serializer the detail endpoint does — so
  *   the pane paints immediately and only fetches what a row never carried.
  * @param projectSlug Its project, already resolved from `projectId` by the
  *   list, which has the mapping loaded.
+ * @param statsPeriod Date window selected on the list; direct URL views use
+ *   Sentry's standard default.
  */
-export function monitorDetailView(detector: Detector, projectSlug?: string): ViewStackEntry {
+export function monitorDetailView(
+  detector: Detector,
+  projectSlug?: string,
+  statsPeriod = DEFAULT_STATS_PERIOD,
+): ViewStackEntry {
   return {
     id: `monitor:${detector.id}`,
     label: detector.name,
-    render: (ctx) => <MonitorDetail {...ctx} detector={detector} projectSlug={projectSlug} />,
+    render: (ctx) => (
+      <MonitorDetail
+        {...ctx}
+        detector={detector}
+        projectSlug={projectSlug}
+        statsPeriod={statsPeriod}
+      />
+    ),
   };
 }
 
@@ -135,6 +153,8 @@ function MonitorFromUrl({
 interface MonitorDetailProps extends DetailContext {
   detector: Detector;
   projectSlug?: string;
+  /** Window inherited from the monitor list's date filter. */
+  statsPeriod?: string;
 }
 
 export function MonitorDetail({
@@ -142,6 +162,7 @@ export function MonitorDetail({
   org,
   detector,
   projectSlug,
+  statsPeriod = DEFAULT_STATS_PERIOD,
   width,
   height,
   focused,
@@ -152,6 +173,7 @@ export function MonitorDetail({
   const periods = useDetectorOpenPeriods(client, {
     org,
     detectorId: detector.id,
+    statsPeriod,
     reloadToken,
   });
   const workflows = useDetectorWorkflows(client, { org, detectorId: detector.id, reloadToken });
@@ -175,12 +197,12 @@ export function MonitorDetail({
   );
   const { collapsed, toggle } = useSectionFolds(order, focused);
 
-  const periodRows = valueOf(periods);
+  const periodPage = valueOf(periods);
   const workflowRows = valueOf(workflows);
 
-  const counts: Partial<Record<SectionKey, number | undefined>> = {
+  const counts: Partial<Record<SectionKey, number | string | undefined>> = {
     config: undefined,
-    periods: periodRows?.length,
+    periods: openPeriodsCount(periodPage),
     alerts: workflowRows?.length,
   };
 
@@ -218,6 +240,7 @@ export function MonitorDetail({
             org={org}
             reloadToken={reloadToken}
             notify={notify}
+            statsPeriod={statsPeriod}
             periods={periods}
             workflows={workflows}
           />
@@ -318,6 +341,7 @@ function SectionBody({
   org,
   reloadToken,
   notify,
+  statsPeriod,
   periods,
   workflows,
 }: {
@@ -328,7 +352,8 @@ function SectionBody({
   org: string;
   reloadToken: number;
   notify: (notice: Notice) => void;
-  periods: AsyncStatus<DetectorOpenPeriod[]>;
+  statsPeriod: string;
+  periods: AsyncStatus<DetectorOpenPeriodsPage>;
   workflows: AsyncStatus<Workflow[]>;
 }) {
   switch (sectionKey) {
@@ -365,7 +390,7 @@ function SectionBody({
       );
 
     case "periods":
-      return <OpenPeriods status={periods} width={width} />;
+      return <OpenPeriods status={periods} statsPeriod={statsPeriod} width={width} />;
 
     case "alerts":
       return <ConnectedAlerts status={workflows} width={width} />;
@@ -378,31 +403,56 @@ function SectionBody({
 /**
  * When the monitor's issue was open, most recent first.
  *
- * The endpoint answers for the detector's *latest* issue, so an empty list
- * means the monitor has never fired rather than that a filter excluded
- * everything — which is why the empty copy says so.
+ * The endpoint answers for the detector's *latest* issue inside the inherited
+ * date window. Its cursor and `X-Hits` total are kept so the heading and
+ * summary distinguish a complete result from the first twenty rows.
  */
 function OpenPeriods({
   status,
+  statsPeriod,
   width,
 }: {
-  status: AsyncStatus<DetectorOpenPeriod[]>;
+  status: AsyncStatus<DetectorOpenPeriodsPage>;
+  statsPeriod: string;
   width: number;
 }) {
-  const rows = valueOf(status);
+  const page = valueOf(status);
   const error = errorOf(status);
 
   if (error) return <Empty>{`Failed to load open periods: ${error.message}`}</Empty>;
-  if (!rows) return <Empty>Loading open periods…</Empty>;
-  if (rows.length === 0) return <Empty>No open periods — this monitor has not fired.</Empty>;
+  if (!page) return <Empty>Loading open periods…</Empty>;
+  if (page.rows.length === 0) return <Empty>{`No open periods in the last ${statsPeriod}.`}</Empty>;
 
   return (
     <box style={{ flexDirection: "column", width }}>
-      {rows.map((period) => (
+      <Empty>{openPeriodsSummary(page, statsPeriod)}</Empty>
+      {page.rows.map((period) => (
         <OpenPeriodRow key={period.id} period={period} width={width} />
       ))}
     </box>
   );
+}
+
+/** Count shown in the section heading without presenting a capped page as a total. */
+function openPeriodsCount(page: DetectorOpenPeriodsPage | undefined): number | string | undefined {
+  if (!page) return undefined;
+  if (page.totalCount !== undefined && page.totalCount > page.rows.length) {
+    return `${page.rows.length} of ${page.totalCount}`;
+  }
+  return page.nextCursor === null ? page.rows.length : `${page.rows.length}+`;
+}
+
+/** Explain the selected window and exactly what the capped response omitted when possible. */
+function openPeriodsSummary(page: DetectorOpenPeriodsPage, statsPeriod: string): string {
+  const shown = page.rows.length;
+  const hidden = page.totalCount === undefined ? undefined : Math.max(0, page.totalCount - shown);
+  if (hidden && hidden > 0) {
+    return `Newest ${shown} in the last ${statsPeriod}; ${hidden} older not shown.`;
+  }
+  if (page.nextCursor !== null) {
+    return `Newest ${shown} in the last ${statsPeriod}; older periods not shown.`;
+  }
+  return `All ${shown} in the last ${statsPeriod}, newest first.`;
 }
 
 /** `#142  2026-08-20 09:00 → ongoing   4h`, in UTC like every other timestamp. */
