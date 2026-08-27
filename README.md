@@ -101,22 +101,6 @@ Use `--no-browser` to print the URL instead of opening one, and `SENTRY_URL` +
 `SENTRY_CLIENT_ID` to log in to a self-hosted install (needs Sentry ≥ 26.1.0 and
 a **public** OAuth application from Settings → Account → API → Applications).
 
-### Personal token instead
-
-Create one at <https://sentry.io/settings/account/api/auth-tokens/> with these
-scopes — the same set `login` requests:
-
-```
-org:read  project:read  event:read  event:write  member:read  team:read
-```
-
-```bash
-export SENTRY_AUTH_TOKEN=sntryu_…
-```
-
-Resolution order is `SENTRY_AUTH_TOKEN` → `SENTRY_TOKEN` → the credential file.
-Environment tokens are used exactly as given and never refreshed.
-
 ### Files
 
 | Path                                    | Holds                                           |
