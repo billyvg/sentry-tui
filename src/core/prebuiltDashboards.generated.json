@@ -1,0 +1,5868 @@
+{
+  "source": {
+    "repository": "https://github.com/getsentry/sentry",
+    "revision": "c8c670f927d1bae633f44289e43a49db8cfc294f",
+    "path": "static/app/views/dashboards/utils/prebuiltConfigs.tsx"
+  },
+  "dashboards": {
+    "1": {
+      "title": "Frontend Session Health",
+      "description": "Monitor browser session health by user and session.",
+      "widgets": [
+        {
+          "id": "issue-counts",
+          "title": "Issue Counts",
+          "displayType": "bar",
+          "widgetType": "issue",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["count(new_issues)", "count(resolved_issues)"],
+              "orderby": "",
+              "fields": ["count(new_issues)", "count(resolved_issues)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "issues",
+          "title": "Issues",
+          "displayType": "table",
+          "widgetType": "issue",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": ["issue", "project", "title"],
+              "aggregates": [],
+              "orderby": "",
+              "fields": ["issue", "project", "title"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "unhealthy-sessions",
+          "title": "Unhealthy Sessions",
+          "displayType": "line",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["unhealthy_rate(session)"],
+              "orderby": "",
+              "fields": ["unhealthy_rate(session)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "w": 3,
+            "h": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "user-health",
+          "title": "User Health",
+          "displayType": "area",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": [
+                "abnormal_rate(user)",
+                "crash_rate(user)",
+                "errored_rate(user)",
+                "unhandled_rate(user)"
+              ],
+              "orderby": "",
+              "fields": [
+                "abnormal_rate(user)",
+                "crash_rate(user)",
+                "errored_rate(user)",
+                "unhandled_rate(user)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 2,
+            "w": 3,
+            "h": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "session-health",
+          "title": "Session Health",
+          "displayType": "area",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": [
+                "abnormal_rate(session)",
+                "crash_rate(session)",
+                "errored_rate(session)",
+                "unhandled_rate(session)"
+              ],
+              "orderby": "",
+              "fields": [
+                "abnormal_rate(session)",
+                "crash_rate(session)",
+                "errored_rate(session)",
+                "unhandled_rate(session)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 5,
+            "w": 2,
+            "h": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "session-counts",
+          "title": "Session Counts",
+          "displayType": "line",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": ["session.status"],
+              "aggregates": ["sum(session)"],
+              "orderby": "",
+              "fields": ["session.status", "sum(session)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 5,
+            "w": 2,
+            "h": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "user-counts",
+          "title": "User Counts",
+          "displayType": "line",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": ["session.status"],
+              "aggregates": ["count_unique(user)"],
+              "orderby": "",
+              "fields": ["session.status", "count_unique(user)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 5,
+            "w": 2,
+            "h": 3,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "2": {
+      "title": "Queries",
+      "description": "Track database query throughput and duration, with per-query drill-downs.",
+      "widgets": [
+        {
+          "id": "throughput",
+          "title": "Queries Per Minute",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Queries Per Minute",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "x": 0,
+            "minH": 2
+          }
+        },
+        {
+          "id": "duration",
+          "title": "Average Duration",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Average Duration",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": [],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "x": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "queries-table",
+          "title": "Queries List",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": ["sentry.normalized_description"],
+              "aggregates": ["epm()", "avg(span.duration)", "sum(span.duration)"],
+              "orderby": "-sum(span.duration)",
+              "fields": [
+                "sentry.normalized_description",
+                "epm()",
+                "avg(span.duration)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": [
+                "Query Description",
+                "Queries Per Minute",
+                "Avg Duration",
+                "Time Spent"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 2,
+            "w": 6,
+            "h": 6,
+            "x": 0,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "3": {
+      "title": "Query Details",
+      "description": "",
+      "widgets": [
+        {
+          "id": "metrics-throughput",
+          "title": "Queries Per Minute",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Queries Per Minute",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "y": 0,
+            "x": 2,
+            "h": 1,
+            "w": 2,
+            "minH": 1
+          }
+        },
+        {
+          "id": "metrics-duration",
+          "title": "Average Duration",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Average Duration",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": [],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "",
+              "fields": ["avg(span.duration)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "y": 0,
+            "x": 0,
+            "h": 1,
+            "w": 2,
+            "minH": 1
+          }
+        },
+        {
+          "id": "metrics-time-spent",
+          "title": "Time Spent",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": [],
+              "aggregates": ["sum(span.duration)"],
+              "orderby": "",
+              "fields": ["sum(span.duration)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "y": 0,
+            "x": 4,
+            "h": 1,
+            "w": 2,
+            "minH": 1
+          }
+        },
+        {
+          "id": "example-query",
+          "title": "Example Query",
+          "description": "",
+          "displayType": "details",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": ["id", "span.op", "span.group", "span.description", "span.category"],
+              "aggregates": [],
+              "orderby": "id",
+              "fields": ["id", "span.op", "span.group", "span.description", "span.category"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "limit": 1,
+          "layout": {
+            "y": 1,
+            "x": 0,
+            "h": 2,
+            "w": 6,
+            "minH": 2
+          }
+        },
+        {
+          "id": "transactions-with-query",
+          "title": "Transactions with Query",
+          "description": "",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": ["transaction"],
+              "aggregates": ["epm()", "sum(span.duration)"],
+              "orderby": "-sum(span.duration)",
+              "fields": ["transaction", "epm()", "sum(span.duration)"],
+              "fieldAliases": ["Found In", "Queries Per Minute", "Time Spent"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "y": 5,
+            "x": 0,
+            "h": 2,
+            "w": 6,
+            "minH": 2
+          }
+        },
+        {
+          "id": "metrics-throughput-line",
+          "title": "Queries Per Minute",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Queries Per Minute",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "y": 3,
+            "x": 0,
+            "h": 2,
+            "w": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "metrics-duration-line",
+          "title": "Average Duration",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Average Duration",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": [],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "y": 3,
+            "x": 3,
+            "h": 2,
+            "w": 3,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "4": {
+      "title": "Outbound API Requests",
+      "description": "Track HTTP client request performance.",
+      "widgets": [
+        {
+          "id": "throughput-chart",
+          "title": "Requests Per Minute",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Requests Per Minute",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "duration-chart",
+          "title": "Average Duration",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Average Duration",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "response-codes-chart",
+          "title": "Response Codes (3XX, 4XX, 5XX)",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": [
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)",
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)"
+              ],
+              "orderby": "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+              "fields": [
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)",
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "domain-table",
+          "title": "Domains",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.client",
+              "columns": ["span.domain", "project"],
+              "aggregates": [
+                "epm()",
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)",
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)",
+                "avg(span.duration)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-sum(span.duration)",
+              "fields": [
+                "span.domain",
+                "project",
+                "epm()",
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)",
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)",
+                "avg(span.duration)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": [
+                "Domain",
+                "Project",
+                "Requests Per Minute",
+                "3XXs",
+                "4XXs",
+                "5XXs",
+                "Avg Duration",
+                "Time Spent"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "minH": 2,
+            "h": 4,
+            "w": 6
+          }
+        }
+      ]
+    },
+    "5": {
+      "title": "Domain Details",
+      "description": "",
+      "widgets": [
+        {
+          "id": "domain-widget",
+          "title": "Domain",
+          "displayType": "details",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.client",
+              "columns": ["id", "span.op", "span.group", "span.description", "span.category"],
+              "aggregates": [],
+              "orderby": "id",
+              "fields": ["id", "span.op", "span.group", "span.description", "span.category"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "minH": 1,
+            "h": 1,
+            "w": 6
+          }
+        },
+        {
+          "id": "throughput-big-number",
+          "title": "Requests Per Minute",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Requests Per Minute",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "duration-big-number",
+          "title": "Average Duration",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Average Duration",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "3xx-percentage-big-number",
+          "title": "3XX",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "3XX",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": [
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)"
+              ],
+              "orderby": "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+              "fields": [
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "4xx-percentage-big-number",
+          "title": "4XX",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "4XX",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": [
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)"
+              ],
+              "orderby": "equation|count_if(span.status_code,between,400,499) / count(span.duration)",
+              "fields": [
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "5xx-percentage-big-number",
+          "title": "5XX",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "5XX",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": [
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)"
+              ],
+              "orderby": "equation|count_if(span.status_code,between,500,599) / count(span.duration)",
+              "fields": [
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "time-spent-big-number",
+          "title": "Time Spent",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Time Spent",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": ["sum(span.duration)"],
+              "orderby": "sum(span.duration)",
+              "fields": ["sum(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 5,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "throughput-chart",
+          "title": "Requests Per Minute",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Requests Per Minute",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "duration-chart",
+          "title": "Average Duration",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Average Duration",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 2,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "response-codes-chart",
+          "title": "Response Codes (3XX, 4XX, 5XX)",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.client",
+              "columns": [],
+              "aggregates": [
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)",
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)"
+              ],
+              "orderby": "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+              "fields": [
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)",
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 2,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "transactions-table",
+          "title": "Transactions Making Requests to This Domain",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.client",
+              "columns": ["transaction"],
+              "aggregates": [
+                "epm()",
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)",
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)",
+                "avg(span.duration)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-sum(span.duration)",
+              "fields": [
+                "transaction",
+                "epm()",
+                "equation|count_if(span.status_code,between,300,399) / count(span.duration)",
+                "equation|count_if(span.status_code,between,400,499) / count(span.duration)",
+                "equation|count_if(span.status_code,between,500,599) / count(span.duration)",
+                "avg(span.duration)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": [
+                "Found In",
+                "Requests Per Minute",
+                "3XXs",
+                "4XXs",
+                "5XXs",
+                "Avg Duration",
+                "Time Spent"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 4,
+            "minH": 2,
+            "h": 5,
+            "w": 6
+          }
+        }
+      ]
+    },
+    "6": {
+      "title": "Web Vitals",
+      "description": "Track real-user Web Vitals, ranked by improvement opportunity.",
+      "widgets": [
+        {
+          "id": "score-breakdown-wheel",
+          "title": "Performance Score",
+          "description": "Tracks the overall performance rating of the pages in your selected project.",
+          "displayType": "wheel",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)",
+                "performance_score(measurements.score.total)",
+                "count_scores(measurements.score.total)",
+                "count_scores(measurements.score.lcp)",
+                "count_scores(measurements.score.fcp)",
+                "count_scores(measurements.score.inp)",
+                "count_scores(measurements.score.cls)",
+                "count_scores(measurements.score.ttfb)"
+              ],
+              "aggregates": [],
+              "orderby": "",
+              "fields": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)",
+                "performance_score(measurements.score.total)",
+                "count_scores(measurements.score.total)",
+                "count_scores(measurements.score.lcp)",
+                "count_scores(measurements.score.fcp)",
+                "count_scores(measurements.score.inp)",
+                "count_scores(measurements.score.cls)",
+                "count_scores(measurements.score.ttfb)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "limit": 1,
+          "layout": {
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "x": 0,
+            "minH": 2
+          }
+        },
+        {
+          "id": "score-breakdown-chart",
+          "title": "Score Breakdown",
+          "description": "Each Web Vital score contributes a different amount to the total score. Refer to the Performance Score wheel for total contribution.",
+          "displayType": "area",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)"
+              ],
+              "orderby": "",
+              "fields": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 0,
+            "w": 4,
+            "h": 2,
+            "x": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "lcp-p75-meter",
+          "title": "P75 Largest Contentful Paint",
+          "description": "Time to render the largest item in the viewport. Bad LCP frustrates users because the website feels slow to load.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": ["p75(browser.web_vital.lcp.value)"],
+              "orderby": "",
+              "fields": ["p75(browser.web_vital.lcp.value)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "x": 0,
+            "minH": 1
+          }
+        },
+        {
+          "id": "inp-p75-meter",
+          "title": "P75 Interaction to Next Paint",
+          "description": "Latency between user input and visual response. Bad INP makes users feel like the site is laggy, outdated, and unresponsive.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": ["p75(browser.web_vital.inp.value)"],
+              "orderby": "",
+              "fields": ["p75(browser.web_vital.inp.value)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "x": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "cls-p75-meter",
+          "title": "P75 Cumulative Layout Shift",
+          "description": "Measures content 'shifting' during load. Bad CLS indicates a janky website, degrading UX and trust.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": ["p75(browser.web_vital.cls.value)"],
+              "orderby": "",
+              "fields": ["p75(browser.web_vital.cls.value)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 3,
+            "w": 1,
+            "h": 1,
+            "x": 0,
+            "minH": 1
+          }
+        },
+        {
+          "id": "ttfb-p75-meter",
+          "title": "P75 Time to First Byte",
+          "description": "Time until first byte is delivered to the client. Bad TTFB makes the server feel unresponsive.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": ["p75(browser.web_vital.ttfb.value)"],
+              "orderby": "",
+              "fields": ["p75(browser.web_vital.ttfb.value)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 3,
+            "w": 1,
+            "h": 1,
+            "x": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "issues-table",
+          "title": "Web Vital Issues",
+          "displayType": "table",
+          "widgetType": "issue",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "issue.type:[web_vitals,performance_render_blocking_asset_span,performance_uncompressed_assets,performance_http_overhead,performance_consecutive_http,performance_n_plus_one_api_calls,performance_large_http_payload,performance_p95_endpoint_regression]",
+              "columns": ["issue", "assignee", "title"],
+              "aggregates": [],
+              "orderby": "date",
+              "fields": ["issue", "assignee", "title"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 2,
+            "w": 4,
+            "h": 2,
+            "x": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "pages-table",
+          "title": "Pages",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [
+                "transaction",
+                "project",
+                "count()",
+                "p75(browser.web_vital.lcp.value)",
+                "p75(browser.web_vital.fcp.value)",
+                "p75(browser.web_vital.cls.value)",
+                "p75(browser.web_vital.ttfb.value)",
+                "p75(browser.web_vital.inp.value)",
+                "performance_score(measurements.score.total)",
+                "opportunity_score(measurements.score.total)"
+              ],
+              "aggregates": [],
+              "orderby": "-opportunity_score(measurements.score.total)",
+              "fields": [
+                "transaction",
+                "project",
+                "count()",
+                "p75(browser.web_vital.lcp.value)",
+                "p75(browser.web_vital.fcp.value)",
+                "p75(browser.web_vital.cls.value)",
+                "p75(browser.web_vital.ttfb.value)",
+                "p75(browser.web_vital.inp.value)",
+                "performance_score(measurements.score.total)",
+                "opportunity_score(measurements.score.total)"
+              ],
+              "fieldAliases": [
+                "Pages",
+                "Project",
+                "Pageloads",
+                "LCP",
+                "FCP",
+                "CLS",
+                "TTFB",
+                "INP",
+                "Perf Score",
+                "Opportunity"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 4,
+            "w": 6,
+            "h": 6,
+            "x": 0,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "7": {
+      "title": "Web Vitals Page Summary",
+      "description": "",
+      "widgets": [
+        {
+          "id": "score-breakdown-chart",
+          "title": "Score Breakdown",
+          "description": "Each Web Vital score contributes a different amount to the total score. Refer to the Performance Score wheel for total contribution.",
+          "displayType": "area",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)"
+              ],
+              "orderby": "",
+              "fields": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 0,
+            "w": 5,
+            "h": 2,
+            "x": 0,
+            "minH": 2
+          }
+        },
+        {
+          "id": "score-breakdown-wheel",
+          "title": "Performance Score",
+          "description": "The overall performance rating of this page.",
+          "displayType": "wheel",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)",
+                "performance_score(measurements.score.total)",
+                "count_scores(measurements.score.total)",
+                "count_scores(measurements.score.lcp)",
+                "count_scores(measurements.score.fcp)",
+                "count_scores(measurements.score.inp)",
+                "count_scores(measurements.score.cls)",
+                "count_scores(measurements.score.ttfb)"
+              ],
+              "aggregates": [],
+              "orderby": "",
+              "fields": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)",
+                "performance_score(measurements.score.total)",
+                "count_scores(measurements.score.total)",
+                "count_scores(measurements.score.lcp)",
+                "count_scores(measurements.score.fcp)",
+                "count_scores(measurements.score.inp)",
+                "count_scores(measurements.score.cls)",
+                "count_scores(measurements.score.ttfb)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 0,
+            "w": 1,
+            "h": 2,
+            "x": 5,
+            "minH": 2
+          }
+        },
+        {
+          "id": "lcp-p75-meter",
+          "title": "P75 Largest Contentful Paint",
+          "description": "Time to render the largest item in the viewport. Bad LCP frustrates users because the website feels slow to load.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": ["p75(browser.web_vital.lcp.value)"],
+              "orderby": "",
+              "fields": ["p75(browser.web_vital.lcp.value)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "x": 0,
+            "minH": 1
+          }
+        },
+        {
+          "id": "inp-p75-meter",
+          "title": "P75 Interaction to Next Paint",
+          "description": "Latency between user input and visual response. Bad INP makes users feel like the site is laggy, outdated, and unresponsive.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": ["p75(browser.web_vital.inp.value)"],
+              "orderby": "",
+              "fields": ["p75(browser.web_vital.inp.value)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "x": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "cls-p75-meter",
+          "title": "P75 Cumulative Layout Shift",
+          "description": "Measures content 'shifting' during load. Bad CLS indicates a janky website, degrading UX and trust.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": ["p75(browser.web_vital.cls.value)"],
+              "orderby": "",
+              "fields": ["p75(browser.web_vital.cls.value)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 3,
+            "w": 1,
+            "h": 1,
+            "x": 0,
+            "minH": 1
+          }
+        },
+        {
+          "id": "ttfb-p75-meter",
+          "title": "P75 Time to First Byte",
+          "description": "Time until first byte is delivered to the client. Bad TTFB makes the server feel unresponsive.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [],
+              "aggregates": ["p75(browser.web_vital.ttfb.value)"],
+              "orderby": "",
+              "fields": ["p75(browser.web_vital.ttfb.value)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 3,
+            "w": 1,
+            "h": 1,
+            "x": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "issues-table",
+          "title": "Web Vital Issues",
+          "displayType": "table",
+          "widgetType": "issue",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "issue.type:[web_vitals,performance_render_blocking_asset_span,performance_uncompressed_assets,performance_http_overhead,performance_consecutive_http,performance_n_plus_one_api_calls,performance_large_http_payload,performance_p95_endpoint_regression]",
+              "columns": ["issue", "assignee", "title"],
+              "aggregates": [],
+              "orderby": "date",
+              "fields": ["issue", "assignee", "title"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 2,
+            "w": 3,
+            "h": 2,
+            "x": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "lcp-samples-table",
+          "title": "LCP Samples",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "has:browser.web_vital.lcp.value",
+              "columns": [
+                "project",
+                "trace",
+                "browser.web_vital.lcp.element",
+                "browser.web_vital.lcp.value",
+                "profile.id",
+                "replay.id",
+                "measurements.score.ratio.lcp",
+                "timestamp"
+              ],
+              "aggregates": [],
+              "orderby": "-timestamp",
+              "fields": [
+                "project",
+                "trace",
+                "browser.web_vital.lcp.element",
+                "browser.web_vital.lcp.value",
+                "profile.id",
+                "replay.id",
+                "measurements.score.ratio.lcp",
+                "timestamp"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 6,
+            "w": 5,
+            "h": 2,
+            "x": 0,
+            "minH": 2
+          }
+        },
+        {
+          "id": "inp-samples-table",
+          "title": "INP Samples",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "has:browser.web_vital.inp.value",
+              "columns": [
+                "project",
+                "trace",
+                "browser.web_vital.inp.value",
+                "profile.id",
+                "replay.id",
+                "measurements.score.ratio.inp",
+                "timestamp"
+              ],
+              "aggregates": [],
+              "orderby": "-timestamp",
+              "fields": [
+                "project",
+                "trace",
+                "browser.web_vital.inp.value",
+                "profile.id",
+                "replay.id",
+                "measurements.score.ratio.inp",
+                "timestamp"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 8,
+            "w": 5,
+            "h": 2,
+            "x": 0,
+            "minH": 2
+          }
+        },
+        {
+          "id": "cls-samples-table",
+          "title": "CLS Samples",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "has:browser.web_vital.cls.value",
+              "columns": [
+                "project",
+                "trace",
+                "browser.web_vital.cls.value",
+                "profile.id",
+                "replay.id",
+                "measurements.score.ratio.cls",
+                "timestamp"
+              ],
+              "aggregates": [],
+              "orderby": "-timestamp",
+              "fields": [
+                "project",
+                "trace",
+                "browser.web_vital.cls.value",
+                "profile.id",
+                "replay.id",
+                "measurements.score.ratio.cls",
+                "timestamp"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 10,
+            "w": 5,
+            "h": 2,
+            "x": 0,
+            "minH": 2
+          }
+        },
+        {
+          "id": "pageloads-chart",
+          "title": "Pageloads",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:pageload",
+              "columns": [],
+              "aggregates": ["count()"],
+              "orderby": "",
+              "fields": ["count()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 2,
+            "w": 1,
+            "h": 2,
+            "x": 5,
+            "minH": 2
+          }
+        },
+        {
+          "id": "interactions-chart",
+          "title": "Interactions",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press]",
+              "columns": [],
+              "aggregates": ["count()"],
+              "orderby": "",
+              "fields": ["count()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "y": 4,
+            "w": 1,
+            "h": 2,
+            "x": 5,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "8": {
+      "title": "Mobile Vitals",
+      "description": "Track key mobile performance metrics, including Time-to-Initial-Display.",
+      "widgets": [
+        {
+          "id": "cold-start-big-number",
+          "title": "Average Cold App Start",
+          "description": "Average cold app start duration",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.start.cold.value)"],
+              "orderby": "",
+              "fields": ["avg(app.vitals.start.cold.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "warm-start-big-number",
+          "title": "Average Warm App Start",
+          "description": "Average warm app start duration",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.start.warm.value)"],
+              "orderby": "",
+              "fields": ["avg(app.vitals.start.warm.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 1,
+            "y": 0,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "avg-ttid-big-number",
+          "title": "Average TTID",
+          "description": "Average time to initial display",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttid.value OR span.op:ui.load.initial_display has:app.vitals.ttid.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.ttid.value)"],
+              "orderby": "",
+              "fields": ["avg(app.vitals.ttid.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 2,
+            "y": 0,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "avg-ttfd-big-number",
+          "title": "Average TTFD",
+          "description": "Average time to full display",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttfd.value OR span.op:ui.load.full_display has:app.vitals.ttfd.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.ttfd.value)"],
+              "orderby": "",
+              "fields": ["avg(app.vitals.ttfd.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 3,
+            "y": 0,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "slow-frame-rate-big-number",
+          "title": "Slow Frame Rate",
+          "description": "Percentage of slow frames across screen load transactions, calculated as total slow frames divided by total frames.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.frames.total.count",
+              "columns": [],
+              "aggregates": [
+                "sum(app.vitals.frames.slow.count)",
+                "sum(app.vitals.frames.total.count)",
+                "equation|sum(app.vitals.frames.slow.count) / sum(app.vitals.frames.total.count)"
+              ],
+              "orderby": "",
+              "fields": [
+                "sum(app.vitals.frames.slow.count)",
+                "sum(app.vitals.frames.total.count)",
+                "equation|sum(app.vitals.frames.slow.count) / sum(app.vitals.frames.total.count)"
+              ],
+              "selectedAggregate": 2
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 0,
+            "y": 1,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "frozen-frame-rate-big-number",
+          "title": "Frozen Frame Rate",
+          "description": "Percentage of frozen frames across screen load transactions, calculated as total frozen frames divided by total frames.",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.frames.total.count",
+              "columns": [],
+              "aggregates": [
+                "sum(app.vitals.frames.frozen.count)",
+                "sum(app.vitals.frames.total.count)",
+                "equation|sum(app.vitals.frames.frozen.count) / sum(app.vitals.frames.total.count)"
+              ],
+              "orderby": "",
+              "fields": [
+                "sum(app.vitals.frames.frozen.count)",
+                "sum(app.vitals.frames.total.count)",
+                "equation|sum(app.vitals.frames.frozen.count) / sum(app.vitals.frames.total.count)"
+              ],
+              "selectedAggregate": 2
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "avg-frame-delay-big-number",
+          "title": "Average Frame Delay",
+          "description": "Average frame delay",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.frames.total.count",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.frames.delay.value)"],
+              "orderby": "",
+              "fields": ["avg(app.vitals.frames.delay.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 2,
+            "y": 1,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "crash-free-session-rate-big-number",
+          "title": "Crash Free Session Rate",
+          "description": "Percentage of sessions that did not crash. Based on session data, so span filters do not apply.",
+          "displayType": "big_number",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["crash_free_rate(session)"],
+              "orderby": "",
+              "fields": ["crash_free_rate(session)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 3,
+            "y": 1,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "about-this-page-text",
+          "title": "About this page",
+          "description": "Top-level metrics show your app's health. When one looks off, use the tables below to find the screens responsible, then drill in to investigate.\n\nApp start metrics only count launches that open the app UI, not background starts.\n\nSee the [Mobile Vitals docs](https://docs.sentry.io/product/insights/mobile/mobile-vitals/) for more information.",
+          "displayType": "text",
+          "queries": [],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "app-start-table",
+          "title": "App Starts",
+          "description": "",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "((is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value) OR (is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)) has:transaction",
+              "columns": ["transaction"],
+              "aggregates": [
+                "avg(app.vitals.start.cold.value)",
+                "avg(app.vitals.start.warm.value)",
+                "count_unique(transaction.span_id)"
+              ],
+              "orderby": "-count_unique(transaction.span_id)",
+              "fields": [
+                "transaction",
+                "avg(app.vitals.start.cold.value)",
+                "avg(app.vitals.start.warm.value)",
+                "count_unique(transaction.span_id)"
+              ],
+              "fieldAliases": ["Screen", "Avg Cold Start", "Avg Warm Start", "Screen Loads"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 3,
+            "x": 0,
+            "y": 2,
+            "w": 6,
+            "minH": 2
+          }
+        },
+        {
+          "id": "screen-load-table",
+          "title": "Screen Loads",
+          "description": "",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "((is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttid.value OR span.op:ui.load.initial_display has:app.vitals.ttid.value) OR (is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttfd.value OR span.op:ui.load.full_display has:app.vitals.ttfd.value)) has:transaction",
+              "columns": ["transaction"],
+              "aggregates": [
+                "avg(app.vitals.ttid.value)",
+                "avg(app.vitals.ttfd.value)",
+                "count_unique(transaction.span_id)"
+              ],
+              "orderby": "-count_unique(transaction.span_id)",
+              "fields": [
+                "transaction",
+                "avg(app.vitals.ttid.value)",
+                "avg(app.vitals.ttfd.value)",
+                "count_unique(transaction.span_id)"
+              ],
+              "fieldAliases": ["Screen", "Avg TTID", "Avg TTFD", "Screen Loads"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 3,
+            "x": 0,
+            "y": 5,
+            "w": 6,
+            "minH": 2
+          }
+        },
+        {
+          "id": "screen-rendering-table",
+          "title": "Screen Rendering",
+          "description": "Frame rates are weighted across screen load transactions using total frame counts.",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.frames.total.count has:transaction",
+              "columns": ["transaction"],
+              "aggregates": [
+                "equation|sum(app.vitals.frames.slow.count)/sum(app.vitals.frames.total.count)",
+                "equation|sum(app.vitals.frames.frozen.count)/sum(app.vitals.frames.total.count)",
+                "count_unique(transaction.span_id)"
+              ],
+              "orderby": "-count_unique(transaction.span_id)",
+              "fields": [
+                "transaction",
+                "equation|sum(app.vitals.frames.slow.count)/sum(app.vitals.frames.total.count)",
+                "equation|sum(app.vitals.frames.frozen.count)/sum(app.vitals.frames.total.count)",
+                "count_unique(transaction.span_id)"
+              ],
+              "fieldAliases": ["Transaction", "Slow Frame %", "Frozen Frame %", "Screen Loads"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 3,
+            "x": 0,
+            "y": 8,
+            "w": 6,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "9": {
+      "title": "Mobile Vitals App Starts",
+      "description": "",
+      "widgets": [
+        {
+          "id": "avg-cold-starts-big-number",
+          "title": "Average Cold Start",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.start.cold.value)"],
+              "orderby": "",
+              "fields": ["avg(app.vitals.start.cold.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "avg-warm-starts-big-number",
+          "title": "Average Warm Start",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.start.warm.value)"],
+              "orderby": "",
+              "fields": ["avg(app.vitals.start.warm.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 3,
+            "y": 0,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "total-cold-start-count-big-number",
+          "title": "Cold Start Count",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "columns": [],
+              "aggregates": ["count_unique(transaction.span_id)"],
+              "orderby": "",
+              "fields": ["count_unique(transaction.span_id)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 1,
+            "y": 0,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "total-warm-start-count-big-number",
+          "title": "Warm Start Count",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "columns": [],
+              "aggregates": ["count_unique(transaction.span_id)"],
+              "orderby": "",
+              "fields": ["count_unique(transaction.span_id)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 4,
+            "y": 0,
+            "w": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "avg-cold-start-line",
+          "title": "Average Cold Start",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.start.cold.value)"],
+              "orderby": "-avg(app.vitals.start.cold.value)",
+              "fields": ["avg(app.vitals.start.cold.value)"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 0,
+            "y": 1,
+            "w": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "avg-warm-start-line",
+          "title": "Average Warm Start",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.start.warm.value)"],
+              "orderby": "-avg(app.vitals.start.warm.value)",
+              "fields": ["avg(app.vitals.start.warm.value)"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 3,
+            "y": 1,
+            "w": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "cold-start-device-distribution-bar",
+          "title": "Cold Start Device Distribution",
+          "description": "",
+          "displayType": "categorical_bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "columns": ["device.class"],
+              "aggregates": ["avg(app.vitals.start.cold.value)"],
+              "orderby": "device.class",
+              "fields": ["device.class", "avg(app.vitals.start.cold.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 0,
+            "y": 3,
+            "w": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "warm-start-device-distribution-bar",
+          "title": "Warm Start Device Distribution",
+          "description": "",
+          "displayType": "categorical_bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "columns": ["device.class"],
+              "aggregates": ["avg(app.vitals.start.warm.value)"],
+              "orderby": "device.class",
+              "fields": ["device.class", "avg(app.vitals.start.warm.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 3,
+            "y": 3,
+            "w": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "cold-operations-table",
+          "title": "Cold Start Operations",
+          "description": "",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(!span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\" has:span.description transaction.op:[ui.load,navigation] has:ttid app_start_type:cold span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load] OR !is_transaction:true ((has:span.description !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\") OR (has:span.name !span.name:\"Cold Start\" !span.name:\"Warm Start\" !span.name:\"Cold App Start\" !span.name:\"Warm App Start\" !span.name:\"Initial Frame Render\")) app.vitals.start.type:cold span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load])",
+              "columns": ["span.op", "span.name", "span.description"],
+              "aggregates": ["avg(span.self_time)"],
+              "orderby": "-avg(span.self_time)",
+              "fields": ["span.op", "span.name", "span.description", "avg(span.self_time)"],
+              "fieldAliases": ["Operation", "Span Name", "Span Description", "Avg"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 6,
+            "x": 0,
+            "y": 5,
+            "w": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "warm-operations-table",
+          "title": "Warm Start Operations",
+          "description": "",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(!span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\" has:span.description transaction.op:[ui.load,navigation] has:ttid app_start_type:warm span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load] OR !is_transaction:true ((has:span.description !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\") OR (has:span.name !span.name:\"Cold Start\" !span.name:\"Warm Start\" !span.name:\"Cold App Start\" !span.name:\"Warm App Start\" !span.name:\"Initial Frame Render\")) app.vitals.start.type:warm span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load])",
+              "columns": ["span.op", "span.name", "span.description"],
+              "aggregates": ["avg(span.self_time)"],
+              "orderby": "-avg(span.self_time)",
+              "fields": ["span.op", "span.name", "span.description", "avg(span.self_time)"],
+              "fieldAliases": ["Operation", "Span Name", "Span Description", "Avg"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 6,
+            "x": 3,
+            "y": 5,
+            "w": 3,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "10": {
+      "title": "Mobile Vitals Screen Loads",
+      "description": "",
+      "widgets": [
+        {
+          "id": "avg-ttid-big-number",
+          "title": "Average TTID",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttid.value OR span.op:ui.load.initial_display has:app.vitals.ttid.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.ttid.value)"],
+              "orderby": "",
+              "fields": ["avg(app.vitals.ttid.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "minH": 1
+          }
+        },
+        {
+          "id": "avg-ttfd-big-number",
+          "title": "Average TTFD",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttfd.value OR span.op:ui.load.full_display has:app.vitals.ttfd.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.ttfd.value)"],
+              "orderby": "",
+              "fields": ["avg(app.vitals.ttfd.value)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "minH": 1
+          }
+        },
+        {
+          "id": "total-count-big-number",
+          "title": "Total Count",
+          "description": "",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "((is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttid.value OR span.op:ui.load.initial_display has:app.vitals.ttid.value) OR (is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttfd.value OR span.op:ui.load.full_display has:app.vitals.ttfd.value))",
+              "columns": [],
+              "aggregates": ["count_unique(transaction.span_id)"],
+              "orderby": "",
+              "fields": ["count_unique(transaction.span_id)"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 1,
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "minH": 1
+          }
+        },
+        {
+          "id": "average-ttid-line",
+          "title": "Average TTID",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "TTID",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttid.value OR span.op:ui.load.initial_display has:app.vitals.ttid.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.ttid.value)"],
+              "orderby": "avg(app.vitals.ttid.value)",
+              "fields": ["avg(app.vitals.ttid.value)"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 0,
+            "y": 1,
+            "w": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "average-ttfd-line",
+          "title": "Average TTFD",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "TTFD",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttfd.value OR span.op:ui.load.full_display has:app.vitals.ttfd.value)",
+              "columns": [],
+              "aggregates": ["avg(app.vitals.ttfd.value)"],
+              "orderby": "avg(app.vitals.ttfd.value)",
+              "fields": ["avg(app.vitals.ttfd.value)"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 2,
+            "y": 1,
+            "w": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "total-count-line",
+          "title": "Total Count",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "((is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttid.value OR span.op:ui.load.initial_display has:app.vitals.ttid.value) OR (is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttfd.value OR span.op:ui.load.full_display has:app.vitals.ttfd.value))",
+              "columns": [],
+              "aggregates": ["count_unique(transaction.span_id)"],
+              "orderby": "count_unique(transaction.span_id)",
+              "fields": ["count_unique(transaction.span_id)"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 4,
+            "y": 1,
+            "w": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "ttid-device-class-bar",
+          "title": "TTID by Device Class",
+          "description": "",
+          "displayType": "categorical_bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttid.value OR span.op:ui.load.initial_display has:app.vitals.ttid.value)",
+              "columns": ["device.class"],
+              "aggregates": ["avg(app.vitals.ttid.value)"],
+              "orderby": "device.class",
+              "fields": ["device.class", "avg(app.vitals.ttid.value)"],
+              "fieldAliases": ["Device Class", "AVG TTID"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 0,
+            "y": 3,
+            "w": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "ttfd-device-class-bar",
+          "title": "TTFD by Device Class",
+          "description": "",
+          "displayType": "categorical_bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.ttfd.value OR span.op:ui.load.full_display has:app.vitals.ttfd.value)",
+              "columns": ["device.class"],
+              "aggregates": ["avg(app.vitals.ttfd.value)"],
+              "orderby": "device.class",
+              "fields": ["device.class", "avg(app.vitals.ttfd.value)"],
+              "fieldAliases": ["Device Class", "AVG TTFD"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 2,
+            "x": 2,
+            "y": 3,
+            "w": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "span-operations-table",
+          "title": "Span Operations",
+          "description": "",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "transaction.op:[ui.load,navigation] (has:span.description OR has:span.name) span.op:[file.read,file.write,ui.load,navigation,http.client,db,db.sql.room,db.sql.query,db.sql.transaction]",
+              "columns": ["span.op", "span.name", "span.description"],
+              "aggregates": [
+                "equation|ttid_contribution_rate()",
+                "equation|ttfd_contribution_rate()",
+                "avg(span.self_time)",
+                "sum(span.self_time)"
+              ],
+              "orderby": "-sum(span.self_time)",
+              "fields": [
+                "span.op",
+                "span.name",
+                "span.description",
+                "equation|ttid_contribution_rate()",
+                "equation|ttfd_contribution_rate()",
+                "avg(span.self_time)",
+                "sum(span.self_time)"
+              ],
+              "fieldAliases": [
+                "Operation",
+                "Span Name",
+                "Span Description",
+                "TTID Contribution Rate",
+                "TTFD Contribution Rate",
+                "Avg Self Time",
+                "Total Time Spent"
+              ]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 4,
+            "x": 0,
+            "y": 5,
+            "w": 6,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "11": {
+      "title": "Mobile Vitals Screen Rendering",
+      "description": "",
+      "widgets": [
+        {
+          "id": "span-operations-table",
+          "title": "Span Operations",
+          "description": "",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "!is_transaction:true has:app.vitals.frames.total.count has:span.op",
+              "columns": ["span.op", "span.name", "span.description"],
+              "aggregates": [
+                "equation|sum(app.vitals.frames.slow.count)/sum(app.vitals.frames.total.count)",
+                "equation|sum(app.vitals.frames.frozen.count)/sum(app.vitals.frames.total.count)",
+                "avg(app.vitals.frames.delay.value)"
+              ],
+              "orderby": "-avg(app.vitals.frames.delay.value)",
+              "fields": [
+                "span.op",
+                "span.name",
+                "span.description",
+                "equation|sum(app.vitals.frames.slow.count)/sum(app.vitals.frames.total.count)",
+                "equation|sum(app.vitals.frames.frozen.count)/sum(app.vitals.frames.total.count)",
+                "avg(app.vitals.frames.delay.value)"
+              ],
+              "fieldAliases": [
+                "Operation",
+                "Span Name",
+                "Span Description",
+                "Slow Frame %",
+                "Frozen Frame %",
+                "Delay"
+              ]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "h": 7,
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "12": {
+      "title": "Backend Overview",
+      "description": "Monitor backend services and dependencies, including caches and queues.",
+      "widgets": [
+        {
+          "id": "requests-widget",
+          "title": "Requests",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Requests",
+              "conditions": "span.op:http.server",
+              "columns": [],
+              "aggregates": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ],
+              "orderby": "count(span.duration)",
+              "fields": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "limit": 5,
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "api-latency-widget",
+          "title": "API Latency",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.server",
+              "columns": [],
+              "aggregates": ["avg(span.duration)", "p95(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)", "p95(span.duration)"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "issue-counts",
+          "title": "Issue Counts",
+          "displayType": "bar",
+          "widgetType": "issue",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["count(new_issues)", "count(resolved_issues)"],
+              "orderby": "",
+              "fields": ["count(new_issues)", "count(resolved_issues)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "jobs-chart",
+          "title": "Jobs",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:queue.process",
+              "columns": [],
+              "aggregates": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ],
+              "orderby": "count(span.duration)",
+              "fields": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "queries-by-time-spent-chart",
+          "title": "Queries by Time Spent",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": ["sentry.normalized_description"],
+              "aggregates": ["p75(span.duration)"],
+              "orderby": "-sum(span.duration)",
+              "fields": ["sentry.normalized_description", "p75(span.duration)"],
+              "fieldAliases": [""]
+            }
+          ],
+          "interval": "5m",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "cache-miss-rates-chart",
+          "title": "Cache Miss Rates",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[cache.get,cache.get_item]",
+              "columns": ["transaction"],
+              "aggregates": ["equation|count_if(cache.hit,equals,false) / count(span.duration)"],
+              "orderby": "-equation|count_if(cache.hit,equals,false) / count(span.duration)",
+              "fields": ["equation|count_if(cache.hit,equals,false) / count(span.duration)"],
+              "fieldAliases": [""]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "backend-overview-transactions-table",
+          "title": "Transactions",
+          "description": "",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "( ( !span.op:pageload !span.op:navigation !span.op:ui.render !span.op:interaction !span.op:ui.action.swipe !span.op:ui.action.scroll !span.op:ui.action.click !span.op:ui.action !span.op:ui.load !span.op:app.lifecycle !span.op:ui.interaction !span.op:ui.interaction.click !span.op:ui.interaction.hover !span.op:ui.interaction.drag !span.op:ui.interaction.press !span.op:ui.webvital.cls !span.op:ui.webvital.lcp !span.op:ui.webvital.fcp ) OR ( span.op:http.server ) ) is_transaction:true",
+              "columns": [
+                "is_starred_transaction",
+                "request.method",
+                "transaction",
+                "span.op",
+                "project"
+              ],
+              "aggregates": [
+                "epm()",
+                "p50(span.duration)",
+                "p95(span.duration)",
+                "equation|failure_count() / count(span.duration)",
+                "count_unique(user)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-sum(span.duration)",
+              "fields": [
+                "is_starred_transaction",
+                "request.method",
+                "transaction",
+                "span.op",
+                "project",
+                "epm()",
+                "p50(span.duration)",
+                "p95(span.duration)",
+                "equation|failure_count() / count(span.duration)",
+                "count_unique(user)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": [
+                "",
+                "HTTP Method",
+                "Transaction",
+                "Operation",
+                "Project",
+                "TPM",
+                "P50",
+                "P95",
+                "Failure rate",
+                "Users",
+                "Time Spent"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "w": 6,
+            "h": 6,
+            "minH": 2,
+            "y": 7
+          }
+        }
+      ]
+    },
+    "13": {
+      "title": "Mobile Session Health",
+      "description": "Monitor mobile session health by user and session.",
+      "widgets": [
+        {
+          "id": "crash-free-sessions",
+          "title": "Crash Free Sessions",
+          "displayType": "big_number",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["crash_free_rate(session)"],
+              "orderby": "",
+              "fields": ["crash_free_rate(session)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "crash-free-users",
+          "title": "Crash Free Users",
+          "displayType": "big_number",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["crash_free_rate(user)"],
+              "orderby": "",
+              "fields": ["crash_free_rate(user)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "anr-rate",
+          "title": "ANR / App Hang Rate",
+          "displayType": "big_number",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["anr_rate()"],
+              "orderby": "",
+              "fields": ["anr_rate()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "crash-free-session-line-chart",
+          "title": "Crash Free Sessions",
+          "displayType": "line",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["crash_free_rate(session)"],
+              "orderby": "",
+              "fields": ["crash_free_rate(session)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 1,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "crash-free-user-line-chart",
+          "title": "Crash Free Users",
+          "displayType": "line",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["crash_free_rate(user)"],
+              "orderby": "",
+              "fields": ["crash_free_rate(user)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 1,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "issue-counts",
+          "title": "Issue Counts",
+          "displayType": "bar",
+          "widgetType": "issue",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["count(new_issues)", "count(resolved_issues)"],
+              "orderby": "",
+              "fields": ["count(new_issues)", "count(resolved_issues)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 4,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "total-sessions",
+          "title": "Total Sessions",
+          "displayType": "line",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["sum(session)"],
+              "orderby": "",
+              "fields": ["sum(session)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 4,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "crash-rate-table",
+          "title": "Crash Free Rate by Project",
+          "displayType": "table",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": ["project"],
+              "aggregates": ["crash_free_rate(session)"],
+              "orderby": "crash_free_rate(session)",
+              "fields": ["project", "crash_free_rate(session)"],
+              "fieldAliases": ["Project", "Crash Free Rate"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 6,
+            "w": 6,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "release-table",
+          "title": "Releases",
+          "displayType": "table",
+          "widgetType": "metrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": ["project", "release"],
+              "aggregates": ["crash_free_rate(session)", "sum(session)"],
+              "orderby": "-release",
+              "fields": ["project", "release", "crash_free_rate(session)", "sum(session)"],
+              "fieldAliases": ["Project", "Release", "Crash Free Rate", "Total Sessions"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 8,
+            "w": 6,
+            "h": 3,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "14": {
+      "title": "Frontend Overview",
+      "description": "Monitor frontend errors and performance telemetry.",
+      "widgets": [
+        {
+          "id": "throughput-widget",
+          "title": "Transaction Throughput",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "( span.op:[pageload,navigation,ui.render,interaction] OR sdk.name:[dart,dart-sentry-client,sentry.dart,sentry.dart.browser,sentry.dart.flutter,sentry.dart.logging,raven-js,sentry-browser,sentry.javascript.angular,sentry.javascript.angular-ivy,sentry.javascript.astro,sentry.javascript.browser,sentry.javascript.electron,sentry.javascript.ember,sentry.javascript.enrio,sentry.javascript.gatsby,sentry.javascript.miniapp,sentry.javascript.nextjs,sentry.javascript.nuxt,sentry.javascript.react,sentry.javascript.remix,sentry.javascript.solid,sentry.javascript.solidstart,sentry.javascript.svelte,sentry.javascript.sveltekit,sentry.javascript.uniapp,sentry.javascript.vue] ) !span.op:http.server is_transaction:true",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "-epm()",
+              "fields": ["epm()"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "duration-widget",
+          "title": "Transaction Duration",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "( span.op:[pageload,navigation,ui.render,interaction] OR sdk.name:[dart,dart-sentry-client,sentry.dart,sentry.dart.browser,sentry.dart.flutter,sentry.dart.logging,raven-js,sentry-browser,sentry.javascript.angular,sentry.javascript.angular-ivy,sentry.javascript.astro,sentry.javascript.browser,sentry.javascript.electron,sentry.javascript.ember,sentry.javascript.enrio,sentry.javascript.gatsby,sentry.javascript.miniapp,sentry.javascript.nextjs,sentry.javascript.nuxt,sentry.javascript.react,sentry.javascript.remix,sentry.javascript.solid,sentry.javascript.solidstart,sentry.javascript.svelte,sentry.javascript.sveltekit,sentry.javascript.uniapp,sentry.javascript.vue] ) !span.op:http.server is_transaction:true",
+              "columns": [],
+              "aggregates": ["p50(span.duration)", "p75(span.duration)", "p95(span.duration)"],
+              "orderby": "-p50(span.duration)",
+              "fields": ["p50(span.duration)", "p75(span.duration)", "p95(span.duration)"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "score-breakdown-wheel",
+          "title": "Performance Score",
+          "description": "Tracks the overall performance rating of the pages in your selected project.",
+          "displayType": "wheel",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)",
+                "performance_score(measurements.score.total)",
+                "count_scores(measurements.score.total)",
+                "count_scores(measurements.score.lcp)",
+                "count_scores(measurements.score.fcp)",
+                "count_scores(measurements.score.inp)",
+                "count_scores(measurements.score.cls)",
+                "count_scores(measurements.score.ttfb)"
+              ],
+              "aggregates": [],
+              "orderby": "",
+              "fields": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)",
+                "performance_score(measurements.score.total)",
+                "count_scores(measurements.score.total)",
+                "count_scores(measurements.score.lcp)",
+                "count_scores(measurements.score.fcp)",
+                "count_scores(measurements.score.inp)",
+                "count_scores(measurements.score.cls)",
+                "count_scores(measurements.score.ttfb)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "limit": 1,
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "issue-counts",
+          "title": "Issue Counts",
+          "displayType": "bar",
+          "widgetType": "issue",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["count(new_issues)", "count(resolved_issues)"],
+              "orderby": "",
+              "fields": ["count(new_issues)", "count(resolved_issues)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "assets-by-time-spent-widget",
+          "title": "Assets by Time Spent",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "has:sentry.normalized_description has:sentry.normalized_description !sentry.normalized_description:\"browser-extension://*\" ( span.op:resource.script OR file_extension:css OR file_extension:[woff,woff2,ttf,otf,eot] OR file_extension:[jpg,jpeg,png,gif,svg,webp,apng,avif] OR span.op:resource.img )",
+              "columns": ["sentry.normalized_description"],
+              "aggregates": ["p75(span.duration)"],
+              "orderby": "-sum(span.duration)",
+              "fields": ["p75(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "network-requests-by-time-spent-widget",
+          "title": "Network Requests by Time Spent",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.category:http",
+              "columns": ["span.domain"],
+              "aggregates": ["p75(span.duration)"],
+              "orderby": "-sum(span.duration)",
+              "fields": ["p75(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "frontend-overview-table",
+          "title": "Transactions",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "!span.op:http.server ( span.op:[pageload,navigation,ui.render,interaction,ui.render,interaction,ui.interaction,ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,ui.webvital.fcp,pageload] OR sdk.name:[dart,dart-sentry-client,sentry.dart,sentry.dart.browser,sentry.dart.flutter,sentry.dart.logging,raven-js,sentry-browser,sentry.javascript.angular,sentry.javascript.angular-ivy,sentry.javascript.astro,sentry.javascript.browser,sentry.javascript.electron,sentry.javascript.ember,sentry.javascript.enrio,sentry.javascript.gatsby,sentry.javascript.miniapp,sentry.javascript.nextjs,sentry.javascript.nuxt,sentry.javascript.react,sentry.javascript.remix,sentry.javascript.solid,sentry.javascript.solidstart,sentry.javascript.svelte,sentry.javascript.sveltekit,sentry.javascript.uniapp,sentry.javascript.vue] )",
+              "columns": ["is_starred_transaction", "transaction", "project"],
+              "aggregates": [
+                "equation|tpm()",
+                "equation|p50_if(span.duration,is_transaction,equals,true)",
+                "equation|p75_if(span.duration,is_transaction,equals,true)",
+                "equation|p95_if(span.duration,is_transaction,equals,true)",
+                "equation|failure_rate_if(is_transaction,equals,true)",
+                "count_unique(user)",
+                "equation|sum_if(span.duration,is_transaction,equals,true)",
+                "performance_score(measurements.score.total)"
+              ],
+              "orderby": "-equation|sum_if(span.duration,is_transaction,equals,true)",
+              "fields": [
+                "is_starred_transaction",
+                "transaction",
+                "project",
+                "equation|tpm()",
+                "equation|p50_if(span.duration,is_transaction,equals,true)",
+                "equation|p75_if(span.duration,is_transaction,equals,true)",
+                "equation|p95_if(span.duration,is_transaction,equals,true)",
+                "equation|failure_rate_if(is_transaction,equals,true)",
+                "count_unique(user)",
+                "equation|sum_if(span.duration,is_transaction,equals,true)",
+                "performance_score(measurements.score.total)"
+              ],
+              "fieldAliases": [
+                "",
+                "Transaction",
+                "Project",
+                "TPM",
+                "P50",
+                "P75",
+                "P95",
+                "Failure Rate",
+                "Users",
+                "Time Spent",
+                "Performance Score"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 7,
+            "w": 6,
+            "h": 6,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "15": {
+      "title": "Next.js Overview",
+      "description": "Monitor frontend and SSR performance for Next.js applications.",
+      "widgets": [
+        {
+          "id": "pageloads-widget",
+          "title": "Pageloads",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:pageload",
+              "columns": [],
+              "aggregates": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ],
+              "orderby": "-count(span.duration)",
+              "fields": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "api-latency-widget",
+          "title": "API Latency",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.server",
+              "columns": [],
+              "aggregates": ["avg(span.duration)", "p95(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)", "p95(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "issue-counts",
+          "title": "Issue Counts",
+          "displayType": "bar",
+          "widgetType": "issue",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["count(new_issues)", "count(resolved_issues)"],
+              "orderby": "",
+              "fields": ["count(new_issues)", "count(resolved_issues)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "score-breakdown-wheel",
+          "title": "Performance Score",
+          "description": "Tracks the overall performance rating of the pages in your selected project.",
+          "displayType": "wheel",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,pageload,\"\"]",
+              "columns": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)",
+                "performance_score(measurements.score.total)",
+                "count_scores(measurements.score.total)",
+                "count_scores(measurements.score.lcp)",
+                "count_scores(measurements.score.fcp)",
+                "count_scores(measurements.score.inp)",
+                "count_scores(measurements.score.cls)",
+                "count_scores(measurements.score.ttfb)"
+              ],
+              "aggregates": [],
+              "orderby": "",
+              "fields": [
+                "performance_score(measurements.score.lcp)",
+                "performance_score(measurements.score.fcp)",
+                "performance_score(measurements.score.inp)",
+                "performance_score(measurements.score.cls)",
+                "performance_score(measurements.score.ttfb)",
+                "performance_score(measurements.score.total)",
+                "count_scores(measurements.score.total)",
+                "count_scores(measurements.score.lcp)",
+                "count_scores(measurements.score.fcp)",
+                "count_scores(measurements.score.inp)",
+                "count_scores(measurements.score.cls)",
+                "count_scores(measurements.score.ttfb)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "limit": 1,
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "rage-and-dead-clicks-widget",
+          "title": "Rage and Dead Clicks",
+          "description": "Visualizes the rage and dead clicks in your frontend project.",
+          "displayType": "rage_and_dead_clicks",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": [],
+              "orderby": "",
+              "fields": []
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "slow-ssr-widget",
+          "title": "Slow SSR",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:function.nextjs",
+              "columns": ["span.description"],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "-avg(span.duration)",
+              "fields": ["span.description", "avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "client-transactions-table",
+          "title": "Client Transactions",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[ui.render,interaction,ui.interaction,ui.interaction.click,ui.interaction.hover,ui.interaction.drag,ui.interaction.press,ui.webvital.cls,ui.webvital.lcp,ui.webvital.fcp,pageload,navigation,default] !span.op:http.server is_transaction:true !sentry.origin:auto.db.* !sentry.origin:auto",
+              "columns": ["transaction", "span.op", "project"],
+              "aggregates": [
+                "count(span.duration)",
+                "failure_rate()",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "performance_score(measurements.score.total)"
+              ],
+              "orderby": "-count(span.duration)",
+              "fields": [
+                "transaction",
+                "project",
+                "span.op",
+                "count(span.duration)",
+                "failure_rate()",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "performance_score(measurements.score.total)"
+              ],
+              "fieldAliases": [
+                "Transaction",
+                "",
+                "Operation",
+                "Views",
+                "Error Rate",
+                "Avg",
+                "P95",
+                "Perf Score"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 5,
+            "w": 6,
+            "h": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "server-transactions-table",
+          "title": "Server Transactions",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.server is_transaction:true",
+              "columns": ["transaction", "project"],
+              "aggregates": [
+                "count(span.duration)",
+                "failure_rate()",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-count(span.duration)",
+              "fields": [
+                "transaction",
+                "project",
+                "count(span.duration)",
+                "failure_rate()",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": ["Transaction", "", "Views", "Error Rate", "Avg", "P95", "Time Spent"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 8,
+            "w": 6,
+            "h": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "server-tree-widget",
+          "title": "SSR File Tree",
+          "description": "Visualizes the file tree of the server-rendered components in your Next.js project.",
+          "displayType": "server_tree",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": [],
+              "orderby": "",
+              "fields": []
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 11,
+            "w": 6,
+            "h": 3,
+            "minH": 3
+          }
+        }
+      ]
+    },
+    "16": {
+      "title": "AI Agents Overview",
+      "description": "Monitor AI agent workflows, model costs, token usage, and tool calls.",
+      "widgets": [
+        {
+          "id": "ai-agents-overview-agent-runs",
+          "title": "Agent Runs",
+          "description": "Number of agent runs captured over time.",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Count",
+              "conditions": "gen_ai.operation.type:agent",
+              "columns": [],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["count(span.duration)"],
+              "fieldAliases": ["Count"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "ai-agents-overview-estimated-cost",
+          "title": "Estimated Cost",
+          "description": "Estimated cost of LLM calls with token and model data.",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Cost",
+              "conditions": "gen_ai.operation.type:ai_client",
+              "columns": [],
+              "aggregates": ["sum(gen_ai.cost.total_tokens)"],
+              "orderby": "-sum(gen_ai.cost.total_tokens)",
+              "fields": ["sum(gen_ai.cost.total_tokens)"],
+              "fieldAliases": ["Estimated Cost"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "ai-agents-overview-duration",
+          "title": "Duration",
+          "description": "Average and p95 duration for agent runs and LLM calls.",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:[agent, ai_client]",
+              "columns": [],
+              "aggregates": ["avg(span.duration)", "p95(span.duration)"],
+              "orderby": "-avg(span.duration)",
+              "fields": ["avg(span.duration)", "p95(span.duration)"],
+              "fieldAliases": ["Avg", "P95"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "ai-agents-overview-llm-calls-by-model",
+          "title": "LLM Calls by Model",
+          "description": "Number of LLM calls grouped by response model.",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:ai_client",
+              "columns": ["gen_ai.response.model"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["gen_ai.response.model", "count(span.duration)"],
+              "fieldAliases": ["Model", "Calls"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "ai-agents-overview-tokens-used",
+          "title": "Tokens Used",
+          "description": "Total tokens used by LLM calls, grouped by response model.",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:ai_client",
+              "columns": ["gen_ai.response.model"],
+              "aggregates": ["sum(gen_ai.usage.total_tokens)"],
+              "orderby": "-sum(gen_ai.usage.total_tokens)",
+              "fields": ["gen_ai.response.model", "sum(gen_ai.usage.total_tokens)"],
+              "fieldAliases": ["Model", "Total Tokens"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "ai-agents-overview-tool-calls",
+          "title": "Tool Calls",
+          "description": "Tool call volume grouped by tool name.",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:tool",
+              "columns": ["gen_ai.tool.name"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["gen_ai.tool.name", "count(span.duration)"],
+              "fieldAliases": ["Tool", "Calls"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "ai-agents-traces-table",
+          "title": "Traces",
+          "description": "Agent traces with duration, token, cost, and tool usage.",
+          "displayType": "agents_traces_table",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": [],
+              "orderby": "",
+              "fields": []
+            }
+          ],
+          "interval": "1h",
+          "limit": 10,
+          "layout": {
+            "x": 0,
+            "y": 6,
+            "w": 6,
+            "h": 4,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "17": {
+      "title": "AI Agents Model Details",
+      "description": "View AI agent token usage and costs by model.",
+      "widgets": [
+        {
+          "id": "ai-agents-model-cost",
+          "title": "Model Cost",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:ai_client",
+              "columns": ["gen_ai.response.model"],
+              "aggregates": ["sum(gen_ai.cost.total_tokens)"],
+              "orderby": "-sum(gen_ai.cost.total_tokens)",
+              "fields": ["gen_ai.response.model", "sum(gen_ai.cost.total_tokens)"],
+              "fieldAliases": ["Model", "Total Cost"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "ai-agents-token-usage",
+          "title": "Tokens Used",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:ai_client",
+              "columns": ["gen_ai.response.model"],
+              "aggregates": ["sum(gen_ai.usage.total_tokens)"],
+              "orderby": "-sum(gen_ai.usage.total_tokens)",
+              "fields": ["gen_ai.response.model", "sum(gen_ai.usage.total_tokens)"],
+              "fieldAliases": ["Model", "Total Tokens"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "ai-agents-token-types",
+          "title": "Token Types",
+          "displayType": "area",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:ai_client",
+              "columns": [],
+              "aggregates": [
+                "sum(gen_ai.usage.input_tokens)",
+                "sum(gen_ai.usage.input_tokens.cached)",
+                "sum(gen_ai.usage.output_tokens)",
+                "sum(gen_ai.usage.output_tokens.reasoning)"
+              ],
+              "orderby": "",
+              "fields": [
+                "sum(gen_ai.usage.input_tokens)",
+                "sum(gen_ai.usage.input_tokens.cached)",
+                "sum(gen_ai.usage.output_tokens)",
+                "sum(gen_ai.usage.output_tokens.reasoning)"
+              ],
+              "fieldAliases": [
+                "Input Tokens",
+                "Cached Input Tokens",
+                "Output Tokens",
+                "Reasoning Tokens"
+              ]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "ai-agents-models-table",
+          "title": "Models",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:ai_client",
+              "columns": ["gen_ai.response.model"],
+              "aggregates": [
+                "count()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "sum(gen_ai.cost.total_tokens)",
+                "sum(gen_ai.usage.input_tokens)",
+                "sum(gen_ai.usage.input_tokens.cached)",
+                "sum(gen_ai.usage.output_tokens)",
+                "sum(gen_ai.usage.output_tokens.reasoning)"
+              ],
+              "orderby": "-count()",
+              "fields": [
+                "gen_ai.response.model",
+                "count()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "sum(gen_ai.cost.total_tokens)",
+                "sum(gen_ai.usage.input_tokens)",
+                "sum(gen_ai.usage.input_tokens.cached)",
+                "sum(gen_ai.usage.output_tokens)",
+                "sum(gen_ai.usage.output_tokens.reasoning)"
+              ],
+              "fieldAliases": [
+                "Model",
+                "Requests",
+                "Errors",
+                "Avg",
+                "P95",
+                "Cost",
+                "Input Tokens",
+                "Cached Tokens",
+                "Output Tokens",
+                "Reasoning Tokens"
+              ]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 6,
+            "h": 4,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "18": {
+      "title": "AI Agents Tool Details",
+      "description": "Track AI agent tool calls and error rates.",
+      "widgets": [
+        {
+          "id": "ai-agents-tool-calls",
+          "title": "Tool Calls",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:tool",
+              "columns": ["gen_ai.tool.name"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["gen_ai.tool.name", "count(span.duration)"],
+              "fieldAliases": ["Tool", "Calls"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 3,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "ai-agents-tool-errors",
+          "title": "Tool Errors",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:tool span.status:[internal_error,error]",
+              "columns": ["gen_ai.tool.name"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["gen_ai.tool.name", "count(span.duration)"],
+              "fieldAliases": ["Tool", "Errors"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 3,
+            "y": 0,
+            "w": 3,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "ai-agents-tools-table",
+          "title": "Tools",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "gen_ai.operation.type:tool",
+              "columns": ["gen_ai.tool.name"],
+              "aggregates": [
+                "count()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "orderby": "-count()",
+              "fields": [
+                "gen_ai.tool.name",
+                "count()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "fieldAliases": ["Tool", "Requests", "Errors", "Avg", "P95"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 6,
+            "h": 4,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "19": {
+      "title": "MCP Overview",
+      "description": "Monitor MCP server usage and performance.",
+      "widgets": [
+        {
+          "id": "mcp-overview-traffic",
+          "title": "Traffic",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Count",
+              "conditions": "span.op:mcp.server",
+              "columns": [],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["count(span.duration)"],
+              "fieldAliases": ["Count"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-overview-traffic-by-client",
+          "title": "Traffic by Client",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server",
+              "columns": ["mcp.client.name"],
+              "aggregates": ["count()"],
+              "orderby": "-count()",
+              "fields": ["mcp.client.name", "count()"],
+              "fieldAliases": ["Client", "Count"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-overview-transport-distribution",
+          "title": "Transport Distribution",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.transport",
+              "columns": ["mcp.transport"],
+              "aggregates": ["count()"],
+              "orderby": "-count()",
+              "fields": ["mcp.transport", "count()"],
+              "fieldAliases": ["Transport", "Count"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-overview-most-used-tools",
+          "title": "Most Used Tools",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.tool.name",
+              "columns": ["mcp.tool.name"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["mcp.tool.name", "count(span.duration)"],
+              "fieldAliases": ["Tool", "Count"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-overview-most-used-resources",
+          "title": "Most Used Resources",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.resource.uri",
+              "columns": ["mcp.resource.uri"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["mcp.resource.uri", "count(span.duration)"],
+              "fieldAliases": ["Resource", "Count"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 3,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-overview-most-used-prompts",
+          "title": "Most Used Prompts",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.prompt.name",
+              "columns": ["mcp.prompt.name"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["mcp.prompt.name", "count(span.duration)"],
+              "fieldAliases": ["Prompt", "Count"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 3,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-overview-table",
+          "title": "MCP Overview",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server",
+              "columns": ["span.description"],
+              "aggregates": [
+                "count()",
+                "failure_rate()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "orderby": "-count()",
+              "fields": [
+                "span.description",
+                "count()",
+                "failure_rate()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "fieldAliases": ["Span Description", "Requests", "Error Rate", "Errors", "Avg", "P95"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 0,
+            "y": 6,
+            "w": 6,
+            "h": 4,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "20": {
+      "title": "MCP Tool Details",
+      "description": "Track MCP tool call latency, frequency, and error rates.",
+      "widgets": [
+        {
+          "id": "mcp-tools-most-used-tools",
+          "title": "Most Used Tools",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.tool.name",
+              "columns": ["mcp.tool.name"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["mcp.tool.name", "count(span.duration)"],
+              "fieldAliases": ["Tool", "Calls"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-tools-slowest-tools",
+          "title": "Slowest Tools",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.tool.name",
+              "columns": ["mcp.tool.name"],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "-avg(span.duration)",
+              "fields": ["mcp.tool.name", "avg(span.duration)"],
+              "fieldAliases": ["Tool", "Avg"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-tools-most-failing-tools",
+          "title": "Most Failing Tools",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.tool.name",
+              "columns": ["mcp.tool.name"],
+              "aggregates": ["failure_rate()"],
+              "orderby": "-failure_rate()",
+              "fields": ["mcp.tool.name", "failure_rate()"],
+              "fieldAliases": ["Tool", "Error Rate"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-tools-table",
+          "title": "Tools",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.tool.name",
+              "columns": ["mcp.tool.name"],
+              "aggregates": [
+                "count()",
+                "failure_rate()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "orderby": "-count()",
+              "fields": [
+                "mcp.tool.name",
+                "count()",
+                "failure_rate()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "fieldAliases": ["Tool Name", "Requests", "Error Rate", "Errors", "Avg", "P95"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 6,
+            "h": 4,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "21": {
+      "title": "MCP Resource Details",
+      "description": "Track MCP resource call latency, frequency, and error rates.",
+      "widgets": [
+        {
+          "id": "mcp-resources-most-used-resources",
+          "title": "Most Used Resources",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.resource.uri",
+              "columns": ["mcp.resource.uri"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["mcp.resource.uri", "count(span.duration)"],
+              "fieldAliases": ["Resource", "Calls"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-resources-slowest-resources",
+          "title": "Slowest Resources",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.resource.uri",
+              "columns": ["mcp.resource.uri"],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "-avg(span.duration)",
+              "fields": ["mcp.resource.uri", "avg(span.duration)"],
+              "fieldAliases": ["Resource", "Avg"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-resources-most-failing-resources",
+          "title": "Most Failing Resources",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.resource.uri",
+              "columns": ["mcp.resource.uri"],
+              "aggregates": ["failure_rate()"],
+              "orderby": "-failure_rate()",
+              "fields": ["mcp.resource.uri", "failure_rate()"],
+              "fieldAliases": ["Resource", "Error Rate"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-resources-table",
+          "title": "Resources",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.resource.uri",
+              "columns": ["mcp.resource.uri"],
+              "aggregates": [
+                "count()",
+                "failure_rate()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "orderby": "-count()",
+              "fields": [
+                "mcp.resource.uri",
+                "count()",
+                "failure_rate()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "fieldAliases": ["Resource URI", "Requests", "Error Rate", "Errors", "Avg", "P95"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 6,
+            "h": 4,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "22": {
+      "title": "MCP Prompt Details",
+      "description": "Track MCP prompt call latency, frequency, and error rates.",
+      "widgets": [
+        {
+          "id": "mcp-prompts-most-used-prompts",
+          "title": "Most Used Prompts",
+          "displayType": "bar",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.prompt.name",
+              "columns": ["mcp.prompt.name"],
+              "aggregates": ["count(span.duration)"],
+              "orderby": "-count(span.duration)",
+              "fields": ["mcp.prompt.name", "count(span.duration)"],
+              "fieldAliases": ["Prompt", "Calls"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-prompts-slowest-prompts",
+          "title": "Slowest Prompts",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.prompt.name",
+              "columns": ["mcp.prompt.name"],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "-avg(span.duration)",
+              "fields": ["mcp.prompt.name", "avg(span.duration)"],
+              "fieldAliases": ["Prompt", "Avg"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-prompts-most-failing-prompts",
+          "title": "Most Failing Prompts",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.prompt.name",
+              "columns": ["mcp.prompt.name"],
+              "aggregates": ["failure_rate()"],
+              "orderby": "-failure_rate()",
+              "fields": ["mcp.prompt.name", "failure_rate()"],
+              "fieldAliases": ["Prompt", "Error Rate"]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "mcp-prompts-table",
+          "title": "Prompts",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:mcp.server has:mcp.prompt.name",
+              "columns": ["mcp.prompt.name"],
+              "aggregates": [
+                "count()",
+                "failure_rate()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "orderby": "-count()",
+              "fields": [
+                "mcp.prompt.name",
+                "count()",
+                "failure_rate()",
+                "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
+                "avg(span.duration)",
+                "p95(span.duration)"
+              ],
+              "fieldAliases": ["Prompt Name", "Requests", "Error Rate", "Errors", "Avg", "P95"]
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 6,
+            "h": 4,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "23": {
+      "title": "Laravel Overview",
+      "description": "Monitor Laravel services and dependencies, including background jobs.",
+      "widgets": [
+        {
+          "id": "requests-widget",
+          "title": "Requests",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "Requests",
+              "conditions": "span.op:http.server",
+              "columns": [],
+              "aggregates": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ],
+              "orderby": "count(span.duration)",
+              "fields": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "limit": 5,
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "api-latency-widget",
+          "title": "API Latency",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.server",
+              "columns": [],
+              "aggregates": ["avg(span.duration)", "p95(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)", "p95(span.duration)"],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "issue-counts",
+          "title": "Issue Counts",
+          "displayType": "bar",
+          "widgetType": "issue",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["count(new_issues)", "count(resolved_issues)"],
+              "orderby": "",
+              "fields": ["count(new_issues)", "count(resolved_issues)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "jobs-chart",
+          "title": "Jobs",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:queue.process",
+              "columns": [],
+              "aggregates": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ],
+              "orderby": "count(span.duration)",
+              "fields": [
+                "count(span.duration)",
+                "equation|(count_if(trace.status,equals,internal_error) + count_if(trace.status,equals,error)) / count(span.duration)"
+              ],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "queries-by-time-spent-chart",
+          "title": "Queries by Time Spent",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.category:db has:sentry.normalized_description",
+              "columns": ["sentry.normalized_description"],
+              "aggregates": ["p75(span.duration)"],
+              "orderby": "-sum(span.duration)",
+              "fields": ["sentry.normalized_description", "p75(span.duration)"],
+              "fieldAliases": [""]
+            }
+          ],
+          "interval": "5m",
+          "limit": 3,
+          "layout": {
+            "x": 2,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "cache-miss-rates-chart",
+          "title": "Cache Miss Rates",
+          "description": "",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[cache.get,cache.get_item]",
+              "columns": ["transaction"],
+              "aggregates": ["equation|count_if(cache.hit,equals,false) / count(span.duration)"],
+              "orderby": "-equation|count_if(cache.hit,equals,false) / count(span.duration)",
+              "fields": ["equation|count_if(cache.hit,equals,false) / count(span.duration)"],
+              "fieldAliases": [""]
+            }
+          ],
+          "interval": "1h",
+          "limit": 3,
+          "layout": {
+            "x": 4,
+            "y": 2,
+            "w": 2,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "paths-table",
+          "title": "Paths",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "transaction.op:http.server is_transaction:true",
+              "columns": ["http.request.method", "transaction"],
+              "aggregates": [
+                "count()",
+                "failure_rate()",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "sum(span.duration)",
+                "count_unique(user)"
+              ],
+              "orderby": "-count()",
+              "fields": [
+                "http.request.method",
+                "transaction",
+                "count()",
+                "failure_rate()",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "sum(span.duration)",
+                "count_unique(user)"
+              ],
+              "fieldAliases": [
+                "Method",
+                "Path",
+                "Requests",
+                "Error Rate",
+                "Avg",
+                "P95",
+                "Time Spent",
+                "Users"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 7,
+            "w": 6,
+            "h": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "commands-table",
+          "title": "Commands",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:console.command*",
+              "columns": ["command"],
+              "aggregates": [
+                "count()",
+                "failure_rate()",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-count()",
+              "fields": [
+                "command",
+                "count()",
+                "failure_rate()",
+                "avg(span.duration)",
+                "p95(span.duration)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": ["Command", "Invocations", "Error Rate", "Avg", "P95", "Time Spent"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 10,
+            "w": 6,
+            "h": 3,
+            "minH": 2
+          }
+        },
+        {
+          "id": "jobs-table",
+          "title": "Jobs",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:queue.process",
+              "columns": ["messaging.destination.name", "transaction"],
+              "aggregates": [
+                "count()",
+                "failure_rate()",
+                "avg(messaging.message.receive.latency)",
+                "equation|avg_if(span.duration,span.op,equals,queue.process)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-count()",
+              "fields": [
+                "transaction",
+                "messaging.destination.name",
+                "count()",
+                "failure_rate()",
+                "avg(messaging.message.receive.latency)",
+                "equation|avg_if(span.duration,span.op,equals,queue.process)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": [
+                "Job",
+                "Queue Name",
+                "Processed",
+                "Error Rate",
+                "Avg Time in Queue",
+                "Avg Processing Time",
+                "Time Spent"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 13,
+            "w": 6,
+            "h": 3,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "24": {
+      "title": "Frontend Assets",
+      "description": "Track JS, CSS, and image asset performance, with per-resource drill-downs.",
+      "widgets": [
+        {
+          "id": "requests-per-min-widget",
+          "title": "Requests per Minute",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "has:sentry.normalized_description",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "average-duration-widget",
+          "title": "Average Duration",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "has:sentry.normalized_description",
+              "columns": [],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "assets-table",
+          "title": "Assets",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "has:sentry.normalized_description",
+              "columns": ["sentry.normalized_description"],
+              "aggregates": [
+                "epm()",
+                "avg(span.duration)",
+                "sum(span.duration)",
+                "avg(http.response_content_length)"
+              ],
+              "orderby": "-sum(span.duration)",
+              "fields": [
+                "sentry.normalized_description",
+                "epm()",
+                "avg(span.duration)",
+                "sum(span.duration)",
+                "avg(http.response_content_length)"
+              ],
+              "fieldAliases": [
+                "Asset description",
+                "Requests per Minute",
+                "Avg",
+                "Time Spent",
+                "Avg Encoded Size"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "w": 6,
+            "h": 6,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "25": {
+      "title": "Frontend Assets Summary",
+      "description": "",
+      "widgets": [
+        {
+          "id": "domain-widget",
+          "title": "Example Asset",
+          "displayType": "details",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [
+                "id",
+                "span.op",
+                "span.group",
+                "span.description",
+                "span.category",
+                "project.id"
+              ],
+              "aggregates": [],
+              "orderby": "id",
+              "fields": [
+                "id",
+                "span.op",
+                "span.group",
+                "span.description",
+                "span.category",
+                "project.id"
+              ],
+              "fieldAliases": []
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "minH": 2,
+            "h": 2,
+            "w": 6
+          }
+        },
+        {
+          "id": "request-per-min-big-number",
+          "title": "Requests per Minute",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "average-encoded-size-big-number",
+          "title": "Average Encoded Size",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["avg(http.response_content_length)"],
+              "orderby": "avg(http.response_content_length)",
+              "fields": ["avg(http.response_content_length)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 1,
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "average-decoded-size-big-number",
+          "title": "Average Decoded Size",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["avg(http.decoded_response_content_length)"],
+              "orderby": "avg(http.decoded_response_content_length)",
+              "fields": ["avg(http.decoded_response_content_length)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "average-transfer-size-big-number",
+          "title": "Average Transfer Size",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["avg(http.response_transfer_size)"],
+              "orderby": "avg(http.response_transfer_size)",
+              "fields": ["avg(http.response_transfer_size)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "average-duration-big-number",
+          "title": "Average Duration",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "time-spent-big-number",
+          "title": "Time Spent",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["sum(span.duration)"],
+              "orderby": "sum(span.duration)",
+              "fields": ["sum(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 5,
+            "y": 2,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "requests-per-min-widget",
+          "title": "Requests per Minute",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "average-duration-widget",
+          "title": "Average Duration",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 3,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "average-asset-size-widget",
+          "title": "Average Asset Size",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": [
+                "avg(http.decoded_response_content_length)",
+                "avg(http.response_transfer_size)",
+                "avg(http.response_content_length)"
+              ],
+              "orderby": "avg(http.response_content_length)",
+              "fields": [
+                "avg(http.decoded_response_content_length)",
+                "avg(http.response_transfer_size)",
+                "avg(http.response_content_length)"
+              ],
+              "fieldAliases": ["Avg Decoded Size", "Avg Transfer Size", "Avg Encoded Size"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 3,
+            "w": 2,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "assets-table-widget",
+          "title": "Pages Containing This Asset",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": ["transaction", "resource.render_blocking_status"],
+              "aggregates": ["epm()", "avg(span.duration)", "avg(http.response_content_length)"],
+              "orderby": "-epm()",
+              "fields": [
+                "transaction",
+                "epm()",
+                "avg(span.duration)",
+                "avg(http.response_content_length)",
+                "resource.render_blocking_status"
+              ],
+              "fieldAliases": [
+                "Transaction",
+                "Requests per Minute",
+                "Avg",
+                "Avg Encoded Size",
+                "Render Blocking"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 5,
+            "minH": 2,
+            "h": 6,
+            "w": 6
+          }
+        }
+      ]
+    },
+    "26": {
+      "title": "Queues",
+      "description": "Track message queue throughput, latency, and error rates.",
+      "widgets": [
+        {
+          "id": "average-duration-widget",
+          "title": "Average Duration",
+          "displayType": "area",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:queue.process",
+              "columns": [],
+              "aggregates": ["avg(messaging.message.receive.latency)", "avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(messaging.message.receive.latency)", "avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "throughput-widget",
+          "title": "Published vs Processed",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[queue.publish, queue.process]",
+              "columns": ["span.op"],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "destination-table",
+          "title": "Destinations",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[queue.publish, queue.process]",
+              "columns": ["messaging.destination.name"],
+              "aggregates": [
+                "avg(messaging.message.receive.latency)",
+                "equation|avg_if(span.duration,span.op,equals,queue.process)",
+                "equation|1 - (count_if(trace.status,equals,ok) / count(span.duration))",
+                "equation|count_if(span.op,equals,queue.publish)",
+                "equation|count_if(span.op,equals,queue.process)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-sum(span.duration)",
+              "fields": [
+                "messaging.destination.name",
+                "avg(messaging.message.receive.latency)",
+                "equation|avg_if(span.duration,span.op,equals,queue.process)",
+                "equation|1 - (count_if(trace.status,equals,ok) / count(span.duration))",
+                "equation|count_if(span.op,equals,queue.publish)",
+                "equation|count_if(span.op,equals,queue.process)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": [
+                "Destination",
+                "Avg time in queue",
+                "Avg processing time",
+                "Error rate",
+                "Published",
+                "Processed",
+                "Time spent"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 6,
+            "h": 6,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "27": {
+      "title": "Queue Summary",
+      "description": "",
+      "widgets": [
+        {
+          "id": "avg-time-in-queue-widget",
+          "title": "Average Time in Queue",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[queue.process,queue.publish]",
+              "columns": [],
+              "aggregates": ["avg(messaging.message.receive.latency)"],
+              "orderby": "avg(messaging.message.receive.latency)",
+              "fields": ["avg(messaging.message.receive.latency)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "avg-processing-time-widget",
+          "title": "Average Processing Time",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[queue.process,queue.publish]",
+              "columns": [],
+              "aggregates": ["equation|avg_if(span.duration,span.op,equals,queue.process)"],
+              "orderby": "equation|avg_if(span.duration,span.op,equals,queue.process)",
+              "fields": ["equation|avg_if(span.duration,span.op,equals,queue.process)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 1,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "error-rate-widget",
+          "title": "Error Rate",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[queue.process,queue.publish]",
+              "columns": [],
+              "aggregates": [
+                "equation|1 - (count_if(trace.status,equals,ok) / count(span.duration))"
+              ],
+              "orderby": "equation|1 - (count_if(trace.status,equals,ok) / count(span.duration))",
+              "fields": ["equation|1 - (count_if(trace.status,equals,ok) / count(span.duration))"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "published-widget",
+          "title": "Published",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[queue.process,queue.publish]",
+              "columns": [],
+              "aggregates": ["equation|count_if(span.op,equals,queue.publish)"],
+              "orderby": "equation|count_if(span.op,equals,queue.publish)",
+              "fields": ["equation|count_if(span.op,equals,queue.publish)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "processed-widget",
+          "title": "Processed",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[queue.process,queue.publish]",
+              "columns": [],
+              "aggregates": ["equation|count_if(span.op,equals,queue.process)"],
+              "orderby": "equation|count_if(span.op,equals,queue.process)",
+              "fields": ["equation|count_if(span.op,equals,queue.process)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "time-spent-widget",
+          "title": "Time Spent",
+          "displayType": "big_number",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[queue.process,queue.publish]",
+              "columns": [],
+              "aggregates": ["sum(span.duration)"],
+              "orderby": "sum(span.duration)",
+              "fields": ["sum(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 5,
+            "y": 0,
+            "w": 1,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "average-duration-widget",
+          "title": "Average Duration",
+          "displayType": "area",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:queue.process",
+              "columns": [],
+              "aggregates": ["avg(messaging.message.receive.latency)", "avg(span.duration)"],
+              "orderby": "avg(span.duration)",
+              "fields": ["avg(messaging.message.receive.latency)", "avg(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 1,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "throughput-widget",
+          "title": "Published vs Processed",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[queue.publish, queue.process]",
+              "columns": ["span.op"],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 1,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "consumer-table",
+          "title": "Consumer Transactions",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:queue.process",
+              "columns": ["transaction"],
+              "aggregates": [
+                "avg(messaging.message.receive.latency)",
+                "equation|avg_if(span.duration,span.op,equals,queue.process)",
+                "equation|1 - (count_if(trace.status,equals,ok) / count(span.duration))",
+                "equation|count_if(span.op,equals,queue.process)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-sum(span.duration)",
+              "fields": [
+                "transaction",
+                "avg(messaging.message.receive.latency)",
+                "equation|avg_if(span.duration,span.op,equals,queue.process)",
+                "equation|1 - (count_if(trace.status,equals,ok) / count(span.duration))",
+                "equation|count_if(span.op,equals,queue.process)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": [
+                "Transaction",
+                "Avg time in queue",
+                "Avg processing time",
+                "Error rate",
+                "Processed",
+                "Time spent"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 4,
+            "w": 6,
+            "h": 3,
+            "minH": 3
+          }
+        },
+        {
+          "id": "producer-table",
+          "title": "Producer Transactions",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:queue.publish",
+              "columns": ["transaction"],
+              "aggregates": [
+                "equation|1 - (count_if(trace.status,equals,ok) / count(span.duration))",
+                "equation|count_if(span.op,equals,queue.publish)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-sum(span.duration)",
+              "fields": [
+                "transaction",
+                "equation|1 - (count_if(trace.status,equals,ok) / count(span.duration))",
+                "equation|count_if(span.op,equals,queue.publish)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": ["Transaction", "Error rate", "Published", "Time spent"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 7,
+            "w": 6,
+            "h": 3,
+            "minH": 3
+          }
+        }
+      ]
+    },
+    "28": {
+      "title": "Caches",
+      "description": "Track cache hit rates, throughput, and latency.",
+      "widgets": [
+        {
+          "id": "cache-hits-widget",
+          "title": "Miss Rate",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[cache.get,cache.get_item]",
+              "columns": [],
+              "aggregates": ["equation|count_if(cache.hit,equals,false) / count(span.duration)"],
+              "orderby": "equation|count_if(cache.hit,equals,false) / count(span.duration)",
+              "fields": ["equation|count_if(cache.hit,equals,false) / count(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "throughput-widget",
+          "title": "Throughput",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[cache.get,cache.get_item]",
+              "columns": [],
+              "aggregates": ["epm()"],
+              "orderby": "epm()",
+              "fields": ["epm()"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 0,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "transaction-table",
+          "title": "Transactions",
+          "displayType": "table",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:[cache.get,cache.get_item]",
+              "columns": ["transaction", "project"],
+              "aggregates": [
+                "avg(cache.item_size)",
+                "epm()",
+                "equation|count_if(cache.hit,equals,false) / count(span.duration)",
+                "sum(span.duration)"
+              ],
+              "orderby": "-sum(span.duration)",
+              "fields": [
+                "transaction",
+                "project",
+                "avg(cache.item_size)",
+                "epm()",
+                "equation|count_if(cache.hit,equals,false) / count(span.duration)",
+                "sum(span.duration)"
+              ],
+              "fieldAliases": [
+                "Transaction",
+                "Project",
+                "Avg Value Size",
+                "Requests Per Minute",
+                "Miss Rate",
+                "Time Spent"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 6,
+            "h": 6,
+            "minH": 2
+          }
+        }
+      ]
+    },
+    "29": {
+      "title": "Node.js Runtime Metrics",
+      "description": "Track Node.js runtime metrics, including memory usage and event loop utilization.",
+      "widgets": [
+        {
+          "id": "node-runtime-event-loop-utilization-kpi",
+          "title": "Event Loop Utilization",
+          "description": "Average fraction of time the Node.js event loop is active (0-100%) across the selected time range. High utilization means less capacity to handle new work and may indicate CPU-bound processing or blocking operations.",
+          "displayType": "big_number",
+          "widgetType": "tracemetrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["avg(value,node.runtime.event_loop.utilization,gauge,none)"],
+              "orderby": "",
+              "fields": ["avg(value,node.runtime.event_loop.utilization,gauge,none)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "node-runtime-cpu-utilization-kpi",
+          "title": "CPU Utilization",
+          "description": "Average CPU usage across all cores over the selected time range. Values above 1.0 (100%) are possible on multi-core systems. Sustained high utilization may indicate compute-bound workloads or insufficient scaling.",
+          "displayType": "big_number",
+          "widgetType": "tracemetrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["avg(value,node.runtime.cpu.utilization,gauge,none)"],
+              "orderby": "",
+              "fields": ["avg(value,node.runtime.cpu.utilization,gauge,none)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 2,
+            "y": 0,
+            "w": 2,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "node-runtime-process-uptime-kpi",
+          "title": "Process Uptime",
+          "description": "Total process uptime summed across instances. Sudden resets indicate process crashes or restarts. Useful for detecting instability and correlating with deployment events.",
+          "displayType": "big_number",
+          "widgetType": "tracemetrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["sum(value,node.runtime.process.uptime,counter,second)"],
+              "orderby": "",
+              "fields": ["sum(value,node.runtime.process.uptime,counter,second)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 4,
+            "y": 0,
+            "w": 2,
+            "h": 1,
+            "minH": 1
+          }
+        },
+        {
+          "id": "node-runtime-memory-usage",
+          "title": "Memory Usage",
+          "description": "Resident Set Size (RSS, total memory footprint), V8 heap total (allocated), and heap used (in-use). Growing RSS without matching heap growth may indicate native memory leaks. Heap used approaching heap total triggers more frequent garbage collection.",
+          "displayType": "area",
+          "widgetType": "tracemetrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": [
+                "avg(value,node.runtime.mem.rss,gauge,byte)",
+                "avg(value,node.runtime.mem.heap_total,gauge,byte)",
+                "avg(value,node.runtime.mem.heap_used,gauge,byte)"
+              ],
+              "orderby": "",
+              "fields": [
+                "avg(value,node.runtime.mem.rss,gauge,byte)",
+                "avg(value,node.runtime.mem.heap_total,gauge,byte)",
+                "avg(value,node.runtime.mem.heap_used,gauge,byte)"
+              ]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 1,
+            "w": 6,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "node-runtime-cpu-utilization-over-time",
+          "title": "CPU Utilization Over Time",
+          "description": "CPU utilization trend over time. Correlate spikes with deployments, traffic changes, or event loop delay increases to identify compute-bound bottlenecks.",
+          "displayType": "line",
+          "widgetType": "tracemetrics",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "",
+              "columns": [],
+              "aggregates": ["avg(value,node.runtime.cpu.utilization,gauge,none)"],
+              "orderby": "",
+              "fields": ["avg(value,node.runtime.cpu.utilization,gauge,none)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        },
+        {
+          "id": "node-runtime-http-request-duration",
+          "title": "HTTP Request Duration",
+          "description": "Server-side HTTP request latency (p50 and p95). Compare with event loop delay and CPU utilization to determine if slow responses are caused by runtime bottlenecks or application logic.",
+          "displayType": "line",
+          "widgetType": "spans",
+          "queries": [
+            {
+              "name": "",
+              "conditions": "span.op:http.server",
+              "columns": [],
+              "aggregates": ["p50(span.duration)", "p95(span.duration)"],
+              "orderby": "",
+              "fields": ["p50(span.duration)", "p95(span.duration)"]
+            }
+          ],
+          "interval": "5m",
+          "layout": {
+            "x": 3,
+            "y": 3,
+            "w": 3,
+            "h": 2,
+            "minH": 2
+          }
+        }
+      ]
+    }
+  }
+}
