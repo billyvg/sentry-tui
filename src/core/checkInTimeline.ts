@@ -66,10 +66,10 @@ export function timelineStylesFor(selectedTheme: Theme): {
  *
  * There is no axis under a track — not in a table cell, and not on the detail
  * pane either — so this string is the only place a reader learns what the
- * cells add up to. Derived from the window rather than written twice: change
- * `DEFAULT_TIMELINE_WINDOW_SECONDS` and every caption follows, which is what
- * stops the list's column header and the detail pane's caption from drifting
- * apart. `src/core/checkInTimeline.test.ts` holds them to it.
+ * cells add up to. Callers pass the window they fetched, so a selected date
+ * range changes the caption without restating its label. The one-day default
+ * remains for surfaces without a range control. The adjacent test holds both
+ * forms to the same formatter.
  */
 export function timelineWindowLabel(seconds: number = DEFAULT_TIMELINE_WINDOW_SECONDS): string {
   const hours = Math.round(seconds / 3600);

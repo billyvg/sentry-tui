@@ -6,6 +6,7 @@ import {
   fetchUptimeStats,
   selectEnvironment,
   timelineWindow,
+  timelineWindowSeconds,
   type MonitorStats,
   type StatsWindow,
   type UptimeStats,
@@ -37,6 +38,8 @@ export interface CheckInStatsQuery {
   uptimeDetectorIds: readonly string[];
   /** Cells the timeline column has — it decides the bucket resolution. */
   width: number;
+  /** Page-filter period that decides how far back the timeline reaches. */
+  statsPeriod?: string;
   project?: readonly string[];
   environment?: readonly string[];
   /** Bump to refetch — the app's global refresh. */
@@ -62,6 +65,7 @@ export function useCheckInStats(
     monitorIds,
     uptimeDetectorIds,
     width,
+    statsPeriod,
     project,
     environment,
     reloadToken = 0,
@@ -74,7 +78,7 @@ export function useCheckInStats(
 
   // Identity of the request, not of the arrays: a re-render that rebuilds the
   // same id list must not refetch, and a resize of one cell must not either —
-  // only a change in the resolution the width implies.
+  // only a changed window or a changed resolution the width implies.
   const monitorKey = useMemo(() => [...new Set(monitorIds)].sort().join(","), [monitorIds]);
   const uptimeKey = useMemo(
     () => [...new Set(uptimeDetectorIds)].sort().join(","),
@@ -82,14 +86,15 @@ export function useCheckInStats(
   );
   const projectKey = useMemo(() => (project ?? []).join(","), [project]);
   const environmentKey = useMemo(() => (environment ?? []).join(","), [environment]);
-  const resolution = timelineWindow(width).resolution;
+  const windowSeconds = timelineWindowSeconds(statsPeriod);
+  const resolution = timelineWindow(width, { windowSeconds }).resolution;
 
   useEffect(() => {
     if (!client) return;
 
     const monitors = monitorKey ? monitorKey.split(",") : [];
     const detectors = uptimeKey ? uptimeKey.split(",") : [];
-    const window = timelineWindow(width);
+    const window = timelineWindow(width, { windowSeconds });
 
     // Nothing to ask about — stay idle rather than resolving an empty page.
     //
@@ -136,7 +141,17 @@ export function useCheckInStats(
     };
     // `width` is read inside rather than depended on: only the resolution it
     // implies is worth a refetch, and the fold handles the rest of a resize.
-  }, [client, org, monitorKey, uptimeKey, projectKey, environmentKey, resolution, reloadToken]);
+  }, [
+    client,
+    org,
+    monitorKey,
+    uptimeKey,
+    projectKey,
+    environmentKey,
+    windowSeconds,
+    resolution,
+    reloadToken,
+  ]);
 
   return status;
 }

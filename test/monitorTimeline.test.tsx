@@ -125,7 +125,8 @@ test("Cron trades the three middle columns for the timeline", async () => {
     expect(frame).toContain("Name");
     expect(frame).toContain("Type");
     // The header is where the window is stated — there is no axis under it.
-    expect(frame).toContain("Last 24 hours");
+    expect(frame).toContain("Last 14 days");
+    expect(frame).toContain("D 14d");
     // The three the web gives up when a visualization is present.
     expect(frame).not.toContain("Last Issue");
     expect(frame).not.toContain("Assignee");
@@ -143,7 +144,7 @@ test("Uptime gets one too, drawing its own vocabulary", async () => {
     const row = lineFor(h.frame(), "marketing site uptime");
     expect(row).toContain(UPTIME_GLYPHS.success);
     expect(row).toContain(UPTIME_GLYPHS.failure_incident);
-    expect(h.frame()).toContain("Last 24 hours");
+    expect(h.frame()).toContain("Last 14 days");
   } finally {
     await h.cleanup();
   }
@@ -158,7 +159,7 @@ for (const screen of ["monitors.all", "monitors.error", "monitors.metric"] as co
 
       expect(h.frame()).toContain("Assignee");
       expect(h.frame()).toContain("Alerts");
-      expect(h.frame()).not.toContain("Last 24 hours");
+      expect(h.frame()).not.toContain("Last 14 days");
       expect(calls.some((url) => url.includes("-stats/"))).toBe(false);
     } finally {
       await h.cleanup();
@@ -180,7 +181,31 @@ test("Cron asks monitors-stats for the monitor behind the detector, not the dete
     expect(url.searchParams.getAll("monitor")).toEqual([CRON_MONITOR_ID]);
     expect(url.searchParams.get("resolution")).toMatch(/^\d+s$/);
     const span = Number(url.searchParams.get("until")) - Number(url.searchParams.get("since"));
-    expect(span).toBe(24 * 60 * 60);
+    expect(span).toBe(14 * 24 * 60 * 60);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("Cron can select the timeline window from the date chip", async () => {
+  const calls: string[] = [];
+  const h = await renderMonitors("monitors.cron", { calls });
+  try {
+    await h.waitForFrame((frame) => frame.includes("Last 14 days"));
+
+    await h.press((input) => input.pressKey("D", { shift: true }));
+    expect(h.frame()).toContain("Date Range");
+
+    // The shared default is 14d; the row immediately above it is 7d.
+    await h.press((input) => input.pressKey("k"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("Last 7 days"));
+
+    expect(h.frame()).toContain("D 7d");
+    const requests = calls.filter((candidate) => candidate.includes("/monitors-stats/"));
+    const url = new URL(requests.at(-1)!);
+    const span = Number(url.searchParams.get("until")) - Number(url.searchParams.get("since"));
+    expect(span).toBe(7 * 24 * 60 * 60);
   } finally {
     await h.cleanup();
   }
