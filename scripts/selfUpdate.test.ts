@@ -27,13 +27,13 @@ import {
   installRelease,
   updatesDisabled,
   verifyIntegrity,
-} from "../packaging/npm/update.mjs";
+} from "../packages/launcher/src/update.mjs";
 import {
   APP_FIRST_CHECK_MS,
   discardFailedCachedBuild,
   shouldCheckAfterRun,
   startBackgroundUpdate,
-} from "../packaging/npm/launch.mjs";
+} from "../packages/launcher/src/launch.mjs";
 import {
   canSelfUpdate,
   type ReadyUpdate,
@@ -41,10 +41,10 @@ import {
   UPDATE_FIRST_CHECK_MS,
   UPDATE_POLL_MS,
   watchForUpdate,
-} from "../src/app/selfUpdate.ts";
-import { APP_VERSION } from "../src/app/version.ts";
-import { HOST_API_VERSION } from "../src/app/runtimeContract.ts";
-import { HOST_VERSION } from "../src/lib/version.ts";
+} from "../packages/runtime-host/src/update/selfUpdate.ts";
+import { APP_VERSION } from "../packages/app/src/version.ts";
+import { HOST_API_VERSION } from "../packages/runtime-contract/src/runtime.ts";
+import { HOST_VERSION } from "../packages/runtime-host/src/version.ts";
 
 /** A cache directory holding the given versions, each with a stub binary. */
 function cacheWith(versions: string[]): { env: Record<string, string>; dir: string } {
@@ -665,7 +665,15 @@ describe("when the launcher looks", () => {
  * test runner.
  */
 describe("restartInto", () => {
-  const MODULE = join(import.meta.dirname, "..", "src", "app", "selfUpdate.ts");
+  const MODULE = join(
+    import.meta.dirname,
+    "..",
+    "packages",
+    "runtime-host",
+    "src",
+    "update",
+    "selfUpdate.ts",
+  );
 
   /** Run `body` as a Bun program with `restartInto` and `say` in scope. */
   function runChild(body: string, env: Record<string, string> = {}, args: string[] = []) {

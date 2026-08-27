@@ -20,7 +20,7 @@
 
 import { resolveAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
-import { readConfig, writeConfig } from "~/api/config";
+import { readConfig, writeConfig } from "@sentry-tui/runtime-host/config/index";
 import { listOrganizations } from "~/api/issues";
 import {
   getSeerSession,

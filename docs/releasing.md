@@ -8,6 +8,20 @@ what changed. Host changes build four native binaries and create a GitHub
 Release; app-only changes publish one npm package and never enter the native
 build matrix.
 
+Source ownership follows workspace boundaries:
+
+| Workspace                   | Owns                                                    | Release line |
+| --------------------------- | ------------------------------------------------------- | ------------ |
+| `packages/app`              | product UI, core, API, and bundled assets               | app          |
+| `packages/runtime-host`     | compiled startup, renderer, loader, config, telemetry   | host         |
+| `packages/runtime-contract` | interfaces injected by the host and consumed by the app | consumers    |
+| `packages/launcher`         | Node launcher, cache, and background updater            | host         |
+
+Each owning workspace declares its component in `package.json`. The contract
+declares none, so release selection derives both components from the app and
+host workspaces that depend on it. This keeps ordinary app changes off the
+native build matrix without maintaining a list of source-file exceptions.
+
 ## What ships
 
 | Artifact                         | Where it goes  | Who consumes it                                      |
@@ -22,7 +36,7 @@ build matrix.
 npm users pick routine application releases up without replacing the running
 process. The launcher starts the host with the newest cached payload, while the
 app checks and downloads newer payloads in the background
-(`packaging/npm/update.mjs`, opt out with `SENTRY_TUI_NO_UPDATE=1`). Once the
+(`packages/launcher/src/update.mjs`, opt out with `SENTRY_TUI_NO_UPDATE=1`). Once the
 status-bar offer is accepted, `RuntimeHost` swaps the payload under the existing
 renderer and React root. A payload whose `hostApiVersion` is incompatible causes
 the updater to fetch the platform host too and use the existing `execve`
@@ -64,7 +78,8 @@ bun run release:verify        # check what actually landed
 ```
 
 By default `preflight` and `cut` infer `host`, `app`, or both from the changed
-shipping paths in `scripts/release-components.ts`. `--host`, `--app`, and
+workspace ownership plus shared build inputs in `scripts/release-components.ts`.
+`--host`, `--app`, and
 `--all` select components explicitly. The semver selector is applied only to
 the selected release lines:
 
@@ -156,8 +171,8 @@ on problems that would actually break a release.
 
 A release is the documentation freshness checkpoint. Before cutting it:
 
-- Compare `README.md`'s Status section with `src/core/nav.ts`,
-  `src/core/screens.ts`, and `src/ui/screens/registry.tsx`. Every shipped nav
+- Compare `README.md`'s Status section with `packages/app/src/core/nav.ts`,
+  `packages/app/src/core/screens.ts`, and `packages/app/src/ui/screens/registry.tsx`. Every shipped nav
   group and screen should be represented, and nothing implemented should still
   appear under "Next".
 - Keep the purpose summary at the top of `AGENTS.md` aligned with that status.
@@ -359,7 +374,7 @@ apart.
 1. Add the target to `RELEASE_TARGETS` in `scripts/release-targets.ts`.
 2. Add the matching `- target:` entry to the matrix in
    `.github/workflows/release.yml`.
-3. Add the mapping to `PLATFORM_PACKAGES` in `packaging/npm/launch.mjs`.
+3. Add the mapping to `PLATFORM_PACKAGES` in `packages/launcher/src/launch.mjs`.
 4. `bun run test:packaging` — it tells you anything still out of step.
 
 Two gaps are deliberate.

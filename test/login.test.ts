@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { readCredentials, writeCredentials } from "~/api/config";
-import { autoLogin, runLogin, runLogout, runStatus } from "~/app/login";
-import { VERSION_LABEL } from "~/lib/version";
+import { readCredentials, writeCredentials } from "@sentry-tui/runtime-host/config/index";
+import { autoLogin, runLogin, runLogout, runStatus } from "@sentry-tui/runtime-host/startup/login";
+import { VERSION_LABEL } from "@sentry-tui/runtime-host/version";
 
 /**
  * The login command's own output is the thing under test, so stderr is

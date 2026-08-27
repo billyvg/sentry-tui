@@ -14,8 +14,8 @@ import {
   parseArgs,
   parseOrgSelection,
   SentryUrlInputError,
-} from "~/app/startup";
-import { HOST_VERSION, VERSION_LABEL } from "~/lib/version";
+} from "@sentry-tui/runtime-host/startup/startup";
+import { HOST_VERSION, VERSION_LABEL } from "@sentry-tui/runtime-host/version";
 
 /** Bootstrap against one throwaway user config and restore the process env. */
 async function bootstrapWithConfig(config: unknown, argv: string[] = [], fetchImpl?: typeof fetch) {
@@ -266,11 +266,14 @@ describe("--version output", () => {
   // `process.exit` in it, so its branch cannot be imported and called — and
   // nothing else proves the flag reaches stdout at all.
   test("prints the version and exits 0", () => {
-    const result = Bun.spawnSync(["bun", "run", "src/main.tsx", "--version"], {
-      cwd: join(import.meta.dir, ".."),
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+    const result = Bun.spawnSync(
+      ["bun", "run", "packages/runtime-host/src/main.tsx", "--version"],
+      {
+        cwd: join(import.meta.dir, ".."),
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
 
     expect(result.stdout.toString()).toBe(`sentry-tui v${HOST_VERSION}\n`);
     expect(result.exitCode).toBe(0);

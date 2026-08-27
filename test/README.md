@@ -2,11 +2,11 @@
 
 ## Placement
 
-| Directory           | Purpose                                       |
-| ------------------- | --------------------------------------------- |
-| `test/`             | Integration tests, fixtures, shared helpers   |
-| `scripts/*.test.ts` | Structural / CI checks (contrast, boundaries) |
-| `src/**/*.test.ts`  | Colocated unit tests (when added)             |
+| Directory               | Purpose                                       |
+| ----------------------- | --------------------------------------------- |
+| `test/`                 | Integration tests, fixtures, shared helpers   |
+| `scripts/*.test.ts`     | Structural / CI checks (contrast, boundaries) |
+| `packages/**/*.test.ts` | Colocated workspace unit tests (when added)   |
 
 ## Running
 

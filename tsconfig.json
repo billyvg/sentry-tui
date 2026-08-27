@@ -31,8 +31,12 @@
 
     "baseUrl": ".",
     "paths": {
-      "~/*": ["src/*"]
+      "~/*": ["packages/app/src/*"],
+      "@sentry-tui/app/*": ["packages/app/src/*"],
+      "@sentry-tui/runtime-contract/*": ["packages/runtime-contract/src/*"],
+      "@sentry-tui/runtime-host/*": ["packages/runtime-host/src/*"],
+      "@sentry-tui/launcher/*": ["packages/launcher/src/*"]
     }
   },
-  "include": ["src", "test", "scripts", "demos"]
+  "include": ["packages", "test", "scripts", "demos"]
 }

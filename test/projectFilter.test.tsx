@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
-import { readConfig } from "~/api/config";
+import { readConfig } from "@sentry-tui/runtime-host/config/index";
 import { App } from "~/ui/App";
 import { SEARCH_DEBOUNCE_MS } from "~/ui/hooks/useProjects";
 import { groupsFixture } from "./fixtures";

@@ -35,7 +35,7 @@ export const SHIM_DIR = `${BUILD_DIR}/bin`;
  *
  * The tape types `sentry-tui`, which should mean the real command — but the
  * compiled binary can't be used here. `bun build --compile` bundles the code and
- * nothing else, so `src/assets/**` is absent at runtime and every `<image>`
+ * nothing else, so `packages/app/src/assets/**` is absent at runtime and every `<image>`
  * resolves to a path that isn't there: no nav icons, no platform icons, no
  * assignee avatars. They fail silently, which is exactly the failure this whole
  * harness exists to avoid.
@@ -47,7 +47,10 @@ export async function writeShim(): Promise<void> {
   const { mkdir, chmod } = await import("node:fs/promises");
   await mkdir(SHIM_DIR, { recursive: true });
   const shim = `${SHIM_DIR}/sentry-tui`;
-  await Bun.write(shim, `#!/bin/sh\nexec bun run ${REPO_ROOT}/src/main.tsx "$@"\n`);
+  await Bun.write(
+    shim,
+    `#!/bin/sh\nexec bun run ${REPO_ROOT}/packages/runtime-host/src/main.tsx "$@"\n`,
+  );
   await chmod(shim, 0o755);
 }
 

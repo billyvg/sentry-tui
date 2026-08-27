@@ -14,7 +14,10 @@ import ts from "typescript";
 
 import type { DashboardWidget, WidgetQuery } from "~/api/dashboards";
 
-const OUTPUT_PATH = resolve(import.meta.dir, "../src/core/prebuiltDashboards.generated.json");
+const OUTPUT_PATH = resolve(
+  import.meta.dir,
+  "../packages/app/src/core/prebuiltDashboards.generated.json",
+);
 const SENTRY_MODULE_ROOT = "sentry/";
 const PREBUILT_MODULE_ROOT = "sentry/views/dashboards/utils/prebuiltConfigs";
 const REAL_UPSTREAM_MODULES = new Set([

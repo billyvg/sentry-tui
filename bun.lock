@@ -1,16 +1,9 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "hackweek2026-sentry-tui",
-      "dependencies": {
-        "@opentui/core": "0.5.4",
-        "@opentui/react": "0.5.4",
-        "@sentry/api": "0.286.0",
-        "@sentry/bun": "^10.70.0",
-        "react": "^19.2.0",
-        "string-width": "^8.2.2",
-      },
       "devDependencies": {
         "@types/bun": "latest",
         "@types/react": "^19.2.18",
@@ -23,6 +16,39 @@
       },
       "peerDependencies": {
         "typescript": "^5",
+      },
+    },
+    "packages/app": {
+      "name": "@sentry-tui/app",
+      "version": "0.0.0",
+      "dependencies": {
+        "@opentui/core": "0.5.4",
+        "@opentui/react": "0.5.4",
+        "@sentry-tui/runtime-contract": "workspace:*",
+        "@sentry/api": "0.286.0",
+        "react": "^19.2.0",
+        "string-width": "^8.2.2",
+      },
+    },
+    "packages/launcher": {
+      "name": "@sentry-tui/launcher",
+      "version": "0.0.0",
+    },
+    "packages/runtime-contract": {
+      "name": "@sentry-tui/runtime-contract",
+      "version": "0.0.0",
+    },
+    "packages/runtime-host": {
+      "name": "@sentry-tui/runtime-host",
+      "version": "0.0.0",
+      "dependencies": {
+        "@opentui/core": "0.5.4",
+        "@opentui/react": "0.5.4",
+        "@sentry-tui/app": "workspace:*",
+        "@sentry-tui/launcher": "workspace:*",
+        "@sentry-tui/runtime-contract": "workspace:*",
+        "@sentry/bun": "^10.70.0",
+        "react": "^19.2.0",
       },
     },
   },
@@ -146,6 +172,14 @@
     "@oxlint/binding-win32-ia32-msvc": ["@oxlint/binding-win32-ia32-msvc@1.78.0", "https://sfw.security.sentry.io/npm/@oxlint/binding-win32-ia32-msvc/-/binding-win32-ia32-msvc-1.78.0.tgz", { "os": "win32", "cpu": "ia32" }, "sha512-zcuXFVrEFHIafRfkCQT8w/Xe41o07ozl/vwHq7p94vB29xVzsB0sZGYORU1jhcYKv3Lr0J3HbJ2T4fHH5rWmvA=="],
 
     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.78.0", "https://sfw.security.sentry.io/npm/@oxlint/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.78.0.tgz", { "os": "win32", "cpu": "x64" }, "sha512-Sb5ocmLSuYeOuXd+CFOToGKp/gjXUEWDnvIGwhnh8aq8wY4TMmEnKnvbogSW7RdMZv77JSARduS7/gv+khYEjA=="],
+
+    "@sentry-tui/app": ["@sentry-tui/app@workspace:packages/app"],
+
+    "@sentry-tui/launcher": ["@sentry-tui/launcher@workspace:packages/launcher"],
+
+    "@sentry-tui/runtime-contract": ["@sentry-tui/runtime-contract@workspace:packages/runtime-contract"],
+
+    "@sentry-tui/runtime-host": ["@sentry-tui/runtime-host@workspace:packages/runtime-host"],
 
     "@sentry/api": ["@sentry/api@0.286.0", "https://sfw.security.sentry.io/npm/@sentry/api/-/api-0.286.0.tgz", { "peerDependencies": { "valibot": "*", "zod": "^3.24.0" }, "optionalPeers": ["valibot", "zod"] }, "sha512-j/76JAG5zGHMlw4omK5DZdO15TdzK7bDnyY/tQvLWnyEFETNpjdZwTssa/rtX7gYvz8PkVZK5GEnuSpBWYo1Ng=="],
 

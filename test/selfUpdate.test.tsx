@@ -2,7 +2,7 @@
  * The update offer, from a cached payload on disk to the runtime host.
  *
  * Driven through the real code path rather than a stubbed hook: the env seams
- * `packaging/npm/update.mjs` already honours (`SENTRY_TUI_CACHE_DIR`) plus the
+ * the launcher's `update.mjs` already honours (`SENTRY_TUI_CACHE_DIR`) plus the
  * marker the launcher sets (`SENTRY_TUI_MANAGED`) are enough to stand the whole
  * thing up. Nothing here touches the network — the mount-time look is a
  * directory read, and the app's first real check is ten seconds out, which no
@@ -15,11 +15,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { darkTheme as theme } from "~/core/theme";
-import { HOST_API_VERSION, HOST_MODULE_SPECIFIERS } from "~/app/runtimeContract";
-import type { ReadyUpdate } from "~/app/selfUpdate";
+import { HOST_API_VERSION, HOST_MODULE_SPECIFIERS } from "@sentry-tui/runtime-contract/runtime";
+import type { ReadyUpdate } from "@sentry-tui/runtime-contract/update";
 import { App } from "~/ui/App";
 import { BOLD } from "~/ui/lib/attributes";
-import { RuntimeHost } from "~/ui/runtime/RuntimeHost";
+import { RuntimeHost } from "@sentry-tui/runtime-host/ui/RuntimeHost";
 import { renderHarness } from "./helpers";
 
 /** Far enough above any version this repo will cut to always be an update. */

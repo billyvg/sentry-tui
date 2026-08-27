@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { lightTheme, type ThemeMode } from "~/core/theme";
 import { App } from "~/ui/App";
 import { Chip } from "~/ui/components/Chip";
-import { ErrorBoundary } from "~/ui/components/ErrorBoundary";
+import { ErrorBoundary } from "@sentry-tui/runtime-host/ui/ErrorBoundary";
 import { IssueRow } from "~/ui/components/IssueRow";
 import { KeyHint } from "~/ui/components/KeyHint";
 import { ThemeProvider, type ThemeModeSource } from "~/ui/theme";

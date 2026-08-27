@@ -10,8 +10,8 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
-import { APP_FIRST_CHECK_MS } from "../packaging/npm/launch.mjs";
-import { UPDATE_FIRST_CHECK_MS } from "../src/app/selfUpdate.ts";
+import { APP_FIRST_CHECK_MS } from "../packages/launcher/src/launch.mjs";
+import { UPDATE_FIRST_CHECK_MS } from "../packages/runtime-host/src/update/selfUpdate.ts";
 import {
   aliasManifest,
   appManifest,
@@ -53,7 +53,7 @@ describe("release targets", () => {
 
 describe("npm launcher", () => {
   test("its platform table matches the release targets", async () => {
-    const source = await read("packaging/npm/launch.mjs");
+    const source = await read("packages/launcher/src/launch.mjs");
 
     expect(source).toContain(`APP_PACKAGE = "${APP_PACKAGE}"`);
 
@@ -82,9 +82,9 @@ describe("npm launcher", () => {
   test("it marks the process it launches, which is what unlocks the in-app update", async () => {
     // The app offers a cached payload only when it sees this, and
     // nothing else sets it. Drop the marker and the pill silently never
-    // appears — no test in src/ would notice, because none of them run the
+    // appears — no product-source test would notice, because none of them run the
     // launcher.
-    const source = await read("packaging/npm/launch.mjs");
+    const source = await read("packages/launcher/src/launch.mjs");
 
     expect(source).toContain('SENTRY_TUI_MANAGED: "1"');
     // Every spawn of the binary, not just the happy path: the chmod retry and
@@ -97,7 +97,7 @@ describe("npm launcher", () => {
   });
 
   test("it discards a permanently broken cached build before falling back", async () => {
-    const source = await read("packaging/npm/launch.mjs");
+    const source = await read("packages/launcher/src/launch.mjs");
     const fallback = source.indexOf("if (result.error && binary !== bundled.path)");
     const discard = source.indexOf("discardFailedCachedBuild(local, result.error)", fallback);
     const bundledSpawn = source.indexOf("spawnSync(bundled.path, argv", fallback);
@@ -108,11 +108,11 @@ describe("npm launcher", () => {
   });
 
   test("it looks for both independent release lines only after the child exits", async () => {
-    // The cadence lives in `src/app/selfUpdate.ts`; the launcher's share of it
+    // The cadence lives in the runtime host updater; the launcher's share of it
     // is this pair of calls, after the child has exited: one registry request
     // for the payload and one for the platform host. Move them above the spawn
     // and every launch checks each release line twice.
-    const source = await read("packaging/npm/launch.mjs");
+    const source = await read("packages/launcher/src/launch.mjs");
 
     const calls = [...source.matchAll(/(?<!function )startBackgroundUpdate\(/g)];
     expect(calls.length).toBe(2);
@@ -132,8 +132,10 @@ describe("npm launcher", () => {
   });
 
   test("the bin entries point at the launcher module", async () => {
-    expect(await read("packaging/npm/bin-launcher.mjs")).toContain("../lib/launch.mjs");
-    expect(await read("packaging/npm/bin-alias.mjs")).toContain(`${LAUNCHER_PACKAGE}/launch`);
+    expect(await read("packages/launcher/src/bin-launcher.mjs")).toContain("../lib/launch.mjs");
+    expect(await read("packages/launcher/src/bin-alias.mjs")).toContain(
+      `${LAUNCHER_PACKAGE}/launch`,
+    );
   });
 });
 
@@ -399,11 +401,11 @@ describe("repository manifest", () => {
     const manifest = (await Bun.file(join(ROOT, "package.json")).json()) as {
       bin: Record<string, string>;
     };
-    expect(manifest.bin["sentry-tui"]).toBe("src/main.tsx");
+    expect(manifest.bin["sentry-tui"]).toBe("packages/runtime-host/src/main.tsx");
 
     // `npx sentry-tui` inside a checkout resolves to this package and execs the
     // file directly. Without the shebang the shell parses TSX as shell script.
-    const source = await read("src/main.tsx");
+    const source = await read("packages/runtime-host/src/main.tsx");
     expect(source.startsWith("#!/usr/bin/env bun\n")).toBe(true);
   });
 

@@ -24,7 +24,7 @@ describe("test discovery", () => {
     expect(files.length).toBeGreaterThan(50);
     expect(files).toContain("scripts/test-shard.test.ts");
     expect(files).toContain("test/app.test.tsx");
-    expect(files.some((f) => f.startsWith("src/"))).toBe(true);
+    expect(files.some((f) => f.startsWith("packages/"))).toBe(true);
     expect(files.some((f) => f.startsWith("node_modules/") || f.startsWith("dist/"))).toBe(false);
   });
 });

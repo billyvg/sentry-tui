@@ -22,7 +22,7 @@ import { dirname, join } from "node:path";
 import { BINARY_NAME, findTarget, hostTarget, RELEASE_TARGETS } from "./release-targets.ts";
 
 const ROOT = join(import.meta.dirname, "..");
-const ENTRY = join(ROOT, "src/compiled.ts");
+const ENTRY = join(ROOT, "packages/runtime-host/src/compiled.ts");
 
 /** Read `--name value` out of argv. */
 function parseFlag(name: string): string | undefined {

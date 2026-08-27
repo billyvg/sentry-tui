@@ -7,7 +7,7 @@ import { EXPLORE_TABLES } from "~/core/exploreTables";
 import { NAV_GROUPS, navItems } from "~/core/nav";
 
 import baseline from "./sentry-frontend-baseline.json";
-import generated from "../src/core/prebuiltDashboards.generated.json";
+import generated from "../packages/app/src/core/prebuiltDashboards.generated.json";
 import { dashboardDifference, listDifference, report } from "./drift-check";
 
 test("the reviewed frontend baseline remains connected to local declarations", () => {

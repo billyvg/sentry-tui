@@ -1,0 +1,19 @@
+{
+  "name": "@sentry-tui/app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@opentui/core": "0.5.4",
+    "@opentui/react": "0.5.4",
+    "@sentry-tui/runtime-contract": "workspace:*",
+    "@sentry/api": "0.286.0",
+    "react": "^19.2.0",
+    "string-width": "^8.2.2"
+  },
+  "sentryTui": {
+    "releaseComponents": [
+      "app"
+    ]
+  }
+}

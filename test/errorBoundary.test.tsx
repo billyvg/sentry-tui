@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 
-import { ErrorBoundary } from "~/ui/components/ErrorBoundary";
+import { ErrorBoundary } from "@sentry-tui/runtime-host/ui/ErrorBoundary";
 import { renderHarness } from "./helpers";
 
 function Exploding(): never {

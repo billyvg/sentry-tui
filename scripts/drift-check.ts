@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import ts from "typescript";
 
-import localPrebuilts from "../src/core/prebuiltDashboards.generated.json";
+import localPrebuilts from "../packages/app/src/core/prebuiltDashboards.generated.json";
 import {
   formatGeneratedJson,
   generatePrebuiltDashboards,
