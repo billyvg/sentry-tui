@@ -1,0 +1,69 @@
+name: Sentry frontend drift
+
+on:
+  schedule:
+    - cron: "17 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  SKIP_INSTALL_SIMPLE_GIT_HOOKS: "1"
+
+concurrency:
+  group: sentry-frontend-drift
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Compare frontend contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Bun project
+        uses: ./.github/actions/setup-bun
+
+      - name: Check Sentry frontend drift
+        id: drift
+        shell: bash
+        run: |
+          set +e
+          bun run drift:check > drift-report.md 2>&1
+          status=$?
+          set -e
+          cat drift-report.md
+          if [ "$status" -eq 0 ]; then
+            echo "detected=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "detected=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update the drift issue
+        if: steps.drift.outputs.detected == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: "ci: Sentry frontend drift detected"
+        shell: bash
+        run: |
+          issue_number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --json number,title --jq 'map(select(.title == env.ISSUE_TITLE))[0].number // ""')"
+          if [ -n "$issue_number" ]; then
+            gh issue edit "$issue_number" --body-file drift-report.md
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file drift-report.md
+          fi
+
+      - name: Close the resolved drift issue
+        if: steps.drift.outputs.detected == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: "ci: Sentry frontend drift detected"
+        shell: bash
+        run: |
+          issue_number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --json number,title --jq 'map(select(.title == env.ISSUE_TITLE))[0].number // ""')"
+          if [ -n "$issue_number" ]; then
+            gh issue close "$issue_number" --comment "The weekly comparison is back in sync."
+          fi

@@ -1,0 +1,112 @@
+{
+  "source": {
+    "repository": "https://github.com/getsentry/sentry.git",
+    "revision": "c8c670f927d1bae633f44289e43a49db8cfc294f"
+  },
+  "snapshot": {
+    "navigation": {
+      "primary": ["Issues", "Explore", "Dashboards", "Insights", "Monitors", "Settings"],
+      "issues": [
+        "Issues",
+        "Feed",
+        "Inbox",
+        "User Feedback",
+        "Autofix",
+        "Overview",
+        "Recently Run",
+        "All Views",
+        "Errors & Outages",
+        "Breached Metrics",
+        "Warnings",
+        "Configuration"
+      ],
+      "explore": [
+        "Explore",
+        "Traces",
+        "Logs",
+        "Metrics",
+        "Errors",
+        "Discover",
+        "Profiles",
+        "Replays",
+        "Releases",
+        "Agents",
+        "Investigations",
+        "All Queries",
+        "Starred Queries"
+      ],
+      "dashboards": ["Dashboards", "All Dashboards", "Starred Dashboards", "Sentry Built"],
+      "monitors": [
+        "Monitors",
+        "All Monitors",
+        "My Monitors",
+        "By Monitor Type",
+        "Error",
+        "Metric",
+        "Cron",
+        "Uptime",
+        "Mobile Build",
+        "Alerts"
+      ]
+    },
+    "issueSortOptions": [
+      "date",
+      "new",
+      "trends",
+      "freq",
+      "user",
+      "inbox",
+      "recommended",
+      "recommended_v1",
+      "recommended_v2",
+      "progress"
+    ],
+    "exploreFields": {
+      "traces": [
+        "id",
+        "span.name",
+        "span.description",
+        "span.duration",
+        "transaction",
+        "timestamp"
+      ],
+      "logs": ["timestamp", "message"],
+      "metrics": [
+        "expand_row",
+        "metric.name",
+        "metric.type",
+        "project_badge",
+        "value",
+        "timestamp"
+      ],
+      "errors": ["title", "project", "user.display", "timestamp"]
+    },
+    "detectorTypes": [
+      "error",
+      "metric_issue",
+      "monitor_check_in_failure",
+      "uptime_domain_failure",
+      "issue_stream",
+      "preprod_size_analysis"
+    ],
+    "prebuiltConfigInputs": {
+      "MutableSearch": "a6ac5a5f4f6181db8c8a2a63f0e5f62d9ce0aec524b2f48c51b936705c65e88f"
+    },
+    "widgetDisplayTypes": [
+      "area",
+      "bar",
+      "line",
+      "table",
+      "big_number",
+      "details",
+      "server_tree",
+      "rage_and_dead_clicks",
+      "top_n",
+      "wheel",
+      "categorical_bar",
+      "agents_traces_table",
+      "text",
+      "heatmap"
+    ]
+  }
+}

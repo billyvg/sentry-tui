@@ -19,22 +19,24 @@ import type { Page, SentryClient } from "~/api/client";
  * terminal can learn to draw them — an unknown one must render an honest
  * placeholder rather than fail to type-check.
  */
-export type WidgetDisplayType =
-  | "area"
-  | "bar"
-  | "line"
-  | "table"
-  | "big_number"
-  | "details"
-  | "server_tree"
-  | "rage_and_dead_clicks"
-  | "top_n"
-  | "wheel"
-  | "categorical_bar"
-  | "agents_traces_table"
-  | "text"
-  | "heatmap"
-  | (string & {});
+export const WIDGET_DISPLAY_TYPES = [
+  "area",
+  "bar",
+  "line",
+  "table",
+  "big_number",
+  "details",
+  "server_tree",
+  "rage_and_dead_clicks",
+  "top_n",
+  "wheel",
+  "categorical_bar",
+  "agents_traces_table",
+  "text",
+  "heatmap",
+] as const;
+
+export type WidgetDisplayType = (typeof WIDGET_DISPLAY_TYPES)[number] | (string & {});
 
 /** The subset of a Sentry user the dashboard table's Owner column draws. */
 export interface DashboardOwner {

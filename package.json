@@ -38,6 +38,8 @@
     "build:npm": "bun run ./scripts/build-npm.ts",
     "build:formula": "bun run ./scripts/build-formula.ts",
     "icons:build": "bun run ./scripts/build-platform-icons.ts",
+    "dashboards:sync": "bun run ./scripts/sync-prebuilt-dashboards.ts",
+    "drift:check": "bun run ./scripts/drift-check.ts",
     "release:preflight": "bun run ./scripts/release.ts preflight",
     "release:dry-run": "bun run ./scripts/release.ts dry-run",
     "release:cut": "bun run ./scripts/release.ts cut",
