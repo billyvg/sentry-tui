@@ -64,47 +64,67 @@ export async function renderHarness(
   { width = 100, height = 24 } = {},
 ): Promise<Harness> {
   const setup = await act(async () => testRender(node, { width, height }));
-  await setup.flush();
+  const raw = {
+    renderOnce: setup.renderOnce,
+    flush: setup.flush,
+    waitFor: setup.waitFor,
+    waitForFrame: setup.waitForFrame,
+    waitForVisualIdle: setup.waitForVisualIdle,
+  };
+
+  /** Keep asynchronous renderer work inside React's test transaction. */
+  const settle = <T,>(work: () => Promise<T>): Promise<T> => act(work);
+
+  await settle(() => raw.flush());
 
   const press = async (fn: (input: TestRendererSetup["mockInput"]) => void) => {
-    await act(async () => {
+    await settle(async () => {
       fn(setup.mockInput);
     });
-    await setup.flush();
+    await settle(() => raw.flush());
   };
 
   const click = async (x: number, y: number) => {
     // Settle mouse-down before release. A real terminal delivers these as
     // separate events, and the first can mount an overlay that receives the
     // second; batching both would hide event-order regressions in tests.
-    await act(async () => {
+    await settle(async () => {
       await setup.mockMouse.pressDown(x, y);
     });
-    await setup.flush();
-    await act(async () => {
+    await settle(() => raw.flush());
+    await settle(async () => {
       await setup.mockMouse.release(x, y);
     });
-    await setup.flush();
+    await settle(() => raw.flush());
   };
 
   return Object.assign(setup, {
+    renderOnce: () => settle(() => raw.renderOnce()),
+    flush: (options?: Parameters<TestRendererSetup["flush"]>[0]) =>
+      settle(() => raw.flush(options)),
+    waitFor: (...args: Parameters<TestRendererSetup["waitFor"]>) =>
+      settle(() => raw.waitFor(...args)),
+    waitForFrame: (...args: Parameters<TestRendererSetup["waitForFrame"]>) =>
+      settle(() => raw.waitForFrame(...args)),
+    waitForVisualIdle: (...args: Parameters<TestRendererSetup["waitForVisualIdle"]>) =>
+      settle(() => raw.waitForVisualIdle(...args)),
     press,
     pressEscape: async () => {
-      await act(async () => {
+      await settle(async () => {
         setup.mockInput.pressEscape();
         await new Promise((resolve) => setTimeout(resolve, ESCAPE_DISAMBIGUATION_MS));
       });
-      await setup.flush();
+      await settle(() => raw.flush());
     },
     click,
     // Inside the collapsed rail's top row whether or not an org marker is
     // present; the rail owns the whole compact surface as its hit target.
     openNav: () => click(2, 1),
     wait: async (ms: number) => {
-      await act(async () => {
+      await settle(async () => {
         await new Promise((resolve) => setTimeout(resolve, ms));
       });
-      await setup.flush();
+      await settle(() => raw.flush());
     },
     frame: () => setup.captureCharFrame(),
     spanContaining: (needle: string) =>
