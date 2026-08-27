@@ -15,6 +15,7 @@ import {
   unknownClientMessage,
 } from "~/api/oauth";
 import { VERSION_LABEL } from "@sentry-tui/runtime-host/version";
+import { openBrowser } from "@sentry-tui/runtime-host/startup/openBrowser";
 
 /**
  * The interactive half of the device flow: everything the user sees while
@@ -25,21 +26,6 @@ import { VERSION_LABEL } from "@sentry-tui/runtime-host/version";
  */
 
 const out = (line = "") => process.stderr.write(`${line}\n`);
-
-/** Best-effort browser launch; a headless box just reads the URL instead. */
-function openBrowser(url: string): void {
-  const command =
-    process.platform === "darwin"
-      ? ["open", url]
-      : process.platform === "win32"
-        ? ["cmd", "/c", "start", "", url]
-        : ["xdg-open", url];
-  try {
-    Bun.spawn(command, { stdout: "ignore", stderr: "ignore", stdin: "ignore" });
-  } catch {
-    // No browser here — the printed URL is the fallback.
-  }
-}
 
 export interface LoginOptions {
   /** Skip the browser launch and just print the URL. */
@@ -78,7 +64,7 @@ export async function runLogin({
     out(`  Or open directly: ${device.verificationUriComplete}`);
   } else {
     out("  Opening your browser…");
-    openBrowser(device.verificationUriComplete);
+    void openBrowser(device.verificationUriComplete);
   }
   out("  Waiting for you to approve…");
 

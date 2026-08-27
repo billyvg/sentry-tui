@@ -404,6 +404,36 @@ export function listSavedQueries(
     : listDiscoverSavedQueries(client, params);
 }
 
+/** Fetch and normalize one saved query for a production URL or session restore. */
+export async function fetchSavedQuery(
+  client: SentryClient,
+  {
+    org,
+    source,
+    queryId,
+    signal,
+  }: {
+    org: string;
+    source: SavedQuerySource;
+    queryId: string;
+    signal?: AbortSignal;
+  },
+): Promise<SavedQuery> {
+  if (source === "explore") {
+    const page = await client.request<RawExploreSavedQuery>(
+      `/organizations/${org}/explore/saved/${queryId}/`,
+      { signal },
+    );
+    return normaliseExplore(page.data, 0);
+  }
+
+  const page = await client.request<RawDiscoverSavedQuery>(
+    `/organizations/${org}/discover/saved/${queryId}/`,
+    { signal },
+  );
+  return normaliseDiscover(page.data, 0);
+}
+
 /** List a saved-query page while preserving pagination metadata for the UI. */
 export function listSavedQueriesPage(
   client: SentryClient,

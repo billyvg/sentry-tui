@@ -4,8 +4,9 @@ import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import { parseSentryUrl, type SentryUrlLocation } from "~/core/sentryUrl";
 import { App } from "~/ui/App";
-import { eventFixture, groupFixture, groupsFixture } from "./fixtures";
+import { eventFixture, groupFixture, groupsFixture, savedViewsFixture } from "./fixtures";
 import { renderHarness } from "./helpers";
+import { rawExploreSavedQueriesFixture, savedQueryResultRowsFixture } from "./saved-query-fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
 
@@ -81,6 +82,96 @@ test("an initial issue-event URL resolves the issue and opens that exact event",
     await h.press((input) => input.pressKey("k", { ctrl: true }));
     await h.press((input) => input.pressKey("resolve"));
     expect(h.frame()).toContain("Resolve");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("saved-resource URLs reconstruct their existing TUI result views", async () => {
+  const seen: string[] = [];
+  const json = (body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    seen.push(url);
+    const path = new URL(url).pathname;
+    if (path.endsWith("/group-search-views/10/")) return json(savedViewsFixture.mine[0]);
+    if (path.endsWith("/explore/saved/501/")) return json(rawExploreSavedQueriesFixture[0]);
+    if (path.endsWith("/events/")) return json({ data: savedQueryResultRowsFixture });
+    if (path.endsWith("/issues/")) return json(groupsFixture);
+    if (path.includes("issues-stats")) return json({});
+    return json([]);
+  }) as unknown as typeof fetch;
+  const client = new SentryClient({ auth, fetchImpl, maxRetries: 0 });
+
+  const viewHarness = await renderHarness(
+    <App
+      onQuit={() => {}}
+      client={client}
+      initialLocation={location("https://acme.sentry.io/issues/views/10/")}
+    />,
+    { width: 120, height: 30 },
+  );
+  try {
+    await viewHarness.waitForFrame((frame) => frame.includes("Prod errors"));
+    expect(seen.some((url) => url.includes("/group-search-views/10/"))).toBe(true);
+  } finally {
+    await viewHarness.cleanup();
+  }
+
+  const queryHarness = await renderHarness(
+    <App
+      onQuit={() => {}}
+      client={client}
+      initialLocation={location(
+        "https://acme.sentry.io/explore/traces/?id=501&dataset=spans&title=Slow+checkout+spans",
+      )}
+    />,
+    { width: 120, height: 30 },
+  );
+  try {
+    await queryHarness.waitForFrame((frame) => frame.includes("POST /api/checkout"));
+    expect(seen.some((url) => url.includes("/explore/saved/501/"))).toBe(true);
+  } finally {
+    await queryHarness.cleanup();
+  }
+});
+
+test("W opens the current screen's canonical production URL", async () => {
+  const opened: string[] = [];
+  const h = await renderHarness(
+    <App
+      onQuit={() => {}}
+      org="acme"
+      initialScreen="explore.logs"
+      onOpenUrl={(url) => (opened.push(url), true)}
+    />,
+  );
+
+  try {
+    await h.press((input) => input.pressKey("W"));
+    expect(opened).toHaveLength(1);
+    const url = new URL(opened[0]!);
+    expect(url.origin).toBe("https://acme.sentry.io");
+    expect(url.pathname).toBe("/explore/logs/");
+    expect(url.searchParams.get("statsPeriod")).toBe("1h");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a failed browser launch leaves the canonical URL on screen", async () => {
+  const h = await renderHarness(
+    <App onQuit={() => {}} org="acme" initialScreen="monitors.uptime" onOpenUrl={() => false} />,
+  );
+
+  try {
+    await h.press((input) => input.pressKey("W"));
+    await h.waitForFrame((frame) => frame.includes("Could not launch a browser"));
+    expect(h.frame()).toContain("https://acme.sentry.io/monitors/uptime/");
   } finally {
     await h.cleanup();
   }

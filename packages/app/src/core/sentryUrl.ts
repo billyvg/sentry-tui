@@ -5,7 +5,7 @@
  * then record and present failures in the way appropriate to their surface.
  */
 
-import type { ScreenId } from "~/core/screens";
+import { getScreen, type ScreenId } from "~/core/screens";
 import { countMetric } from "@sentry-tui/runtime-contract/telemetry";
 
 /** The common page-filter values a copied URL can carry into a screen. */
@@ -15,6 +15,8 @@ export interface SentryUrlState {
   selectedEnvs?: string[];
   statsPeriod?: string;
   sort?: string;
+  /** Columns carried by Explore and Discover result URLs. */
+  fields?: string[];
 }
 
 /** A resource whose existing TUI detail view should be opened over a screen. */
@@ -22,7 +24,16 @@ export type SentryUrlDetail =
   | { kind: "issue"; issueId: string; eventId?: string }
   | { kind: "dashboard"; dashboardId: string }
   | { kind: "replay"; replayId: string }
-  | { kind: "monitor"; detectorId: string };
+  | { kind: "monitor"; detectorId: string }
+  | { kind: "issue_view"; viewId: string }
+  | {
+      kind: "saved_query";
+      queryId: string;
+      source: "explore" | "discover";
+      resultScreen: ScreenId;
+      dataset?: string;
+      title?: string;
+    };
 
 /** The complete destination represented by a supported Sentry URL. */
 export interface SentryUrlLocation {
@@ -30,6 +41,8 @@ export interface SentryUrlLocation {
   screen: ScreenId;
   state?: SentryUrlState;
   detail?: SentryUrlDetail;
+  /** A Seer Explorer run that production can resume in its global drawer. */
+  seerRunId?: string | number;
 }
 
 export type InvalidSentryUrlReason =
@@ -145,14 +158,34 @@ export function parseSentryUrl(input: string): SentryUrlResult {
     return invalid("organization", "The URL does not identify a Sentry organization.");
   }
 
+  const seerRunId = seerRunIdFrom(url.searchParams);
   return {
     kind: "location",
     location: {
       org,
       ...matched.location,
+      ...(seerRunId === undefined ? {} : { screen: "seer.ask" as const }),
       state: stateFrom(url.searchParams),
+      ...(seerRunId === undefined ? {} : { seerRunId }),
     },
   };
+}
+
+/** Build the canonical production URL for one TUI location. */
+export function buildSentryUrl(location: SentryUrlLocation): string {
+  const url = new URL(`https://${location.org}.sentry.io`);
+  const target = targetFor(location);
+  url.pathname = target.pathname;
+
+  applyState(url.searchParams, location.state);
+  for (const [key, value] of Object.entries(target.query ?? {})) {
+    url.searchParams.set(key, value);
+  }
+  if (location.seerRunId !== undefined) {
+    url.pathname = "/issues/";
+    url.searchParams.set("explorerRunId", String(location.seerRunId));
+  }
+  return url.toString();
 }
 
 /** Record an expected URL failure without leaking its path, query, org, or ids. */
@@ -196,7 +229,7 @@ function matchRoute(segments: readonly string[], query: URLSearchParams): Matche
   if (root === "profiling") return topLevel("explore.profiles", rest, "explore");
   if (root === "replays") return matchReplayAlias(rest);
   if (root === "releases") return topLevel("explore.releases", rest, "explore");
-  if (root === "discover") return topLevel("explore.discover", rest, "explore");
+  if (root === "discover") return matchLegacyDiscover(rest, query);
   if (root === "errors-v2") return topLevel("explore.errors", rest, "explore");
   if (root === "feedback" && rest.length === 0) return matched("issues.user-feedback");
 
@@ -211,6 +244,10 @@ function matchIssues(rest: readonly string[]): MatchedRoute {
   const screen = ISSUE_SCREENS[rest[0]!];
   if (screen && rest.length === 1) return matched(screen);
   if (rest[0] === "views" && rest.length === 1) return matched("issues.all-views");
+  if (rest[0] === "views" && rest[1] && rest.length === 2) {
+    return matched("issues.all-views", { kind: "issue_view", viewId: rest[1] });
+  }
+  if (rest[0] === "autofix" && rest.length === 1) return matched("seer.ask");
   if (rest[0] === "autofix" && rest[1] === "recent" && rest.length === 2) {
     return matched("issues.recently-run");
   }
@@ -252,7 +289,34 @@ function matchExplore(rest: readonly string[], query: URLSearchParams): MatchedR
   }
 
   const screen = EXPLORE_SCREENS[product];
-  return screen && rest.length === 1 ? matched(screen) : unsupported("explore");
+  if (!screen || rest.length !== 1) return unsupported("explore");
+  const queryId = query.get("id");
+  return queryId
+    ? matched(screen, {
+        kind: "saved_query",
+        queryId,
+        source: "explore",
+        resultScreen: screen,
+        dataset: query.get("dataset") ?? undefined,
+        title: query.get("title") ?? undefined,
+      })
+    : matched(screen);
+}
+
+function matchLegacyDiscover(rest: readonly string[], query: URLSearchParams): MatchedRoute {
+  if (rest.length === 0) return matched("explore.discover");
+  if (rest.length !== 1 || rest[0] !== "results") return unsupported("explore");
+  const queryId = query.get("id");
+  return queryId
+    ? matched("explore.discover", {
+        kind: "saved_query",
+        queryId,
+        source: "discover",
+        resultScreen: "explore.discover",
+        dataset: query.get("dataset") ?? undefined,
+        title: query.get("title") ?? undefined,
+      })
+    : matched("explore.discover");
 }
 
 function discoverScreen(dataset: string | null): ScreenId | undefined {
@@ -325,13 +389,67 @@ function stateFrom(query: URLSearchParams): SentryUrlState | undefined {
   const sort = query.get("sort");
   const projects = query.getAll("project").filter(Boolean);
   const environments = query.getAll("environment").filter(Boolean);
+  const fields = query.getAll("field").filter(Boolean);
 
   if (search !== null) value.query = search;
   if (statsPeriod) value.statsPeriod = statsPeriod;
   if (sort) value.sort = sort;
   if (projects.length > 0) value.selectedProjects = projects;
   if (environments.length > 0) value.selectedEnvs = environments;
+  if (fields.length > 0) value.fields = fields;
   return Object.keys(value).length > 0 ? value : undefined;
+}
+
+function seerRunIdFrom(query: URLSearchParams): string | number | undefined {
+  const value = query.get("explorerRunId");
+  if (!value) return undefined;
+  return /^\d+$/.test(value) ? Number(value) : value;
+}
+
+function targetFor(location: SentryUrlLocation): {
+  pathname: `/${string}`;
+  query?: Readonly<Record<string, string>>;
+} {
+  const detail = location.detail;
+  if (!detail) return getScreen(location.screen).production;
+
+  switch (detail.kind) {
+    case "issue":
+      return {
+        pathname: detail.eventId
+          ? `/issues/${encodeURIComponent(detail.issueId)}/events/${encodeURIComponent(detail.eventId)}/`
+          : `/issues/${encodeURIComponent(detail.issueId)}/`,
+      };
+    case "dashboard":
+      return { pathname: `/dashboard/${encodeURIComponent(detail.dashboardId)}/` };
+    case "replay":
+      return { pathname: `/explore/replays/${encodeURIComponent(detail.replayId)}/` };
+    case "monitor":
+      return { pathname: `/monitors/${encodeURIComponent(detail.detectorId)}/` };
+    case "issue_view":
+      return { pathname: `/issues/views/${encodeURIComponent(detail.viewId)}/` };
+    case "saved_query":
+      return {
+        ...(detail.source === "discover"
+          ? ({ pathname: "/discover/results/" } as const)
+          : getScreen(detail.resultScreen).production),
+        query: {
+          id: detail.queryId,
+          ...(detail.dataset ? { dataset: detail.dataset } : {}),
+          ...(detail.title ? { title: detail.title } : {}),
+        },
+      };
+  }
+}
+
+function applyState(query: URLSearchParams, state: SentryUrlState | undefined): void {
+  if (!state) return;
+  if (state.query !== undefined) query.set("query", state.query);
+  if (state.statsPeriod) query.set("statsPeriod", state.statsPeriod);
+  if (state.sort) query.set("sort", state.sort);
+  for (const project of state.selectedProjects ?? []) query.append("project", project);
+  for (const environment of state.selectedEnvs ?? []) query.append("environment", environment);
+  for (const field of state.fields ?? []) query.append("field", field);
 }
 
 function invalid(reason: InvalidSentryUrlReason, message: string): SentryUrlFailure {

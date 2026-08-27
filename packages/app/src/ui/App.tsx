@@ -11,6 +11,7 @@ import { getNavGroup, NAV_GROUPS } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { getScreen, stateKeyOf, type ScreenId } from "~/core/screens";
 import {
+  buildSentryUrl,
   parseSentryUrl,
   recordSentryUrlFailure,
   type SentryUrlFailure,
@@ -30,6 +31,7 @@ import { NavRail, ORG_HEADER_ANCHOR_LEFT, ORG_HEADER_ANCHOR_TOP } from "~/ui/com
 import { OrgPicker } from "~/ui/components/OrgPicker";
 import { SecondaryNav } from "~/ui/components/SecondaryNav";
 import { StatusBar, type Notice } from "~/ui/components/StatusBar";
+import { WebUrlDialog } from "~/ui/components/WebUrlDialog";
 import { useFocusRing } from "~/ui/hooks/useFocusRing";
 import { APP_REGIONS, useNavigation } from "~/ui/hooks/useNavigation";
 import { useNavigationTrace } from "~/ui/hooks/useNavigationTrace";
@@ -67,6 +69,8 @@ export interface AppProps {
    * Absent — as in most tests — means the update pill never appears.
    */
   onApplyUpdate?: (update: ReadyUpdate) => boolean | Promise<boolean>;
+  /** Ask the runtime host to open a trusted canonical sentry.io URL. */
+  onOpenUrl?: (url: string) => boolean | Promise<boolean>;
 }
 
 /** Issues › Feed — where the app opens when nothing says otherwise. */
@@ -84,6 +88,7 @@ export function App({
   initialSeerBashModeByOrg = {},
   initialSeerShowThinkingByOrg = {},
   onApplyUpdate,
+  onOpenUrl,
 }: AppProps) {
   const theme = useTheme();
   const { width, height } = useTerminalDimensions();
@@ -113,6 +118,7 @@ export function App({
   const [showPalette, setShowPalette] = useState(false);
   const [showOpenUrl, setShowOpenUrl] = useState(false);
   const [showOrgPicker, setShowOrgPicker] = useState(false);
+  const [webUrlFallback, setWebUrlFallback] = useState<string>();
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
   const [orgFeatures, setOrgFeatures] = useState<readonly string[] | undefined>();
   const [currentUser, setCurrentUser] = useState<CurrentUser | undefined>(user);
@@ -275,6 +281,47 @@ export function App({
     onBashModeChange: setSeerBashMode,
     onShowThinkingChange: setSeerShowThinking,
   });
+
+  const currentSentryLocation = useMemo<SentryUrlLocation | undefined>(() => {
+    const route = topView?.sentryLocation ?? (screen ? { screen: screen.id } : undefined);
+    if (!route) return undefined;
+
+    const carriesScreenState = (!topView && screen?.kind !== "chat") || Boolean(topView?.stateKey);
+    const routeState = carriesScreenState
+      ? {
+          ...route.state,
+          query: state.committedQuery,
+          sort: state.sort,
+          statsPeriod: state.statsPeriod,
+          selectedProjects: [...state.selectedProjects],
+          selectedEnvs: [...state.selectedEnvs],
+        }
+      : route.state;
+
+    return {
+      org,
+      ...route,
+      state: routeState,
+      ...(route.screen === "seer.ask" && seerChat.runId !== null
+        ? { seerRunId: seerChat.runId }
+        : {}),
+    };
+  }, [org, screen, seerChat.runId, state, topView]);
+
+  /** Continue from the current TUI location in production Sentry. */
+  const openInBrowser = useCallback(() => {
+    if (!currentSentryLocation) return;
+    const url = buildSentryUrl(currentSentryLocation);
+    if (!onOpenUrl) {
+      setWebUrlFallback(url);
+      return;
+    }
+    void Promise.resolve(onOpenUrl(url))
+      .then((opened) => {
+        if (!opened) setWebUrlFallback(url);
+      })
+      .catch(() => setWebUrlFallback(url));
+  }, [currentSentryLocation, onOpenUrl]);
 
   // What Enter means on the screen that is mounted, registered by the screen
   // itself. Held in a ref because the key router reads it during a keystroke,
@@ -459,6 +506,9 @@ export function App({
         case "sentry.app.openUrl":
           setShowOpenUrl(true);
           return;
+        case "sentry.app.openInBrowser":
+          openInBrowser();
+          return;
         case "sentry.app.update":
           runUpdate();
           return;
@@ -485,7 +535,7 @@ export function App({
           if (findTriageAction(commandId) && activeIssue) triage.run(commandId, activeIssue);
       }
     },
-    [activeIssue, focus, navigateTo, onQuit, refresh, state, triage],
+    [activeIssue, focus, navigateTo, onQuit, openInBrowser, refresh, runUpdate, state, triage],
   );
 
   /**
@@ -512,7 +562,7 @@ export function App({
   );
 
   const keyHandlers = createAppKeyHandlers({
-    showOpenUrl,
+    showOpenUrl: showOpenUrl || Boolean(webUrlFallback),
     showPalette,
     showHelp,
     showOrgPicker,
@@ -529,6 +579,7 @@ export function App({
     triage: triage.run,
     refresh,
     runUpdate,
+    openInBrowser,
     onQuit,
   });
 
@@ -682,6 +733,10 @@ export function App({
           onSelect={switchOrg}
           onClose={() => setShowOrgPicker(false)}
         />
+      ) : null}
+
+      {webUrlFallback ? (
+        <WebUrlDialog url={webUrlFallback} onClose={() => setWebUrlFallback(undefined)} />
       ) : null}
     </box>
   );

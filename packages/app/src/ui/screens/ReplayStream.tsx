@@ -418,6 +418,10 @@ function replayDetailView(
 ): ViewStackEntry {
   return {
     id: `replay:${replay.id}`,
+    sentryLocation: {
+      screen: "explore.replays",
+      detail: { kind: "replay", replayId: replay.id },
+    },
     label: shortReplayId(replay.id),
     stateKey: REPLAY_DETAIL_STATE_KEY,
     initialState: {
@@ -437,6 +441,10 @@ const loadReplay: DirectResourceLoader<Replay> = (client, { org, id, signal }) =
 export function replayUrlView(replayId: string): ViewStackEntry {
   return {
     id: `replay:${replayId}`,
+    sentryLocation: {
+      screen: "explore.replays",
+      detail: { kind: "replay", replayId },
+    },
     label: shortReplayId(replayId),
     stateKey: REPLAY_DETAIL_STATE_KEY,
     initialState: {

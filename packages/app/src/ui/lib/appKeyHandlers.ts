@@ -49,6 +49,7 @@ export interface AppKeyHandlerOptions {
   triage: (commandId: string, issue: Group) => void;
   refresh: () => void;
   runUpdate: () => void;
+  openInBrowser: () => void;
   onQuit: () => void;
 }
 
@@ -249,6 +250,7 @@ export function createGlobalCommandHandler({
   setShowOrgPicker,
   refresh,
   runUpdate,
+  openInBrowser,
   onQuit,
 }: Pick<
   AppKeyHandlerOptions,
@@ -259,6 +261,7 @@ export function createGlobalCommandHandler({
   | "setShowOrgPicker"
   | "refresh"
   | "runUpdate"
+  | "openInBrowser"
   | "onQuit"
 >): KeyOwnerHandler {
   return (key) => {
@@ -289,6 +292,10 @@ export function createGlobalCommandHandler({
     }
     if (matchesCommand("sentry.app.update", key)) {
       runUpdate();
+      return "mine";
+    }
+    if (matchesCommand("sentry.app.openInBrowser", key)) {
+      openInBrowser();
       return "mine";
     }
     if (matchesCommand("sentry.app.quit", key)) {

@@ -87,6 +87,10 @@ export function monitorDetailView(
 ): ViewStackEntry {
   return {
     id: `monitor:${detector.id}`,
+    sentryLocation: {
+      screen: "monitors.all",
+      detail: { kind: "monitor", detectorId: detector.id },
+    },
     label: detector.name,
     render: (ctx) => (
       <MonitorDetail
@@ -106,6 +110,10 @@ const loadDetector: DirectResourceLoader<Detector> = (client, { org, id, signal 
 export function monitorUrlView(detectorId: string): ViewStackEntry {
   return {
     id: `monitor:${detectorId}`,
+    sentryLocation: {
+      screen: "monitors.all",
+      detail: { kind: "monitor", detectorId },
+    },
     label: `Monitor ${detectorId}`,
     render: (ctx) => <MonitorFromUrl {...ctx} detectorId={detectorId} />,
   };
