@@ -14,10 +14,10 @@
  * once its child has exited, and only when that child went before it could
  * have looked: every command that never starts the app (`--help`,
  * `--version`, `login`, `logout`, `status`), a session too short to have
- * checked, and a binary that would not start at all.
+ * checked, and a host that would not start at all.
  *
- * So a launch costs exactly one check, in one place or the other, never both
- * — and the `mkdir` lock in `update.mjs` is left guarding what it was written
+ * So a launch checks each independent release line in one place or the other,
+ * never both — and the `mkdir` lock in `update.mjs` is left guarding what it was written
  * for, several terminals launching at once, rather than our own two schedules.
  * The launcher decides that with a clock, not by reading the arguments it was
  * handed, so a command added to the app needs nothing added there.
@@ -25,23 +25,31 @@
  * The imports reach outside `src/` on purpose. Those two modules are shipped
  * runtime code, not build scripts, and they are the only definition of the
  * cache layout, the lock, and the platform lookup. Restating any of it here
- * would mean the app and the launcher could disagree about which binary is
+ * would mean the app and the launcher could disagree about which artifact is
  * current, which is the one thing this must never do.
  */
-import { platformPackage } from "../../packaging/npm/launch.mjs";
+import { APP_PACKAGE, platformPackage } from "../../packaging/npm/launch.mjs";
 import {
   cachedBinary,
+  cachedPayload,
+  cachedPayloadManifest,
+  cachedPayloadVersions,
   cachedVersions,
   compareVersions,
   downloadIfNewer,
+  removeCachedArtifact,
   updatesDisabled,
 } from "../../packaging/npm/update.mjs";
-import { APP_VERSION } from "~/lib/version";
+import { HOST_API_VERSION } from "~/app/runtimeContract";
+import { APP_VERSION } from "~/app/version";
+import { HOST_VERSION } from "~/lib/version";
 
-/** A build on disk, newer than the one running, ready to be restarted into. */
+/** A release on disk, newer than the app running now, ready to apply. */
 export interface ReadyUpdate {
   version: string;
-  /** Absolute path to the cached binary. */
+  /** Payloads swap in-process; hosts retain the verified exec fallback. */
+  kind: "payload" | "host";
+  /** Absolute path to the cached payload entry or compiled host. */
   path: string;
 }
 
@@ -70,52 +78,77 @@ export const UPDATE_POLL_MS = 15 * 60 * 1000;
 /**
  * Whether an update offered here would survive the next cold start.
  *
- * Restarting execs a binary out of the cache; that only persists because the
- * npm launcher prefers the newest cached build every time it runs. Nothing
- * else does, so a binary downloaded by hand must stay quiet rather than offer
- * an update that reverts the moment the user quits.
+ * Applying a payload only persists because the npm launcher prefers the newest
+ * cached payload every time it runs. Nothing else does, so a bundle downloaded
+ * by hand must stay quiet rather than offer an update that reverts on quit.
  */
 export function canSelfUpdate(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.SENTRY_TUI_MANAGED !== "1") return false;
   if (updatesDisabled(env)) return false;
-  return Boolean(platformPackage());
+  return true;
 }
 
 /**
- * The newest cached build that beats the running one, if there is one.
+ * The newest cached release that beats the running app, if there is one.
  *
- * Disk only — no network, no waiting. Called on mount so a build the
+ * Disk only — no network, no waiting. Called on mount so a release the
  * launcher's worker fetched seconds ago is offered immediately.
  */
 export function readyUpdate(env: NodeJS.ProcessEnv = process.env): ReadyUpdate | undefined {
-  // Sorted newest first, so the head is the only candidate worth comparing.
-  const newest = cachedVersions(env)[0];
-  if (!newest || compareVersions(newest, APP_VERSION) <= 0) return undefined;
-  return { version: newest, path: cachedBinary(newest, env) };
+  // Prefer a compatible payload: it keeps the process and renderer alive.
+  const newestPayload = cachedPayloadVersions(env)[0];
+  if (newestPayload && compareVersions(newestPayload, APP_VERSION) > 0) {
+    const manifest = cachedPayloadManifest(newestPayload, env);
+    if (manifest?.hostApiVersion === HOST_API_VERSION) {
+      return { version: newestPayload, kind: "payload", path: cachedPayload(newestPayload, env) };
+    }
+  }
+
+  // A payload requiring another host API cannot be executed. Once its matching
+  // compiled release is cached, use the old process-replacement path.
+  const newestHost = cachedVersions(env)[0];
+  if (!newestHost || compareVersions(newestHost, HOST_VERSION) <= 0) return undefined;
+  return { version: newestHost, kind: "host", path: cachedBinary(newestHost, env) };
 }
 
 /**
  * Look for something newer, download it, and report what is now ready to run.
  *
  * Deliberately returns nothing until the bytes are on disk: the pill this
- * feeds means "press and you are on the new version", not "press and wait on a
- * 24MB download".
+ * feeds means "press and you are on the new version", not "press and wait for
+ * a download".
  *
  * Never rejects. `update.mjs` fails open by design — offline, rate-limited,
- * corrupt, unwritable cache all leave the current binary alone — and a failed
+ * corrupt, unwritable cache all leave the current app alone — and a failed
  * check has no business becoming an error in the status bar.
  */
 export async function checkForUpdate(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ReadyUpdate | undefined> {
-  const packageName = platformPackage();
-  if (!packageName) return undefined;
+  try {
+    await downloadIfNewer({
+      packageName: env.SENTRY_TUI_APP_PACKAGE || APP_PACKAGE,
+      localVersion: cachedPayloadVersions(env)[0] || APP_VERSION,
+      artifact: "payload",
+      env,
+    });
+  } catch {
+    // The host check is independent. A payload registry failure must not hide
+    // a runtime fix, and the cache read below may still have an old answer.
+  }
 
   try {
-    await downloadIfNewer({ packageName, localVersion: APP_VERSION, env });
+    const hostPackage = platformPackage();
+    if (hostPackage) {
+      await downloadIfNewer({
+        packageName: hostPackage,
+        localVersion: cachedVersions(env)[0] || HOST_VERSION,
+        artifact: "binary",
+        env,
+      });
+    }
   } catch {
-    // Nothing to say and nowhere to say it. The cache read below still runs:
-    // the launcher's worker may have landed a build while this call failed.
+    // Nothing to say and nowhere to say it. Both release lines fail open.
   }
   return readyUpdate(env);
 }
@@ -129,12 +162,12 @@ export interface UpdateWatchOptions {
 }
 
 /**
- * Watch for a newer build for as long as the app is up, and report each answer.
+ * Watch for a newer release for as long as the app is up, and report each answer.
  *
  * The schedule described at the top of this file, in one place: the cache read
  * now, then a real check at `UPDATE_FIRST_CHECK_MS`, then every
  * `UPDATE_POLL_MS`. `onUpdate` is called with `undefined` when a later check
- * finds nothing, so a cached build that gets pruned out from under us stops
+ * finds nothing, so a cached release that gets pruned out from under us stops
  * being offered.
  *
  * @returns a function that stops the watch; safe to call more than once.
@@ -151,7 +184,7 @@ export function watchForUpdate(
   if (!canSelfUpdate(env)) return () => {};
 
   // Disk first, and synchronously: reading a directory costs nothing, and the
-  // previous session may have left a build sitting there ready to run.
+  // previous session may have left a payload sitting there ready to run.
   onUpdate(readyUpdate(env));
 
   let live = true;
@@ -192,4 +225,18 @@ export function restartInto(path: string, argv: readonly string[] = process.argv
   // SENTRY_TUI_MANAGED, which is what lets the new build offer the next update
   // in turn.
   process.execve!(path, [path, ...argv], process.env);
+}
+
+/** Remove a payload that failed validation/import, without touching cached hosts. */
+export function discardFailedPayload(path: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  const version = cachedPayloadVersions(env).find(
+    (candidate) => cachedPayload(candidate, env) === path,
+  );
+  if (!version) return false;
+  try {
+    removeCachedArtifact(version, "payload", env);
+    return true;
+  } catch {
+    return false;
+  }
 }

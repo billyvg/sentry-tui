@@ -7,8 +7,9 @@
  * an update is optional, starting the app is not.
  */
 import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -16,10 +17,14 @@ import { runBunProgram } from "../test/childProgram.ts";
 import {
   acquireUpdateLock,
   bestLocal,
+  bestLocalPayload,
+  cachedPayloadVersions,
+  cachedPayloadManifest,
   cachedVersions,
   compareVersions,
   downloadIfNewer,
   fetchLatestRelease,
+  installRelease,
   updatesDisabled,
   verifyIntegrity,
 } from "../packaging/npm/update.mjs";
@@ -37,7 +42,9 @@ import {
   UPDATE_POLL_MS,
   watchForUpdate,
 } from "../src/app/selfUpdate.ts";
-import { APP_VERSION } from "../src/lib/version.ts";
+import { APP_VERSION } from "../src/app/version.ts";
+import { HOST_API_VERSION } from "../src/app/runtimeContract.ts";
+import { HOST_VERSION } from "../src/lib/version.ts";
 
 /** A cache directory holding the given versions, each with a stub binary. */
 function cacheWith(versions: string[]): { env: Record<string, string>; dir: string } {
@@ -45,6 +52,24 @@ function cacheWith(versions: string[]): { env: Record<string, string>; dir: stri
   for (const version of versions) {
     mkdirSync(join(dir, version), { recursive: true });
     writeFileSync(join(dir, version, "sentry-tui"), "#!/bin/sh\nexit 0\n");
+  }
+  return { env: { SENTRY_TUI_CACHE_DIR: dir }, dir };
+}
+
+/** A cache directory holding compatible payloads for the given versions. */
+function payloadCacheWith(
+  versions: string[],
+  hostApiVersion = HOST_API_VERSION,
+): { env: Record<string, string>; dir: string } {
+  const dir = mkdtempSync(join(tmpdir(), "sentry-tui-payload-test-"));
+  for (const version of versions) {
+    const appDir = join(dir, version, "app");
+    mkdirSync(appDir, { recursive: true });
+    writeFileSync(join(appDir, "app.mjs"), "export const PayloadApp = () => null;\n");
+    writeFileSync(
+      join(appDir, "manifest.json"),
+      `${JSON.stringify({ version, hostApiVersion, entry: "app.mjs" })}\n`,
+    );
   }
   return { env: { SENTRY_TUI_CACHE_DIR: dir }, dir };
 }
@@ -101,6 +126,18 @@ describe("the local cache", () => {
     expect(cachedVersions({ SENTRY_TUI_CACHE_DIR: "/nonexistent/sentry-tui-test" })).toEqual([]);
   });
 
+  test("prefers a newer cached payload over the npm-installed one", () => {
+    const { env, dir } = payloadCacheWith(["0.2.0"]);
+    try {
+      const chosen = bestLocalPayload({ version: "0.1.0", path: "/bundled/app.mjs" }, env);
+      expect(chosen.version).toBe("0.2.0");
+      expect(chosen.path).toBe(join(dir, "0.2.0", "app", "app.mjs"));
+      expect(cachedPayloadVersions(env)).toEqual(["0.2.0"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("prefers a newer cached build over the bundled one", () => {
     const { env, dir } = cacheWith(["0.2.0"]);
     try {
@@ -147,6 +184,24 @@ describe("the local cache", () => {
       expect(discardFailedCachedBuild(cached, { code: "EACCES" }, env)).toBe(false);
       expect(discardFailedCachedBuild(cached, { code: "ETXTBSY" }, env)).toBe(false);
       expect(bestLocal(bundled, env)).toEqual(cached);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("discarding a broken host preserves its same-version payload", () => {
+    const { env, dir } = payloadCacheWith(["0.2.0"]);
+    try {
+      writeFileSync(join(dir, "0.2.0", "sentry-tui"), "broken");
+      expect(
+        discardFailedCachedBuild(
+          { version: "0.2.0", path: join(dir, "0.2.0", "sentry-tui") },
+          { code: "ENOEXEC" },
+          env,
+        ),
+      ).toBe(true);
+      expect(cachedVersions(env)).toEqual([]);
+      expect(cachedPayloadVersions(env)).toEqual(["0.2.0"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -283,6 +338,49 @@ describe("downloadIfNewer", () => {
   });
 });
 
+describe("installing app payloads", () => {
+  test("lands the whole payload atomically without deleting a same-version host", async () => {
+    const version = "9.9.9";
+    const { env, dir } = cacheWith([version]);
+    const source = mkdtempSync(join(tmpdir(), "sentry-tui-payload-archive-"));
+    try {
+      const appDir = join(source, "package", "app");
+      mkdirSync(join(appDir, "assets"), { recursive: true });
+      writeFileSync(join(appDir, "app.mjs"), "export const payload = true;\n");
+      writeFileSync(
+        join(appDir, "manifest.json"),
+        `${JSON.stringify({ version, hostApiVersion: HOST_API_VERSION, entry: "app.mjs" })}\n`,
+      );
+      writeFileSync(join(appDir, "assets", "icon.png"), "asset");
+      const archive = join(source, "payload.tgz");
+      expect(spawnSync("tar", ["-czf", archive, "-C", source, "package"]).status).toBe(0);
+      const bytes = readFileSync(archive);
+
+      const path = await installRelease({
+        artifact: "payload",
+        env,
+        release: {
+          version,
+          tarball: "https://registry.npmjs.org/payload.tgz",
+          integrity: `sha512-${createHash("sha512").update(bytes).digest("base64")}`,
+        },
+        fetchImpl: (async () => ({
+          ok: true,
+          arrayBuffer: async () => bytes,
+        })) as unknown as typeof fetch,
+      });
+
+      expect(path).toBe(join(dir, version, "app", "app.mjs"));
+      expect(cachedPayloadManifest(version, env)?.hostApiVersion).toBe(HOST_API_VERSION);
+      expect(readFileSync(join(dir, version, "app", "assets", "icon.png"), "utf8")).toBe("asset");
+      expect(readFileSync(join(dir, version, "sentry-tui"), "utf8")).toContain("#!/bin/sh");
+    } finally {
+      rmSync(source, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("the update lock", () => {
   test("only one holder at a time", () => {
     const { env, dir } = cacheWith([]);
@@ -319,12 +417,13 @@ describe("updatesDisabled", () => {
 });
 
 describe("what the running app is offered", () => {
-  test("a cached build newer than the running one is offered, with its path", () => {
-    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+  test("a cached payload newer than the running one is offered without a restart", () => {
+    const { env, dir } = payloadCacheWith([bumped(APP_VERSION)]);
     try {
       const ready = readyUpdate(env);
       expect(ready?.version).toBe(bumped(APP_VERSION));
-      expect(ready?.path).toBe(join(dir, bumped(APP_VERSION), "sentry-tui"));
+      expect(ready?.kind).toBe("payload");
+      expect(ready?.path).toBe(join(dir, bumped(APP_VERSION), "app", "app.mjs"));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -333,9 +432,42 @@ describe("what the running app is offered", () => {
   test("the running version, and anything below it, is not an update", () => {
     // The launcher leaves the build it started us on in the cache, so the
     // common case is a cache whose newest entry is exactly what is running.
-    const { env, dir } = cacheWith(["0.0.1", APP_VERSION]);
+    const { env, dir } = payloadCacheWith(["0.0.1", APP_VERSION]);
     try {
       expect(readyUpdate(env)).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("an incompatible payload falls back to a cached host release", () => {
+    const nextApp = bumped(APP_VERSION);
+    const nextHost = bumped(HOST_VERSION);
+    const { env, dir } = payloadCacheWith([nextApp], HOST_API_VERSION + 1);
+    try {
+      mkdirSync(join(dir, nextHost), { recursive: true });
+      writeFileSync(join(dir, nextHost, "sentry-tui"), "#!/bin/sh\nexit 0\n");
+      expect(readyUpdate(env)).toEqual({
+        version: nextHost,
+        kind: "host",
+        path: join(dir, nextHost, "sentry-tui"),
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a host-only release is offered even when the app is current", () => {
+    const nextHost = bumped(HOST_VERSION);
+    const { env, dir } = payloadCacheWith([APP_VERSION]);
+    try {
+      mkdirSync(join(dir, nextHost), { recursive: true });
+      writeFileSync(join(dir, nextHost, "sentry-tui"), "#!/bin/sh\nexit 0\n");
+      expect(readyUpdate(env)).toEqual({
+        version: nextHost,
+        kind: "host",
+        path: join(dir, nextHost, "sentry-tui"),
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -371,7 +503,7 @@ describe("when the app looks", () => {
   const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   test("the cache is read straight away, before any check is due", () => {
-    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    const { env, dir } = payloadCacheWith([bumped(APP_VERSION)]);
     try {
       const seen: (ReadyUpdate | undefined)[] = [];
       // Nothing may reach the network to produce this first answer: the build
@@ -451,7 +583,7 @@ describe("when the app looks", () => {
   test("a later answer of nothing withdraws the offer", async () => {
     // `pruneCache` can delete the build under us, and an offer to restart into
     // a path that no longer exists is worse than no offer.
-    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    const { env, dir } = payloadCacheWith([bumped(APP_VERSION)]);
     try {
       const seen: (ReadyUpdate | undefined)[] = [];
       const stop = watchForUpdate((update) => seen.push(update), {
@@ -471,7 +603,7 @@ describe("when the app looks", () => {
   });
 
   test("nothing happens at all when the launcher did not start us", async () => {
-    const { env, dir } = cacheWith([bumped(APP_VERSION)]);
+    const { env, dir } = payloadCacheWith([bumped(APP_VERSION)]);
     try {
       let checks = 0;
       const seen: (ReadyUpdate | undefined)[] = [];

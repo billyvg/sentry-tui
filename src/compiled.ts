@@ -8,6 +8,10 @@ if (process.env.SENTRY_TUI_VERIFY_SYNTAX === "1") {
   const { verifySyntaxRuntime } = await import("~/assets/syntaxProbe");
   await verifySyntaxRuntime();
   process.stdout.write("syntax parsers verified\n");
+} else if (process.env.SENTRY_TUI_VERIFY_PAYLOAD) {
+  const { loadAppPayload } = await import("~/ui/runtime/loadPayload");
+  const loaded = await loadAppPayload(process.env.SENTRY_TUI_VERIFY_PAYLOAD);
+  process.stdout.write(`app payload ${loaded.metadata.version} verified\n`);
 } else {
   await import("~/main");
 }

@@ -1,5 +1,5 @@
 /**
- * The update offer, from a cached binary on disk to a restart.
+ * The update offer, from a cached payload on disk to the runtime host.
  *
  * Driven through the real code path rather than a stubbed hook: the env seams
  * `packaging/npm/update.mjs` already honours (`SENTRY_TUI_CACHE_DIR`) plus the
@@ -15,8 +15,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { darkTheme as theme } from "~/core/theme";
+import { HOST_API_VERSION, HOST_MODULE_SPECIFIERS } from "~/app/runtimeContract";
+import type { ReadyUpdate } from "~/app/selfUpdate";
 import { App } from "~/ui/App";
 import { BOLD } from "~/ui/lib/attributes";
+import { RuntimeHost } from "~/ui/runtime/RuntimeHost";
 import { renderHarness } from "./helpers";
 
 /** Far enough above any version this repo will cut to always be an update. */
@@ -61,19 +64,24 @@ afterEach(() => {
   saved.clear();
 });
 
-/** Put a downloaded build in the cache, the way the update worker would. */
+/** Put a downloaded payload in the cache, the way the update worker would. */
 function cacheBuild(version: string): string {
-  mkdirSync(join(cacheDir, version), { recursive: true });
-  const path = join(cacheDir, version, "sentry-tui");
-  writeFileSync(path, "#!/bin/sh\nexit 0\n");
+  const appDir = join(cacheDir, version, "app");
+  mkdirSync(appDir, { recursive: true });
+  const path = join(appDir, "app.mjs");
+  writeFileSync(path, "export const PayloadApp = () => null;\n");
+  writeFileSync(
+    join(appDir, "manifest.json"),
+    `${JSON.stringify({ version, hostApiVersion: HOST_API_VERSION, entry: "app.mjs" })}\n`,
+  );
   return path;
 }
 
-const renderApp = (onRestart?: (path: string) => void) =>
-  renderHarness(<App onQuit={() => {}} onRestart={onRestart} />);
+const renderApp = (onApplyUpdate?: (update: ReadyUpdate) => boolean | Promise<boolean>) =>
+  renderHarness(<App onQuit={() => {}} onApplyUpdate={onApplyUpdate} />);
 
 test("nothing downloaded means nothing in the corner", async () => {
-  const h = await renderApp(() => {});
+  const h = await renderApp(() => true);
   try {
     expect(h.frame()).not.toContain("Update");
   } finally {
@@ -83,7 +91,7 @@ test("nothing downloaded means nothing in the corner", async () => {
 
 test("a downloaded build puts Update in the corner, bold and pink", async () => {
   cacheBuild(NEWER);
-  const h = await renderApp(() => {});
+  const h = await renderApp(() => true);
   try {
     const span = h.spanContaining("Update");
     expect(span).toBeDefined();
@@ -98,10 +106,10 @@ test("a downloaded build puts Update in the corner, bold and pink", async () => 
   }
 });
 
-test("clicking it hands over the path to the cached binary", async () => {
+test("clicking it hands the cached payload to the runtime host", async () => {
   const path = cacheBuild(NEWER);
   const restarts: string[] = [];
-  const h = await renderApp((p) => restarts.push(p));
+  const h = await renderApp((update) => (restarts.push(update.path), true));
   try {
     await h.click(PILL_X, STATUS_ROW);
     expect(restarts).toEqual([path]);
@@ -113,7 +121,7 @@ test("clicking it hands over the path to the cached binary", async () => {
 test("U does the same as clicking it", async () => {
   const path = cacheBuild(NEWER);
   const restarts: string[] = [];
-  const h = await renderApp((p) => restarts.push(p));
+  const h = await renderApp((update) => (restarts.push(update.path), true));
   try {
     await h.press((i) => i.pressKey("U"));
     expect(restarts).toEqual([path]);
@@ -124,7 +132,7 @@ test("U does the same as clicking it", async () => {
 
 test("U with nothing waiting answers rather than doing nothing", async () => {
   const restarts: string[] = [];
-  const h = await renderApp((p) => restarts.push(p));
+  const h = await renderApp((update) => (restarts.push(update.path), true));
   try {
     await h.press((i) => i.pressKey("U"));
     expect(restarts).toEqual([]);
@@ -136,7 +144,7 @@ test("U with nothing waiting answers rather than doing nothing", async () => {
 
 test("a build older than the one running is not an update", async () => {
   cacheBuild("0.0.1");
-  const h = await renderApp(() => {});
+  const h = await renderApp(() => true);
   try {
     expect(h.frame()).not.toContain("Update");
   } finally {
@@ -149,7 +157,7 @@ test("without the launcher's marker there is no offer, however new the cache", a
   // on the next cold start, so the app must not offer one.
   delete process.env.SENTRY_TUI_MANAGED;
   cacheBuild(NEWER);
-  const h = await renderApp(() => {});
+  const h = await renderApp(() => true);
   try {
     expect(h.frame()).not.toContain("Update");
   } finally {
@@ -160,9 +168,41 @@ test("without the launcher's marker there is no offer, however new the cache", a
 test("SENTRY_TUI_NO_UPDATE closes the offer too", async () => {
   process.env.SENTRY_TUI_NO_UPDATE = "1";
   cacheBuild(NEWER);
-  const h = await renderApp(() => {});
+  const h = await renderApp(() => true);
   try {
     expect(h.frame()).not.toContain("Update");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the runtime host swaps a compatible payload without replacing the renderer", async () => {
+  const path = cacheBuild(NEWER);
+  writeFileSync(
+    path,
+    `import { jsx } from ${JSON.stringify(HOST_MODULE_SPECIFIERS["@opentui/react/jsx-runtime"])};\n` +
+      `export const payload = ${JSON.stringify({ version: NEWER, hostApiVersion: HOST_API_VERSION })};\n` +
+      `export function PayloadApp() { return jsx("text", { children: "payload swapped in process" }); }\n`,
+  );
+  const themeSource = {
+    themeMode: "dark" as const,
+    waitForThemeMode: async () => "dark" as const,
+    on: () => {},
+    off: () => {},
+  };
+  const h = await renderHarness(
+    <RuntimeHost
+      onQuit={() => {}}
+      onRestart={() => {
+        throw new Error("a compatible payload must not restart the host");
+      }}
+      theme={{ source: themeSource, initialMode: "dark", fixed: true }}
+    />,
+  );
+  try {
+    await h.click(PILL_X, STATUS_ROW);
+    await h.wait(25);
+    expect(h.frame()).toContain("payload swapped in process");
   } finally {
     await h.cleanup();
   }

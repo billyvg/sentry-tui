@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
-import { APP_VERSION } from "~/lib/version";
+import { APP_VERSION } from "~/app/version";
 import { App } from "~/ui/App";
 import { groupsFixture } from "./fixtures";
 import { renderHarness, type Harness } from "./helpers";

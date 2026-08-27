@@ -1,14 +1,17 @@
 import { useEffect } from "react";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 
-import { restartInto } from "~/app/selfUpdate";
+import { discardFailedPayload, restartInto } from "~/app/selfUpdate";
 import type { AppContext } from "~/app/startup";
 import { flushConfigWrites } from "~/api/config";
 import { parseThemePreference } from "~/core/theme";
 import { finishStartup, log, setTerminalRestore, shutdownTelemetry } from "~/telemetry/index";
-import { App } from "~/ui/App";
 import { ErrorBoundary } from "~/ui/components/ErrorBoundary";
+import { loadAppPayload } from "~/ui/runtime/loadPayload";
+import { RuntimeHost } from "~/ui/runtime/RuntimeHost";
 import { resolveInitialTheme, ThemeProvider } from "~/ui/theme";
 
 /**
@@ -25,6 +28,18 @@ export async function runApp({
   user,
   initialLocation,
 }: AppContext): Promise<void> {
+  let initialPayload;
+  const siblingPayload = join(dirname(process.execPath), "app", "app.mjs");
+  const payloadPath =
+    process.env.SENTRY_TUI_APP_PAYLOAD || (existsSync(siblingPayload) ? siblingPayload : undefined);
+  if (payloadPath) {
+    try {
+      initialPayload = await loadAppPayload(payloadPath);
+    } catch {
+      discardFailedPayload(payloadPath);
+    }
+  }
+
   const preference = parseThemePreference(process.env["SENTRY_TUI_THEME"]);
   const renderer = await createCliRenderer({
     screenMode: "alternate-screen",
@@ -91,9 +106,11 @@ export async function runApp({
     <ThemeProvider source={renderer} initialMode={selection.mode} fixed={selection.fixed}>
       <ErrorBoundary onQuit={() => void shutdown()}>
         <FirstPaint />
-        <App
+        <RuntimeHost
           onQuit={() => void shutdown()}
           onRestart={(path) => void restart(path)}
+          initialPayload={initialPayload}
+          theme={{ source: renderer, initialMode: selection.mode, fixed: selection.fixed }}
           client={client}
           org={org}
           user={user}

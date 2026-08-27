@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
-import { bumpManifestVersion, releasePackageStatus, resolveReleaseVersion } from "./release.ts";
+import { bumpReleaseVersions, releasePackageStatus, resolveReleaseVersion } from "./release.ts";
 
 describe("release version", () => {
   test("defaults to the next minor version", () => {
@@ -25,13 +25,23 @@ describe("release version", () => {
     expect(() => resolveReleaseVersion("1.2.3", ["2.0.0", "2.1.0"], [])).toThrow();
   });
 
-  test("changes only the repository manifest version", () => {
-    const manifest = '{\n  "name": "sentry-tui",\n  "version": "1.2.3",\n  "private": true\n}\n';
+  test("changes only the selected release version", () => {
+    const manifest = '{\n  "host": "1.2.3",\n  "app": "4.5.6"\n}\n';
 
-    expect(bumpManifestVersion(manifest, "1.2.3", "1.3.0")).toBe(
-      '{\n  "name": "sentry-tui",\n  "version": "1.3.0",\n  "private": true\n}\n',
-    );
-    expect(bumpManifestVersion(manifest, "1.2.3", "1.2.3")).toBe(manifest);
+    expect(
+      bumpReleaseVersions(
+        manifest,
+        { host: "1.2.3", app: "4.5.6" },
+        { host: "1.3.0", app: "4.5.6" },
+      ),
+    ).toBe('{\n  "host": "1.3.0",\n  "app": "4.5.6"\n}\n');
+    expect(
+      bumpReleaseVersions(
+        manifest,
+        { host: "1.2.3", app: "4.5.6" },
+        { host: "1.2.3", app: "4.5.6" },
+      ),
+    ).toBe(manifest);
   });
 
   test("the cut command applies bump flags before release checks", () => {
