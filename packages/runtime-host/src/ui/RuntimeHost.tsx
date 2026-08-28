@@ -6,8 +6,8 @@ import { HOST_API_VERSION } from "@sentry-tui/runtime-contract/runtime";
 import type { ReadyUpdate } from "@sentry-tui/runtime-contract/update";
 import { reportError } from "@sentry-tui/runtime-host/telemetry/index";
 import { discardFailedPayload } from "@sentry-tui/runtime-host/update/selfUpdate";
-import { loadUpdatePayload } from "@sentry-tui/runtime-host/update/loadPayload";
-import type { LoadedAppPayload } from "@sentry-tui/runtime-host/ui/loadPayload";
+import { reportUpdateFailure } from "@sentry-tui/runtime-host/update/telemetry";
+import { loadAppPayload, type LoadedAppPayload } from "@sentry-tui/runtime-host/ui/loadPayload";
 import { cloneSessionSnapshot } from "@sentry-tui/runtime-host/ui/sessionSnapshot";
 
 interface RuntimeHostProps extends Omit<
@@ -49,18 +49,23 @@ export function RuntimeHost({ initialPayload, onRestart, ...props }: RuntimeHost
         return true;
       }
 
-      const loaded = await loadUpdatePayload(update.path, {
-        stage: "apply",
-        version: update.version,
-      });
-      if (!loaded) return false;
-
-      const preservedSnapshot = sessionSnapshot.current;
-      setActive((current) => {
-        previous.current = { payload: current, sessionSnapshot: preservedSnapshot };
-        return loaded;
-      });
-      return true;
+      try {
+        const loaded = await loadAppPayload(update.path);
+        const preservedSnapshot = sessionSnapshot.current;
+        setActive((current) => {
+          previous.current = { payload: current, sessionSnapshot: preservedSnapshot };
+          return loaded;
+        });
+        return true;
+      } catch (error) {
+        reportUpdateFailure(error, {
+          kind: update.kind,
+          version: update.version,
+          stage: "apply",
+        });
+        discardFailedPayload(update.path);
+        return false;
+      }
     },
     [onRestart],
   );

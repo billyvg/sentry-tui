@@ -4,6 +4,7 @@ import { createRoot } from "@opentui/react";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { APP_VERSION } from "@sentry-tui/app/version";
 import { flushConfigWrites } from "@sentry-tui/runtime-host/config/index";
 import type { AppContext } from "@sentry-tui/runtime-host/startup/startup";
 import { openBrowser } from "@sentry-tui/runtime-host/startup/openBrowser";
@@ -13,9 +14,10 @@ import {
   setTerminalRestore,
   shutdownTelemetry,
 } from "@sentry-tui/runtime-host/telemetry/index";
-import { loadUpdatePayload } from "@sentry-tui/runtime-host/update/loadPayload";
-import { restartInto } from "@sentry-tui/runtime-host/update/selfUpdate";
+import { discardFailedPayload, restartInto } from "@sentry-tui/runtime-host/update/selfUpdate";
+import { reportUpdateFailure } from "@sentry-tui/runtime-host/update/telemetry";
 import { ErrorBoundary } from "@sentry-tui/runtime-host/ui/ErrorBoundary";
+import { loadAppPayload } from "@sentry-tui/runtime-host/ui/loadPayload";
 import { RuntimeHost } from "@sentry-tui/runtime-host/ui/RuntimeHost";
 import { parseThemePreference } from "~/core/theme";
 import { resolveInitialTheme, ThemeProvider } from "~/ui/theme";
@@ -34,12 +36,22 @@ export async function runApp({
   user,
   initialLocation,
 }: AppContext): Promise<void> {
+  let initialPayload;
   const siblingPayload = join(dirname(process.execPath), "app", "app.mjs");
   const payloadPath =
     process.env.SENTRY_TUI_APP_PAYLOAD || (existsSync(siblingPayload) ? siblingPayload : undefined);
-  const initialPayload = payloadPath
-    ? await loadUpdatePayload(payloadPath, { stage: "startup" })
-    : undefined;
+  if (payloadPath) {
+    try {
+      initialPayload = await loadAppPayload(payloadPath);
+    } catch (error) {
+      reportUpdateFailure(error, {
+        kind: "payload",
+        version: process.env.SENTRY_TUI_APP_VERSION || APP_VERSION,
+        stage: "startup",
+      });
+      discardFailedPayload(payloadPath);
+    }
+  }
 
   const preference = parseThemePreference(process.env["SENTRY_TUI_THEME"]);
   const renderer = await createCliRenderer({
