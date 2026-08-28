@@ -43,6 +43,10 @@ import {
 import { APP_VERSION } from "@sentry-tui/app/version";
 import { HOST_API_VERSION } from "@sentry-tui/runtime-contract/runtime";
 import { installUpdateService, type ReadyUpdate } from "@sentry-tui/runtime-contract/update";
+import {
+  countUpdateCheckFailure,
+  reportUpdateFailure,
+} from "@sentry-tui/runtime-host/update/telemetry";
 import { HOST_VERSION } from "@sentry-tui/runtime-host/version";
 
 export type { ReadyUpdate } from "@sentry-tui/runtime-contract/update";
@@ -131,6 +135,7 @@ export async function checkForUpdate(
   } catch {
     // The host check is independent. A payload registry failure must not hide
     // a runtime fix, and the cache read below may still have an old answer.
+    countUpdateCheckFailure("payload");
   }
 
   try {
@@ -144,7 +149,9 @@ export async function checkForUpdate(
       });
     }
   } catch {
-    // Nothing to say and nowhere to say it. Both release lines fail open.
+    // Both release lines fail open; the counter is the aggregate signal that
+    // tells us if this expected outcome becomes anomalous.
+    countUpdateCheckFailure("host");
   }
   return readyUpdate(env);
 }
@@ -232,7 +239,8 @@ export function discardFailedPayload(path: string, env: NodeJS.ProcessEnv = proc
   try {
     removeCachedArtifact(version, "payload", env);
     return true;
-  } catch {
+  } catch (error) {
+    reportUpdateFailure(error, { kind: "payload", version, stage: "discard" });
     return false;
   }
 }

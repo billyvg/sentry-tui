@@ -119,6 +119,7 @@ function childEnv(appPayload) {
     SENTRY_TUI_MANAGED: "1",
     SENTRY_TUI_APP_PACKAGE: APP_PACKAGE,
     ...(appPayload?.path ? { SENTRY_TUI_APP_PAYLOAD: appPayload.path } : {}),
+    ...(appPayload?.version ? { SENTRY_TUI_APP_VERSION: appPayload.version } : {}),
   };
 }
 

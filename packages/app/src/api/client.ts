@@ -1,5 +1,10 @@
 import type { AuthProvider } from "~/api/auth";
-import { beginRequest, log, reportError } from "@sentry-tui/runtime-contract/telemetry";
+import {
+  beginRequest,
+  countMetric,
+  log,
+  reportError,
+} from "@sentry-tui/runtime-contract/telemetry";
 
 export const DEFAULT_BASE_URL = "https://sentry.io/api/0";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -316,12 +321,24 @@ export class SentryClient {
    *
    * Most of what fails here is not a bug: an expired token, a slug that no
    * longer exists, a rate limit. Those are states the UI draws and the user
-   * can act on, so they are logged and left at that — an issue for every
-   * stale token would drown the real ones. A 5xx or a request that never
-   * reached a server is a different thing, and gets reported.
+   * can act on, so they are counted rather than filed as issues. A 5xx, a
+   * request that never reached a server, or an unexpected client exception is
+   * a different thing, and gets reported.
    */
   private report(error: unknown, context: { method: string; path: string; retries: number }): void {
-    if (!(error instanceof ApiError)) return;
+    if (!(error instanceof ApiError)) {
+      log("error", "api.request.failed", {
+        method: context.method,
+        retries: context.retries,
+        kind: "unexpected",
+      });
+      reportError(error, {
+        source: "api.request.failed",
+        tags: { "http.kind": "client" },
+        extra: context,
+      });
+      return;
+    }
 
     const { status } = error;
     const route = `${context.method} ${context.path}`;
@@ -340,8 +357,12 @@ export class SentryClient {
       return;
     }
 
-    // Worth knowing about in aggregate — how often people hit the rate limit,
-    // how often tokens go stale — without being anybody's bug to fix.
+    // Rendering the rejection makes it handled, not observable. Count every
+    // expected status so alerts can catch an unusual volume without filing an
+    // issue for each stale token or deleted resource. Routes stay out of metric
+    // attributes because they contain organization slugs and resource ids.
+    countMetric("api.request.rejected", { method: context.method, status });
+
     if (status === 429) {
       log("warn", "api.request.rate_limited", {
         ...attributes,

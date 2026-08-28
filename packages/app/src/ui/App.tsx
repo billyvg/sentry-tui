@@ -22,7 +22,12 @@ import { useTheme } from "~/ui/theme";
 import { findTriageAction } from "~/core/triage";
 // Aliased: `breadcrumb` is taken in this file by the trail rendered in the
 // pane's border title, which is a different thing entirely.
-import { breadcrumb as leaveCrumb, identify, log } from "@sentry-tui/runtime-contract/telemetry";
+import {
+  breadcrumb as leaveCrumb,
+  identify,
+  log,
+  reportError,
+} from "@sentry-tui/runtime-contract/telemetry";
 import { CommandPalette } from "~/ui/components/CommandPalette";
 import { DetailBackRow } from "~/ui/components/DetailBackRow";
 import { isFilterBarMounted } from "~/ui/components/FilterBar";
@@ -81,6 +86,13 @@ export interface AppProps {
 
 /** Issues › Feed — where the app opens when nothing says otherwise. */
 const DEFAULT_SCREEN: ScreenId = "issues.feed";
+
+/** Keep an applied preference on screen while preserving a failed disk write. */
+function persistConfig(updates: Parameters<typeof writeConfig>[0]): void {
+  void writeConfig(updates).catch((error: unknown) => {
+    reportError(error, { source: "app.config.write_failed" });
+  });
+}
 
 export function App({
   onQuit,
@@ -241,7 +253,7 @@ export function App({
     (mode: SeerCodeMode) => {
       setSeerCodeModeByOrg((current) => {
         const next = { ...current, [org]: mode };
-        void writeConfig({ seerCodeModeByOrg: next }).catch(() => {});
+        persistConfig({ seerCodeModeByOrg: next });
         return next;
       });
     },
@@ -252,7 +264,7 @@ export function App({
     (enabled: boolean) => {
       setSeerBashModeByOrg((current) => {
         const next = { ...current, [org]: enabled };
-        void writeConfig({ seerBashModeByOrg: next }).catch(() => {});
+        persistConfig({ seerBashModeByOrg: next });
         return next;
       });
     },
@@ -263,7 +275,7 @@ export function App({
     (enabled: boolean) => {
       setSeerShowThinkingByOrg((current) => {
         const next = { ...current, [org]: enabled };
-        void writeConfig({ seerShowThinkingByOrg: next }).catch(() => {});
+        persistConfig({ seerShowThinkingByOrg: next });
         return next;
       });
     },
@@ -278,9 +290,8 @@ export function App({
       const next = { ...projectsByOrgRef.current, [org]: [...projects] };
       projectsByOrgRef.current = next;
       setProjectsByOrg(next);
-      void writeConfig({ projectsByOrg: next }).catch(() => {
-        // A read-only config dir should not undo the selection on screen.
-      });
+      // A read-only config dir should not undo the selection on screen.
+      persistConfig({ projectsByOrg: next });
     },
     [org, state.dispatch],
   );
@@ -440,10 +451,9 @@ export function App({
       leaveCrumb({ category: "navigation", message: `switched org to ${slug}` });
       log("info", "ui.org.switched", { org: slug });
 
-      void writeConfig({ org: slug }).catch(() => {
-        // A read-only config dir shouldn't undo a switch that already happened;
-        // it only means the next launch opens the previous org.
-      });
+      // A read-only config dir shouldn't undo a switch that already happened;
+      // it only means the next launch opens the previous org.
+      persistConfig({ org: slug });
     },
     [clearViews, org, resetOrgScoped, showNotice],
   );

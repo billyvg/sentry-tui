@@ -10,7 +10,7 @@
  * that schedule directly, with the numbers turned down.
  */
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -19,6 +19,7 @@ import { HOST_API_VERSION, HOST_MODULE_SPECIFIERS } from "@sentry-tui/runtime-co
 import { installUpdateService, type ReadyUpdate } from "@sentry-tui/runtime-contract/update";
 import { App } from "~/ui/App";
 import { BOLD } from "~/ui/lib/attributes";
+import * as telemetry from "@sentry-tui/runtime-host/telemetry/index";
 import { RuntimeHost } from "@sentry-tui/runtime-host/ui/RuntimeHost";
 import { renderHarness } from "./helpers";
 
@@ -236,6 +237,52 @@ test("the runtime host swaps a compatible payload without replacing the renderer
     expect(h.frame()).toContain("payload swapped in process");
     expect(h.frame()).toContain("https://acme.sentry.io/explore/logs/");
   } finally {
+    await h.cleanup();
+  }
+});
+
+test("a payload import failure is reported before its cache entry is discarded", async () => {
+  const path = cacheBuild(NEWER);
+  writeFileSync(path, 'throw new Error("payload import exploded");\n');
+  let reportedWhileCached = false;
+  const reportError = spyOn(telemetry, "reportError").mockImplementation((error, context) => {
+    if (context?.source !== "app.update.failed") return;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("payload import exploded");
+    expect(context).toEqual({
+      source: "app.update.failed",
+      handled: true,
+      tags: {
+        "update.kind": "payload",
+        "update.version": NEWER,
+        "update.stage": "apply",
+      },
+    });
+    reportedWhileCached = existsSync(path);
+  });
+  const themeSource = {
+    themeMode: "dark" as const,
+    waitForThemeMode: async () => "dark" as const,
+    on: () => {},
+    off: () => {},
+  };
+  const h = await renderHarness(
+    <RuntimeHost
+      onQuit={() => {}}
+      onRestart={() => {}}
+      org="acme"
+      theme={{ source: themeSource, initialMode: "dark", fixed: true }}
+    />,
+  );
+  try {
+    await h.click(PILL_X, STATUS_ROW);
+    await h.waitForFrame((frame) => frame.includes("update could not be"));
+
+    expect(reportError).toHaveBeenCalledTimes(1);
+    expect(reportedWhileCached).toBe(true);
+    expect(existsSync(path)).toBe(false);
+  } finally {
+    reportError.mockRestore();
     await h.cleanup();
   }
 });

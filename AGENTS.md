@@ -134,26 +134,38 @@ reporting exists for, while a counter still answers how often they happen.
 
 The names in use today:
 
-| name                              | kind        | where                                            |
-| --------------------------------- | ----------- | ------------------------------------------------ |
-| `app.session.started`             | log         | `packages/runtime-host/src/ui/runApp.tsx`        |
-| `app.session.ended`               | log         | `packages/runtime-host/src/ui/runApp.tsx`        |
-| `app.session.crashed`             | log         | `packages/runtime-host/src/telemetry/index.ts`   |
-| `app.startup.failed`              | error       | `packages/runtime-host/src/main.tsx`             |
-| `app.crash.uncaught_exception`    | error       | `packages/runtime-host/src/telemetry/index.ts`   |
-| `app.crash.unhandled_rejection`   | error       | `packages/runtime-host/src/telemetry/index.ts`   |
-| `api.request.failed`              | log + error | `packages/app/src/api/client.ts`                 |
-| `api.request.rate_limited`        | log         | `packages/app/src/api/client.ts`                 |
-| `api.request.unauthorized`        | log         | `packages/app/src/api/client.ts`                 |
-| `api.response.unreadable`         | error       | `packages/app/src/core/async.ts`                 |
-| `auth.credentials.missing`        | metric      | `packages/runtime-host/src/main.tsx`             |
-| `auth.organizations.missing`      | metric      | `packages/runtime-host/src/main.tsx`             |
-| `nav.screen.opened`               | log         | `packages/runtime-host/src/telemetry/index.ts`   |
-| `nav.url.invalid`                 | metric      | `packages/app/src/core/sentryUrl.ts`             |
-| `nav.url.unsupported`             | metric      | `packages/app/src/core/sentryUrl.ts`             |
-| `ui.org_picker.invalid_selection` | metric      | `packages/runtime-host/src/main.tsx`             |
-| `ui.org.switched`                 | log         | `packages/app/src/ui/App.tsx`                    |
-| `ui.render.crashed`               | error       | `packages/runtime-host/src/ui/ErrorBoundary.tsx` |
+| name                              | kind        | where                                              |
+| --------------------------------- | ----------- | -------------------------------------------------- |
+| `app.session.started`             | log         | `packages/runtime-host/src/ui/runApp.tsx`          |
+| `app.session.ended`               | log         | `packages/runtime-host/src/ui/runApp.tsx`          |
+| `app.session.crashed`             | log         | `packages/runtime-host/src/telemetry/index.ts`     |
+| `app.startup.failed`              | error       | `packages/runtime-host/src/main.tsx`               |
+| `app.config.write_failed`         | error       | `packages/app/src/ui/App.tsx`                      |
+| `app.update.failed`               | error       | `packages/runtime-host/src/update/telemetry.ts`    |
+| `app.update.check_failed`         | metric      | `packages/runtime-host/src/update/telemetry.ts`    |
+| `app.crash.uncaught_exception`    | error       | `packages/runtime-host/src/telemetry/index.ts`     |
+| `app.crash.unhandled_rejection`   | error       | `packages/runtime-host/src/telemetry/index.ts`     |
+| `api.request.failed`              | log + error | `packages/app/src/api/client.ts`                   |
+| `api.request.rate_limited`        | log         | `packages/app/src/api/client.ts`                   |
+| `api.request.unauthorized`        | log         | `packages/app/src/api/client.ts`                   |
+| `api.request.rejected`            | metric      | `packages/app/src/api/client.ts`                   |
+| `api.response.unreadable`         | error       | `packages/app/src/core/async.ts`                   |
+| `auth.credentials.missing`        | metric      | `packages/runtime-host/src/main.tsx`               |
+| `auth.organizations.missing`      | metric      | `packages/runtime-host/src/main.tsx`               |
+| `nav.screen.opened`               | log         | `packages/runtime-host/src/telemetry/index.ts`     |
+| `nav.browser.open_failed`         | metric      | `packages/runtime-host/src/startup/openBrowser.ts` |
+| `nav.url.invalid`                 | metric      | `packages/app/src/core/sentryUrl.ts`               |
+| `nav.url.unsupported`             | metric      | `packages/app/src/core/sentryUrl.ts`               |
+| `ui.org_picker.invalid_selection` | metric      | `packages/runtime-host/src/main.tsx`               |
+| `ui.org.switched`                 | log         | `packages/app/src/ui/App.tsx`                      |
+| `ui.render.crashed`               | error       | `packages/runtime-host/src/ui/ErrorBoundary.tsx`   |
+
+Catching an error to render a useful message does not make the failure
+observable. Every non-abort failure needs one owner that calls `reportError`,
+or `countMetric` when the outcome is expected. The API client owns HTTP failure
+telemetry, so UI hooks may render or degrade from those rejections without
+reporting them a second time; catches outside an already-observed boundary must
+record the failure before discarding it or replacing it with fallback state.
 
 ## images
 
