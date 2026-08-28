@@ -36,6 +36,7 @@ import {
 } from "../packages/launcher/src/launch.mjs";
 import {
   canSelfUpdate,
+  checkForUpdate,
   type ReadyUpdate,
   readyUpdate,
   UPDATE_FIRST_CHECK_MS,
@@ -493,6 +494,12 @@ describe("canSelfUpdate", () => {
   test("the same opt-outs the launcher honours close it too", () => {
     expect(canSelfUpdate({ ...managed, SENTRY_TUI_NO_UPDATE: "1" })).toBe(false);
     expect(canSelfUpdate({ ...managed, CI: "true" })).toBe(false);
+  });
+});
+
+describe("manual update checks", () => {
+  test("stand down outside a launcher-managed process", async () => {
+    await expect(checkForUpdate({})).resolves.toBeUndefined();
   });
 });
 

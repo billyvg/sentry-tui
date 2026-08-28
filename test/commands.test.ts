@@ -67,9 +67,9 @@ describe("catalog", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  test("every command has at least one binding and a title", () => {
+  test("every command is bound or palette-accessible, and has a title", () => {
     for (const command of COMMANDS) {
-      expect(command.defaultKeys.length).toBeGreaterThan(0);
+      expect(command.defaultKeys.length > 0 || command.palette).toBeTruthy();
       expect(command.title.length).toBeGreaterThan(0);
     }
   });

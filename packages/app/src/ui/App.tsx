@@ -516,8 +516,20 @@ export function App({
 
   // A newer build sitting in the cache, if there is one. Undefined the whole
   // time for anyone the launcher did not start — see `canSelfUpdate`.
-  const pendingUpdate = useUpdateCheck();
+  const { update: pendingUpdate, checkNow: checkForUpdate } = useUpdateCheck();
   const updateReady = Boolean(pendingUpdate && onApplyUpdate);
+
+  /** Check both release lines now and announce the result in the status bar. */
+  const runUpdateCheck = useCallback(() => {
+    showNotice({ kind: "loading", text: "checking for updates…" });
+    void checkForUpdate().then((found) => {
+      showNotice(
+        found
+          ? { kind: "success", text: `update ${found.version} ready` }
+          : { kind: "idle", text: "already up to date" },
+      );
+    });
+  }, [checkForUpdate, showNotice]);
 
   /**
    * Apply the downloaded release, or say why there is nothing to do.
@@ -572,6 +584,9 @@ export function App({
         case "sentry.app.refresh":
           refresh();
           return;
+        case "sentry.app.checkForUpdates":
+          runUpdateCheck();
+          return;
         case "sentry.app.switchOrg":
           setShowOrgPicker(true);
           return;
@@ -607,7 +622,18 @@ export function App({
           if (findTriageAction(commandId) && activeIssue) triage.run(commandId, activeIssue);
       }
     },
-    [activeIssue, focus, navigateTo, onQuit, openInBrowser, refresh, runUpdate, state, triage],
+    [
+      activeIssue,
+      focus,
+      navigateTo,
+      onQuit,
+      openInBrowser,
+      refresh,
+      runUpdate,
+      runUpdateCheck,
+      state,
+      triage,
+    ],
   );
 
   /**

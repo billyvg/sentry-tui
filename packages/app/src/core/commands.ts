@@ -73,6 +73,17 @@ export const COMMANDS: readonly Command[] = [
     palette: "always",
   },
   {
+    // Intentionally palette-only: checking the registry is occasional enough
+    // not to spend a global key on it, while the downloaded-update action
+    // below keeps its shortcut for the time-sensitive offer in the status bar.
+    id: "sentry.app.checkForUpdates",
+    title: "Check for updates",
+    category: "app",
+    defaultKeys: [],
+    description: "Download a newer release",
+    palette: "always",
+  },
+  {
     // Always bound, even with nothing to install: the help overlay prints every
     // command that has a key, and a row that appears and disappears with the
     // state of a download is worse than one that answers "you're on the latest
