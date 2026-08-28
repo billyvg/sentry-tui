@@ -13,6 +13,7 @@ import { useCallback, useMemo, useReducer, useRef } from "react";
 
 import { DEFAULT_SORT, DEFAULT_STATS_PERIOD } from "~/api/issues";
 import { defaultsForStateKey } from "~/core/screens";
+import type { ScreenSessionSnapshot } from "~/core/sessionSnapshot";
 import type { FilterDropdownType } from "~/ui/components/FilterBar";
 
 /** Where a screen's fetch has got to, as the status bar needs to read it. */
@@ -115,6 +116,8 @@ export interface ScreenStateStore {
    * the slice.
    */
   seed: (key: string, values: ScreenStateSeed) => void;
+  /** Serializable state for every initialized screen slice. */
+  snapshots: Readonly<Record<string, ScreenSessionSnapshot>>;
 }
 
 /** Filters a slice can be started from. */
@@ -164,6 +167,44 @@ function initialSlice(key: string, selectedProjects: readonly string[] = []): Sc
     searchFocused: false,
     queryBeforeEdit: query,
   };
+}
+
+/** Rebuild a screen slice without carrying fetched rows or transient controls. */
+function sliceFromSnapshot(key: string, snapshot: ScreenSessionSnapshot): ScreenSlice {
+  const initial = initialSlice(key, snapshot.selectedProjects);
+  return {
+    ...initial,
+    entriesSource: snapshot.source,
+    selected: snapshot.selected,
+    selectedProjects: [...snapshot.selectedProjects],
+    selectedEnvs: [...snapshot.selectedEnvs],
+    statsPeriod: snapshot.statsPeriod,
+    sort: snapshot.sort,
+    detailOpen: snapshot.detailOpen,
+    searchQuery: snapshot.query,
+    committedQuery: snapshot.query,
+    queryBeforeEdit: snapshot.query,
+  };
+}
+
+/** Build the initial store from a validated session, then apply a URL seed if needed. */
+function initialStore(
+  key: string,
+  selectedProjects: readonly string[],
+  initialSeed: ScreenStateSeed | undefined,
+  snapshots: Readonly<Record<string, ScreenSessionSnapshot>> | undefined,
+): ReadonlyMap<string, ScreenSlice> {
+  const states = new Map<string, ScreenSlice>();
+  for (const [snapshotKey, snapshot] of Object.entries(snapshots ?? {})) {
+    states.set(snapshotKey, sliceFromSnapshot(snapshotKey, snapshot));
+  }
+  if (initialSeed && !states.has(key)) {
+    states.set(
+      key,
+      screenReducer(initialSlice(key, selectedProjects), { type: "seed", payload: initialSeed }),
+    );
+  }
+  return states;
 }
 
 /** Compare status values so repeated fetch effects can remain reducer no-ops. */
@@ -327,23 +368,14 @@ export function useScreenState(
   source: string,
   initialSelectedProjects: readonly string[] = [],
   initialSeed?: ScreenStateSeed,
+  initialSnapshots?: Readonly<Record<string, ScreenSessionSnapshot>>,
 ): ScreenStateStore {
   const key = stateKey ?? UNREGISTERED_KEY;
   const [states, storeDispatch] = useReducer(
     screenStoreReducer,
     undefined,
     (): ReadonlyMap<string, ScreenSlice> =>
-      initialSeed
-        ? new Map([
-            [
-              key,
-              screenReducer(initialSlice(key, initialSelectedProjects), {
-                type: "seed",
-                payload: initialSeed,
-              }),
-            ],
-          ])
-        : new Map(),
+      initialStore(key, initialSelectedProjects, initialSeed, initialSnapshots),
   );
   const initialSelectedProjectsRef = useRef(initialSelectedProjects);
   initialSelectedProjectsRef.current = initialSelectedProjects;
@@ -417,5 +449,23 @@ export function useScreenState(
     storeDispatch({ type: "seed", key: target, values });
   }, []);
 
-  return { active, resetOrgScoped, seed };
+  const snapshots = useMemo<Readonly<Record<string, ScreenSessionSnapshot>>>(() => {
+    const result: Record<string, ScreenSessionSnapshot> = {};
+    for (const [snapshotKey, state] of states) {
+      if (snapshotKey === UNREGISTERED_KEY) continue;
+      result[snapshotKey] = {
+        source: state.entriesSource,
+        selected: state.selected,
+        query: state.committedQuery,
+        sort: state.sort,
+        statsPeriod: state.statsPeriod,
+        selectedProjects: [...state.selectedProjects],
+        selectedEnvs: [...state.selectedEnvs],
+        detailOpen: state.detailOpen,
+      };
+    }
+    return result;
+  }, [states]);
+
+  return { active, resetOrgScoped, seed, snapshots };
 }

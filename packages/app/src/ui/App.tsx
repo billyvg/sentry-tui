@@ -10,6 +10,7 @@ import type { Group } from "~/api/types";
 import { getNavGroup, NAV_GROUPS } from "~/core/nav";
 import { buildPaletteActions, type PaletteAction } from "~/core/palette";
 import { getScreen, stateKeyOf, type ScreenId } from "~/core/screens";
+import { createAppSessionSnapshot, restoreAppSessionSnapshot } from "~/core/sessionSnapshot";
 import {
   buildSentryUrl,
   parseSentryUrl,
@@ -71,6 +72,10 @@ export interface AppProps {
   onApplyUpdate?: (update: ReadyUpdate) => boolean | Promise<boolean>;
   /** Ask the runtime host to open a trusted canonical sentry.io URL. */
   onOpenUrl?: (url: string) => boolean | Promise<boolean>;
+  /** Opaque, host-owned JSON from the payload that was replaced in-process. */
+  initialSessionSnapshot?: unknown;
+  /** Publish the latest serializable session state to the runtime host. */
+  onSessionSnapshot?: (snapshot: unknown) => void;
 }
 
 /** Issues › Feed — where the app opens when nothing says otherwise. */
@@ -89,30 +94,40 @@ export function App({
   initialSeerShowThinkingByOrg = {},
   onApplyUpdate,
   onOpenUrl,
+  initialSessionSnapshot,
+  onSessionSnapshot,
 }: AppProps) {
   const theme = useTheme();
   const { width, height } = useTerminalDimensions();
 
+  const [restoredSession] = useState(() => restoreAppSessionSnapshot(initialSessionSnapshot));
+  const restoredSnapshot = restoredSession?.snapshot;
+  const startupLocation = restoredSession?.location ?? initialLocation;
+
   const [projectsByOrg, setProjectsByOrg] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(
-      Object.entries(initialProjectsByOrg).map(([slug, projects]) => [slug, [...projects]]),
+      Object.entries({ ...initialProjectsByOrg, ...restoredSnapshot?.projectsByOrg }).map(
+        ([slug, projects]) => [slug, [...projects]],
+      ),
     ),
   );
   const projectsByOrgRef = useRef(projectsByOrg);
   const [seerCodeModeByOrg, setSeerCodeModeByOrg] = useState<Record<string, SeerCodeMode>>(() => ({
     ...initialSeerCodeModeByOrg,
+    ...restoredSnapshot?.seerCodeModeByOrg,
   }));
   const [seerBashModeByOrg, setSeerBashModeByOrg] = useState<Record<string, boolean>>(() => ({
     ...initialSeerBashModeByOrg,
+    ...restoredSnapshot?.seerBashModeByOrg,
   }));
   const [seerShowThinkingByOrg, setSeerShowThinkingByOrg] = useState<Record<string, boolean>>(
-    () => ({ ...initialSeerShowThinkingByOrg }),
+    () => ({ ...initialSeerShowThinkingByOrg, ...restoredSnapshot?.seerShowThinkingByOrg }),
   );
 
   // The open organization. Sourced from the CLI at startup, then owned here so
   // the picker can repoint every screen at once — every fetch in the tree takes
   // it as a dependency.
-  const [org, setOrg] = useState(initialLocation?.org ?? initialOrg);
+  const [org, setOrg] = useState(startupLocation?.org ?? restoredSnapshot?.org ?? initialOrg);
 
   const [showHelp, setShowHelp] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
@@ -142,7 +157,9 @@ export function App({
     reloadToken,
     width,
     initialScreen,
-    initialLocation,
+    initialLocation: startupLocation,
+    initialViewLocations: restoredSession?.viewStack,
+    initialScreenSnapshots: restoredSnapshot?.navigation.screens,
     initialSelectedProjects: projectsByOrg[org] ?? [],
     availableNavGroups,
     focus,
@@ -179,6 +196,8 @@ export function App({
     statusHints,
     topView,
     updateView,
+    viewLocations,
+    screenSnapshots,
   } = navigation;
 
   // Fetch org details (including avatar) for whichever org is open.
@@ -277,6 +296,7 @@ export function App({
     codeMode: seerCodeModeByOrg[org] ?? "only",
     bashMode: seerBashModeByOrg[org] ?? false,
     showThinking: seerShowThinkingByOrg[org] ?? false,
+    initialRunId: restoredSnapshot?.seerRunId,
     onCodeModeChange: setSeerCodeMode,
     onBashModeChange: setSeerBashMode,
     onShowThinkingChange: setSeerShowThinking,
@@ -307,6 +327,43 @@ export function App({
         : {}),
     };
   }, [org, screen, seerChat.runId, state, topView]);
+
+  const sessionSnapshot = useMemo(() => {
+    if (!onSessionSnapshot || !org || !currentSentryLocation) return undefined;
+    const lastView = viewLocations.length - 1;
+    return createAppSessionSnapshot({
+      org,
+      navigation: {
+        location: buildSentryUrl(currentSentryLocation),
+        viewStack: viewLocations.map((location, index) =>
+          buildSentryUrl(index === lastView ? currentSentryLocation : { org, ...location }),
+        ),
+        screens: { ...screenSnapshots },
+      },
+      projectsByOrg: Object.fromEntries(
+        Object.entries(projectsByOrg).map(([slug, projects]) => [slug, [...projects]]),
+      ),
+      seerCodeModeByOrg: { ...seerCodeModeByOrg },
+      seerBashModeByOrg: { ...seerBashModeByOrg },
+      seerShowThinkingByOrg: { ...seerShowThinkingByOrg },
+      ...(seerChat.runId === null ? {} : { seerRunId: seerChat.runId }),
+    });
+  }, [
+    currentSentryLocation,
+    onSessionSnapshot,
+    org,
+    projectsByOrg,
+    screenSnapshots,
+    seerBashModeByOrg,
+    seerChat.runId,
+    seerCodeModeByOrg,
+    seerShowThinkingByOrg,
+    viewLocations,
+  ]);
+
+  useEffect(() => {
+    if (sessionSnapshot) onSessionSnapshot?.(sessionSnapshot);
+  }, [onSessionSnapshot, sessionSnapshot]);
 
   /** Continue from the current TUI location in production Sentry. */
   const openInBrowser = useCallback(() => {

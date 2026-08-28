@@ -96,6 +96,8 @@ export interface SeerChatState {
 }
 
 export interface SeerChatOptions {
+  /** Run to refetch after an in-process payload replacement. */
+  initialRunId?: SeerRunId;
   features?: readonly string[];
   isEmployee?: boolean;
   pageName?: string;
@@ -129,7 +131,7 @@ export function useSeerChat(
 ): SeerChatState {
   const [conversation, dispatch] = useReducer(
     seerConversationReducer,
-    undefined,
+    options.initialRunId ?? null,
     initialSeerConversationState,
   );
   const [runs, setRuns] = useState<AsyncStatus<SeerRun[]>>(idle);
