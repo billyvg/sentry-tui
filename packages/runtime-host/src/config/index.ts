@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   installConfigService,
   type StoredConfig,
@@ -77,7 +77,7 @@ async function readJson<T>(path: string): Promise<T | null> {
 }
 
 function writeJson(path: string, value: unknown, mode?: number): void {
-  mkdirSync(configDir(), { recursive: true, mode: 0o700 });
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, JSON.stringify(value, null, 2) + "\n", mode === undefined ? {} : { mode });
   // writeFileSync only applies `mode` when it creates the file, so an existing
   // file keeps whatever permissions it had. Re-assert them every write.
@@ -96,9 +96,13 @@ let configWriteQueue: Promise<void> = Promise.resolve();
  * overlapping updates cannot both read the same stale snapshot.
  */
 export function writeConfig(updates: Partial<StoredConfig>): Promise<void> {
+  // Bind the destination before entering the queue. Tests replace the config
+  // directory between cases, and an earlier queued write must not follow that
+  // process-global override into the next case (or the developer's config).
+  const path = configPath();
   const write = configWriteQueue.then(async () => {
-    const existing = await readConfig();
-    writeJson(configPath(), { ...existing, ...updates });
+    const existing = (await readJson<StoredConfig>(path)) ?? {};
+    writeJson(path, { ...existing, ...updates });
   });
   configWriteQueue = write.catch(() => {});
   return write;

@@ -84,6 +84,23 @@ describe("credential storage", () => {
 });
 
 describe("preference storage", () => {
+  test("keeps a queued write in the directory where it was scheduled", async () => {
+    const scheduledDir = dir;
+    const nextDir = mkdtempSync(join(tmpdir(), "sentry-tui-auth-next-"));
+
+    try {
+      const pending = writeConfig({ org: "globex" });
+      process.env["SENTRY_TUI_CONFIG_DIR"] = nextDir;
+      await pending;
+
+      expect(await Bun.file(join(scheduledDir, "config.json")).json()).toEqual({ org: "globex" });
+      expect(await Bun.file(join(nextDir, "config.json")).exists()).toBe(false);
+    } finally {
+      process.env["SENTRY_TUI_CONFIG_DIR"] = scheduledDir;
+      rmSync(nextDir, { recursive: true, force: true });
+    }
+  });
+
   test("serializes overlapping updates so both preferences survive", async () => {
     await Promise.all([
       writeConfig({ org: "globex" }),
