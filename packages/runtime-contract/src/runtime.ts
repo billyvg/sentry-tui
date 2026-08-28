@@ -5,7 +5,7 @@
  * updater reads the payload manifest before importing any of its code, so an
  * incompatible payload can fall back to the full-binary restart path.
  */
-export const HOST_API_VERSION = 1;
+export const HOST_API_VERSION = 2;
 
 const HOST_DEPENDENCIES = [
   "react",

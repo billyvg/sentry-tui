@@ -16,7 +16,7 @@ import { join } from "node:path";
 
 import { darkTheme as theme } from "~/core/theme";
 import { HOST_API_VERSION, HOST_MODULE_SPECIFIERS } from "@sentry-tui/runtime-contract/runtime";
-import type { ReadyUpdate } from "@sentry-tui/runtime-contract/update";
+import { installUpdateService, type ReadyUpdate } from "@sentry-tui/runtime-contract/update";
 import { App } from "~/ui/App";
 import { BOLD } from "~/ui/lib/attributes";
 import { RuntimeHost } from "@sentry-tui/runtime-host/ui/RuntimeHost";
@@ -79,6 +79,32 @@ function cacheBuild(version: string): string {
 
 const renderApp = (onApplyUpdate?: (update: ReadyUpdate) => boolean | Promise<boolean>) =>
   renderHarness(<App onQuit={() => {}} onApplyUpdate={onApplyUpdate} />);
+
+test("the command palette checks immediately and offers the downloaded update", async () => {
+  const update = { version: NEWER, kind: "payload", path: "/cached/app.mjs" } as const;
+  let checks = 0;
+  const restoreUpdateService = installUpdateService({
+    watchForUpdate: () => () => {},
+    checkForUpdate: async () => {
+      checks++;
+      return update;
+    },
+  });
+  const h = await renderApp(() => true);
+  try {
+    await h.press((input) => input.pressKey("k", { ctrl: true }));
+    await h.press((input) => input.pressKey("check for updates"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes(`update ${NEWER} ready`));
+
+    expect(checks).toBe(1);
+    expect(h.frame()).not.toContain("Command palette");
+    expect(h.frame()).toContain("Update");
+  } finally {
+    await h.cleanup();
+    restoreUpdateService();
+  }
+});
 
 test("nothing downloaded means nothing in the corner", async () => {
   const h = await renderApp(() => true);

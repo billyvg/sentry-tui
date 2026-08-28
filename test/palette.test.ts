@@ -52,6 +52,10 @@ describe("buildPaletteActions", () => {
     expect(labels({ ...BARE, updateReady: true })).toContain("Restart into the update");
   });
 
+  test("checking for updates is always available", () => {
+    expect(labels(BARE)).toContain("Check for updates");
+  });
+
   test("unscoped commands are never offered", () => {
     const offered = labels(EVERYTHING);
     // Cursor movement has no meaning without a key press behind it.

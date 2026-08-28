@@ -119,6 +119,8 @@ export function readyUpdate(env: NodeJS.ProcessEnv = process.env): ReadyUpdate |
 export async function checkForUpdate(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ReadyUpdate | undefined> {
+  if (!canSelfUpdate(env)) return undefined;
+
   try {
     await downloadIfNewer({
       packageName: env.SENTRY_TUI_APP_PACKAGE || APP_PACKAGE,
@@ -235,4 +237,4 @@ export function discardFailedPayload(path: string, env: NodeJS.ProcessEnv = proc
   }
 }
 
-installUpdateService({ watchForUpdate });
+installUpdateService({ watchForUpdate, checkForUpdate });
