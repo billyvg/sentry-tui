@@ -4,6 +4,7 @@ import { createRoot } from "@opentui/react";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { APP_VERSION } from "@sentry-tui/app/version";
 import { flushConfigWrites } from "@sentry-tui/runtime-host/config/index";
 import type { AppContext } from "@sentry-tui/runtime-host/startup/startup";
 import { openBrowser } from "@sentry-tui/runtime-host/startup/openBrowser";
@@ -14,6 +15,7 @@ import {
   shutdownTelemetry,
 } from "@sentry-tui/runtime-host/telemetry/index";
 import { discardFailedPayload, restartInto } from "@sentry-tui/runtime-host/update/selfUpdate";
+import { reportUpdateFailure } from "@sentry-tui/runtime-host/update/telemetry";
 import { ErrorBoundary } from "@sentry-tui/runtime-host/ui/ErrorBoundary";
 import { loadAppPayload } from "@sentry-tui/runtime-host/ui/loadPayload";
 import { RuntimeHost } from "@sentry-tui/runtime-host/ui/RuntimeHost";
@@ -41,7 +43,12 @@ export async function runApp({
   if (payloadPath) {
     try {
       initialPayload = await loadAppPayload(payloadPath);
-    } catch {
+    } catch (error) {
+      reportUpdateFailure(error, {
+        kind: "payload",
+        version: process.env.SENTRY_TUI_APP_VERSION || APP_VERSION,
+        stage: "startup",
+      });
       discardFailedPayload(payloadPath);
     }
   }

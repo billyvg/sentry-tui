@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 
 import { createTokenAuthProvider, MissingTokenError } from "~/api/auth";
 import { ApiError, parseLinkHeader, SentryClient } from "~/api/client";
@@ -6,6 +6,10 @@ import { queryDiscover, queryDiscoverTimeseries, queryExploreTimeseries } from "
 import { fetchIssueStats, listIssues, updateIssue } from "~/api/issues";
 import { listReplays } from "~/api/replays";
 import { listTraceItemAttributes } from "~/api/traceItemAttributes";
+import {
+  installTelemetryService,
+  type TelemetryService,
+} from "@sentry-tui/runtime-contract/telemetry";
 import { groupsFixture } from "./fixtures";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
@@ -26,6 +30,31 @@ const json = (body: unknown, init: ResponseInit = {}) =>
     headers: { "Content-Type": "application/json" },
     ...init,
   });
+
+const inertTelemetry: TelemetryService = {
+  isTelemetryEnabled: () => false,
+  identify: () => {},
+  reportError: () => {},
+  breadcrumb: () => {},
+  log: () => {},
+  countMetric: () => {},
+  beginNavigation: () => {},
+  endNavigation: () => {},
+  abandonNavigation: () => {},
+  beginRequest: () => () => {},
+};
+
+/** Install a recorder for one test and return the calls plus its cleanup. */
+function recordTelemetry() {
+  const reportError = mock<TelemetryService["reportError"]>(() => {});
+  const countMetric = mock<TelemetryService["countMetric"]>(() => {});
+  installTelemetryService({ ...inertTelemetry, reportError, countMetric });
+  return {
+    reportError,
+    countMetric,
+    restore: () => installTelemetryService(inertTelemetry),
+  };
+}
 
 describe("parseLinkHeader", () => {
   test("returns the next cursor only when the page has results", () => {
@@ -250,6 +279,54 @@ describe("SentryClient", () => {
     expect(error.retryable).toBe(false);
     expect(error.message).toContain("invalid or expired");
     expect(calls).toHaveLength(1); // not retried
+  });
+
+  test("counts a handled API rejection without filing it as an error", async () => {
+    const telemetry = recordTelemetry();
+    const { impl } = stubFetch(() => new Response("forbidden", { status: 403 }));
+    const client = new SentryClient({ auth, fetchImpl: impl });
+
+    try {
+      await expect(listIssues(client, { org: "acme" })).rejects.toBeInstanceOf(ApiError);
+
+      expect(telemetry.countMetric).toHaveBeenCalledWith("api.request.rejected", {
+        method: "GET",
+        status: 403,
+      });
+      expect(telemetry.reportError).not.toHaveBeenCalled();
+    } finally {
+      telemetry.restore();
+    }
+  });
+
+  test("reports an unexpected client failure before the UI can handle it", async () => {
+    const telemetry = recordTelemetry();
+    const failure = new Error("credential provider exploded");
+    const client = new SentryClient({
+      auth: {
+        getToken: async () => {
+          throw failure;
+        },
+        describe: () => "test provider",
+      },
+    });
+
+    try {
+      await expect(client.request("/organizations/acme/issues/")).rejects.toBe(failure);
+
+      expect(telemetry.reportError).toHaveBeenCalledWith(failure, {
+        source: "api.request.failed",
+        tags: { "http.kind": "client" },
+        extra: {
+          method: "GET",
+          path: "/organizations/acme/issues/",
+          retries: 0,
+        },
+      });
+      expect(telemetry.countMetric).not.toHaveBeenCalled();
+    } finally {
+      telemetry.restore();
+    }
   });
 
   test("retries 5xx and succeeds on a later attempt", async () => {

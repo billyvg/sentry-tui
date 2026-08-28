@@ -72,7 +72,7 @@ export function classifyStartupFailure(error: unknown): StartupFailureKind {
   if (error instanceof MissingOrgError) return "missing_organizations";
   if (error instanceof InvalidOrgSelectionError) return "invalid_org_selection";
   // URL failures count themselves at the parser, and the API client has
-  // already applied its report-or-ignore policy based on the response status.
+  // already applied its report-or-count policy based on the response status.
   if (error instanceof SentryUrlInputError || error instanceof ApiError) return "handled_at_source";
   return "unexpected";
 }

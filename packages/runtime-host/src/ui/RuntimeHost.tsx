@@ -6,6 +6,7 @@ import { HOST_API_VERSION } from "@sentry-tui/runtime-contract/runtime";
 import type { ReadyUpdate } from "@sentry-tui/runtime-contract/update";
 import { reportError } from "@sentry-tui/runtime-host/telemetry/index";
 import { discardFailedPayload } from "@sentry-tui/runtime-host/update/selfUpdate";
+import { reportUpdateFailure } from "@sentry-tui/runtime-host/update/telemetry";
 import { loadAppPayload, type LoadedAppPayload } from "@sentry-tui/runtime-host/ui/loadPayload";
 import { cloneSessionSnapshot } from "@sentry-tui/runtime-host/ui/sessionSnapshot";
 
@@ -56,7 +57,12 @@ export function RuntimeHost({ initialPayload, onRestart, ...props }: RuntimeHost
           return loaded;
         });
         return true;
-      } catch {
+      } catch (error) {
+        reportUpdateFailure(error, {
+          kind: update.kind,
+          version: update.version,
+          stage: "apply",
+        });
         discardFailedPayload(update.path);
         return false;
       }

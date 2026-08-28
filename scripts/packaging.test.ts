@@ -87,6 +87,9 @@ describe("npm launcher", () => {
     const source = await read("packages/launcher/src/launch.mjs");
 
     expect(source).toContain('SENTRY_TUI_MANAGED: "1"');
+    // Cold-start payload failures are reported by the compiled host, which
+    // cannot otherwise know the independently released app's version.
+    expect(source).toContain("SENTRY_TUI_APP_VERSION: appPayload.version");
     // Every spawn of the binary, not just the happy path: the chmod retry and
     // the fall-back-to-bundled path hand over the same terminal.
     const spawns = [

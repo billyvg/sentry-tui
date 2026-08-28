@@ -1,3 +1,5 @@
+import { countMetric } from "@sentry-tui/runtime-host/telemetry/index";
+
 /** Launch a URL with the platform browser without borrowing the TUI's streams. */
 export async function openBrowser(url: string): Promise<boolean> {
   const command =
@@ -8,8 +10,12 @@ export async function openBrowser(url: string): Promise<boolean> {
         : ["xdg-open", url];
   try {
     const child = Bun.spawn(command, { stdout: "ignore", stderr: "ignore", stdin: "ignore" });
-    return (await child.exited) === 0;
+    const exitCode = await child.exited;
+    if (exitCode === 0) return true;
+    countMetric("nav.browser.open_failed", { platform: process.platform, outcome: "exit" });
+    return false;
   } catch {
+    countMetric("nav.browser.open_failed", { platform: process.platform, outcome: "spawn" });
     return false;
   }
 }
