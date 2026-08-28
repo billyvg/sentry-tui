@@ -78,6 +78,8 @@ export interface ScreenDef {
   /** Matches the nav label in `nav.ts` exactly — that is the join key. */
   item: string;
   kind: ScreenKind;
+  /** Canonical sentry.io destination for this screen. */
+  production: ScreenProductionLocation;
   /**
    * Screens sharing a `stateKey` share one slice of screen state: filters,
    * cursor, and scroll offset carry across them. Defaults to the screen's own
@@ -96,6 +98,58 @@ export interface ScreenDef {
    */
   openLabel?: string;
 }
+
+/** The path and fixed query values for one screen in production Sentry. */
+export interface ScreenProductionLocation {
+  pathname: `/${string}`;
+  query?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Canonical production destination for every registered screen.
+ *
+ * This exhaustive record makes the web escape hatch part of the screen
+ * contract: adding a TUI screen without somewhere useful to continue on
+ * sentry.io is a type error.
+ */
+const SCREEN_PRODUCTION_LOCATIONS: Readonly<Record<ScreenId, ScreenProductionLocation>> = {
+  "issues.feed": { pathname: "/issues/" },
+  "issues.inbox": { pathname: "/issues/inbox/" },
+  "issues.errors-outages": { pathname: "/issues/errors-outages/" },
+  "issues.breached-metrics": { pathname: "/issues/breached-metrics/" },
+  "issues.warnings": { pathname: "/issues/warnings/" },
+  "issues.configuration": { pathname: "/issues/sentry-configuration/" },
+  "issues.user-feedback": { pathname: "/issues/feedback/" },
+  "issues.recently-run": { pathname: "/issues/autofix/recent/" },
+  "issues.all-views": { pathname: "/issues/views/" },
+  "explore.traces": { pathname: "/explore/traces/" },
+  "explore.logs": { pathname: "/explore/logs/" },
+  "explore.metrics": { pathname: "/explore/metrics/" },
+  "explore.errors": { pathname: "/explore/errors-v2/" },
+  "explore.discover": { pathname: "/explore/discover/homepage/" },
+  "explore.profiles": { pathname: "/explore/profiles/" },
+  "explore.replays": { pathname: "/explore/replays/" },
+  "explore.releases": { pathname: "/explore/releases/" },
+  "explore.conversations": { pathname: "/explore/agents/" },
+  "explore.all-queries": { pathname: "/explore/saved-queries/" },
+  "dashboards.all": { pathname: "/dashboards/" },
+  "dashboards.sentry-built": {
+    pathname: "/dashboards/",
+    query: { filter: "onlyPrebuilt", sort: "mostPopular" },
+  },
+  "monitors.all": { pathname: "/monitors/" },
+  "monitors.mine": { pathname: "/monitors/my-monitors/" },
+  "monitors.error": { pathname: "/monitors/errors/" },
+  "monitors.metric": { pathname: "/monitors/metrics/" },
+  "monitors.cron": { pathname: "/monitors/crons/" },
+  "monitors.uptime": { pathname: "/monitors/uptime/" },
+  "monitors.mobile-build": { pathname: "/monitors/mobile-builds/" },
+  "monitors.alerts": { pathname: "/monitors/alerts/" },
+  // Ask Seer is a global production drawer rather than a standalone route.
+  // Autofix is the useful Seer landing page before a run id exists; once one
+  // does, buildSentryUrl deep-links it from /issues/ with explorerRunId.
+  "seer.ask": { pathname: "/issues/autofix/" },
+};
 
 /** The Discover-style Explore screens whose query filters follow the user. */
 const EXPLORE_DISCOVER = "explore.events";
@@ -166,6 +220,7 @@ const ISSUE_SCREENS: readonly ScreenDef[] = [
     group: "issues",
     item: view.label,
     kind: "table",
+    production: SCREEN_PRODUCTION_LOCATIONS[ISSUE_VIEW_IDS[view.label]!],
     defaults: { query: view.query, sort: view.sort, statsPeriod: DEFAULT_STATS_PERIOD },
   })),
   // The one Issues item that isn't a query: a list of saved searches.
@@ -274,7 +329,15 @@ function s(
   stateKey?: string,
   defaults?: ScreenDefaults,
 ): ScreenDef {
-  return { id, group, item, kind, stateKey, defaults };
+  return {
+    id,
+    group,
+    item,
+    kind,
+    production: SCREEN_PRODUCTION_LOCATIONS[id],
+    stateKey,
+    defaults,
+  };
 }
 
 const BY_ROUTE = new Map<string, ScreenDef>(

@@ -57,6 +57,10 @@ const HEADER_ROWS = 1;
 export function dashboardDetailView(row: DashboardListItem): ViewStackEntry {
   return {
     id: `dashboard:${row.id}`,
+    sentryLocation: {
+      screen: "dashboards.all",
+      detail: { kind: "dashboard", dashboardId: row.id },
+    },
     label: row.title,
     stateKey: DASHBOARD_DETAIL_STATE_KEY,
     // Opening a dashboard means showing *its* filters, not the ones the last

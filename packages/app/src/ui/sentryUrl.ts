@@ -1,8 +1,10 @@
 import type { SentryUrlDetail, SentryUrlState } from "~/core/sentryUrl";
 import { dashboardUrlView } from "~/ui/screens/DashboardDetail";
 import { issueUrlView } from "~/ui/screens/IssueFeed";
+import { savedViewUrlStream } from "~/ui/screens/IssueViews";
 import { monitorUrlView } from "~/ui/screens/MonitorDetail";
 import { replayUrlView } from "~/ui/screens/ReplayStream";
+import { savedQueryUrlView } from "~/ui/screens/SavedQueryResults";
 import type { ViewStackEntry } from "~/ui/screens/types";
 
 /** Build the existing detail-view entry named by a parsed Sentry URL. */
@@ -25,6 +27,12 @@ export function viewForSentryUrl(
       break;
     case "monitor":
       view = monitorUrlView(detail.detectorId);
+      break;
+    case "issue_view":
+      view = savedViewUrlStream(detail.viewId);
+      break;
+    case "saved_query":
+      view = savedQueryUrlView(detail);
       break;
   }
 

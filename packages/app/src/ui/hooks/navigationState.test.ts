@@ -10,7 +10,12 @@ import type { ViewStackEntry } from "~/ui/screens/types";
 
 /** Build a minimal pushed view for reducer tests. */
 function view(id: string, label = id): ViewStackEntry {
-  return { id, label, render: () => null };
+  return {
+    id,
+    label,
+    sentryLocation: { screen: "issues.feed" },
+    render: () => null,
+  };
 }
 
 /** Reduce several actions in the same order React would dispatch them. */

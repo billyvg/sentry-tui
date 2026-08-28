@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 
 import { flushConfigWrites } from "@sentry-tui/runtime-host/config/index";
 import type { AppContext } from "@sentry-tui/runtime-host/startup/startup";
+import { openBrowser } from "@sentry-tui/runtime-host/startup/openBrowser";
 import {
   finishStartup,
   log,
@@ -114,6 +115,7 @@ export async function runApp({
         <RuntimeHost
           onQuit={() => void shutdown()}
           onRestart={(path) => void restart(path)}
+          onOpenUrl={openBrowser}
           initialPayload={initialPayload}
           theme={{ source: renderer, initialMode: selection.mode, fixed: selection.fixed }}
           client={client}

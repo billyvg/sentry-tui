@@ -103,6 +103,14 @@ export const COMMANDS: readonly Command[] = [
     palette: "always",
   },
   {
+    id: "sentry.app.openInBrowser",
+    title: "Open current view in Sentry",
+    category: "app",
+    defaultKeys: ["W"],
+    description: "Continue this view on sentry.io",
+    palette: "always",
+  },
+  {
     id: "sentry.app.focusNext",
     title: "Next pane",
     category: "app",

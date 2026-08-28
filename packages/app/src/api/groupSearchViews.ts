@@ -89,6 +89,18 @@ function endpointSort(sort: ViewSort): string[] {
 
 export const VIEWS_PAGE_SIZE = 20;
 
+/** Fetch one saved issue view by id for a production URL or session restore. */
+export async function fetchGroupSearchView(
+  client: SentryClient,
+  { org, viewId, signal }: { org: string; viewId: string; signal?: AbortSignal },
+): Promise<GroupSearchView> {
+  const page = await client.request<GroupSearchView>(
+    `/organizations/${org}/group-search-views/${viewId}/`,
+    { signal },
+  );
+  return page.data;
+}
+
 export async function listGroupSearchViews(
   client: SentryClient,
   {

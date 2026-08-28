@@ -15,6 +15,7 @@ import type { SentryClient } from "~/api/client";
 import type { Group } from "~/api/types";
 import type { ScreenDef } from "~/core/screens";
 import type { ScreenId } from "~/core/screens";
+import type { SentryUrlLocation } from "~/core/sentryUrl";
 import type { Notice } from "~/ui/components/StatusBar";
 import type { ScreenState, ScreenStateSeed } from "~/ui/hooks/useScreenState";
 
@@ -149,6 +150,8 @@ export interface DetailContext extends Omit<ScreenProps, "screen" | "state"> {
 export interface ViewStackEntry {
   /** Unique within the stack; also the React key. */
   id: string;
+  /** Serializable production destination for this pushed view. */
+  sentryLocation: Omit<SentryUrlLocation, "org" | "seerRunId">;
   /** Status-bar text while this view is on top, e.g. an issue's short id. */
   label?: string;
   /**

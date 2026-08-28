@@ -43,7 +43,10 @@ The registered ids are:
 | Monitors   | `monitors.all`, `monitors.mine`, `monitors.error`, `monitors.metric`, `monitors.cron`, `monitors.uptime`, `monitors.mobile-build`, `monitors.alerts`                                                 |
 
 Ids are stable keys for screen state, component registration, navigation, and
-direct URL routing. Do not rename one as part of a label change.
+direct URL routing. Do not rename one as part of a label change. Every screen
+also owns a canonical production destination: a user must always be able to
+continue the location in Sentry's web UI, and adding a screen without one is a
+type error.
 
 `ScreenDef` owns only routing metadata:
 
@@ -61,6 +64,7 @@ interface ScreenDef {
   group: NavGroupId;
   item: string;
   kind: ScreenKind;
+  production: { pathname: `/${string}`; query?: Record<string, string> };
   stateKey?: string;
   defaults?: ScreenDefaults;
   openLabel?: string;
@@ -75,8 +79,8 @@ or the default `open`.
 ### Adding a top-level destination
 
 1. Add the item to `packages/app/src/core/nav.ts` and its stable id to `ScreenId`.
-2. Add its `ScreenDef` to `SCREENS`, including defaults and a state key only
-   when they are intentional.
+2. Add its `ScreenDef` and canonical production route to `SCREENS`, including
+   defaults and a state key only when they are intentional.
 3. Implement a component taking `ScreenProps`, then add one entry to the flat
    `SCREEN_COMPONENTS` object.
 4. Add focused tests for its configuration, API normalization, loading,

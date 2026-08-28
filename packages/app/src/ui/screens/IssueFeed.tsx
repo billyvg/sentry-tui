@@ -315,6 +315,10 @@ export function IssueFeed(props: IssueFeedProps) {
 function issueView(group: Group, client: ScreenProps["client"], org: string): ViewStackEntry {
   return {
     id: `issue:${group.id}`,
+    sentryLocation: {
+      screen: "issues.feed",
+      detail: { kind: "issue", issueId: group.id },
+    },
     label: group.shortId,
     issue: group,
     render: (ctx) => (
@@ -338,6 +342,10 @@ const loadIssue: DirectResourceLoader<Group> = (client, { org, id, signal }) =>
 export function issueUrlView(issueId: string, eventId?: string): ViewStackEntry {
   return {
     id: `issue:${issueId}`,
+    sentryLocation: {
+      screen: "issues.feed",
+      detail: { kind: "issue", issueId, eventId },
+    },
     label: `Issue ${issueId}`,
     render: (ctx) => <IssueFromUrl {...ctx} issueId={issueId} eventId={eventId} />,
   };

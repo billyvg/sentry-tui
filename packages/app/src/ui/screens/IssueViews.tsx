@@ -8,14 +8,18 @@
  * with its cursor where it was left.
  */
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 
+import { fetchGroupSearchView, type GroupSearchView } from "~/api/groupSearchViews";
+import { valueOf } from "~/core/async";
 import { SAVED_VIEW_STATE_KEY } from "~/core/screens";
+import { DirectDetailStatus } from "~/ui/components/DirectDetailStatus";
+import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { rowsOf } from "~/ui/hooks/useScreenState";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { IssueFeed } from "~/ui/screens/IssueFeed";
 import { IssueViewsList, type SavedViewRow } from "~/ui/screens/IssueViewsList";
-import type { ScreenProps, ViewStackEntry } from "~/ui/screens/types";
+import type { DetailContext, ScreenProps, ViewStackEntry } from "~/ui/screens/types";
 
 export function IssueViews(props: ScreenProps) {
   const { client, org, state, focused, width, height, reloadToken, pushView, registerActions } =
@@ -61,6 +65,10 @@ export function IssueViews(props: ScreenProps) {
 function savedViewStream(row: SavedViewRow): ViewStackEntry {
   return {
     id: `saved-view:${row.view.id}`,
+    sentryLocation: {
+      screen: "issues.all-views",
+      detail: { kind: "issue_view", viewId: row.view.id },
+    },
     label: row.view.name,
     stateKey: SAVED_VIEW_STATE_KEY,
     // Opening a saved search means showing *its* filters, not the ones the
@@ -77,4 +85,75 @@ function savedViewStream(row: SavedViewRow): ViewStackEntry {
         <IssueFeed {...ctx} state={ctx.state} title={row.view.name} description={row.view.query} />
       ) : null,
   };
+}
+
+const loadSavedView: DirectResourceLoader<GroupSearchView> = (client, { org, id, signal }) =>
+  fetchGroupSearchView(client, { org, viewId: id, signal });
+
+/** A saved issue view addressed by its production URL. */
+export function savedViewUrlStream(viewId: string): ViewStackEntry {
+  return {
+    id: `saved-view:${viewId}`,
+    label: `View ${viewId}`,
+    stateKey: SAVED_VIEW_STATE_KEY,
+    sentryLocation: {
+      screen: "issues.all-views",
+      detail: { kind: "issue_view", viewId },
+    },
+    render: (ctx) =>
+      ctx.state ? <SavedViewFromUrl {...ctx} state={ctx.state} viewId={viewId} /> : null,
+  };
+}
+
+/** Resolve a saved view before handing its filters to the existing issue stream. */
+function SavedViewFromUrl({
+  client,
+  org,
+  state,
+  viewId,
+  reloadToken,
+  width,
+  height,
+  updateView,
+  ...ctx
+}: DetailContext & { state: NonNullable<DetailContext["state"]>; viewId: string }) {
+  const status = useDirectResource(client, {
+    org,
+    id: viewId,
+    reloadToken,
+    load: loadSavedView,
+  });
+  const view = valueOf(status);
+
+  useEffect(() => {
+    if (!view) return;
+    state.dispatch({
+      type: "seed",
+      payload: {
+        query: view.query,
+        sort: view.querySort,
+        statsPeriod: view.timeFilters.period ?? undefined,
+        selectedProjects: view.projects.filter((id) => id !== -1).map(String),
+        selectedEnvs: view.environments,
+      },
+    });
+    updateView(`saved-view:${viewId}`, { label: view.name });
+  }, [state.dispatch, updateView, view, viewId]);
+
+  if (!view)
+    return <DirectDetailStatus status={status} noun="saved view" width={width} height={height} />;
+  return (
+    <IssueFeed
+      {...ctx}
+      client={client}
+      org={org}
+      state={state}
+      reloadToken={reloadToken}
+      width={width}
+      height={height}
+      updateView={updateView}
+      title={view.name}
+      description={view.query}
+    />
+  );
 }

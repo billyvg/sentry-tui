@@ -17,7 +17,9 @@
 import { useEffect, useMemo } from "react";
 
 import type { DiscoverRow } from "~/api/discover";
-import type { SavedQuery } from "~/api/savedQueries";
+import { fetchSavedQuery, type SavedQuery, type SavedQuerySource } from "~/api/savedQueries";
+import type { ScreenId } from "~/core/screens";
+import type { SentryUrlDetail } from "~/core/sentryUrl";
 import { errorOf, isInitialLoad, loadingSince, valueOf } from "~/core/async";
 import { SAVED_QUERY_RESULTS_STATE_KEY } from "~/core/savedQueryScreens";
 import { useTheme } from "~/ui/theme";
@@ -25,10 +27,12 @@ import type { Theme } from "~/core/theme";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
+import { DirectDetailStatus } from "~/ui/components/DirectDetailStatus";
 import { ResultFooter } from "~/ui/components/ResultFooter";
 import { SearchInput } from "~/ui/components/SearchInput";
 import { fieldSortItems } from "~/ui/components/SortSelector";
 import { useDiscoverRows } from "~/ui/hooks/useDiscoverRows";
+import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import type { ScreenState } from "~/ui/hooks/useScreenState";
 import { BOLD } from "~/ui/lib/attributes";
 import type { DetailContext, ViewStackEntry } from "~/ui/screens/types";
@@ -46,6 +50,25 @@ export function savedQueryResultsView(query: SavedQuery): ViewStackEntry {
 
   return {
     id: `saved-query:${query.source}:${query.id}`,
+    sentryLocation: {
+      screen: resultScreen(query),
+      detail: {
+        kind: "saved_query",
+        queryId: query.id,
+        source: query.source,
+        resultScreen: resultScreen(query),
+        dataset: query.dataset,
+        title: query.name,
+      },
+      state: {
+        query: query.query,
+        sort: query.sort,
+        statsPeriod: query.statsPeriod,
+        selectedProjects: projectRefs,
+        selectedEnvs: query.environment,
+        fields: query.fields,
+      },
+    },
     label: query.name,
     stateKey: SAVED_QUERY_RESULTS_STATE_KEY,
     // The query opens on *its* filters, not on whatever the last one left in
@@ -60,6 +83,103 @@ export function savedQueryResultsView(query: SavedQuery): ViewStackEntry {
     render: (ctx) =>
       ctx.state ? <SavedQueryResults {...ctx} state={ctx.state} query={query} /> : null,
   };
+}
+
+/** Choose the production result surface that understands a saved query's dataset. */
+function resultScreen(query: SavedQuery): ScreenId {
+  if (query.source === "discover") return "explore.discover";
+  switch (query.dataset) {
+    case "logs":
+      return "explore.logs";
+    case "tracemetrics":
+      return "explore.metrics";
+    case "errors":
+      return "explore.errors";
+    case "profiles":
+      return "explore.profiles";
+    case "replays":
+      return "explore.replays";
+    default:
+      return query.datasetLabel === "Conversations" ? "explore.conversations" : "explore.traces";
+  }
+}
+
+type SavedQueryDetail = Extract<SentryUrlDetail, { kind: "saved_query" }>;
+
+const loadSavedQuery: DirectResourceLoader<SavedQuery> = (client, { org, id, signal }) => {
+  const separator = id.indexOf(":");
+  const source = id.slice(0, separator) as SavedQuerySource;
+  const queryId = id.slice(separator + 1);
+  return fetchSavedQuery(client, { org, source, queryId, signal });
+};
+
+/** Saved-query results addressed by a production URL rather than a loaded list row. */
+export function savedQueryUrlView(detail: SavedQueryDetail): ViewStackEntry {
+  return {
+    id: `saved-query:${detail.source}:${detail.queryId}`,
+    label: detail.title ?? `Query ${detail.queryId}`,
+    stateKey: SAVED_QUERY_RESULTS_STATE_KEY,
+    sentryLocation: { screen: detail.resultScreen, detail },
+    render: (ctx) =>
+      ctx.state ? <SavedQueryFromUrl {...ctx} state={ctx.state} detail={detail} /> : null,
+  };
+}
+
+/** Resolve a saved query before handing it to the existing results table. */
+function SavedQueryFromUrl({
+  client,
+  org,
+  state,
+  detail,
+  reloadToken,
+  width,
+  height,
+  updateView,
+  ...ctx
+}: DetailContext & {
+  state: NonNullable<DetailContext["state"]>;
+  detail: SavedQueryDetail;
+}) {
+  const resourceId = `${detail.source}:${detail.queryId}`;
+  const status = useDirectResource(client, {
+    org,
+    id: resourceId,
+    reloadToken,
+    load: loadSavedQuery,
+  });
+  const query = valueOf(status);
+
+  useEffect(() => {
+    if (!query) return;
+    state.dispatch({
+      type: "seed",
+      payload: {
+        query: query.query,
+        sort: query.sort,
+        statsPeriod: query.statsPeriod,
+        selectedProjects: query.projects.filter((id) => id !== -1).map(String),
+        selectedEnvs: query.environment,
+      },
+    });
+    updateView(`saved-query:${detail.source}:${detail.queryId}`, { label: query.name });
+  }, [detail.queryId, detail.source, query, state.dispatch, updateView]);
+
+  if (!query) {
+    return <DirectDetailStatus status={status} noun="saved query" width={width} height={height} />;
+  }
+  return (
+    <SavedQueryResults
+      {...ctx}
+      client={client}
+      org={org}
+      state={state}
+      reloadToken={reloadToken}
+      width={width}
+      height={height}
+      updateView={updateView}
+      query={query}
+    />
+  );
 }
 
 function SavedQueryResults({
