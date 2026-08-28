@@ -23,11 +23,23 @@ const HEIGHT = 60;
 function stubClient({
   event = eventFixture,
   eventDelayMs = 0,
-}: { event?: SentryEvent; eventDelayMs?: number } = {}) {
-  const fetchImpl = (async (input: RequestInfo | URL) => {
+  seerMessages,
+}: {
+  event?: SentryEvent;
+  eventDelayMs?: number;
+  seerMessages?: Array<Record<string, unknown>>;
+} = {}) {
+  const fetchImpl = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = String(input);
     let payload: unknown = groupsFixture;
-    if (url.includes("issues-stats")) payload = {};
+    if (url.includes("/seer/explorer-chat/")) {
+      if (init.method === "POST") {
+        seerMessages?.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        payload = { run_id: 1, sentry_run_id: "autofix-run" };
+      } else {
+        payload = { session: null, sentry_run_id: "autofix-run" };
+      }
+    } else if (url.includes("issues-stats")) payload = {};
     else if (url.includes("/events/")) {
       if (eventDelayMs) await new Promise((r) => setTimeout(r, eventDelayMs));
       payload = event;
@@ -212,26 +224,22 @@ test("enter opens the issue detail with header metadata", async () => {
   }
 });
 
-test("the header separates current state from the actions that change it", async () => {
+test("the header does not repeat state already represented by an action", async () => {
   const h = await openFirstIssue();
   try {
     await h.waitForFrame((f) => f.includes("Issues › Feed › PUMP-STATION-1"));
     const frame = h.frame();
 
-    // State — what the issue is. No key, so it can't read as a control.
-    expect(frame).toContain("unresolved · javascript · high priority · unassigned");
-    // Actions — what you can do, each carrying the key that does it.
+    expect(frame).toContain("javascript · high priority · unassigned");
+    expect(frame).not.toContain("unresolved · javascript");
     expect(frame).toContain("r resolve");
     expect(frame).toContain("a archive");
-    // `p` and `A` have no handler, so the header must not advertise them.
-    // Scoped to the actions row itself — none of `resolve`/`unresolve`/
-    // `archive`/`unarchive`/`bookmark`/`review` contain either letter, so a
-    // bare search stays a real check even without parens to delimit a key.
-    // Matched on "r resolve" rather than "resolve" alone: the state line above
-    // contains "unresolved", which itself contains "resolve".
+    expect(frame).toContain("A actions");
+
+    // Secondary actions live in the dropdown, not beside the primary ones.
     const actionsRow = frame.split("\n").find((line) => line.includes("r resolve"));
-    expect(actionsRow).not.toContain("p");
-    expect(actionsRow).not.toContain("A");
+    expect(actionsRow).not.toContain("bookmark");
+    expect(actionsRow).not.toContain("review");
   } finally {
     await h.cleanup();
   }
@@ -387,6 +395,70 @@ test("navigation keys move the stack frame cursor", async () => {
 
     await h.press((i) => i.pressKey("k"));
     expect(selectedLine("renderRoot")).toContain("❯");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("navigation continues below the final stack frame", async () => {
+  const client = stubClient();
+  const h = await renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
+    width: WIDTH,
+    height: 20,
+  });
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("Stack Trace"));
+
+    await h.press((i) => i.pressKey("j")); // select the final frame
+    await h.press((i) => i.pressKey("j")); // leave the trace and scroll the detail
+
+    await h.waitForFrame((frame) => frame.includes("Breadcrumbs"));
+    expect(h.frame()).toContain("Breadcrumbs");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the Actions chip opens bookmark, review, and Autofix", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("Issues › Feed › PUMP-STATION-1"));
+    await h.press((input) => input.pressKey("A", { shift: true }));
+
+    const frame = h.frame();
+    expect(frame).toContain("Actions");
+    expect(frame).toContain("b  Bookmark");
+    expect(frame).toContain("m  Mark reviewed");
+    expect(frame).toContain("Autofix");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("Autofix opens Seer over the issue and sends issue context", async () => {
+  const sent: Array<Record<string, unknown>> = [];
+  const h = await openFirstIssue(stubClient({ seerMessages: sent }));
+  try {
+    await h.waitForFrame((f) => f.includes("Issues › Feed › PUMP-STATION-1"));
+    await h.press((input) => input.pressKey("A", { shift: true }));
+    await h.press((input) => input.pressKey("j"));
+    await h.press((input) => input.pressKey("j"));
+    await h.press((input) => input.pressEnter());
+
+    await h.waitForFrame((frame) => frame.includes("Autofix · PUMP-STATION-1"));
+    expect(h.frame()).toContain("Seer Agent");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.["query"]).toContain("root cause and propose a fix");
+    expect(sent[0]?.["query"]).toContain("PUMP-STATION-1");
+    expect(sent[0]?.["query"]).toContain(groupsFixture[0]!.permalink);
+
+    // Escape first releases the composer, then closes only the overlay.
+    await h.pressEscape();
+    await h.pressEscape();
+    await h.waitForFrame((frame) => !frame.includes("Seer Agent"));
+    expect(h.frame()).toContain("Issues › Feed › PUMP-STATION-1");
   } finally {
     await h.cleanup();
   }

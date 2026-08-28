@@ -36,6 +36,7 @@ export interface AppKeyHandlerOptions {
   showPalette: boolean;
   showHelp: boolean;
   showOrgPicker: boolean;
+  showSeerAutofix: boolean;
   setShowOpenUrl: (show: boolean) => void;
   setShowPalette: (show: boolean) => void;
   setShowHelp: (show: boolean) => void;
@@ -58,13 +59,14 @@ export function createOverlayHandler({
   showOpenUrl,
   showPalette,
   showHelp,
+  showSeerAutofix,
   setShowHelp,
 }: Pick<
   AppKeyHandlerOptions,
-  "showOpenUrl" | "showPalette" | "showHelp" | "setShowHelp"
+  "showOpenUrl" | "showPalette" | "showHelp" | "showSeerAutofix" | "setShowHelp"
 >): KeyOwnerHandler {
   return (key) => {
-    if (showOpenUrl || showPalette) return "focused";
+    if (showOpenUrl || showPalette || showSeerAutofix) return "focused";
     if (!showHelp) return "notMine";
     if (matchesCommand("sentry.nav.back", key) || matchesCommand("sentry.app.help", key)) {
       setShowHelp(false);

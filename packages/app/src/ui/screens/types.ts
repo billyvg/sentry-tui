@@ -103,6 +103,10 @@ export interface ScreenProps {
   onProjectSelect: (projects: string[]) => void;
   /** Row ids with a mutation in flight, for a pending marker. */
   pendingIds: ReadonlySet<string>;
+  /** Run one issue action through the shared optimistic mutation path. */
+  runIssueAction: (commandId: string, issue: Group) => void;
+  /** Open Seer over the current screen and ask it to investigate this issue. */
+  openIssueAutofix: (issue: Group) => void;
   /** Push a detail view; Escape pops it. */
   pushView: (view: ViewStackEntry) => void;
   /** Say something in the status bar. It clears itself after a few seconds. */

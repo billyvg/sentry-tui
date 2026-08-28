@@ -173,10 +173,9 @@ test("triage keys stay with the content pane, detail view included", async () =>
     await h.openNav(); // focus the rail
     await h.press((i) => i.pressKey("r"));
 
-    // `r` on the rail is not a resolve: nothing was written, and the header
-    // still says what it said.
+    // `r` on the rail is not a resolve: the action still offers resolve.
     expect(h.frame()).not.toContain("resolving");
-    expect(h.frame()).toContain("unresolved");
+    expect(h.frame()).toContain("r resolve");
   } finally {
     await h.cleanup();
   }

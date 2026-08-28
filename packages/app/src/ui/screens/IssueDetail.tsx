@@ -5,22 +5,14 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 
 import type { SentryClient } from "~/api/client";
 import type { EventSelector } from "~/api/issues";
-import {
-  findEntry,
-  GroupStatus,
-  GroupSubstatus,
-  type Breadcrumb,
-  type Group,
-  type SentryEvent,
-} from "~/api/types";
+import { findEntry, GroupStatus, type Breadcrumb, type Group, type SentryEvent } from "~/api/types";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
-import { matchesCommand } from "~/core/commands";
-import type { Theme } from "~/core/theme";
+import { formatKey, matchesCommand, primaryKey } from "~/core/commands";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { countLabel, sparklineBlock, timeAgo } from "~/lib/sparkline";
 import { buildStackRows } from "~/lib/stacktrace";
 import { fitText, measureTextWidth } from "~/lib/text";
-import { ChipRow, type ChipSpec } from "~/ui/components/Chip";
+import { CHIP_HEIGHT, ChipRow, chipOffsets, type ChipSpec } from "~/ui/components/Chip";
 import {
   BODY_INDENT,
   Divider,
@@ -34,6 +26,7 @@ import {
 import { PlatformIcon } from "~/ui/components/PlatformIcon";
 import { Placeholder } from "~/ui/components/Placeholder";
 import { ExceptionSection, stackFrameKey } from "~/ui/components/StackTrace";
+import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
 import { BOLD } from "~/ui/lib/attributes";
 import { consumeKey } from "~/ui/lib/keyRouting";
 import { useIssueEvent } from "~/ui/hooks/useIssueEvent";
@@ -67,6 +60,9 @@ const HEADER_SPARKLINE_WIDTH = 24;
 const HEADER_SPARKLINE_ROWS = 3;
 /** Renderable id used to keep the frame cursor inside the detail viewport. */
 const SELECTED_FRAME_ID = "issue-detail-selected-frame";
+/** The header rows above the action chips: title, message, state, and chart. */
+const HEADER_ACTIONS_TOP = 8;
+const ISSUE_ACTIONS_COMMAND = "sentry.issue.actions";
 
 export function IssueDetail({
   client,
@@ -77,6 +73,8 @@ export function IssueDetail({
   focused,
   eventId,
   reloadToken,
+  runIssueAction,
+  openIssueAutofix,
 }: {
   client: SentryClient | null;
   org: string;
@@ -88,6 +86,10 @@ export function IssueDetail({
   eventId?: EventSelector;
   /** Bump to refetch the issue's event — the app's global refresh. */
   reloadToken?: number;
+  /** Run a triage action through the app's shared optimistic mutation path. */
+  runIssueAction: (commandId: string, issue: Group) => void;
+  /** Open Seer over this detail and ask it to investigate the issue. */
+  openIssueAutofix: (issue: Group) => void;
 }) {
   const theme = useTheme();
   const status = useIssueEvent(client, { org, issueId: group.id, eventId, reloadToken });
@@ -95,6 +97,7 @@ export function IssueDetail({
   const error = errorOf(status);
   const loading = isInitialLoad(status);
   const scrollRef = useRef<ScrollBoxRenderable>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const { collapsed, toggle } = useSectionFolds(SECTION_ORDER, focused);
   const [selectedFrameKey, setSelectedFrameKey] = useState<string>();
@@ -162,12 +165,21 @@ export function IssueDetail({
   );
 
   useKeyboard((key) => {
-    if (!focused || collapsed.has("exception") || !selectedFrame) return;
+    if (!focused) return;
+    if (matchesCommand(ISSUE_ACTIONS_COMMAND, key)) {
+      setActionsOpen((open) => !open);
+      consumeKey(key);
+      return;
+    }
+    if (actionsOpen || collapsed.has("exception") || !selectedFrame) return;
     if (matchesCommand("sentry.nav.down", key)) {
       const current = Math.max(
         0,
         frameRows.findIndex((frame) => frame.key === selectedFrameKeyRef.current),
       );
+      // Once the last frame is selected, give the key back to the focused
+      // scrollbox so j/down can continue into the sections below the trace.
+      if (current >= frameRows.length - 1) return;
       selectFrameAt(current + 1);
       consumeKey(key);
       return;
@@ -177,6 +189,8 @@ export function IssueDetail({
         0,
         frameRows.findIndex((frame) => frame.key === selectedFrameKeyRef.current),
       );
+      // The matching top boundary lets k/up reach the issue header again.
+      if (current === 0) return;
       selectFrameAt(current - 1);
       consumeKey(key);
       return;
@@ -194,88 +208,136 @@ export function IssueDetail({
   }, [selectedFrame?.key, frameExpansion, height]);
 
   const inner = Math.max(20, width - 2);
+  const actions = headerActions(group);
+  const actionsIndex = actions.findIndex((chip) => chip.command === ISSUE_ACTIONS_COMMAND);
+  const actionsAnchorLeft =
+    BODY_INDENT.length + (chipOffsets(actions)[Math.max(0, actionsIndex)] ?? 0);
+  const actionItems: DropdownItem[] = [
+    {
+      value: "sentry.issue.bookmark",
+      label: `${formatKey(primaryKey("sentry.issue.bookmark"))}  ${group.isBookmarked ? "Unbookmark" : "Bookmark"}`,
+    },
+    ...(!group.hasSeen
+      ? [
+          {
+            value: "sentry.issue.markReviewed",
+            label: `${formatKey(primaryKey("sentry.issue.markReviewed"))}  Mark reviewed`,
+          },
+        ]
+      : []),
+    { value: "autofix", label: "Autofix" },
+  ];
+
+  /** Run the selected menu action, then reveal the updated detail underneath. */
+  const selectAction = useCallback(
+    (values: string[]) => {
+      const action = values[0];
+      setActionsOpen(false);
+      if (action === "autofix") {
+        openIssueAutofix(group);
+      } else if (action) {
+        runIssueAction(action, group);
+      }
+    },
+    [group, openIssueAutofix, runIssueAction],
+  );
+
+  /** Mouse presses use the same command paths as their keyboard equivalents. */
+  const pressHeaderAction = useCallback(
+    (chip: ChipSpec) => {
+      if (chip.command === ISSUE_ACTIONS_COMMAND) {
+        setActionsOpen((open) => !open);
+      } else {
+        runIssueAction(chip.command, group);
+      }
+    },
+    [group, runIssueAction],
+  );
 
   return (
-    /*
-     * No `flexDirection` here: a scrollbox lays its own root out as a row —
-     * viewport first, vertical scrollbar beside it — and forwards padding to
-     * the content box, which stacks its children in a column already. Setting
-     * `column` on the root instead stacks the scrollbar *under* the viewport,
-     * which halves the visible height and leaves the bar floating in the dead
-     * space below the content.
-     */
-    <scrollbox
-      ref={scrollRef}
-      focused={focused}
-      // Matches the stream screens: a continuously drawn track reads as a
-      // scroll rail rather than as a stray mark at the edge of the pane.
-      verticalScrollbarOptions={{
-        showArrows: false,
-        trackOptions: { backgroundColor: theme.panel, foregroundColor: theme.muted },
-      }}
-      style={{ width, height, paddingLeft: 1 }}
-    >
-      <IssueHeader group={group} width={inner} />
+    <>
+      {/*
+       * No `flexDirection` here: a scrollbox lays its own root out as a row —
+       * viewport first, vertical scrollbar beside it — and forwards padding to
+       * the content box, which stacks its children in a column already. Setting
+       * `column` on the root instead stacks the scrollbar *under* the viewport,
+       * which halves the visible height and leaves the bar floating in the dead
+       * space below the content.
+       */}
+      <scrollbox
+        ref={scrollRef}
+        focused={focused}
+        // Matches the stream screens: a continuously drawn track reads as a
+        // scroll rail rather than as a stray mark at the edge of the pane.
+        verticalScrollbarOptions={{
+          showArrows: false,
+          trackOptions: { backgroundColor: theme.panel, foregroundColor: theme.muted },
+        }}
+        style={{ width, height, paddingLeft: 1 }}
+      >
+        <IssueHeader
+          group={group}
+          width={inner}
+          actions={actions}
+          actionsOpen={actionsOpen}
+          onActionPress={pressHeaderAction}
+        />
 
-      {loading ? <text fg={theme.muted}>{`${BODY_INDENT}Loading event…`}</text> : null}
+        {loading ? <text fg={theme.muted}>{`${BODY_INDENT}Loading event…`}</text> : null}
 
-      {error ? (
-        <box style={{ flexDirection: "column", paddingTop: 1 }}>
-          <text fg={theme.danger}>{`${BODY_INDENT}Failed to load event`}</text>
-          <text fg={theme.muted}>{fitText(`${BODY_INDENT}${error.message}`, inner)}</text>
-        </box>
-      ) : null}
+        {error ? (
+          <box style={{ flexDirection: "column", paddingTop: 1 }}>
+            <text fg={theme.danger}>{`${BODY_INDENT}Failed to load event`}</text>
+            <text fg={theme.muted}>{fitText(`${BODY_INDENT}${error.message}`, inner)}</text>
+          </box>
+        ) : null}
 
-      {event
-        ? SECTION_ORDER.map((key, i) => (
-            <Section
-              key={key}
-              index={i + 1}
-              title={SECTION_TITLES[key]}
-              count={sectionCount(key, event)}
-              collapsed={collapsed.has(key)}
-              width={inner}
-              onToggle={() => toggle(key)}
-            >
-              <SectionBody
-                sectionKey={key}
-                event={event}
+        {event
+          ? SECTION_ORDER.map((key, i) => (
+              <Section
+                key={key}
+                index={i + 1}
+                title={SECTION_TITLES[key]}
+                count={sectionCount(key, event)}
+                collapsed={collapsed.has(key)}
                 width={inner}
-                expandedFrames={expandedFrames}
-                selectedFrame={selectedFrame?.key}
-                selectedFrameId={SELECTED_FRAME_ID}
-                onFrameClick={clickFrame}
-              />
-            </Section>
-          ))
-        : null}
-    </scrollbox>
+                onToggle={() => toggle(key)}
+              >
+                <SectionBody
+                  sectionKey={key}
+                  event={event}
+                  width={inner}
+                  expandedFrames={expandedFrames}
+                  selectedFrame={selectedFrame?.key}
+                  selectedFrameId={SELECTED_FRAME_ID}
+                  onFrameClick={clickFrame}
+                />
+              </Section>
+            ))
+          : null}
+      </scrollbox>
+
+      {actionsOpen ? (
+        <Dropdown
+          title="Actions"
+          items={actionItems}
+          selected={[]}
+          anchorLeft={actionsAnchorLeft}
+          anchorTop={HEADER_ACTIONS_TOP + CHIP_HEIGHT}
+          availableWidth={width}
+          showAll={false}
+          showSelection={false}
+          onSelect={selectAction}
+          onClose={() => setActionsOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Header
 // ---------------------------------------------------------------------------
-
-/** Status label and color, collapsing status + substatus the way the web badge does. */
-function statusBadge(group: Group, theme: Theme): { label: string; color: string } {
-  if (group.status === GroupStatus.RESOLVED) {
-    return { label: "resolved", color: theme.status.resolved };
-  }
-  if (group.status === GroupStatus.IGNORED) {
-    return { label: "archived", color: theme.status.archived };
-  }
-  switch (group.substatus) {
-    case GroupSubstatus.NEW:
-      return { label: "new", color: theme.status.new };
-    case GroupSubstatus.REGRESSED:
-      return { label: "regressed", color: theme.status.regressed };
-    case GroupSubstatus.ESCALATING:
-      return { label: "escalating", color: theme.status.escalating };
-    default:
-      return { label: "unresolved", color: theme.status.ongoing };
-  }
-}
 
 /**
  * The action chips, derived from the state they'd change.
@@ -284,22 +346,15 @@ function statusBadge(group: Group, theme: Theme): { label: string; color: string
  * and does nothing is worse than no control.
  */
 function headerActions(group: Group): ChipSpec[] {
-  const chips: ChipSpec[] = [
+  return [
     group.status === GroupStatus.RESOLVED
       ? { command: "sentry.issue.unresolve", label: "unresolve" }
       : { command: "sentry.issue.resolve", label: "resolve" },
     group.status === GroupStatus.IGNORED
       ? { command: "sentry.issue.archive", label: "unarchive" }
       : { command: "sentry.issue.archive", label: "archive" },
-    {
-      command: "sentry.issue.bookmark",
-      label: group.isBookmarked ? "unbookmark" : "bookmark",
-    },
+    { command: ISSUE_ACTIONS_COMMAND, label: "actions", caret: true },
   ];
-  if (!group.hasSeen) {
-    chips.push({ command: "sentry.issue.markReviewed", label: "review" });
-  }
-  return chips;
 }
 
 /**
@@ -317,10 +372,21 @@ function headerSparkline(group: Group): string[] {
   });
 }
 
-function IssueHeader({ group, width }: { group: Group; width: number }) {
+function IssueHeader({
+  group,
+  width,
+  actions,
+  actionsOpen,
+  onActionPress,
+}: {
+  group: Group;
+  width: number;
+  actions: readonly ChipSpec[];
+  actionsOpen: boolean;
+  onActionPress: (chip: ChipSpec) => void;
+}) {
   const theme = useTheme();
   const level = theme.level[group.level] ?? theme.level.unknown;
-  const badge = statusBadge(group, theme);
   const titleWidth = Math.max(12, width - 2);
   const chart = headerSparkline(group);
   // Pinned rather than left to the content: the rows are equal length by
@@ -353,14 +419,9 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
         />
       </box>
 
-      {/*
-       * State: what the issue currently *is*. Never pressable. The level is
-       * absent because the bar beside the title already carries it in color.
-       */}
+      {/* Metadata not already represented by an action chip. */}
       <box style={{ flexDirection: "row", width, paddingTop: 1 }}>
         <text>{BODY_INDENT}</text>
-        <text fg={badge.color}>{badge.label}</text>
-        <Divider />
         <PlatformIcon platform={group.project.platform} />
         <text fg={theme.muted}>{group.project.slug}</text>
         <Divider />
@@ -408,7 +469,11 @@ function IssueHeader({ group, width }: { group: Group; width: number }) {
       {/* No padding above: a chip's top sliver row is the gap. */}
       <box style={{ flexDirection: "row", width }}>
         <text>{BODY_INDENT}</text>
-        <ChipRow chips={headerActions(group)} />
+        <ChipRow
+          chips={actions}
+          activeIndex={actionsOpen ? actions.length - 1 : undefined}
+          onPress={onActionPress}
+        />
       </box>
 
       <text fg={theme.border}>{"─".repeat(width)}</text>

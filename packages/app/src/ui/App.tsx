@@ -27,6 +27,7 @@ import { CommandPalette } from "~/ui/components/CommandPalette";
 import { DetailBackRow } from "~/ui/components/DetailBackRow";
 import { isFilterBarMounted } from "~/ui/components/FilterBar";
 import { HelpDialog } from "~/ui/components/HelpDialog";
+import { IssueAutofixModal } from "~/ui/components/IssueAutofixModal";
 import { OpenSentryUrlDialog } from "~/ui/components/OpenSentryUrlDialog";
 import { NavRail, ORG_HEADER_ANCHOR_LEFT, ORG_HEADER_ANCHOR_TOP } from "~/ui/components/NavRail";
 import { OrgPicker } from "~/ui/components/OrgPicker";
@@ -133,6 +134,7 @@ export function App({
   const [showPalette, setShowPalette] = useState(false);
   const [showOpenUrl, setShowOpenUrl] = useState(false);
   const [showOrgPicker, setShowOrgPicker] = useState(false);
+  const [autofixIssue, setAutofixIssue] = useState<Group>();
   const [webUrlFallback, setWebUrlFallback] = useState<string>();
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
   const [orgFeatures, setOrgFeatures] = useState<readonly string[] | undefined>();
@@ -451,6 +453,19 @@ export function App({
     onNotice: showNotice,
   });
 
+  /** Start a fresh issue-scoped Seer run and reveal it over the detail. */
+  const openIssueAutofix = useCallback(
+    (issue: Group) => {
+      if (!seerChat.capabilities.available) {
+        showNotice({ kind: "error", text: "Seer is not enabled for this organization" });
+        return;
+      }
+      seerChat.reset();
+      setAutofixIssue(issue);
+    },
+    [seerChat, showNotice],
+  );
+
   // The row the keyboard acts on: the open issue, else the list cursor. The
   // list survives navigating away, so the cursor only counts while an issue
   // screen is the thing on screen — otherwise `r` on the log view would
@@ -623,6 +638,7 @@ export function App({
     showPalette,
     showHelp,
     showOrgPicker,
+    showSeerAutofix: Boolean(autofixIssue),
     setShowOpenUrl,
     setShowPalette,
     setShowHelp,
@@ -645,7 +661,7 @@ export function App({
   });
 
   const contentHeight = Math.max(3, height - 3);
-  const contentFocused = focus.isFocused("content") && !showOrgPicker;
+  const contentFocused = focus.isFocused("content") && !showOrgPicker && !autofixIssue;
 
   /**
    * What the content pane hands whatever it draws. A screen and a pushed view
@@ -660,6 +676,8 @@ export function App({
     reloadToken,
     onProjectSelect: selectProjects,
     pendingIds: triage.pending,
+    runIssueAction: triage.run,
+    openIssueAutofix,
     pushView,
     notify: showNotice,
     activateRow,
@@ -794,6 +812,18 @@ export function App({
 
       {webUrlFallback ? (
         <WebUrlDialog url={webUrlFallback} onClose={() => setWebUrlFallback(undefined)} />
+      ) : null}
+
+      {autofixIssue ? (
+        <IssueAutofixModal
+          issue={autofixIssue}
+          chat={seerChat}
+          client={client}
+          org={org}
+          navigateToScreen={navigateToScreen}
+          notify={showNotice}
+          onClose={() => setAutofixIssue(undefined)}
+        />
       ) : null}
     </box>
   );
