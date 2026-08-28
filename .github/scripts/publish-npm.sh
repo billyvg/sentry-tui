@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Publish everything under dist/npm to the public registry.
 #
-# Order matters: the payload and platform packages go first so every launcher
-# dependency resolves the moment it lands, and the unscoped alias goes last
-# because it depends on the launcher.
+# Order matters: the platform packages go first so clients on the previous
+# unified release line can discover the new host even if publishing is
+# interrupted. The payload follows, then the launcher, and the unscoped alias
+# goes last because it depends on the launcher.
 #
 # Authentication is OIDC — npm trusted publishing. The workflow's
 # `id-token: write` permission lets npm match this run against the trusted
@@ -58,11 +59,13 @@ publish() {
   name="$(node -p "require('./${dir}/package.json').name")"
   version="$(node -p "require('./${dir}/package.json').version")"
 
-# A component release that dies partway can leave some packages on the
-  # them on the registry. Skipping what already landed lets a re-run finish the
+  # A component release that dies partway can leave some packages on the
+  # registry. Skipping what already landed lets a re-run finish the
   # job instead of failing on "cannot publish over the previously published
   # version" — the same reasoning as the local path in scripts/release.ts.
-  published="$(npm view "$name@$version" version --registry "$REGISTRY" 2>/dev/null || true)"
+  # npm caches 404s, including the one from a preflight before a new package
+  # existed, so a retry must revalidate against the registry.
+  published="$(npm view "$name@$version" version --registry "$REGISTRY" --prefer-online 2>/dev/null || true)"
   if [ "$published" = "$version" ]; then
     echo "==> $name@$version is already published — skipping"
     return 0
@@ -89,9 +92,13 @@ automation-class token. See docs/releasing.md."
 # Publish whichever component package trees the release planner assembled.
 shopt -s nullglob
 for dir in "$NPM_DIR"/billyvg-sentry-tui-*; do
+  if [ "$dir" = "$NPM_DIR/billyvg-sentry-tui-app" ]; then
+    continue
+  fi
   publish "$dir"
 done
 
+[ ! -d "$NPM_DIR/billyvg-sentry-tui-app" ] || publish "$NPM_DIR/billyvg-sentry-tui-app"
 [ ! -d "$NPM_DIR/billyvg-sentry-tui" ] || publish "$NPM_DIR/billyvg-sentry-tui"
 [ ! -d "$NPM_DIR/sentry-tui" ] || publish "$NPM_DIR/sentry-tui"
 
