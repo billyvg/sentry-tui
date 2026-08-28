@@ -364,6 +364,26 @@ jobs:
           name: release-bundle
           path: dist
 
+      - name: Set up Bun
+        if: needs.verify.outputs.release_app == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+
+      # Debug IDs identify the independently versioned payload without tying it
+      # to the host's Sentry release. Upload before npm so the artifact bundle
+      # is ready before the first event from the new payload can arrive.
+      - name: Upload app source maps to Sentry
+        if: needs.verify.outputs.release_app == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: sentry
+          SENTRY_PROJECT: sentry-tui
+        run: >-
+          bunx @sentry/cli@3.6.2 sourcemaps upload
+          --strict --validate --wait
+          dist/npm/billyvg-sentry-tui-app/app
+
       # Trusted publishing needs npm 11.5.1+, and the runner image's npm is
       # whatever it happens to be. Pinning the upgrade here rather than
       # trusting the image keeps a release from turning on that lottery.

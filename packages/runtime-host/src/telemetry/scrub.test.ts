@@ -137,4 +137,26 @@ describe("scrubEvent", () => {
       false,
     ]);
   });
+
+  test("scrubs and marks a debug-ID payload without breaking its file match", () => {
+    const payload = "/Users/somebody/.cache/sentry-tui/versions/0.13.0/app/app.mjs";
+    const event = scrubEvent({
+      debug_meta: { images: [{ code_file: payload }] },
+      exception: {
+        values: [{ stacktrace: { frames: [{ filename: payload, abs_path: payload }] } }],
+      },
+    });
+
+    const frame = event.exception?.values?.[0]?.stacktrace?.frames?.[0] as
+      | { filename?: string; abs_path?: string; in_app?: boolean }
+      | undefined;
+    expect(frame).toEqual({
+      filename: "~/.cache/sentry-tui/versions/0.13.0/app/app.mjs",
+      abs_path: "~/.cache/sentry-tui/versions/0.13.0/app/app.mjs",
+      in_app: true,
+    });
+    expect(event.debug_meta?.images?.[0]?.code_file).toBe(
+      "~/.cache/sentry-tui/versions/0.13.0/app/app.mjs",
+    );
+  });
 });

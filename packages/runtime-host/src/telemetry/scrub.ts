@@ -122,13 +122,24 @@ export function scrubEvent<T extends TelemetryEvent>(event: T): T {
 
   if (event.message) event.message = scrubSecrets(event.message);
 
+  const debugFiles = new Set(
+    event.debug_meta?.images?.flatMap((image) => (image.code_file ? [image.code_file] : [])) ?? [],
+  );
+
   for (const value of event.exception?.values ?? []) {
     if (value.value) value.value = scrubSecrets(value.value);
     for (const frame of value.stacktrace?.frames ?? []) {
+      const belongsToDebugBundle =
+        (frame.filename !== undefined && debugFiles.has(frame.filename)) ||
+        (frame.abs_path !== undefined && debugFiles.has(frame.abs_path));
       if (frame.filename) frame.filename = scrubSecrets(frame.filename);
       if (frame.abs_path) frame.abs_path = scrubSecrets(frame.abs_path);
-      frame.in_app = isOwnFrame(frame.filename);
+      frame.in_app = belongsToDebugBundle || isOwnFrame(frame.filename);
     }
+  }
+
+  for (const image of event.debug_meta?.images ?? []) {
+    if (image.code_file) image.code_file = scrubSecrets(image.code_file);
   }
 
   for (const crumb of event.breadcrumbs ?? []) {
@@ -164,6 +175,9 @@ function scrubValues(bag: Record<string, unknown> | undefined): void {
 export interface TelemetryEvent {
   server_name?: string | undefined;
   message?: string | undefined;
+  debug_meta?: {
+    images?: { code_file?: string | undefined }[] | undefined;
+  };
   exception?: {
     values?: {
       value?: string | undefined;
