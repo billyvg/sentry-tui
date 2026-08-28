@@ -298,8 +298,27 @@ describe("release workflow", () => {
 
     // A multi-package host release can fail partway through its uploads.
     // Without this the retry dies on "cannot publish over the previously
-    // published version" and the release can never be completed.
+    // published version" and the release can never be completed. npm also
+    // caches the pre-publish 404, so the retry has to revalidate online.
     expect(script).toContain("already published — skipping");
+    expect(script).toContain(
+      'npm view "$name@$version" version --registry "$REGISTRY" --prefer-online',
+    );
+  });
+
+  test("combined releases publish hosts before the app payload", async () => {
+    const script = await read(".github/scripts/publish-npm.sh");
+
+    // v0.10.1 and earlier know only the platform package release line. If a
+    // combined publish stops after the app package, those clients cannot see
+    // the new release at all, even though npm contains a newer payload.
+    const hostLoop = script.indexOf('for dir in "$NPM_DIR"/billyvg-sentry-tui-*');
+    const appPublish = script.indexOf('publish "$NPM_DIR/billyvg-sentry-tui-app"');
+    const launcherPublish = script.indexOf('publish "$NPM_DIR/billyvg-sentry-tui"');
+
+    expect(hostLoop).toBeGreaterThan(-1);
+    expect(appPublish).toBeGreaterThan(hostLoop);
+    expect(launcherPublish).toBeGreaterThan(appPublish);
   });
 
   test("publishing is skipped on a dry run", async () => {
