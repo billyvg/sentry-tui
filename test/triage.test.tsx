@@ -232,17 +232,36 @@ test("triage works from the detail view and updates its header", async () => {
   try {
     await h.press((i) => i.pressEnter());
     await h.waitForFrame((f) => f.includes("Issues › Feed › PUMP-STATION-1"));
-    expect(h.frame()).toContain("r resolve");
-    expect(h.frame()).toContain("unresolved · javascript");
+    expect(h.frame()).toContain("resolve");
+    expect(h.frame()).not.toContain("r resolve");
+    expect(h.frame()).not.toContain("unresolved · javascript");
 
     await h.press((i) => i.pressKey("r"));
-    await h.waitForFrame((f) => f.includes("u unresolve"));
+    await h.waitForFrame((f) => f.includes("unresolve"));
 
     expect(puts).toEqual([{ status: "resolved" }]);
-    // Both the action chip and the state line reflect the new status without a
-    // refetch — they are derived from the same optimistically-updated group.
-    expect(h.frame()).toContain("u unresolve");
-    expect(h.frame()).toContain("resolved · javascript");
+    // The action chip reflects the new status without a refetch.
+    expect(h.frame()).toContain("unresolve");
+    expect(h.frame()).not.toContain("u unresolve");
+    expect(h.frame()).not.toContain("resolved · javascript");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the detail Actions menu runs bookmark through the shared triage path", async () => {
+  const { impl, puts } = listFetch();
+  const h = await renderList(impl, { height: 40 });
+  try {
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("Issues › Feed › PUMP-STATION-1"));
+
+    await h.press((input) => input.pressKey("A", { shift: true }));
+    await h.waitForFrame((frame) => frame.includes("Bookmark"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("bookmarked PUMP-STATION-1"));
+
+    expect(puts).toEqual([{ isBookmarked: true }]);
   } finally {
     await h.cleanup();
   }

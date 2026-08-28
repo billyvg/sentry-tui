@@ -30,6 +30,7 @@ describe("app key handler factories", () => {
       showOpenUrl: false,
       showPalette: true,
       showHelp: false,
+      showSeerAutofix: false,
       setShowHelp: closeHelp,
     });
     expect(palette(key("j"))).toBe("focused");
@@ -38,6 +39,7 @@ describe("app key handler factories", () => {
       showOpenUrl: false,
       showPalette: false,
       showHelp: true,
+      showSeerAutofix: false,
       setShowHelp: closeHelp,
     });
     expect(help(key("escape"))).toBe("mine");

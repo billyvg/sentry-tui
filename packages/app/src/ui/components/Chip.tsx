@@ -2,6 +2,8 @@ import { formatKey, primaryKey } from "~/core/commands";
 import { useTheme } from "~/ui/theme";
 import { measureTextWidth } from "~/lib/text";
 import { KeyHint } from "~/ui/components/KeyHint";
+import { NavHotkeyLabel } from "~/ui/components/NavHotkeyLabel";
+import type { Hotkey } from "~/lib/hotkeys";
 
 /**
  * The app's one interactive control.
@@ -28,6 +30,8 @@ export interface ChipSpec {
   /** Command id, so the printed key follows a rebind. */
   command: string;
   label: string;
+  /** Replace a matching label character with the hotkey, like navigation. */
+  inlineHotkey?: boolean;
   /** Marks a chip that opens a menu rather than acting immediately. */
   caret?: boolean;
 }
@@ -91,11 +95,35 @@ const CHIP_EDGE_BOTTOM = "▔";
  * Width of a rendered chip, for laying out a row and anchoring the overlay a
  * chip opens. Kept beside the renderer so the two cannot disagree.
  */
-export function chipWidth({ command, label, caret = false }: ChipSpec): number {
+export function chipWidth({
+  command,
+  label,
+  inlineHotkey = false,
+  caret = false,
+}: ChipSpec): number {
   const key = formatKey(primaryKey(command));
+  const labelHotkey = inlineHotkeyFor(command, label, inlineHotkey);
   // "▐ k label ▾ ▌"
-  const keyPart = key ? measureTextWidth(key) + 1 : 0;
-  return CHIP_CAPS + 1 + keyPart + measureTextWidth(label) + (caret ? 2 : 0) + 1;
+  const keyPart = key && !labelHotkey ? measureTextWidth(key) + 1 : 0;
+  const appendedKey = labelHotkey?.index === -1 ? measureTextWidth(labelHotkey.key) + 1 : 0;
+  return CHIP_CAPS + 1 + keyPart + measureTextWidth(label) + appendedKey + (caret ? 2 : 0) + 1;
+}
+
+/** Resolve a chip's command key to its matching label character, when requested. */
+export function inlineHotkeyFor(
+  command: string,
+  label: string,
+  inline: boolean,
+): Hotkey | undefined {
+  if (!inline) return undefined;
+  const key = formatKey(primaryKey(command));
+  if (!key) return undefined;
+  const keyChars = [...key];
+  const index =
+    keyChars.length === 1
+      ? [...label].findIndex((character) => character.toLowerCase() === key.toLowerCase())
+      : -1;
+  return { key, index };
 }
 
 /** Left edge of each chip in a row, relative to the row's own left edge. */
@@ -112,6 +140,7 @@ export function chipOffsets(chips: readonly ChipSpec[]): number[] {
 export function Chip({
   command,
   label,
+  inlineHotkey = false,
   caret = false,
   active = false,
   onPress,
@@ -122,6 +151,7 @@ export function Chip({
 }) {
   const theme = useTheme();
   const key = formatKey(primaryKey(command));
+  const labelHotkey = inlineHotkeyFor(command, label, inlineHotkey);
   // An unbound command has no key to print, but the chip is still pressable by
   // mouse — so it keeps its surface and simply loses the key group.
   const labelFg = active ? theme.accent : theme.text;
@@ -129,7 +159,7 @@ export function Chip({
   // The edges span the filled box only, not the caps: a cap is half a cell of
   // ink, and running the sliver out to meet it would square off the very
   // corners the caps are there to round.
-  const edgeWidth = chipWidth({ command, label, caret }) - CHIP_CAPS;
+  const edgeWidth = chipWidth({ command, label, inlineHotkey, caret }) - CHIP_CAPS;
 
   return (
     <box style={{ flexDirection: "column", flexShrink: 0 }} onMouseDown={onPress}>
@@ -143,13 +173,17 @@ export function Chip({
         <text fg={theme.chip.rim}>{CAP_LEFT}</text>
         <box style={{ flexDirection: "row", backgroundColor: theme.chip.surface }}>
           <text> </text>
-          {key ? (
+          {key && !labelHotkey ? (
             <>
               <KeyHint command={command} emphasised />
               <text> </text>
             </>
           ) : null}
-          <text fg={labelFg}>{label}</text>
+          {labelHotkey ? (
+            <NavHotkeyLabel label={label} hotkey={labelHotkey} fg={labelFg} />
+          ) : (
+            <text fg={labelFg}>{label}</text>
+          )}
           {caret ? <text fg={active ? theme.accent : theme.muted}>{" ▾"}</text> : null}
           <text> </text>
         </box>

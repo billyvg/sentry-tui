@@ -3,7 +3,7 @@ import { useCallback, useContext, useEffect, useMemo, useReducer } from "react";
 import { matchesCommand } from "~/core/commands";
 import { SEER_SUGGESTED_QUESTIONS, seerSlashCommands, type SeerSlashCommand } from "~/core/seer";
 import { useTheme } from "~/ui/theme";
-import { SeerChatContext } from "~/ui/hooks/useSeerChat";
+import { SeerChatContext, type SeerChatState } from "~/ui/hooks/useSeerChat";
 import { SeerExplorer } from "~/ui/screens/SeerExplorer";
 import { initialSeerScreenState, seerScreenReducer } from "~/ui/screens/seerScreenState";
 import type { ScreenProps } from "~/ui/screens/types";
@@ -37,13 +37,21 @@ function pendingQuestions(data: Record<string, unknown> | undefined): Question[]
   });
 }
 
-/**
- * Seer › Ask Seer, as a registered screen.
- *
- * The screen owns terminal adaptations around the shared run: slash-menu
- * selection, history, and keyboard responses to pending-input controls. The
- * conversation itself stays in `App` so navigation never discards it.
- */
+export interface SeerConversationProps {
+  chat: SeerChatState | null;
+  client: ScreenProps["client"];
+  org: string;
+  width: number;
+  height: number;
+  focused: boolean;
+  value: string;
+  setValue: (value: string) => void;
+  registerActions: ScreenProps["registerActions"];
+  navigateToScreen: ScreenProps["navigateToScreen"];
+  notify: ScreenProps["notify"];
+}
+
+/** Seer › Ask Seer, backed by the app-owned conversation. */
 export function SeerScreen({
   client,
   org,
@@ -55,15 +63,51 @@ export function SeerScreen({
   navigateToScreen,
   notify,
 }: ScreenProps) {
-  const theme = useTheme();
   const chat = useContext(SeerChatContext);
-  const [interaction, dispatch] = useReducer(seerScreenReducer, undefined, initialSeerScreenState);
-
   const value = state.searchQuery;
   const setValue = useCallback(
     (next: string) => state.dispatch({ type: "setSearchQuery", payload: next }),
     [state.dispatch],
   );
+
+  return (
+    <SeerConversation
+      chat={chat}
+      client={client}
+      org={org}
+      width={width}
+      height={height}
+      focused={focused}
+      value={value}
+      setValue={setValue}
+      registerActions={registerActions}
+      navigateToScreen={navigateToScreen}
+      notify={notify}
+    />
+  );
+}
+
+/**
+ * Terminal interactions around a Seer run, shared by the screen and issue overlay.
+ *
+ * The conversation itself stays in `App` so navigating or closing a window
+ * never discards the transcript.
+ */
+export function SeerConversation({
+  chat,
+  client,
+  org,
+  width,
+  height,
+  focused,
+  value,
+  setValue,
+  registerActions,
+  navigateToScreen,
+  notify,
+}: SeerConversationProps) {
+  const theme = useTheme();
+  const [interaction, dispatch] = useReducer(seerScreenReducer, undefined, initialSeerScreenState);
   const pendingId = chat?.pendingInput?.id;
   const pendingType = chat?.pendingInput?.input_type;
 

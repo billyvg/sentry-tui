@@ -231,6 +231,13 @@ export const COMMANDS: readonly Command[] = [
     defaultKeys: ["m"],
     palette: "issue",
   },
+  {
+    id: "sentry.issue.actions",
+    title: "More issue actions",
+    category: "issue",
+    defaultKeys: ["A"],
+    description: "Open more issue actions",
+  },
 
   // seer
   {

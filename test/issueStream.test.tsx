@@ -106,6 +106,8 @@ function IssueFeedHarness({ client }: { client: SentryClient | null }) {
         state.dispatch({ type: "setSelectedProjects", payload: projects })
       }
       pendingIds={EMPTY_PENDING_IDS}
+      runIssueAction={() => {}}
+      openIssueAutofix={() => {}}
       pushView={() => {}}
       notify={() => {}}
       activateRow={() => {}}

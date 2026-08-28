@@ -330,6 +330,8 @@ function issueView(group: Group, client: ScreenProps["client"], org: string): Vi
         height={ctx.height}
         focused={ctx.focused}
         reloadToken={ctx.reloadToken}
+        runIssueAction={ctx.runIssueAction}
+        openIssueAutofix={ctx.openIssueAutofix}
       />
     ),
   };
@@ -363,6 +365,8 @@ function IssueFromUrl({
   focused,
   updateView,
   issue,
+  runIssueAction,
+  openIssueAutofix,
 }: DetailContext & { issueId: string; eventId?: string }) {
   const status = useDirectResource(client, { org, id: issueId, reloadToken, load: loadIssue });
   const group = valueOf(status);
@@ -384,6 +388,8 @@ function IssueFromUrl({
       height={height}
       focused={focused}
       reloadToken={reloadToken}
+      runIssueAction={runIssueAction}
+      openIssueAutofix={openIssueAutofix}
     />
   );
 }

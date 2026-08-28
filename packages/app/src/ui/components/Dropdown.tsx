@@ -43,6 +43,8 @@ export interface DropdownProps {
   showAll?: boolean;
   /** Toggle values without closing the list after each selection. */
   multiple?: boolean;
+  /** Draw selection dots; action menus have a cursor but no persistent value. */
+  showSelection?: boolean;
   /**
    * Give the list a filter box, focused with the search key. Worth it for a
    * list whose length is the org's doing — projects, organizations — and not
@@ -129,6 +131,7 @@ export function Dropdown({
   availableWidth,
   showAll = true,
   multiple = false,
+  showSelection = true,
   filterable = false,
   onQueryChange,
   remoteFilter = false,
@@ -303,7 +306,8 @@ export function Dropdown({
 
   // Geometry: the dropdown drops below the anchor, clamped to the terminal.
   // Each row is border + dot + icon + label + border.
-  const rowChrome = PREFIX_WIDTH + iconSlot + 2;
+  const prefixWidth = showSelection ? PREFIX_WIDTH : 1;
+  const rowChrome = prefixWidth + iconSlot + 2;
   const filterRows = filterable ? 1 : 0;
   const maxLabelWidth = Math.max(
     filterable ? MIN_FILTERABLE_WIDTH : MIN_WIDTH,
@@ -393,7 +397,7 @@ export function Dropdown({
               item.value === "__all__" ? selected.length === 0 : selected.includes(item.value);
 
             const fg = isCursor ? theme.text : isActive ? theme.accent : theme.muted;
-            const labelWidth = dropdownWidth - 2 - iconSlot - PREFIX_WIDTH;
+            const labelWidth = dropdownWidth - 2 - iconSlot - prefixWidth;
 
             // The selection dot leads the row, ahead of the icon, so the only gap
             // between an icon and its label is the icon's own trailing space.
@@ -406,7 +410,7 @@ export function Dropdown({
                   backgroundColor: isCursor ? theme.selected : undefined,
                 }}
               >
-                <text fg={fg}>{isActive ? "● " : "  "}</text>
+                {showSelection ? <text fg={fg}>{isActive ? "● " : "  "}</text> : <text> </text>}
                 {iconSlot > 0 ? (
                   "platform" in item ? (
                     <PlatformIcon platform={item.platform} />
