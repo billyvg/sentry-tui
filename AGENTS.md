@@ -134,26 +134,27 @@ reporting exists for, while a counter still answers how often they happen.
 
 The names in use today:
 
-| name                              | kind        | where                                            |
-| --------------------------------- | ----------- | ------------------------------------------------ |
-| `app.session.started`             | log         | `packages/runtime-host/src/ui/runApp.tsx`        |
-| `app.session.ended`               | log         | `packages/runtime-host/src/ui/runApp.tsx`        |
-| `app.session.crashed`             | log         | `packages/runtime-host/src/telemetry/index.ts`   |
-| `app.startup.failed`              | error       | `packages/runtime-host/src/main.tsx`             |
-| `app.crash.uncaught_exception`    | error       | `packages/runtime-host/src/telemetry/index.ts`   |
-| `app.crash.unhandled_rejection`   | error       | `packages/runtime-host/src/telemetry/index.ts`   |
-| `api.request.failed`              | log + error | `packages/app/src/api/client.ts`                 |
-| `api.request.rate_limited`        | log         | `packages/app/src/api/client.ts`                 |
-| `api.request.unauthorized`        | log         | `packages/app/src/api/client.ts`                 |
-| `api.response.unreadable`         | error       | `packages/app/src/core/async.ts`                 |
-| `auth.credentials.missing`        | metric      | `packages/runtime-host/src/main.tsx`             |
-| `auth.organizations.missing`      | metric      | `packages/runtime-host/src/main.tsx`             |
-| `nav.screen.opened`               | log         | `packages/runtime-host/src/telemetry/index.ts`   |
-| `nav.url.invalid`                 | metric      | `packages/app/src/core/sentryUrl.ts`             |
-| `nav.url.unsupported`             | metric      | `packages/app/src/core/sentryUrl.ts`             |
-| `ui.org_picker.invalid_selection` | metric      | `packages/runtime-host/src/main.tsx`             |
-| `ui.org.switched`                 | log         | `packages/app/src/ui/App.tsx`                    |
-| `ui.render.crashed`               | error       | `packages/runtime-host/src/ui/ErrorBoundary.tsx` |
+| name                              | kind        | where                                             |
+| --------------------------------- | ----------- | ------------------------------------------------- |
+| `app.session.started`             | log         | `packages/runtime-host/src/ui/runApp.tsx`         |
+| `app.session.ended`               | log         | `packages/runtime-host/src/ui/runApp.tsx`         |
+| `app.session.crashed`             | log         | `packages/runtime-host/src/telemetry/index.ts`    |
+| `app.startup.failed`              | error       | `packages/runtime-host/src/main.tsx`              |
+| `app.update.failed`               | error       | `packages/runtime-host/src/update/loadPayload.ts` |
+| `app.crash.uncaught_exception`    | error       | `packages/runtime-host/src/telemetry/index.ts`    |
+| `app.crash.unhandled_rejection`   | error       | `packages/runtime-host/src/telemetry/index.ts`    |
+| `api.request.failed`              | log + error | `packages/app/src/api/client.ts`                  |
+| `api.request.rate_limited`        | log         | `packages/app/src/api/client.ts`                  |
+| `api.request.unauthorized`        | log         | `packages/app/src/api/client.ts`                  |
+| `api.response.unreadable`         | error       | `packages/app/src/core/async.ts`                  |
+| `auth.credentials.missing`        | metric      | `packages/runtime-host/src/main.tsx`              |
+| `auth.organizations.missing`      | metric      | `packages/runtime-host/src/main.tsx`              |
+| `nav.screen.opened`               | log         | `packages/runtime-host/src/telemetry/index.ts`    |
+| `nav.url.invalid`                 | metric      | `packages/app/src/core/sentryUrl.ts`              |
+| `nav.url.unsupported`             | metric      | `packages/app/src/core/sentryUrl.ts`              |
+| `ui.org_picker.invalid_selection` | metric      | `packages/runtime-host/src/main.tsx`              |
+| `ui.org.switched`                 | log         | `packages/app/src/ui/App.tsx`                     |
+| `ui.render.crashed`               | error       | `packages/runtime-host/src/ui/ErrorBoundary.tsx`  |
 
 ## images
 

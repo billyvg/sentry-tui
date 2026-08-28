@@ -13,9 +13,9 @@ import {
   setTerminalRestore,
   shutdownTelemetry,
 } from "@sentry-tui/runtime-host/telemetry/index";
-import { discardFailedPayload, restartInto } from "@sentry-tui/runtime-host/update/selfUpdate";
+import { loadUpdatePayload } from "@sentry-tui/runtime-host/update/loadPayload";
+import { restartInto } from "@sentry-tui/runtime-host/update/selfUpdate";
 import { ErrorBoundary } from "@sentry-tui/runtime-host/ui/ErrorBoundary";
-import { loadAppPayload } from "@sentry-tui/runtime-host/ui/loadPayload";
 import { RuntimeHost } from "@sentry-tui/runtime-host/ui/RuntimeHost";
 import { parseThemePreference } from "~/core/theme";
 import { resolveInitialTheme, ThemeProvider } from "~/ui/theme";
@@ -34,17 +34,12 @@ export async function runApp({
   user,
   initialLocation,
 }: AppContext): Promise<void> {
-  let initialPayload;
   const siblingPayload = join(dirname(process.execPath), "app", "app.mjs");
   const payloadPath =
     process.env.SENTRY_TUI_APP_PAYLOAD || (existsSync(siblingPayload) ? siblingPayload : undefined);
-  if (payloadPath) {
-    try {
-      initialPayload = await loadAppPayload(payloadPath);
-    } catch {
-      discardFailedPayload(payloadPath);
-    }
-  }
+  const initialPayload = payloadPath
+    ? await loadUpdatePayload(payloadPath, { stage: "startup" })
+    : undefined;
 
   const preference = parseThemePreference(process.env["SENTRY_TUI_THEME"]);
   const renderer = await createCliRenderer({
