@@ -19,7 +19,12 @@ import {
   packageDirName,
   platformManifest,
 } from "./build-npm.ts";
-import { HOST_MODULES, rewriteHostModuleSpecifiers } from "./build-app.ts";
+import {
+  canonicalDebugId,
+  HOST_MODULES,
+  registerBunDebugId,
+  rewriteHostModuleSpecifiers,
+} from "./build-app.ts";
 import { COMMANDS } from "./release.ts";
 import {
   ALIAS_PACKAGE,
@@ -220,6 +225,47 @@ describe("app payload", () => {
     }
   });
 
+  test("registers Bun's debug ID without replacing it", () => {
+    const bunDebugId = "BF5C57733538F94864756E2164756E21";
+    const source = `export const payload = true;\n//# debugId=${bunDebugId}\n`;
+    const sourceMap = { version: 3, mappings: "AAAA", debugId: bunDebugId };
+    const registered = registerBunDebugId(source, sourceMap);
+
+    expect(canonicalDebugId(bunDebugId)).toBe("bf5c5773-3538-f948-6475-6e2164756e21");
+    expect(registered.source).toContain(`//# debugId=${bunDebugId}`);
+    expect(registered.source).toContain(
+      'e._sentryDebugIds[n]="bf5c5773-3538-f948-6475-6e2164756e21"',
+    );
+    expect(registered.sourceMap.debugId).toBe(bunDebugId);
+    expect(registered.sourceMap.mappings).toBe(";AAAA");
+    expect(registerBunDebugId(registered.source, registered.sourceMap)).toEqual(registered);
+  });
+
+  test("rejects a payload whose source and map debug IDs differ", () => {
+    expect(() =>
+      registerBunDebugId("//# debugId=00000000000000000000000000000000\n", {
+        version: 3,
+        mappings: "AAAA",
+        debugId: "11111111111111111111111111111111",
+      }),
+    ).toThrow("does not match");
+  });
+
+  test("leaves the source map external for Sentry to process", async () => {
+    const buildScript = await read("scripts/build-app.ts");
+    expect(buildScript).toContain('sourcemap: "external"');
+    expect(buildScript).not.toContain('sourcemap: "linked"');
+  });
+
+  test("preserves identifiers in both distributed bundles", async () => {
+    const appBuild = await read("scripts/build-app.ts");
+    const hostBuild = await read("scripts/build-bin.ts");
+
+    expect(appBuild).toContain("identifiers: false");
+    expect(hostBuild).toContain('args.push("--minify-syntax", "--minify-whitespace")');
+    expect(hostBuild).not.toContain('args.push("--minify")');
+  });
+
   test("the release builds the payload before packaging it", async () => {
     const workflow = await read(".github/workflows/release.yml");
     const build = workflow.indexOf("run: bun run build:app");
@@ -366,6 +412,26 @@ describe("release workflow", () => {
     expect(deploymentStep).toContain('--field "state=success"');
     expect(deploymentStep).toContain("https://www.npmjs.com/package/sentry-tui/v/${HOST_VERSION}");
     expect(deploymentStep).toContain("@billyvg/sentry-tui-app/v/${APP_VERSION}");
+  });
+
+  test("uploads app source maps before publishing the payload", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+    const publishJob = workflow.split(/^  publish:/m)[1];
+    expect(publishJob).toBeDefined();
+
+    const upload = publishJob!.indexOf("bunx @sentry/cli@3.6.2 sourcemaps upload");
+    const npmPublish = publishJob!.indexOf("run: .github/scripts/publish-npm.sh");
+    expect(upload).toBeGreaterThan(-1);
+    expect(upload).toBeLessThan(npmPublish);
+
+    const uploadStep = publishJob!.slice(
+      publishJob!.indexOf("- name: Upload app source maps to Sentry"),
+      npmPublish,
+    );
+    expect(uploadStep).toContain("needs.verify.outputs.release_app == 'true'");
+    expect(uploadStep).toContain("SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}");
+    expect(uploadStep).toContain("--strict --validate --wait");
+    expect(uploadStep).toContain("dist/npm/billyvg-sentry-tui-app/app");
   });
 
   test("an app-only release skips every native build", async () => {

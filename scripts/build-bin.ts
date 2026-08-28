@@ -75,10 +75,12 @@ if (target) {
   args.push("--target", target.bunTarget);
 }
 
-// Measured on darwin-arm64: 70.20MB -> 68.37MB raw, 24.26MB -> 24.07MB gzipped.
-// The compressed win is small because minified JS has less redundancy for gzip
-// to exploit, but it is a win in both directions, so there is nothing to trade off.
-args.push("--minify");
+// Bun's source maps do not retain identifier names, so full minification leaves
+// Sentry with source locations attached to functions named `a` and `b`. Syntax
+// and whitespace minification keep nearly all of the compressed-size win while
+// preserving the names that make a stack trace readable. Measured on
+// darwin-arm64: +1.40MB raw, +0.19MB gzipped versus full minification.
+args.push("--minify-syntax", "--minify-whitespace");
 
 // OpenTUI picks its native library through `process.env.OPENTUI_LIBC`, a runtime
 // check the bundler cannot see through, so it embeds the glibc *and* musl copies
