@@ -179,7 +179,7 @@ test("Enter on a monitor detail fetches and opens its latest issue", async () =>
     expect(calls.some((url) => url.endsWith("/organizations/acme/issues/900/"))).toBe(true);
 
     await h.press((input) => input.pressKey("r"));
-    await h.waitForFrame((frame) => frame.includes("u unresolve"));
+    await h.waitForFrame((frame) => frame.includes("unresolve"));
     expect(puts).toEqual([{ status: "resolved" }]);
   } finally {
     await h.cleanup();

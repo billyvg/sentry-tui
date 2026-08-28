@@ -175,7 +175,8 @@ test("triage keys stay with the content pane, detail view included", async () =>
 
     // `r` on the rail is not a resolve: the action still offers resolve.
     expect(h.frame()).not.toContain("resolving");
-    expect(h.frame()).toContain("r resolve");
+    expect(h.frame()).toContain("resolve");
+    expect(h.frame()).not.toContain("r resolve");
   } finally {
     await h.cleanup();
   }

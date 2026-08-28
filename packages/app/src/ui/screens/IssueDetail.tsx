@@ -7,7 +7,7 @@ import type { SentryClient } from "~/api/client";
 import type { EventSelector } from "~/api/issues";
 import { findEntry, GroupStatus, type Breadcrumb, type Group, type SentryEvent } from "~/api/types";
 import { errorOf, isInitialLoad, valueOf } from "~/core/async";
-import { formatKey, matchesCommand, primaryKey } from "~/core/commands";
+import { matchesCommand } from "~/core/commands";
 import { issueMessage, issueTitle } from "~/lib/issueText";
 import { countLabel, sparklineBlock, timeAgo } from "~/lib/sparkline";
 import { buildStackRows } from "~/lib/stacktrace";
@@ -215,13 +215,13 @@ export function IssueDetail({
   const actionItems: DropdownItem[] = [
     {
       value: "sentry.issue.bookmark",
-      label: `${formatKey(primaryKey("sentry.issue.bookmark"))}  ${group.isBookmarked ? "Unbookmark" : "Bookmark"}`,
+      label: group.isBookmarked ? "Unbookmark" : "Bookmark",
     },
     ...(!group.hasSeen
       ? [
           {
             value: "sentry.issue.markReviewed",
-            label: `${formatKey(primaryKey("sentry.issue.markReviewed"))}  Mark reviewed`,
+            label: "Mark reviewed",
           },
         ]
       : []),
@@ -348,12 +348,12 @@ export function IssueDetail({
 function headerActions(group: Group): ChipSpec[] {
   return [
     group.status === GroupStatus.RESOLVED
-      ? { command: "sentry.issue.unresolve", label: "unresolve" }
-      : { command: "sentry.issue.resolve", label: "resolve" },
+      ? { command: "sentry.issue.unresolve", label: "unresolve", inlineHotkey: true }
+      : { command: "sentry.issue.resolve", label: "resolve", inlineHotkey: true },
     group.status === GroupStatus.IGNORED
-      ? { command: "sentry.issue.archive", label: "unarchive" }
-      : { command: "sentry.issue.archive", label: "archive" },
-    { command: ISSUE_ACTIONS_COMMAND, label: "actions", caret: true },
+      ? { command: "sentry.issue.archive", label: "unarchive", inlineHotkey: true }
+      : { command: "sentry.issue.archive", label: "archive", inlineHotkey: true },
+    { command: ISSUE_ACTIONS_COMMAND, label: "actions", inlineHotkey: true, caret: true },
   ];
 }
 

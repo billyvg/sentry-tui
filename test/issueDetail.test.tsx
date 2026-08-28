@@ -218,7 +218,8 @@ test("enter opens the issue detail with header metadata", async () => {
     expect(frame).toContain("TypeError");
     expect(frame).toContain("1.4k events");
     expect(frame).toContain("92 users");
-    expect(frame).toContain("r resolve"); // action chip
+    expect(frame).toContain("resolve"); // action chip
+    expect(frame).not.toContain("r resolve");
   } finally {
     await h.cleanup();
   }
@@ -232,12 +233,15 @@ test("the header does not repeat state already represented by an action", async 
 
     expect(frame).toContain("javascript · high priority · unassigned");
     expect(frame).not.toContain("unresolved · javascript");
-    expect(frame).toContain("r resolve");
-    expect(frame).toContain("a archive");
-    expect(frame).toContain("A actions");
+    expect(frame).toContain("resolve");
+    expect(frame).toContain("archive");
+    expect(frame).toContain("Actions");
+    expect(frame).not.toContain("r resolve");
+    expect(frame).not.toContain("a archive");
+    expect(frame).not.toContain("A actions");
 
     // Secondary actions live in the dropdown, not beside the primary ones.
-    const actionsRow = frame.split("\n").find((line) => line.includes("r resolve"));
+    const actionsRow = frame.split("\n").find((line) => line.includes("resolve"));
     expect(actionsRow).not.toContain("bookmark");
     expect(actionsRow).not.toContain("review");
   } finally {
@@ -429,9 +433,11 @@ test("the Actions chip opens bookmark, review, and Autofix", async () => {
 
     const frame = h.frame();
     expect(frame).toContain("Actions");
-    expect(frame).toContain("b  Bookmark");
-    expect(frame).toContain("m  Mark reviewed");
+    expect(frame).toContain("Bookmark");
+    expect(frame).toContain("Mark reviewed");
     expect(frame).toContain("Autofix");
+    expect(frame).not.toContain("b  Bookmark");
+    expect(frame).not.toContain("m  Mark reviewed");
   } finally {
     await h.cleanup();
   }
@@ -750,7 +756,7 @@ test("the scrollbox viewport fills the pane, with the scrollbar beside it", asyn
 test("a chip's end caps are painted in its rim color, not as stray blocks", async () => {
   const h = await openFirstIssue();
   try {
-    await h.waitForFrame((f) => f.includes("r resolve"));
+    await h.waitForFrame((f) => f.includes("resolve"));
 
     // The pill's rounded end is a half block whose *unfilled* half falls
     // through to the page. It carries the rim rather than the fill, which is
