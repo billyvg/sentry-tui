@@ -293,7 +293,7 @@ jobs:
 
       - name: Download binaries
         if: needs.verify.outputs.release_host == 'true'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: dist/bin
 
@@ -359,7 +359,7 @@ jobs:
           ref: ${{ needs.verify.outputs.release_sha }}
 
       - name: Download release bundle
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-bundle
           path: dist
