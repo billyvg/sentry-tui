@@ -9,12 +9,16 @@ export interface ImageSupport {
 }
 
 /**
- * Terminal multiplexers (Herdr, tmux, screen) may advertise kitty/sixel
- * because the outer terminal supports them, but intercept the protocol and
- * render ugly Unicode half-block fallbacks. Detect these environments so we
- * can skip image rendering entirely.
+ * tmux and screen may advertise kitty/sixel because the outer terminal
+ * supports them, but intercept the protocol and render ugly Unicode
+ * half-block fallbacks. Detect these environments so we can skip image
+ * rendering entirely.
+ *
+ * Herdr is deliberately absent: it passes kitty graphics through as of 0.9.0,
+ * so its reported capabilities are honest. It ships no version marker in the
+ * environment, so an older Herdr gets half-blocks rather than a text fallback.
  */
-const INSIDE_MUX = !!(process.env.HERDR_ENV || process.env.TMUX || process.env.STY);
+const INSIDE_MUX = !!(process.env.TMUX || process.env.STY);
 
 const UNSUPPORTED: ImageSupport = { supported: false, supportsHighRes: false };
 

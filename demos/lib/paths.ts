@@ -58,12 +58,13 @@ export async function writeShim(): Promise<void> {
  * Refuse to record from inside a terminal multiplexer.
  *
  * The launched kitty inherits this environment, and `useImageSupport` disables
- * every icon in the app when it sees `HERDR_ENV`, `TMUX` or `STY` — the exact
- * thing this harness exists to avoid. Failing loudly here beats discovering a
- * text-only nav rail after a five-minute take.
+ * every icon in the app when it sees `TMUX` or `STY` — the exact thing this
+ * harness exists to avoid. Failing loudly here beats discovering a text-only
+ * nav rail after a five-minute take. Herdr is not on the list: it passes kitty
+ * graphics through, so an inherited `HERDR_ENV` costs the take nothing.
  */
 export function assertNotMultiplexed(): void {
-  const found = ["HERDR_ENV", "TMUX", "STY"].filter((name) => process.env[name]);
+  const found = ["TMUX", "STY"].filter((name) => process.env[name]);
   if (found.length === 0) return;
   throw new Error(
     `${found.join(", ")} set in this environment.\n\n` +

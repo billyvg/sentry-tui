@@ -170,9 +170,11 @@ record the failure before discarding it or replacing it with fallback state.
 ## images
 
 OpenTUI's `<image>` decodes png/jpeg/webp/gif — never SVG. Terminal images only
-render at usable fidelity under kitty graphics or sixel, and multiplexers
-(Herdr, tmux, screen) degrade both to half-blocks, so image call sites gate on
-`useImageSupport().supportsHighRes` and must lay out sensibly without them.
+render at usable fidelity under kitty graphics or sixel, and multiplexers that
+intercept those protocols (tmux, screen) degrade both to half-blocks, so image
+call sites gate on `useImageSupport().supportsHighRes` and must lay out sensibly
+without them. Herdr is not one of them — it passes kitty graphics through as of
+0.9.0, so it is trusted to report its own capabilities.
 
 Bundled art reaches `<image>` as bytes, from `~/assets/navIcons` or
 `~/assets/platformIcons` — never as a path built from `import.meta.dir`. Two
