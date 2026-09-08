@@ -1,7 +1,7 @@
 {
   "source": {
     "repository": "https://github.com/getsentry/sentry.git",
-    "revision": "c8c670f927d1bae633f44289e43a49db8cfc294f"
+    "revision": "f0ee5b0fd4164ac63f118461255fb0f74fcd56e9"
   },
   "snapshot": {
     "navigation": {
@@ -90,7 +90,7 @@
       "preprod_size_analysis"
     ],
     "prebuiltConfigInputs": {
-      "MutableSearch": "a6ac5a5f4f6181db8c8a2a63f0e5f62d9ce0aec524b2f48c51b936705c65e88f"
+      "MutableSearch": "e7bccf4ecafed59e80569e19bb136055971e9d622c180d5ad31195789d8c5f8d"
     },
     "widgetDisplayTypes": [
       "area",
