@@ -173,9 +173,9 @@ run. Holds for ten seconds so viewers can copy it.
 
 The nav icons, org avatar, platform icons and assignee avatars all render through
 `<image>`, and `useImageSupport` turns them off unless the terminal reports kitty
-graphics or sixel **and** `HERDR_ENV` / `TMUX` / `STY` are unset. VHS renders
-through a headless browser terminal that doesn't advertise kitty graphics, and a
-Herdr pane is excluded by name. Both would produce a text-only nav rail.
+graphics or sixel **and** `TMUX` / `STY` are unset. VHS renders through a
+headless browser terminal that doesn't advertise kitty graphics, so it would
+produce a text-only nav rail.
 
 ### Goto keys are derived, not fixed
 

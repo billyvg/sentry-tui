@@ -47,13 +47,13 @@ stop-recording control in.
 - A TTS key for the narration — `OPENAI_API_KEY` **or** `OPENROUTER_API_KEY`.
   Put it in `demos/.env` (gitignored); Bun loads that automatically.
 
-**Run all of this from a plain terminal window**, not inside Herdr or tmux. The
-recorded kitty inherits the environment, and `HERDR_ENV`/`TMUX`/`STY` in it would
-turn the icons back off — which is the whole reason this harness exists. Every
-entry point refuses to start if it finds one set. If you genuinely need to launch
-from inside a multiplexer, `env -u HERDR_ENV -u TMUX -u STY bun run demo:record`
-is a real fix rather than a bypass: the recorded window then doesn't inherit the
-variable either.
+**Run all of this from a plain terminal window**, not inside tmux or screen. The
+recorded kitty inherits the environment, and `TMUX`/`STY` in it would turn the
+icons back off — which is the whole reason this harness exists. Every entry point
+refuses to start if it finds one set. If you genuinely need to launch from inside
+one, `env -u TMUX -u STY bun run demo:record` is a real fix rather than a bypass:
+the recorded window then doesn't inherit the variable either. A Herdr pane is
+fine — Herdr passes kitty graphics through, so the icons survive.
 
 ### The app runs from source, not from `dist`
 
