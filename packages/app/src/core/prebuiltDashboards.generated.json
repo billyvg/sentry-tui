@@ -1,7 +1,7 @@
 {
   "source": {
     "repository": "https://github.com/getsentry/sentry",
-    "revision": "c8c670f927d1bae633f44289e43a49db8cfc294f",
+    "revision": "f0ee5b0fd4164ac63f118461255fb0f74fcd56e9",
     "path": "static/app/views/dashboards/utils/prebuiltConfigs.tsx"
   },
   "dashboards": {
@@ -1603,11 +1603,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:cold)",
               "columns": [],
-              "aggregates": ["avg(app.vitals.start.cold.value)"],
+              "aggregates": ["avg(tags[app.vitals.start.value,millisecond])"],
               "orderby": "",
-              "fields": ["avg(app.vitals.start.cold.value)"]
+              "fields": ["avg(tags[app.vitals.start.value,millisecond])"]
             }
           ],
           "interval": "1h",
@@ -1628,11 +1628,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:warm)",
               "columns": [],
-              "aggregates": ["avg(app.vitals.start.warm.value)"],
+              "aggregates": ["avg(tags[app.vitals.start.value,millisecond])"],
               "orderby": "",
-              "fields": ["avg(app.vitals.start.warm.value)"]
+              "fields": ["avg(tags[app.vitals.start.value,millisecond])"]
             }
           ],
           "interval": "1h",
@@ -1836,18 +1836,18 @@
           "queries": [
             {
               "name": "",
-              "conditions": "((is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value) OR (is_transaction:true transaction.op:[ui.load,navigation] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)) has:transaction",
-              "columns": ["transaction"],
+              "conditions": "(has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number])",
+              "columns": ["app.vitals.start.screen"],
               "aggregates": [
-                "avg(app.vitals.start.cold.value)",
-                "avg(app.vitals.start.warm.value)",
+                "avg_if(tags[app.vitals.start.value,millisecond],app.vitals.start.type,equals,cold)",
+                "avg_if(tags[app.vitals.start.value,millisecond],app.vitals.start.type,equals,warm)",
                 "count_unique(transaction.span_id)"
               ],
               "orderby": "-count_unique(transaction.span_id)",
               "fields": [
-                "transaction",
-                "avg(app.vitals.start.cold.value)",
-                "avg(app.vitals.start.warm.value)",
+                "app.vitals.start.screen",
+                "avg_if(tags[app.vitals.start.value,millisecond],app.vitals.start.type,equals,cold)",
+                "avg_if(tags[app.vitals.start.value,millisecond],app.vitals.start.type,equals,warm)",
                 "count_unique(transaction.span_id)"
               ],
               "fieldAliases": ["Screen", "Avg Cold Start", "Avg Warm Start", "Screen Loads"]
@@ -1947,11 +1947,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:cold)",
               "columns": [],
-              "aggregates": ["avg(app.vitals.start.cold.value)"],
+              "aggregates": ["avg(tags[app.vitals.start.value,millisecond])"],
               "orderby": "",
-              "fields": ["avg(app.vitals.start.cold.value)"]
+              "fields": ["avg(tags[app.vitals.start.value,millisecond])"]
             }
           ],
           "interval": "1h",
@@ -1972,11 +1972,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:warm)",
               "columns": [],
-              "aggregates": ["avg(app.vitals.start.warm.value)"],
+              "aggregates": ["avg(tags[app.vitals.start.value,millisecond])"],
               "orderby": "",
-              "fields": ["avg(app.vitals.start.warm.value)"]
+              "fields": ["avg(tags[app.vitals.start.value,millisecond])"]
             }
           ],
           "interval": "1h",
@@ -1997,7 +1997,7 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:cold)",
               "columns": [],
               "aggregates": ["count_unique(transaction.span_id)"],
               "orderby": "",
@@ -2022,7 +2022,7 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:warm)",
               "columns": [],
               "aggregates": ["count_unique(transaction.span_id)"],
               "orderby": "",
@@ -2047,11 +2047,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:cold)",
               "columns": [],
-              "aggregates": ["avg(app.vitals.start.cold.value)"],
-              "orderby": "-avg(app.vitals.start.cold.value)",
-              "fields": ["avg(app.vitals.start.cold.value)"],
+              "aggregates": ["avg(tags[app.vitals.start.value,millisecond])"],
+              "orderby": "-avg(tags[app.vitals.start.value,millisecond])",
+              "fields": ["avg(tags[app.vitals.start.value,millisecond])"],
               "fieldAliases": []
             }
           ],
@@ -2073,11 +2073,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:warm)",
               "columns": [],
-              "aggregates": ["avg(app.vitals.start.warm.value)"],
-              "orderby": "-avg(app.vitals.start.warm.value)",
-              "fields": ["avg(app.vitals.start.warm.value)"],
+              "aggregates": ["avg(tags[app.vitals.start.value,millisecond])"],
+              "orderby": "-avg(tags[app.vitals.start.value,millisecond])",
+              "fields": ["avg(tags[app.vitals.start.value,millisecond])"],
               "fieldAliases": []
             }
           ],
@@ -2099,11 +2099,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.cold.value OR span.op:app.start.cold has:app.vitals.start.cold.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:cold)",
               "columns": ["device.class"],
-              "aggregates": ["avg(app.vitals.start.cold.value)"],
+              "aggregates": ["avg(tags[app.vitals.start.value,millisecond])"],
               "orderby": "device.class",
-              "fields": ["device.class", "avg(app.vitals.start.cold.value)"]
+              "fields": ["device.class", "avg(tags[app.vitals.start.value,millisecond])"]
             }
           ],
           "interval": "1h",
@@ -2124,11 +2124,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(is_transaction:true transaction.op:[ui.load,navigation,app.start] has:app.vitals.start.warm.value OR span.op:app.start.warm has:app.vitals.start.warm.value)",
+              "conditions": "((has:app.vitals.start.screen AND has:tags[app.vitals.start.value,number]) AND app.vitals.start.type:warm)",
               "columns": ["device.class"],
-              "aggregates": ["avg(app.vitals.start.warm.value)"],
+              "aggregates": ["avg(tags[app.vitals.start.value,millisecond])"],
               "orderby": "device.class",
-              "fields": ["device.class", "avg(app.vitals.start.warm.value)"]
+              "fields": ["device.class", "avg(tags[app.vitals.start.value,millisecond])"]
             }
           ],
           "interval": "1h",
@@ -2149,7 +2149,7 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(!span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\" has:span.description transaction.op:[ui.load,navigation] has:ttid app_start_type:cold span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load] OR !is_transaction:true ((has:span.description !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\") OR (has:span.name !span.name:\"Cold Start\" !span.name:\"Warm Start\" !span.name:\"Cold App Start\" !span.name:\"Warm App Start\" !span.name:\"Initial Frame Render\")) app.vitals.start.type:cold span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load])",
+              "conditions": "(!is_transaction:true !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\" has:span.description transaction.op:[ui.load,navigation] has:ttid app_start_type:cold span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load] OR !is_transaction:true ((has:span.description !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\") OR (has:span.name !span.name:\"App Start\" !span.name:\"Cold Start\" !span.name:\"Warm Start\" !span.name:\"Cold App Start\" !span.name:\"Warm App Start\" !span.name:\"Initial Frame Render\")) app.vitals.start.type:cold span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load] OR !is_transaction:true !span.op:app.start !transaction.op:[ui.load,navigation] !span.name:\"App Start\" !span.name:\"Cold Start\" !span.name:\"Warm Start\" !span.name:\"Cold App Start\" !span.name:\"Warm App Start\" !span.name:\"Initial Frame Render\" !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\" has:app.vitals.start.screen !has:tags[app.vitals.start.value,number] app.vitals.start.type:cold)",
               "columns": ["span.op", "span.name", "span.description"],
               "aggregates": ["avg(span.self_time)"],
               "orderby": "-avg(span.self_time)",
@@ -2175,7 +2175,7 @@
           "queries": [
             {
               "name": "",
-              "conditions": "(!span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\" has:span.description transaction.op:[ui.load,navigation] has:ttid app_start_type:warm span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load] OR !is_transaction:true ((has:span.description !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\") OR (has:span.name !span.name:\"Cold Start\" !span.name:\"Warm Start\" !span.name:\"Cold App Start\" !span.name:\"Warm App Start\" !span.name:\"Initial Frame Render\")) app.vitals.start.type:warm span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load])",
+              "conditions": "(!is_transaction:true !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\" has:span.description transaction.op:[ui.load,navigation] has:ttid app_start_type:warm span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load] OR !is_transaction:true ((has:span.description !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\") OR (has:span.name !span.name:\"App Start\" !span.name:\"Cold Start\" !span.name:\"Warm Start\" !span.name:\"Cold App Start\" !span.name:\"Warm App Start\" !span.name:\"Initial Frame Render\")) app.vitals.start.type:warm span.op:[app.start.cold,app.start.warm,contentprovider.load,application.load,activity.load,ui.load,process.load] OR !is_transaction:true !span.op:app.start !transaction.op:[ui.load,navigation] !span.name:\"App Start\" !span.name:\"Cold Start\" !span.name:\"Warm Start\" !span.name:\"Cold App Start\" !span.name:\"Warm App Start\" !span.name:\"Initial Frame Render\" !span.description:\"Cold Start\" !span.description:\"Warm Start\" !span.description:\"Cold App Start\" !span.description:\"Warm App Start\" !span.description:\"Initial Frame Render\" has:app.vitals.start.screen !has:tags[app.vitals.start.value,number] app.vitals.start.type:warm)",
               "columns": ["span.op", "span.name", "span.description"],
               "aggregates": ["avg(span.self_time)"],
               "orderby": "-avg(span.self_time)",
@@ -3670,6 +3670,7 @@
           "title": "Traces",
           "description": "Agent traces with duration, token, cost, and tool usage.",
           "displayType": "agents_traces_table",
+          "widgetType": "spans",
           "queries": [
             {
               "name": "",
@@ -3760,16 +3761,16 @@
               "columns": [],
               "aggregates": [
                 "sum(gen_ai.usage.input_tokens)",
-                "sum(gen_ai.usage.input_tokens.cached)",
+                "sum(gen_ai.usage.cache_read.input_tokens)",
                 "sum(gen_ai.usage.output_tokens)",
-                "sum(gen_ai.usage.output_tokens.reasoning)"
+                "sum(gen_ai.usage.reasoning.output_tokens)"
               ],
               "orderby": "",
               "fields": [
                 "sum(gen_ai.usage.input_tokens)",
-                "sum(gen_ai.usage.input_tokens.cached)",
+                "sum(gen_ai.usage.cache_read.input_tokens)",
                 "sum(gen_ai.usage.output_tokens)",
-                "sum(gen_ai.usage.output_tokens.reasoning)"
+                "sum(gen_ai.usage.reasoning.output_tokens)"
               ],
               "fieldAliases": [
                 "Input Tokens",
@@ -3806,9 +3807,9 @@
                 "p95(span.duration)",
                 "sum(gen_ai.cost.total_tokens)",
                 "sum(gen_ai.usage.input_tokens)",
-                "sum(gen_ai.usage.input_tokens.cached)",
+                "sum(gen_ai.usage.cache_read.input_tokens)",
                 "sum(gen_ai.usage.output_tokens)",
-                "sum(gen_ai.usage.output_tokens.reasoning)"
+                "sum(gen_ai.usage.reasoning.output_tokens)"
               ],
               "orderby": "-count()",
               "fields": [
@@ -3819,9 +3820,9 @@
                 "p95(span.duration)",
                 "sum(gen_ai.cost.total_tokens)",
                 "sum(gen_ai.usage.input_tokens)",
-                "sum(gen_ai.usage.input_tokens.cached)",
+                "sum(gen_ai.usage.cache_read.input_tokens)",
                 "sum(gen_ai.usage.output_tokens)",
-                "sum(gen_ai.usage.output_tokens.reasoning)"
+                "sum(gen_ai.usage.reasoning.output_tokens)"
               ],
               "fieldAliases": [
                 "Model",
@@ -4005,11 +4006,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.transport",
-              "columns": ["mcp.transport"],
+              "conditions": "span.op:mcp.server has:network.transport",
+              "columns": ["network.transport"],
               "aggregates": ["count()"],
               "orderby": "-count()",
-              "fields": ["mcp.transport", "count()"],
+              "fields": ["network.transport", "count()"],
               "fieldAliases": ["Transport", "Count"]
             }
           ],
@@ -4031,11 +4032,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.tool.name",
-              "columns": ["mcp.tool.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.tool.name",
+              "columns": ["gen_ai.tool.name"],
               "aggregates": ["count(span.duration)"],
               "orderby": "-count(span.duration)",
-              "fields": ["mcp.tool.name", "count(span.duration)"],
+              "fields": ["gen_ai.tool.name", "count(span.duration)"],
               "fieldAliases": ["Tool", "Count"]
             }
           ],
@@ -4083,11 +4084,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.prompt.name",
-              "columns": ["mcp.prompt.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.prompt.name",
+              "columns": ["gen_ai.prompt.name"],
               "aggregates": ["count(span.duration)"],
               "orderby": "-count(span.duration)",
-              "fields": ["mcp.prompt.name", "count(span.duration)"],
+              "fields": ["gen_ai.prompt.name", "count(span.duration)"],
               "fieldAliases": ["Prompt", "Count"]
             }
           ],
@@ -4153,11 +4154,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.tool.name",
-              "columns": ["mcp.tool.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.tool.name",
+              "columns": ["gen_ai.tool.name"],
               "aggregates": ["count(span.duration)"],
               "orderby": "-count(span.duration)",
-              "fields": ["mcp.tool.name", "count(span.duration)"],
+              "fields": ["gen_ai.tool.name", "count(span.duration)"],
               "fieldAliases": ["Tool", "Calls"]
             }
           ],
@@ -4179,11 +4180,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.tool.name",
-              "columns": ["mcp.tool.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.tool.name",
+              "columns": ["gen_ai.tool.name"],
               "aggregates": ["avg(span.duration)"],
               "orderby": "-avg(span.duration)",
-              "fields": ["mcp.tool.name", "avg(span.duration)"],
+              "fields": ["gen_ai.tool.name", "avg(span.duration)"],
               "fieldAliases": ["Tool", "Avg"]
             }
           ],
@@ -4205,11 +4206,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.tool.name",
-              "columns": ["mcp.tool.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.tool.name",
+              "columns": ["gen_ai.tool.name"],
               "aggregates": ["failure_rate()"],
               "orderby": "-failure_rate()",
-              "fields": ["mcp.tool.name", "failure_rate()"],
+              "fields": ["gen_ai.tool.name", "failure_rate()"],
               "fieldAliases": ["Tool", "Error Rate"]
             }
           ],
@@ -4231,8 +4232,8 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.tool.name",
-              "columns": ["mcp.tool.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.tool.name",
+              "columns": ["gen_ai.tool.name"],
               "aggregates": [
                 "count()",
                 "failure_rate()",
@@ -4242,7 +4243,7 @@
               ],
               "orderby": "-count()",
               "fields": [
-                "mcp.tool.name",
+                "gen_ai.tool.name",
                 "count()",
                 "failure_rate()",
                 "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
@@ -4397,11 +4398,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.prompt.name",
-              "columns": ["mcp.prompt.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.prompt.name",
+              "columns": ["gen_ai.prompt.name"],
               "aggregates": ["count(span.duration)"],
               "orderby": "-count(span.duration)",
-              "fields": ["mcp.prompt.name", "count(span.duration)"],
+              "fields": ["gen_ai.prompt.name", "count(span.duration)"],
               "fieldAliases": ["Prompt", "Calls"]
             }
           ],
@@ -4423,11 +4424,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.prompt.name",
-              "columns": ["mcp.prompt.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.prompt.name",
+              "columns": ["gen_ai.prompt.name"],
               "aggregates": ["avg(span.duration)"],
               "orderby": "-avg(span.duration)",
-              "fields": ["mcp.prompt.name", "avg(span.duration)"],
+              "fields": ["gen_ai.prompt.name", "avg(span.duration)"],
               "fieldAliases": ["Prompt", "Avg"]
             }
           ],
@@ -4449,11 +4450,11 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.prompt.name",
-              "columns": ["mcp.prompt.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.prompt.name",
+              "columns": ["gen_ai.prompt.name"],
               "aggregates": ["failure_rate()"],
               "orderby": "-failure_rate()",
-              "fields": ["mcp.prompt.name", "failure_rate()"],
+              "fields": ["gen_ai.prompt.name", "failure_rate()"],
               "fieldAliases": ["Prompt", "Error Rate"]
             }
           ],
@@ -4475,8 +4476,8 @@
           "queries": [
             {
               "name": "",
-              "conditions": "span.op:mcp.server has:mcp.prompt.name",
-              "columns": ["mcp.prompt.name"],
+              "conditions": "span.op:mcp.server has:gen_ai.prompt.name",
+              "columns": ["gen_ai.prompt.name"],
               "aggregates": [
                 "count()",
                 "failure_rate()",
@@ -4486,7 +4487,7 @@
               ],
               "orderby": "-count()",
               "fields": [
-                "mcp.prompt.name",
+                "gen_ai.prompt.name",
                 "count()",
                 "failure_rate()",
                 "equation|count_if(span.status,equals,internal_error) + count_if(span.status,equals,error)",
