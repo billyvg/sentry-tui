@@ -15,8 +15,11 @@
  * with anything here.
  */
 
+import { useMemo } from "react";
+
 import type { SentryClient } from "~/api/client";
 import { getDashboard, type DashboardDetails } from "~/api/dashboards";
+import { widgetRenderKind } from "~/api/dashboardWidgets";
 import { fetchDetector, type Detector } from "~/api/detectors";
 import { fetchGroupSearchView, type GroupSearchView } from "~/api/groupSearchViews";
 import { DEFAULT_RELEASE_PERIOD, type Release } from "~/api/releases";
@@ -29,6 +32,7 @@ import {
 } from "~/api/replays";
 import { fetchSavedQuery, type SavedQuery, type SavedQuerySource } from "~/api/savedQueries";
 import { valueOf } from "~/core/async";
+import { detectorConfigFields } from "~/core/detectors";
 import {
   embedText,
   embedTexts,
@@ -46,9 +50,12 @@ import {
   SeerEmbedStatus,
   SeerEmbedText,
 } from "~/ui/components/SeerEmbedCard";
+import { WidgetCard } from "~/ui/components/WidgetCard";
+import { useWidgetData, widgetKey } from "~/ui/hooks/useDashboardDetail";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useReleases } from "~/ui/hooks/useReleases";
 import { BOLD, DIM } from "~/ui/lib/attributes";
+import { orderWidgets, widgetCardHeight } from "~/ui/lib/widgetStack";
 import { useTheme } from "~/ui/theme";
 import { SeerQueryEmbed } from "~/ui/components/SeerQueryEmbeds";
 
@@ -343,13 +350,39 @@ function AlertEmbed({ data, width }: SeerEmbedProps) {
 const loadDashboard: DirectResourceLoader<DashboardDetails> = (client, { org, id, signal }) =>
   getDashboard(client, { org, id, signal });
 
-/** A dashboard, previewed by the widgets it holds. */
+/** Widgets a dashboard embed draws before it stops and says how many are left. */
+const PREVIEW_WIDGETS = 3;
+
+/**
+ * A dashboard, previewed by drawing its widgets.
+ *
+ * The same `WidgetCard` the dashboard screen draws, fed by the same
+ * `useWidgetData` — a widget is its numbers, and a list of widget titles is
+ * the one thing the web embed's schema explicitly tells the agent not to write
+ * out as text.
+ *
+ * Two things differ from the screen, both because a transcript is not a pane:
+ * there is no cursor, so no card is ever selected, and there is no scrollbox,
+ * so the preview stops after a few widgets rather than running to the bottom
+ * of a thirty-widget dashboard. `upto` is exactly what is drawn, which is also
+ * what keeps the embed from firing thirty requests to render three cards.
+ */
 function DashboardEmbed({ data, width, client, org }: SeerEmbedProps) {
   const theme = useTheme();
   const id = embedText(data["id"]) ?? "";
   const status = useDirectResource(id ? client : null, { org, id, load: loadDashboard });
   const dashboard = valueOf(status);
-  const widgets = dashboard?.widgets ?? [];
+
+  const widgets = useMemo(() => orderWidgets(dashboard?.widgets ?? []), [dashboard]);
+  const shown = useMemo(() => widgets.slice(0, PREVIEW_WIDGETS), [widgets]);
+  const cardWidth = Math.max(20, width - CARD_CHROME);
+
+  const widgetData = useWidgetData(client, {
+    org,
+    dashboardId: dashboard?.id ?? "",
+    widgets: shown,
+    upto: shown.length,
+  });
 
   return (
     <SeerEmbedCard
@@ -359,13 +392,24 @@ function DashboardEmbed({ data, width, client, org }: SeerEmbedProps) {
       width={width}
     >
       <SeerEmbedStatus status={status} noun="dashboard" empty={Boolean(dashboard) && !widgets[0]} />
-      {widgets.slice(0, 8).map((widget, index) => (
-        <text key={`${widget.id ?? index}`} fg={theme.text}>
-          {`  ${widget.title}`}
-        </text>
+      {shown.map((widget, index) => (
+        <WidgetCard
+          key={widgetKey(widget, index)}
+          widget={widget}
+          kind={widgetRenderKind(widget.displayType)}
+          status={widgetData.get(widgetKey(widget, index))}
+          width={cardWidth}
+          // `widgetCardHeight` includes the gap the stacked screen leaves
+          // below each card; the last one here sits against the card's own
+          // border, so the gap comes off every card and the box closes tight.
+          height={widgetCardHeight(widget, widgetRenderKind(widget.displayType)) - 1}
+          selected={false}
+        />
       ))}
-      {widgets.length > 8 ? (
-        <text fg={theme.subText}>{`  …and ${widgets.length - 8} more`}</text>
+      {widgets.length > shown.length ? (
+        <text fg={theme.subText}>
+          {`  …and ${widgets.length - shown.length} more on the dashboard`}
+        </text>
       ) : null}
     </SeerEmbedCard>
   );
@@ -374,11 +418,19 @@ function DashboardEmbed({ data, width, client, org }: SeerEmbedProps) {
 const loadDetector: DirectResourceLoader<Detector> = (client, { org, id, signal }) =>
   fetchDetector(client, { org, detectorId: id, signal });
 
-/** A monitor, with the configuration its detail screen leads with. */
+/**
+ * A monitor, with the type-specific configuration the web embed shows.
+ *
+ * The rules are what a monitor *is* — a cron's schedule, a metric's threshold —
+ * so they come from `detectorConfigFields`, the same projection the detail
+ * pane draws, rather than from a hand-picked set of fields here. The three
+ * rows after them are the state that config does not carry.
+ */
 function MonitorEmbed({ data, width, client, org }: SeerEmbedProps) {
   const id = embedText(data["id"]) ?? "";
   const status = useDirectResource(id ? client : null, { org, id, load: loadDetector });
   const detector = valueOf(status);
+  const config = detector ? detectorConfigFields(detector) : [];
 
   return (
     <SeerEmbedCard
@@ -388,6 +440,12 @@ function MonitorEmbed({ data, width, client, org }: SeerEmbedProps) {
       width={width}
     >
       <SeerEmbedStatus status={status} noun="monitor" />
+      {config.length > 0 ? (
+        <SeerEmbedFields
+          fields={config.map((entry) => [entry.label, entry.value] as const)}
+          width={width - CARD_CHROME}
+        />
+      ) : null}
       {detector ? (
         <SeerEmbedFields
           fields={[
