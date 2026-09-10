@@ -87,6 +87,45 @@ export function canSelfUpdate(env: NodeJS.ProcessEnv = process.env): boolean {
 }
 
 /**
+ * The payload version this process is actually running.
+ *
+ * Deliberately not `APP_VERSION`: that constant is the app compiled into the
+ * host as its cold-start fallback, and the two are separate release lines, so
+ * a launcher pairing host 0.15 with cached payload 0.17 is running something
+ * newer than the host was built with. Comparing against the constant offered
+ * that payload as an update to itself, in every session, and applying it left
+ * the offer standing because the comparison had not changed.
+ *
+ * `SENTRY_TUI_APP_VERSION` is how the launcher says which payload it handed
+ * us; `setActivePayload` keeps it true for one swapped in mid-session.
+ */
+export function activeAppVersion(env: NodeJS.ProcessEnv = process.env): string {
+  return env.SENTRY_TUI_APP_VERSION || APP_VERSION;
+}
+
+/**
+ * Record the payload this process is now running.
+ *
+ * The environment rather than a module variable, because those two variables
+ * are already this answer everywhere else: the launcher writes them, `runApp`
+ * reads them to decide what to load, and `restartInto` hands them to the next
+ * image. Writing them here means a payload applied mid-session is both left
+ * out of the next check and inherited by a host restart, rather than reverting
+ * to whatever the launcher chose at startup.
+ *
+ * @param payload the loaded payload, or undefined once rolled back to the app compiled into the host.
+ */
+export function setActivePayload(payload: { path: string; version: string } | undefined): void {
+  if (payload?.path) {
+    process.env.SENTRY_TUI_APP_PAYLOAD = payload.path;
+    process.env.SENTRY_TUI_APP_VERSION = payload.version;
+    return;
+  }
+  delete process.env.SENTRY_TUI_APP_PAYLOAD;
+  delete process.env.SENTRY_TUI_APP_VERSION;
+}
+
+/**
  * The newest cached release that beats the running app, if there is one.
  *
  * Disk only — no network, no waiting. Called on mount so a release the
@@ -95,7 +134,7 @@ export function canSelfUpdate(env: NodeJS.ProcessEnv = process.env): boolean {
 export function readyUpdate(env: NodeJS.ProcessEnv = process.env): ReadyUpdate | undefined {
   // Prefer a compatible payload: it keeps the process and renderer alive.
   const newestPayload = cachedPayloadVersions(env)[0];
-  if (newestPayload && compareVersions(newestPayload, APP_VERSION) > 0) {
+  if (newestPayload && compareVersions(newestPayload, activeAppVersion(env)) > 0) {
     const manifest = cachedPayloadManifest(newestPayload, env);
     if (manifest?.hostApiVersion === HOST_API_VERSION) {
       return { version: newestPayload, kind: "payload", path: cachedPayload(newestPayload, env) };
@@ -128,7 +167,7 @@ export async function checkForUpdate(
   try {
     await downloadIfNewer({
       packageName: env.SENTRY_TUI_APP_PACKAGE || APP_PACKAGE,
-      localVersion: cachedPayloadVersions(env)[0] || APP_VERSION,
+      localVersion: cachedPayloadVersions(env)[0] || activeAppVersion(env),
       artifact: "payload",
       env,
     });

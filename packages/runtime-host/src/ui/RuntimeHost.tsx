@@ -5,7 +5,7 @@ import { APP_VERSION } from "@sentry-tui/app/version";
 import { HOST_API_VERSION } from "@sentry-tui/runtime-contract/runtime";
 import type { ReadyUpdate } from "@sentry-tui/runtime-contract/update";
 import { reportError } from "@sentry-tui/runtime-host/telemetry/index";
-import { discardFailedPayload } from "@sentry-tui/runtime-host/update/selfUpdate";
+import { discardFailedPayload, setActivePayload } from "@sentry-tui/runtime-host/update/selfUpdate";
 import { reportUpdateFailure } from "@sentry-tui/runtime-host/update/telemetry";
 import { loadAppPayload, type LoadedAppPayload } from "@sentry-tui/runtime-host/ui/loadPayload";
 import { cloneSessionSnapshot } from "@sentry-tui/runtime-host/ui/sessionSnapshot";
@@ -51,6 +51,9 @@ export function RuntimeHost({ initialPayload, onRestart, ...props }: RuntimeHost
 
       try {
         const loaded = await loadAppPayload(update.path);
+        // The new tree checks again as soon as it mounts, so what is running
+        // has to be true before it does, or it offers this same payload back.
+        setActivePayload({ path: loaded.entryPath, version: loaded.metadata.version });
         const preservedSnapshot = sessionSnapshot.current;
         setActive((current) => {
           previous.current = { payload: current, sessionSnapshot: preservedSnapshot };
@@ -74,6 +77,11 @@ export function RuntimeHost({ initialPayload, onRestart, ...props }: RuntimeHost
     const restored = previous.current;
     if (!restored) return;
     if (active.entryPath) discardFailedPayload(active.entryPath);
+    setActivePayload(
+      restored.payload.entryPath
+        ? { path: restored.payload.entryPath, version: restored.payload.metadata.version }
+        : undefined,
+    );
     sessionSnapshot.current = restored.sessionSnapshot;
     previous.current = undefined;
     setActive(restored.payload);
