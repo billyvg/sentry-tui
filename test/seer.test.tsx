@@ -35,11 +35,16 @@ interface SeerStubOptions {
   }>;
   holdPost?: boolean;
   issues?: Group[];
+  /**
+   * Answers for endpoints only some tests reach — the resources Seer embeds
+   * load. Consulted before the built-in routes; return `null` to fall through.
+   */
+  routes?: (path: string) => unknown | null;
 }
 
 function stubClient(
   session = seerSessionFixture,
-  { features, runs = [], holdPost = false, issues = [] }: SeerStubOptions = {},
+  { features, runs = [], holdPost = false, issues = [], routes }: SeerStubOptions = {},
 ): SeerStub {
   const sent: Array<Record<string, unknown>> = [];
   const updates: Array<Record<string, unknown>> = [];
@@ -56,6 +61,9 @@ function stubClient(
     const url = String(input);
     const method = init?.method ?? "GET";
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+
+    const extra = routes?.(new URL(url).pathname);
+    if (extra !== null && extra !== undefined) return json(extra);
 
     if (url.includes("/agent/approve/")) {
       approvals.push(body);
@@ -460,6 +468,146 @@ test("assistant Markdown, rich embeds, and Code Mode call records render as UI",
     expect(frame).not.toContain("{% chart %}");
     expect(frame).not.toContain("{% issue %}");
     expect(stub.issueQueries).toEqual(["issue:PUMP-STATION-1"]);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+/** One assistant answer carrying the embeds a test wants to see rendered. */
+function embedSession(content: string) {
+  return {
+    ...seerSessionFixture,
+    blocks: [
+      seerSessionFixture.blocks[0]!,
+      {
+        id: "embed-answer",
+        message: { role: "assistant" as const, content },
+        timestamp: "2026-08-20T12:00:03Z",
+      },
+    ],
+  };
+}
+
+test("resource embeds load the thing they reference", async () => {
+  const session = embedSession(
+    [
+      '{% dashboard %}{"id":"77"}{% /dashboard %}',
+      "",
+      '{% monitor %}{"id":"9931"}{% /monitor %}',
+      "",
+      '{% savedQuery %}{"id":"312","dataset":"spans"}{% /savedQuery %}',
+    ].join("\n"),
+  );
+  const stub = stubClient(session, {
+    features: ["seer-explorer", "seer-explorer-embeds"],
+    routes: (path) => {
+      if (path.endsWith("/dashboards/77/")) {
+        return {
+          id: "77",
+          title: "Checkout health",
+          widgets: [{ id: "1", title: "Checkout error rate", queries: [] }],
+        };
+      }
+      if (path.endsWith("/detectors/9931/")) {
+        return {
+          id: "9931",
+          name: "nightly-billing-sync",
+          type: "monitor_check_in_failure",
+          enabled: true,
+          projectId: "1",
+        };
+      }
+      if (path.endsWith("/explore/saved/312/")) {
+        return {
+          id: "312",
+          name: "Slow checkout spans",
+          query: "span.op:http.client",
+          fields: ["span.description", "span.duration"],
+          dataset: "spans",
+          projects: [],
+          environment: [],
+          starred: false,
+        };
+      }
+      return null;
+    },
+  });
+
+  const h = await renderSeer(stub.client);
+  try {
+    await h.press((input) => input.pressKey("show me"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("Checkout health"));
+    await h.waitForFrame((frame) => frame.includes("nightly-billing-sync"));
+    const frame = h.frame();
+
+    // Each card shows what it loaded, not just what the tag carried.
+    expect(frame).toContain("Checkout error rate");
+    expect(frame).toContain("nightly-billing-sync");
+    expect(frame).toContain("Slow checkout spans");
+    expect(frame).not.toContain("{% dashboard %}");
+    expect(frame).not.toContain("{% monitor %}");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a query embed previews the rows its search matches", async () => {
+  const session = embedSession(
+    '{% spansQuery %}{"query":"span.op:http.client","mode":"samples","statsPeriod":"24h","title":"Slow HTTP spans"}{% /spansQuery %}',
+  );
+  const stub = stubClient(session, {
+    features: ["seer-explorer", "seer-explorer-embeds"],
+    routes: (path) =>
+      path.endsWith("/events/")
+        ? {
+            data: [
+              { id: "a1", "span.description": "GET /checkout", "span.duration": 1820 },
+              { id: "b2", "span.description": "GET /cart", "span.duration": 640 },
+            ],
+          }
+        : null,
+  });
+
+  const h = await renderSeer(stub.client);
+  try {
+    await h.press((input) => input.pressKey("slow spans"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("GET /checkout"));
+    const frame = h.frame();
+    expect(frame).toContain("Slow HTTP spans");
+    expect(frame).toContain("24h");
+    expect(frame).toContain("GET /cart");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("embeds with nothing to fetch still render as cards, and inline ones stay in the sentence", async () => {
+  const session = embedSession(
+    [
+      '{% trace %}{"traceId":"a1b2c3d4e5f678901234567890abcdef","spanId":"9f8e7d6c"}{% /trace %}',
+      "",
+      'Deployed {% release %}{"version":"checkout@1.4.2"}{% /release %} to production.',
+    ].join("\n"),
+  );
+  const stub = stubClient(session, { features: ["seer-explorer", "seer-explorer-embeds"] });
+
+  const h = await renderSeer(stub.client);
+  try {
+    await h.press((input) => input.pressKey("what shipped"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("a1b2c3d4e5f678901234567890abcdef"));
+    const frame = h.frame();
+
+    // The trace is alone on its line, so it draws a card with its span id.
+    expect(frame).toContain("Trace");
+    expect(frame).toContain("9f8e7d6c");
+    // The release sits mid-sentence, so it stays a word in that sentence.
+    expect(frame).toContain("Deployed");
+    expect(frame).toContain("checkout@1.4.2");
+    expect(frame).toContain("to production.");
+    expect(frame).not.toContain("{% release %}");
   } finally {
     await h.cleanup();
   }

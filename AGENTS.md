@@ -159,6 +159,7 @@ The names in use today:
 | `ui.org_picker.invalid_selection` | metric      | `packages/runtime-host/src/main.tsx`               |
 | `ui.org.switched`                 | log         | `packages/app/src/ui/App.tsx`                      |
 | `ui.render.crashed`               | error       | `packages/runtime-host/src/ui/ErrorBoundary.tsx`   |
+| `ui.seer_embed.unknown`           | metric      | `packages/app/src/core/seerEmbeds.ts`              |
 
 Catching an error to render a useful message does not make the failure
 observable. Every non-abort failure needs one owner that calls `reportError`,
