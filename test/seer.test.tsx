@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { createTokenAuthProvider } from "~/api/auth";
 import { SentryClient } from "~/api/client";
 import type { Group } from "~/api/types";
+import { bigDigitLines } from "~/lib/bigDigits";
 import { App, type AppProps } from "~/ui/App";
 import { SpinnerGlyph } from "~/ui/components/Spinner";
 import { groupFixture } from "./fixtures";
@@ -505,9 +506,27 @@ test("resource embeds load the thing they reference", async () => {
         return {
           id: "77",
           title: "Checkout health",
-          widgets: [{ id: "1", title: "Checkout error rate", queries: [] }],
+          widgets: [
+            {
+              id: "1",
+              title: "Checkout error rate",
+              displayType: "big_number",
+              widgetType: "error-events",
+              queries: [
+                {
+                  name: "",
+                  conditions: "event.type:error",
+                  columns: [],
+                  aggregates: ["count()"],
+                  orderby: "",
+                },
+              ],
+            },
+          ],
         };
       }
+      // The big-number widget's own data request.
+      if (path.endsWith("/events/")) return { data: [{ "count()": 4821 }] };
       if (path.endsWith("/detectors/9931/")) {
         return {
           id: "9931",
@@ -539,8 +558,15 @@ test("resource embeds load the thing they reference", async () => {
     await h.press((input) => input.pressEnter());
     await h.waitForFrame((frame) => frame.includes("Checkout health"));
     await h.waitForFrame((frame) => frame.includes("nightly-billing-sync"));
+    // The widget's own value arrives after the dashboard it belongs to, and a
+    // big-number widget draws it as block glyphs rather than as digits — so
+    // this asserts through the same renderer the card uses.
+    const value = bigDigitLines("4821");
+    await h.waitForFrame((frame) => frame.includes(value[0]!));
     const frame = h.frame();
 
+    // The dashboard card draws its widgets, not a list of their titles.
+    for (const line of value) expect(frame).toContain(line);
     // Each card shows what it loaded, not just what the tag carried.
     expect(frame).toContain("Checkout error rate");
     expect(frame).toContain("nightly-billing-sync");
