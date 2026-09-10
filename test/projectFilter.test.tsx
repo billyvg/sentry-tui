@@ -271,6 +271,44 @@ test("the project selector toggles multiple projects before it closes", async ()
   }
 });
 
+test("clicking project rows toggles them and leaves the dropdown open", async () => {
+  const { client, issueUrls } = stubClient();
+  const h = await renderApp(client);
+  try {
+    await openProjectDropdown(h);
+    issueUrls.length = 0;
+
+    /** Where an open Project dropdown prints `label`, for a mouse press. */
+    const rowOf = (label: string) => {
+      const lines = h.frame().split("\n");
+      const top = lines.findIndex((line) => line.includes(PROJECT_BOX));
+      const y = top + lines.slice(top).findIndex((line) => line.includes(label));
+      return { x: lines[y]!.indexOf(label), y };
+    };
+
+    let row = rowOf("backend");
+    await h.click(row.x, row.y);
+    expect(pickerRows(h.frame(), "Project")).toContain("● backend");
+    expect(h.frame()).toContain(PROJECT_BOX);
+
+    row = rowOf("frontend");
+    await h.click(row.x, row.y);
+    expect(pickerRows(h.frame(), "Project")).toContain("● frontend");
+    expect(h.frame()).toContain(PROJECT_BOX);
+
+    await h.pressEscape();
+    await h.waitForFrame((f) => !f.includes(PROJECT_BOX));
+
+    expect(new URL(issueUrls.at(-1)!).searchParams.getAll("project")).toEqual([
+      "backend",
+      "frontend",
+    ]);
+    expect(h.frame()).toContain("backend, frontend ▾");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("explicit project selections persist the complete selection for the open org", async () => {
   const { client } = stubClient();
   const h = await renderApp(client);
