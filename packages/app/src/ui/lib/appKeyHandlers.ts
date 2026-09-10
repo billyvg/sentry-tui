@@ -146,6 +146,24 @@ export function createScreenInputHandler({
   };
 }
 
+/**
+ * Offer keys to a modal surface the focused screen is showing.
+ *
+ * Above the global commands rather than below them, unlike
+ * {@link createScreenKeyHandler}: a card that draws its own answer keys owns
+ * them while it is up, or `o. Other` on Seer's question opens the org picker.
+ */
+export function createScreenPriorityHandler({
+  screenActions,
+  focus,
+}: Pick<AppKeyHandlerOptions, "screenActions" | "focus">): KeyOwnerHandler {
+  return (key) => {
+    const actions = screenActions.current;
+    if (!actions || !focus.isFocused("content")) return "notMine";
+    return actions.handlePriorityKey?.(key) ? "mine" : "notMine";
+  };
+}
+
 /** Route submit, cancel, and text to the app's focused search input. */
 export function createSearchHandler({
   state,
@@ -496,6 +514,7 @@ export function createAppKeyHandlers(options: AppKeyHandlerOptions): readonly Ke
     createPaletteOpenHandler(options),
     createUrlOpenHandler(options),
     createScreenInputHandler(options),
+    createScreenPriorityHandler(options),
     createSearchHandler(options),
     createGotoHandler(options),
     createViewStackHandler(options),

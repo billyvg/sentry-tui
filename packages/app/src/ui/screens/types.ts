@@ -63,6 +63,21 @@ export interface ScreenActions {
     meta?: boolean;
   }) => boolean;
   /**
+   * Keys claimed by a modal control surface the screen is currently showing —
+   * Seer's pending-input card, which asks a question and labels its own
+   * answers. Offered *above* the global commands, because a card that puts
+   * `o. Other` on screen has to get `o` rather than the org picker.
+   *
+   * Only for a surface that blocks the screen behind it. Everything else
+   * belongs in {@link handleKey}, below the global commands.
+   */
+  handlePriorityKey?: (key: {
+    name: string;
+    ctrl?: boolean;
+    shift?: boolean;
+    meta?: boolean;
+  }) => boolean;
+  /**
    * Keys the screen wants before the list cursor sees them, for a screen whose
    * body isn't a list — Seer's transcript takes `n` for a new chat and digits
    * for its suggested prompts. Return true if the key was used.

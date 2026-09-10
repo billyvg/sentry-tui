@@ -69,8 +69,11 @@ export function seerScreenReducer(
       if (action.pending) {
         return pendingState(action.pending);
       }
+      // Answering the card hands the keyboard back to the composer: the run is
+      // waiting on whatever is typed next, and leaving it blurred sends those
+      // keystrokes to app-wide commands instead.
       return "pendingId" in state
-        ? { mode: "conversation", inputFocused: false, slashSelected: 0 }
+        ? { mode: "conversation", inputFocused: true, slashSelected: 0 }
         : state;
     case "inputChanged":
       return state.mode === "conversation" && state.slashSelected !== 0

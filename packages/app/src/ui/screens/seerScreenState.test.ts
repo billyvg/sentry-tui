@@ -15,7 +15,7 @@ function reduce(
 }
 
 describe("seerScreenReducer", () => {
-  test("pending controls preempt history and return to an unfocused conversation", () => {
+  test("pending controls preempt history and hand the composer back when they clear", () => {
     const pending = reduce(
       initialSeerScreenState(),
       { type: "openHistory" },
@@ -27,9 +27,11 @@ describe("seerScreenReducer", () => {
     expect(pending).toEqual({ mode: "blockingInput", pendingId: "approval-1" });
     expect(seerScreenReducer(pending, { type: "openHistory" })).toBe(pending);
 
+    // Focused, not blurred: the run is waiting on the next thing typed, and a
+    // blurred composer would spend those keys on app-wide commands instead.
     expect(seerScreenReducer(pending, { type: "pendingChanged", pending: null })).toEqual({
       mode: "conversation",
-      inputFocused: false,
+      inputFocused: true,
       slashSelected: 0,
     });
   });

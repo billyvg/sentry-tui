@@ -6,7 +6,7 @@ import type { Group } from "~/api/types";
 import { App, type AppProps } from "~/ui/App";
 import { SpinnerGlyph } from "~/ui/components/Spinner";
 import { groupFixture } from "./fixtures";
-import { seerSessionFixture } from "./seer-fixtures";
+import { seerQuestionSessionFixture, seerSessionFixture } from "./seer-fixtures";
 import { renderHarness } from "./helpers";
 
 const auth = createTokenAuthProvider({ token: "sntryu_test" });
@@ -71,6 +71,16 @@ function stubClient(
     }
     if (url.includes("/seer/explorer-update/")) {
       updates.push(body);
+      // Answering clears the card, the way the server does — otherwise the
+      // next poll hands the same question straight back.
+      const payload = body["payload"];
+      if (
+        payload &&
+        typeof payload === "object" &&
+        (payload as Record<string, unknown>)["type"] === "user_input_response"
+      ) {
+        session = { ...session, pending_user_input: null };
+      }
       return json({ run_id: 1 }, 202);
     }
     if (url.includes("/seer/runs/")) return json(runs);
@@ -345,6 +355,90 @@ test("the slash menu exposes only feature-gated employee commands", async () => 
     expect(frame).toContain("/bash-mode-on");
     expect(frame).toContain("/thinking-on");
     expect(frame).not.toContain("/conversations");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("slash opens the composer's command menu rather than a search bar it has no room for", async () => {
+  const stub = stubClient(seerSessionFixture, { features: ["seer-explorer"] });
+  const h = await renderSeer(stub.client, { user: { id: "1", email: "dev@sentry.io" } });
+  try {
+    // Leaving the composer is what makes `/` ambiguous: the app-wide search
+    // hotkey would otherwise focus an input this screen never draws, and every
+    // key after it would disappear into it.
+    await h.pressEscape();
+    await h.press((input) => input.typeText("/"));
+    expect(h.frame()).toContain("/new");
+
+    await h.press((input) => input.typeText("his"));
+    expect(h.frame()).toContain("/history");
+    expect(h.frame()).not.toContain("/new");
+    expect(h.frame()).toContain("› /his");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a partially typed slash command runs the one the menu is showing", async () => {
+  const stub = stubClient(seerSessionFixture, { features: ["seer-explorer"] });
+  const h = await renderSeer(stub.client, { user: { id: "1", email: "dev@sentry.io" } });
+  try {
+    await h.press((input) => input.pressKey("show my runs"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("Checkout fails when the cart is empty"));
+
+    await h.press((input) => input.typeText("/conv"));
+    expect(h.frame()).toContain("/conversations");
+    await h.press((input) => input.pressEnter());
+
+    await h.waitForFrame((frame) => frame.includes("No conversations found"));
+    expect(h.frame()).toContain('gen_ai.conversation.id:"run-uuid"');
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the keys a pending question labels beat the app commands that share them", async () => {
+  const stub = stubClient(seerQuestionSessionFixture, { features: ["seer-explorer"] });
+  const h = await renderSeer(stub.client);
+  try {
+    // A question only arrives on a run that exists, so open one first.
+    await h.press((input) => input.pressKey("why is checkout failing"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("Which checkout path"));
+    expect(h.frame()).toContain("o. Other");
+
+    // `o` is the app's switch-organization key everywhere else; the card that
+    // drew it as an answer has to win while it is up.
+    await h.press((input) => input.pressKey("o"));
+    expect(h.frame()).toContain("Type your own answer…");
+    expect(h.frame()).not.toContain("Loading organizations…");
+
+    await h.press((input) => input.pressKey("guest"));
+    await h.press((input) => input.pressEnter());
+    expect(stub.updates[0]).toMatchObject({
+      payload: { input_id: "input-1", response_data: { answers: ["guest"] } },
+    });
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("answering a pending question hands the keyboard back to the composer", async () => {
+  const stub = stubClient(seerQuestionSessionFixture, { features: ["seer-explorer"] });
+  const h = await renderSeer(stub.client);
+  try {
+    await h.press((input) => input.pressKey("why is checkout failing"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("Which checkout path"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => !frame.includes("Which checkout path"));
+
+    // Typing straight on: a blurred composer would spend these on the global
+    // commands `o` and `q` instead.
+    await h.press((input) => input.pressKey("now check the totals"));
+    expect(h.frame()).toContain("now check the totals");
   } finally {
     await h.cleanup();
   }

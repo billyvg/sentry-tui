@@ -378,11 +378,24 @@ export function SeerConversation({
     [visibleCommands.length],
   );
 
-  /** Keys that belong to the transcript, history, or pending user input. */
+  /**
+   * Keys owned by the pending-input card, ahead of the app's own commands.
+   *
+   * The card labels its answers `1.`, `2.`, `o.` — keys the app otherwise
+   * spends on global commands, so it has to be asked before they are.
+   */
+  const handlePriorityKey = useCallback(
+    (key: { name: string; ctrl?: boolean; shift?: boolean; meta?: boolean }) => {
+      if (!chat?.pendingInput) return false;
+      return handlePendingKey(key);
+    },
+    [chat?.pendingInput, handlePendingKey],
+  );
+
+  /** Keys that belong to the transcript or the history list. */
   const handleKey = useCallback(
     (key: { name: string; ctrl?: boolean; shift?: boolean; meta?: boolean }) => {
       if (!chat) return false;
-      if (chat.pendingInput && handlePendingKey(key)) return true;
 
       if (showHistory) {
         const runCount = chat.runs.state === "ready" ? chat.runs.value.length : 0;
@@ -407,6 +420,14 @@ export function SeerConversation({
 
       if (matchesCommand("sentry.seer.compose", key) || matchesCommand("sentry.nav.open", key)) {
         dispatch({ type: "focusInput", allowQuestion: otherSelected });
+        return true;
+      }
+      // The composer's own placeholder says "press / for commands", and this
+      // screen has no search bar for the app-wide `/` to land in — so the key
+      // opens the slash menu instead of focusing an input that isn't drawn.
+      if (matchesCommand("sentry.nav.search", key) && !chat.pendingInput && !chat.readOnly) {
+        setValue(`${value}/`);
+        dispatch({ type: "focusInput", allowQuestion: false });
         return true;
       }
       if (matchesCommand("sentry.seer.newChat", key)) {
@@ -436,7 +457,7 @@ export function SeerConversation({
       }
       return false;
     },
-    [chat, handlePendingKey, historySelected, openHistory, pushChanges, setValue, showHistory],
+    [chat, historySelected, openHistory, otherSelected, pushChanges, setValue, showHistory, value],
   );
 
   const back = useCallback(() => {
@@ -463,11 +484,20 @@ export function SeerConversation({
       submitInput: submit,
       blurInput: () => dispatch({ type: "blurInput" }),
       handleInputKey,
+      handlePriorityKey,
       handleKey,
       back,
     });
     return () => registerActions(null);
-  }, [back, composerFocused, handleInputKey, handleKey, registerActions, submit]);
+  }, [
+    back,
+    composerFocused,
+    handleInputKey,
+    handleKey,
+    handlePriorityKey,
+    registerActions,
+    submit,
+  ]);
 
   if (!chat) return <text fg={theme.muted}>Seer is unavailable.</text>;
   if (!chat.capabilities.available) {
