@@ -329,6 +329,7 @@ function SeerEmbed({
         {scopes.map((scope) => (
           <text key={scope} fg={theme.muted}>{`  ${scope}`}</text>
         ))}
+        {status === "pending" ? <text fg={theme.accent}>[y] approve · [x] reject</text> : null}
       </box>
     );
   }
