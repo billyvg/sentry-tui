@@ -65,13 +65,26 @@ herdr pane read <new-pane-id> --lines 30
 If the output shows a crash or a missing-dependency error, fix the cause and
 re-run in the same pane rather than splitting again.
 
+## 5. Close the pane when you are done with it
+
+The pane exists to verify a change, not to stay around. Once you have seen what
+you needed to see — and before you report the task done — close it:
+
+```bash
+herdr pane close <new-pane-id>
+```
+
+Close only the pane you created in step 3, by the ID you read from the split
+response. Leave it open only when the user asked you to keep it, or when they
+are still driving it; say which in your report either way.
+
 ## Rules
 
 - **Current tab only.** Panes in other tabs and workspaces belong to other agents.
 - **New pane every time.** Don't run the app in a pane you didn't create here.
 - **Current worktree.** Always pass `--cwd` explicitly; the repo may be checked
   out in several worktrees at once.
-- **Leave it running.** Don't close the pane when the task is done — the user
-  will interact with it.
+- **Clean up after yourself.** Close the pane you opened once you are done
+  verifying, unless the user asked you to leave it running.
 - **The installed CLI is the authority.** If a flag is rejected, run
   `herdr pane` or `herdr pane <subcommand> --help` and use what it reports.
