@@ -337,7 +337,18 @@ jobs:
   publish:
     name: Publish
     needs: [verify, package]
-    if: needs.verify.outputs.dry_run != 'true'
+    # `build` is skipped on an app-only release, and a skip travels down the
+    # whole dependency chain — `package` survives it only because of its own
+    # `always()`, which does nothing for the jobs that need `package` in turn.
+    # Without a status function here the app payload is assembled, the job is
+    # silently skipped, and the run still reports success having published
+    # nothing. Guard each dependency explicitly instead, so a genuine failure
+    # or a cancellation still stops the release.
+    if: >-
+      always() &&
+      needs.verify.result == 'success' &&
+      needs.package.result == 'success' &&
+      needs.verify.outputs.dry_run != 'true'
     runs-on: ubuntu-latest
     environment:
       name: production
