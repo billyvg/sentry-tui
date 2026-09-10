@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 /** Bytes per asset path, so a path read once is never read again. */
 const cache = new Map<string, Uint8Array>();
@@ -27,7 +27,7 @@ const cache = new Map<string, Uint8Array>();
 export function imageBytes(path: string): Uint8Array {
   let bytes = cache.get(path);
   if (!bytes) {
-    bytes = readFileSync(join(import.meta.dir, path));
+    bytes = readFileSync(isAbsolute(path) ? path : join(import.meta.dir, path));
     cache.set(path, bytes);
   }
   return bytes;
