@@ -774,3 +774,39 @@ test("a chip's end caps are painted in its rim color, not as stray blocks", asyn
     await h.cleanup();
   }
 });
+
+test("the command palette runs its selection while a stack frame is selected", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("return <Header id={user.id} />"));
+
+    await h.press((i) => i.pressKey("k", { ctrl: true }));
+    await h.waitForFrame((f) => f.includes("Command palette"));
+    await h.press((i) => i.pressKey("logs"));
+    await h.press((i) => i.pressEnter());
+
+    // Enter ran the command instead of collapsing the frame behind the modal.
+    await h.waitForFrame((f) => !f.includes("Stack Trace"));
+    expect(h.frame()).not.toContain("Command palette");
+    expect(h.frame()).toContain("logs");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a section fold key is query text while the palette is open", async () => {
+  const h = await openFirstIssue();
+  try {
+    await h.waitForFrame((f) => f.includes("return <Header id={user.id} />"));
+
+    await h.press((i) => i.pressKey("k", { ctrl: true }));
+    await h.waitForFrame((f) => f.includes("Command palette"));
+    await h.press((i) => i.pressKey("1"));
+    await h.pressEscape();
+
+    expect(h.frame()).toContain("▾ 1 Stack Trace");
+    expect(h.frame()).toContain("return <Header id={user.id} />");
+  } finally {
+    await h.cleanup();
+  }
+});

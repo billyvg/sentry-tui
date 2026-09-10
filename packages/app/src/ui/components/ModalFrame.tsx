@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTerminalDimensions } from "@opentui/react";
 
 import { useTheme } from "~/ui/theme";
+import { useModalKeyOwnership } from "~/ui/hooks/useScreenKeyboard";
 import { resolveModalGeometry } from "~/ui/lib/modalGeometry";
 
 const SCRIM_Z = 55;
@@ -25,6 +26,10 @@ export function ModalFrame({
   children: ReactNode;
 }) {
   const theme = useTheme();
+  // Being on screen is what makes a modal the keyboard's owner: the screens
+  // underneath it registered their key listeners first and would otherwise
+  // answer its keys before it does.
+  useModalKeyOwnership();
   const { width: termWidth, height: termHeight } = useTerminalDimensions();
   const geo = resolveModalGeometry({
     width,

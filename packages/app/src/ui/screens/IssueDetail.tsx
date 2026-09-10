@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useKeyboard } from "@opentui/react";
 
 import type { ScrollBoxRenderable } from "@opentui/core";
 
@@ -30,6 +29,7 @@ import { Dropdown, type DropdownItem } from "~/ui/components/Dropdown";
 import { BOLD } from "~/ui/lib/attributes";
 import { consumeKey } from "~/ui/lib/keyRouting";
 import { useIssueEvent } from "~/ui/hooks/useIssueEvent";
+import { useScreenKeyboard } from "~/ui/hooks/useScreenKeyboard";
 import { useTheme } from "~/ui/theme";
 
 /** Section ids, mirroring `views/issueDetails/context.tsx`'s SectionKey. */
@@ -164,7 +164,7 @@ export function IssueDetail({
     [frameRows, selectFrameAt, toggleFrame],
   );
 
-  useKeyboard((key) => {
+  useScreenKeyboard((key) => {
     if (!focused) return;
     if (matchesCommand(ISSUE_ACTIONS_COMMAND, key)) {
       setActionsOpen((open) => !open);
