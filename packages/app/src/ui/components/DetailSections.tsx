@@ -16,12 +16,12 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
-import { useKeyboard } from "@opentui/react";
 
 import { matchesCommand } from "~/core/commands";
 import { useTheme } from "~/ui/theme";
 import { fitText, measureTextWidth, padText } from "~/lib/text";
 import { BOLD } from "~/ui/lib/attributes";
+import { useScreenKeyboard } from "~/ui/hooks/useScreenKeyboard";
 import { consumeKey, routeKeyOwnership } from "~/ui/lib/keyRouting";
 
 /**
@@ -158,7 +158,7 @@ export function useSectionFolds<K extends string>(
     setCollapsed((current) => (current.size === order.length ? new Set() : new Set(order)));
   }, [order]);
 
-  useKeyboard((key) => {
+  useScreenKeyboard((key) => {
     if (!focused) return;
     routeKeyOwnership(
       [
