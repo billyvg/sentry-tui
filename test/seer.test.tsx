@@ -732,6 +732,9 @@ test("Code Mode write approvals use the trusted pending input and resume the run
     await h.press((input) => input.pressEnter());
     await h.waitForFrame((frame) => frame.includes("Allow Seer to make changes?"));
     expect(h.frame()).not.toContain("{% agentWriteApproval");
+    // With embeds on, `SeerExplorer` suppresses its own pending card, so this
+    // embed is the only thing announcing the keys that answer the request.
+    expect(h.frame()).toContain("[y] approve · [x] reject");
 
     await h.press((input) => input.pressKey("y"));
     await h.wait(10);
