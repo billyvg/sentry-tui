@@ -153,6 +153,55 @@ export function embedRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+// ---------------------------------------------------------------------------
+// Alerts
+// ---------------------------------------------------------------------------
+
+/**
+ * The four kinds an `{% alert %}` tag declares.
+ *
+ * `alert` is the schema's name and Seer's vocabulary, not the product's. Three
+ * of the four kinds are detectors, which Sentry renamed to monitors and this
+ * client lists under `Monitors`; only `issue` is still an alert, the
+ * automation the sidebar's Alerts item points at. So the tag keeps its name
+ * and the card takes the product's.
+ */
+export type SeerAlertKind = "metric" | "issue" | "uptime" | "cron";
+
+/** What each kind is called now, for the label a card leads with. */
+export const SEER_ALERT_LABELS: Readonly<Record<SeerAlertKind, string>> = {
+  metric: "Metric monitor",
+  uptime: "Uptime monitor",
+  cron: "Cron monitor",
+  issue: "Issue alert",
+};
+
+/**
+ * The kind an alert payload declares, or nothing when it declares none.
+ *
+ * A tag with a kind outside the enum is treated as absent rather than trusted:
+ * the kind decides which endpoint the id is looked up in, and a wrong guess is
+ * a request for the wrong resource.
+ */
+export function seerAlertKind(value: unknown): SeerAlertKind | undefined {
+  const kind = embedText(value);
+  return kind !== undefined && Object.hasOwn(SEER_ALERT_LABELS, kind)
+    ? (kind as SeerAlertKind)
+    : undefined;
+}
+
+/**
+ * Whether the workflow engine models this kind as a detector.
+ *
+ * Metric, uptime and cron alerts are all detectors and are fetched from
+ * `detectors/`; an issue alert is an automation and comes from `workflows/`.
+ * This is the one axis the alert embed dispatches on, exactly as the web's
+ * `alertBlock.tsx` does.
+ */
+export function isDetectorAlertKind(kind: SeerAlertKind | undefined): boolean {
+  return kind !== undefined && kind !== "issue";
+}
+
 /**
  * The page filters every query embed carries.
  *
@@ -408,9 +457,9 @@ export function inlineSeerEmbed(name: string, data: Record<string, unknown>): st
     case "release":
       return reference("Release", embedText(data["version"]));
     case "alert": {
-      const kind = embedText(data["kind"]);
+      const kind = seerAlertKind(data["kind"]);
       if (label) return `**${label}**`;
-      return reference(kind ? `${kind} alert` : "Alert", id);
+      return reference(kind ? SEER_ALERT_LABELS[kind] : "Alert", id);
     }
     case "monitor":
       return label ? `**${label}**` : reference("Monitor", id);
