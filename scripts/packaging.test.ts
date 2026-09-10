@@ -378,7 +378,7 @@ describe("release workflow", () => {
     // never enters it.
     const publishJob = workflow.split(/^  publish:/m)[1];
     expect(publishJob).toBeDefined();
-    expect(publishJob).toContain("if: needs.verify.outputs.dry_run != 'true'");
+    expect(publishJob).toContain("needs.verify.outputs.dry_run != 'true'");
 
     const publishSteps = publishJob!
       .split("      - name: ")
@@ -442,6 +442,33 @@ describe("release workflow", () => {
     expect(buildJob).toContain("if: needs.verify.outputs.release_host == 'true'");
     expect(packageJob).toContain("bun run build:npm --component app");
     expect(packageJob).toContain("needs.verify.outputs.release_host == 'true'");
+  });
+
+  test("an app-only release still reaches the jobs downstream of the native build", async () => {
+    const workflow = await read(".github/workflows/release.yml");
+    const jobs = workflow.split(/^  (?=\w[\w-]*:$)/m);
+    const named = (name: string) => jobs.find((job) => job.startsWith(`${name}:`))!;
+
+    // `build` is skipped on an app-only release, and GitHub propagates that
+    // skip down the entire chain — not just to the jobs that name `build` in
+    // `needs`. Every job below it therefore has to reintroduce itself with a
+    // status function, or it is silently skipped while the run still reports
+    // success. That published nothing for app v0.15.0 and v0.17.0.
+    for (const name of ["package", "publish"]) {
+      const job = named(name);
+      const condition = job.slice(job.indexOf("if:"), job.indexOf("runs-on:"));
+
+      expect(condition).toContain("always()");
+      // `always()` alone would publish through a failure or a cancellation, so
+      // each dependency's result has to be checked back explicitly.
+      for (const dependency of job
+        .slice(job.indexOf("needs: ["), job.indexOf("]"))
+        .replace("needs: [", "")
+        .split(",")
+        .map((entry) => entry.trim())) {
+        expect(condition).toContain(`needs.${dependency}.result == 'success'`);
+      }
+    }
   });
 });
 
