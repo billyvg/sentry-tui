@@ -78,8 +78,12 @@ export function SeerExplorer({
   const slashMenuHeight = slashCommands.length > 0 ? slashCommands.length + 2 : 0;
   const transcriptHeight = Math.max(1, height - 1 - COMPOSER_HEIGHT - slashMenuHeight);
   const latestTodos = useMemo(() => latestSeerTodos(chat.blocks), [chat.blocks]);
+  // Only the embed renders its own approval controls. Without the embeds
+  // feature the same tag degrades to one line of prose, so suppressing the
+  // pending card there would leave the request with no controls at all.
   const hasAgentApprovalEmbed = useMemo(
     () =>
+      chat.capabilities.embeds &&
       chat.blocks.some((block) =>
         (block.tool_results ?? []).some(
           (result) =>
@@ -87,7 +91,7 @@ export function SeerExplorer({
             result?.content.includes("agentWriteApproval"),
         ),
       ),
-    [chat.blocks],
+    [chat.blocks, chat.capabilities.embeds],
   );
   const inputRef = useRef<InputRenderable>(null);
 
@@ -113,9 +117,11 @@ export function SeerExplorer({
       ? "Response timed out. Please try again."
       : chat.interrupting
         ? "Interrupted. What should Seer do instead?"
-        : chat.pendingInput
-          ? "Respond using the controls above"
-          : "Ask Seer a question, or press / for commands.");
+        : chat.pendingInput?.input_type === "reauth_monitoring_provider"
+          ? "Reconnect your monitoring provider in Sentry to continue."
+          : chat.pendingInput
+            ? "Respond using the controls above"
+            : "Ask Seer a question, or press / for commands.");
 
   return (
     <box style={{ flexDirection: "column", width, height }}>

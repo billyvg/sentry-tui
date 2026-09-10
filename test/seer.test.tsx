@@ -600,6 +600,63 @@ test("Code Mode write approvals use the trusted pending input and resume the run
   }
 });
 
+test("a write approval without the embeds feature still renders its controls", async () => {
+  const approvalSession = {
+    ...seerSessionFixture,
+    status: "awaiting_user_input" as const,
+    blocks: [
+      seerSessionFixture.blocks[0]!,
+      {
+        id: "approval",
+        message: {
+          role: "tool_use" as const,
+          content: null,
+          tool_calls: [{ function: "sentry_api_execute", id: "execute-1", args: "{}" }],
+        },
+        timestamp: "2026-08-20T12:00:04Z",
+        tool_results: [
+          {
+            content: "{% agentWriteApproval /%}",
+            tool_call_function: "sentry_api_execute",
+            tool_call_id: "execute-1",
+            structuredContent: {
+              agentWriteApproval: {
+                inputId: "approval-input",
+                requiredScopes: ["project:write"],
+                sessionId: "display-only-session",
+                status: "pending",
+              },
+            },
+          },
+        ],
+      },
+    ],
+    pending_user_input: {
+      id: "approval-input",
+      input_type: "agent_write_approval" as const,
+      data: { required_scopes: ["project:write"], session_id: "trusted-session" },
+    },
+  };
+  const stub = stubClient(approvalSession, {
+    features: ["seer-explorer", "seer-explorer-code-mode-tools"],
+  });
+  const h = await renderSeer(stub.client);
+  try {
+    await h.press((input) => input.pressKey("make the fix"));
+    await h.press((input) => input.pressEnter());
+    // The embed degrades to prose here, so the pending card owns the controls.
+    await h.waitForFrame((frame) => frame.includes("Seer requested permission to make changes."));
+    await h.waitForFrame((frame) => frame.includes("[y] approve"));
+    expect(h.frame()).toContain("Allow Seer to make changes?");
+
+    await h.press((input) => input.pressKey("y"));
+    await h.wait(10);
+    expect(stub.approvals).toEqual([{ sessionId: "trusted-session", scopes: ["project:write"] }]);
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("the optimistic thinking spinner and text share one row", async () => {
   const stub = stubClient(seerSessionFixture, { holdPost: true });
   const h = await renderSeer(stub.client);
