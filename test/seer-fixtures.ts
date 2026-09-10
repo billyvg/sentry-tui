@@ -68,3 +68,25 @@ export const seerProcessingSessionFixture: SeerSession = {
   updated_at: "2999-01-01T00:00:00.000000",
   blocks: [userBlockFixture, { ...toolBlockFixture, loading: true }],
 };
+
+/** A run parked on a question, with the numbered options and `o. Other`. */
+export const seerQuestionSessionFixture: SeerSession = {
+  status: "processing",
+  updated_at: "2999-01-01T00:00:00.000000",
+  blocks: [userBlockFixture],
+  pending_user_input: {
+    id: "input-1",
+    input_type: "ask_user_question",
+    data: {
+      questions: [
+        {
+          question: "Which checkout path should Seer look at?",
+          options: [
+            { label: "Guest checkout", description: "The anonymous flow" },
+            { label: "Signed-in checkout", description: "The account flow" },
+          ],
+        },
+      ],
+    },
+  },
+};

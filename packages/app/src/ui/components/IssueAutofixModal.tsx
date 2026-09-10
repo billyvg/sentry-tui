@@ -75,6 +75,10 @@ export function IssueAutofixModal({
       return;
     }
 
+    if (current?.handlePriorityKey?.(key)) {
+      consumeKey(key);
+      return;
+    }
     if (matchesCommand("sentry.nav.back", key)) {
       if (!current?.back?.()) onClose();
       consumeKey(key);
