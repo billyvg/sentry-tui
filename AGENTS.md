@@ -296,3 +296,8 @@ Before finishing, load the `dev-pane` skill and follow its steps only when the
 diff includes source-code changes that affect the rendered UI or user
 interaction. Do not launch a dev pane for documentation, tests-only changes,
 CI/workflows, configuration, tooling, or source changes with no UI effect.
+
+Close the pane once you have finished verifying — `herdr pane close <pane-id>` —
+before you report the task done. A pane you opened to test is yours to clean up;
+an agent that leaves one behind per task buries the user's own panes. Keep it
+open only when the user asked you to, and say so when you do.
