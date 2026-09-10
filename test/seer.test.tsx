@@ -672,6 +672,113 @@ test("resource embeds load the thing they reference", async () => {
   }
 });
 
+test("an alert embed follows its kind to a monitor or to an automation", async () => {
+  const session = embedSession(
+    [
+      '{% alert %}{"id":"4521","kind":"metric","name":"Checkout p95 latency"}{% /alert %}',
+      "",
+      '{% alert %}{"id":"881","kind":"issue"}{% /alert %}',
+    ].join("\n"),
+  );
+  const stub = stubClient(session, {
+    features: ["seer-explorer", "seer-explorer-embeds"],
+    routes: (path) => {
+      // A metric alert is a detector, and its actions are the automations
+      // connected to it.
+      if (path.endsWith("/detectors/4521/")) {
+        return {
+          id: "4521",
+          name: "Checkout p95 latency",
+          type: "metric_issue",
+          enabled: true,
+          projectId: "1",
+          config: { detectionType: "static" },
+          conditionGroup: {
+            conditions: [{ type: "gt", comparison: 500, conditionResult: 75 }],
+          },
+          dataSources: [
+            {
+              id: "1",
+              type: "snuba_query_subscription",
+              queryObj: {
+                snubaQuery: {
+                  aggregate: "p95(span.duration)",
+                  query: "span.op:http.client",
+                  timeWindow: 300,
+                },
+              },
+            },
+          ],
+        };
+      }
+      if (path.endsWith("/workflows/881/")) {
+        return {
+          id: "881",
+          name: "Notify checkout owners",
+          enabled: true,
+          environment: "production",
+          detectorIds: ["4521"],
+          lastTriggered: null,
+          config: { frequency: 30 },
+          triggers: {
+            id: "t1",
+            logicType: "any-short",
+            conditions: [{ id: "c1", type: "first_seen_event" }],
+          },
+          actionFilters: [
+            {
+              id: "f1",
+              logicType: "all",
+              conditions: [{ id: "c2", type: "issue_priority_greater_or_equal", comparison: 75 }],
+              actions: [{ id: "a1", type: "slack", config: { targetDisplay: "#checkout" } }],
+            },
+          ],
+        };
+      }
+      if (path.endsWith("/workflows/")) {
+        return [
+          {
+            id: "77",
+            name: "Page on-call",
+            enabled: true,
+            detectorIds: ["4521"],
+            actionFilters: [{ id: "f1", actions: [{ id: "a1", type: "pagerduty" }] }],
+          },
+        ];
+      }
+      return null;
+    },
+  });
+
+  const h = await renderSeer(stub.client);
+  try {
+    await h.press((input) => input.pressKey("what is alerting"));
+    await h.press((input) => input.pressEnter());
+    await h.waitForFrame((frame) => frame.includes("p95(span.duration)"));
+    await h.waitForFrame((frame) => frame.includes("Notify checkout owners"));
+    const frame = h.frame();
+
+    // The metric alert is a monitor, so the card says so and shows the rule.
+    expect(frame).toContain("Metric monitor");
+    expect(frame).toContain("span.op:http.client");
+    expect(frame).toContain(">500ms");
+    // …plus the automations that act on it.
+    expect(frame).toContain("Page on-call");
+    expect(frame).toContain("Pagerduty");
+
+    // The issue alert is an automation, and keeps the noun the sidebar uses.
+    expect(frame).toContain("Issue alert");
+    expect(frame).toContain("30 minutes");
+    expect(frame).toContain("When any of the following occur");
+    expect(frame).toContain("A new issue is created");
+    expect(frame).toContain("Current issue priority is at least high");
+    expect(frame).toContain("#checkout");
+    expect(frame).not.toContain("{% alert %}");
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("a query embed previews the rows its search matches", async () => {
   const session = embedSession(
     '{% spansQuery %}{"query":"span.op:http.client","mode":"samples","statsPeriod":"24h","title":"Slow HTTP spans"}{% /spansQuery %}',

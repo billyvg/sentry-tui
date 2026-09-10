@@ -31,17 +31,29 @@ import {
   type Replay,
 } from "~/api/replays";
 import { fetchSavedQuery, type SavedQuery, type SavedQuerySource } from "~/api/savedQueries";
-import { valueOf } from "~/core/async";
-import { detectorConfigFields } from "~/core/detectors";
+import {
+  actionTypeLabel,
+  fetchWorkflow,
+  workflowActionTypes,
+  type Workflow,
+} from "~/api/workflows";
+import { errorOf, valueOf, type AsyncStatus } from "~/core/async";
+import { detectorConfigFields, detectorTypeLabel } from "~/core/detectors";
 import {
   embedText,
   embedTexts,
   inlineSeerEmbed,
+  isDetectorAlertKind,
   relativeTime,
+  seerAlertKind,
+  SEER_ALERT_LABELS,
   type SeerEmbedLevel,
 } from "~/core/seerEmbeds";
+import { workflowConditionLines, workflowThrottleText } from "~/core/workflows";
 import { sparkline } from "~/lib/sparkline";
+import { fitText } from "~/lib/text";
 import { dateTimeText } from "~/lib/time";
+import { BODY_INDENT } from "~/ui/components/DetailSections";
 import { SeerIssueEmbed } from "~/ui/components/SeerIssueEmbed";
 import {
   CARD_CHROME,
@@ -52,6 +64,7 @@ import {
 } from "~/ui/components/SeerEmbedCard";
 import { WidgetCard } from "~/ui/components/WidgetCard";
 import { useWidgetData, widgetKey } from "~/ui/hooks/useDashboardDetail";
+import { useDetectorWorkflows } from "~/ui/hooks/useDetectorDetail";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useReleases } from "~/ui/hooks/useReleases";
 import { BOLD, DIM } from "~/ui/lib/attributes";
@@ -322,27 +335,6 @@ function ProfileEmbed({ data, width }: SeerEmbedProps) {
   );
 }
 
-/**
- * An alert reference.
- *
- * The four alert kinds are four different rule shapes behind three different
- * endpoints, and the terminal reaches alerts through the workflow list rather
- * than by id, so this names the alert rather than loading its conditions.
- */
-function AlertEmbed({ data, width }: SeerEmbedProps) {
-  const kind = embedText(data["kind"]);
-  return (
-    <SeerEmbedCard
-      label="Alert"
-      title={embedText(data["name"]) ?? embedText(data["id"])}
-      subtitle={kind ? `${kind} alert` : undefined}
-      width={width}
-    >
-      <SeerEmbedFields fields={[["Id", embedText(data["id"])]]} width={width - CARD_CHROME} />
-    </SeerEmbedCard>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Fetching cards
 // ---------------------------------------------------------------------------
@@ -419,48 +411,215 @@ const loadDetector: DirectResourceLoader<Detector> = (client, { org, id, signal 
   fetchDetector(client, { org, detectorId: id, signal });
 
 /**
- * A monitor, with the type-specific configuration the web embed shows.
+ * A detector, with the type-specific configuration the web embed shows.
  *
  * The rules are what a monitor *is* — a cron's schedule, a metric's threshold —
  * so they come from `detectorConfigFields`, the same projection the detail
  * pane draws, rather than from a hand-picked set of fields here. The three
  * rows after them are the state that config does not carry.
+ *
+ * Two embeds land here. `{% monitor %}` addresses a detector directly, and
+ * `{% alert %}` addresses one for three of its four kinds — metric, uptime and
+ * cron alerts are all detectors under the workflow engine, which is the same
+ * split the web makes when `alertBlock.tsx` hands those three to the very
+ * components the monitor embed draws with. The alert card additionally lists
+ * the automations wired to the detector, which is the "configured actions"
+ * half of what its block promises; the monitor card does not, and skips that
+ * request rather than paying for a section it will not draw.
  */
-function MonitorEmbed({ data, width, client, org }: SeerEmbedProps) {
+function DetectorEmbedCard({
+  data,
+  width,
+  client,
+  org,
+  label,
+  fallbackSubtitle,
+  withAlerts = false,
+}: SeerEmbedProps & {
+  label: string;
+  /** What the subtitle says before the detector arrives, if anything. */
+  fallbackSubtitle?: string;
+  withAlerts?: boolean;
+}) {
   const id = embedText(data["id"]) ?? "";
   const status = useDirectResource(id ? client : null, { org, id, load: loadDetector });
   const detector = valueOf(status);
-  const config = detector ? detectorConfigFields(detector) : [];
+  const workflows = useDetectorWorkflows(client, {
+    org,
+    detectorId: withAlerts ? id : "",
+  });
+  const inner = width - CARD_CHROME;
 
   return (
     <SeerEmbedCard
-      label="Monitor"
+      label={label}
       title={detector?.name ?? embedText(data["name"]) ?? id}
-      subtitle={detector ? `${detector.type}${detector.enabled ? "" : " · disabled"}` : undefined}
+      subtitle={
+        detector
+          ? `${detectorTypeLabel(detector.type)} monitor${detector.enabled ? "" : " · disabled"}`
+          : fallbackSubtitle
+      }
       width={width}
     >
       <SeerEmbedStatus status={status} noun="monitor" />
-      {config.length > 0 ? (
-        <SeerEmbedFields
-          fields={config.map((entry) => [entry.label, entry.value] as const)}
-          width={width - CARD_CHROME}
-        />
-      ) : null}
       {detector ? (
-        <SeerEmbedFields
-          fields={[
-            ["Owner", detector.owner?.name ?? undefined],
-            [
-              "Last triggered",
-              detector.lastTriggered ? relativeTime(detector.lastTriggered) : undefined,
-            ],
-            ["Last issue", detector.latestGroup?.shortId ?? undefined],
-          ]}
-          width={width - CARD_CHROME}
-        />
+        <>
+          <SeerEmbedFields
+            fields={[
+              ...detectorConfigFields(detector).map((entry) => [entry.label, entry.value] as const),
+              ["Owner", detector.owner?.name ?? undefined],
+              [
+                "Last triggered",
+                detector.lastTriggered ? relativeTime(detector.lastTriggered) : undefined,
+              ],
+              ["Last issue", detector.latestGroup?.shortId ?? undefined],
+            ]}
+            width={inner}
+          />
+          {withAlerts ? <ConnectedAlerts status={workflows} width={inner} /> : null}
+        </>
       ) : null}
     </SeerEmbedCard>
   );
+}
+
+/**
+ * The alerts wired to a monitor, and where each one notifies.
+ *
+ * The web's alert block lists three and no more (`limit: 3` in
+ * `alertTypes/detector.tsx`); a transcript card has even less room than that
+ * drawer, so the same three, and a count for the rest.
+ */
+function ConnectedAlerts({ status, width }: { status: AsyncStatus<Workflow[]>; width: number }) {
+  const theme = useTheme();
+  const rows = valueOf(status);
+  const error = errorOf(status);
+
+  return (
+    <>
+      <text fg={theme.subText} attributes={BOLD}>
+        {`${BODY_INDENT}Alerts`}
+      </text>
+      {error ? (
+        <text fg={theme.danger}>{`${BODY_INDENT}  Could not load alerts: ${error.message}`}</text>
+      ) : null}
+      {!error && !rows ? <text fg={theme.muted}>{`${BODY_INDENT}  Loading alerts…`}</text> : null}
+      {rows?.length === 0 ? (
+        <text fg={theme.subText}>{`${BODY_INDENT}  No alerts are connected.`}</text>
+      ) : null}
+      {(rows ?? []).slice(0, CONNECTED_ALERT_LIMIT).map((workflow) => {
+        const actions = workflowActionTypes(workflow).map(actionTypeLabel).join(", ");
+        const name = workflow.name || `Alert ${workflow.id}`;
+        return (
+          <text key={workflow.id} fg={theme.text}>
+            {`${BODY_INDENT}  ${fitText(actions ? `${name} — ${actions}` : name, Math.max(8, width - 4))}`}
+          </text>
+        );
+      })}
+      {rows && rows.length > CONNECTED_ALERT_LIMIT ? (
+        <text fg={theme.subText}>
+          {`${BODY_INDENT}  …and ${rows.length - CONNECTED_ALERT_LIMIT} more`}
+        </text>
+      ) : null}
+    </>
+  );
+}
+
+/** Connected alerts drawn on a detector card, matching the web's own cap. */
+const CONNECTED_ALERT_LIMIT = 3;
+
+const loadWorkflow: DirectResourceLoader<Workflow> = (client, { org, id, signal }) =>
+  fetchWorkflow(client, { org, workflowId: id, signal });
+
+/**
+ * An issue alert, with the conditions and actions that make it fire.
+ *
+ * The one alert kind the workflow engine models as an automation rather than a
+ * detector, so it is the one that comes from `workflows/` — everything else
+ * `{% alert %}` can name is a monitor and goes through `DetectorEmbedCard`.
+ */
+function IssueAlertEmbed({ data, width, client, org }: SeerEmbedProps) {
+  const theme = useTheme();
+  const id = embedText(data["id"]) ?? "";
+  const status = useDirectResource(id ? client : null, { org, id, load: loadWorkflow });
+  const workflow = valueOf(status);
+  const inner = width - CARD_CHROME;
+
+  return (
+    <SeerEmbedCard
+      label="Alert"
+      title={workflow?.name ?? embedText(data["name"]) ?? id}
+      subtitle={
+        workflow
+          ? `Issue alert${workflow.enabled === false ? " · disabled" : ""}`
+          : SEER_ALERT_LABELS.issue
+      }
+      width={width}
+    >
+      <SeerEmbedStatus status={status} noun="alert" />
+      {workflow ? (
+        <>
+          <SeerEmbedFields
+            fields={[
+              ["Environment", workflow.environment || "All environments"],
+              ["Throttling", workflowThrottleText(workflow)],
+              [
+                "Last triggered",
+                workflow.lastTriggered ? relativeTime(workflow.lastTriggered) : "Never",
+              ],
+              ["Monitors", countText(workflow.detectorIds?.length ?? 0, "monitor")],
+            ]}
+            width={inner}
+          />
+          {workflowConditionLines(workflow).map((line, index) => (
+            <text
+              key={index}
+              fg={line.heading ? theme.subText : theme.text}
+              attributes={line.heading ? BOLD : undefined}
+            >
+              {line.heading
+                ? `${BODY_INDENT}${fitText(line.text, Math.max(8, inner - 2))}`
+                : `${BODY_INDENT}  ${fitText(line.text, Math.max(8, inner - 4))}`}
+            </text>
+          ))}
+        </>
+      ) : null}
+    </SeerEmbedCard>
+  );
+}
+
+/** `3 monitors`, `1 monitor`, `No monitors` — a count that reads as a phrase. */
+function countText(count: number, noun: string): string {
+  if (count === 0) return `No ${noun}s`;
+  return count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
+}
+
+/**
+ * An alert, drawn as whatever Sentry calls it now.
+ *
+ * `alert` is Seer's name for the tag, and its `kind` is the only axis that
+ * changes how the thing behind it is fetched: `issue` is an automation, and
+ * the other three are detectors — which the product renamed to monitors and
+ * this client lists under `Monitors`. So the dispatch is the web's, and the
+ * labels are the sidebar's.
+ */
+function AlertEmbed(props: SeerEmbedProps) {
+  const kind = seerAlertKind(props.data["kind"]);
+  return isDetectorAlertKind(kind) ? (
+    <DetectorEmbedCard
+      {...props}
+      label="Monitor"
+      fallbackSubtitle={kind ? SEER_ALERT_LABELS[kind] : undefined}
+      withAlerts
+    />
+  ) : (
+    <IssueAlertEmbed {...props} />
+  );
+}
+
+/** A monitor, addressed by the detector id the `monitor` schema asks for. */
+function MonitorEmbed(props: SeerEmbedProps) {
+  return <DetectorEmbedCard {...props} label="Monitor" />;
 }
 
 /**

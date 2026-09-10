@@ -17,7 +17,7 @@
  * Read-only: nothing here enables, disables, or deletes a workflow.
  */
 
-import { fetchPage_listOrganizationWorkflows } from "@sentry/api";
+import { fetchPage_listOrganizationWorkflows, getOrganizationWorkflow } from "@sentry/api";
 
 import type { Page, SentryClient } from "~/api/client";
 import { projectParams } from "~/api/projectParams";
@@ -47,6 +47,21 @@ export type WorkflowActionType =
   | "webhook"
   | (string & {});
 
+/**
+ * Where an action delivers — `ActionConfig` in
+ * `types/workflowEngine/actions.tsx:22-26`.
+ *
+ * `targetDisplay` is the field worth drawing: the server resolves it to the
+ * thing a person recognises (`#checkout-alerts`, an email address), while
+ * `targetIdentifier` is the integration's own opaque id.
+ */
+export interface WorkflowActionConfig {
+  targetDisplay?: string | null;
+  targetIdentifier?: string | null;
+  /** `specific` | `user` | `team` | `sentry_app` | `issue_owners`. */
+  targetType?: string | null;
+}
+
 /** One action on a workflow's action filter. */
 export interface WorkflowAction {
   id: string;
@@ -54,15 +69,38 @@ export interface WorkflowAction {
   /** `ObjectStatus` — `"disabled"` means it is configured but cannot run. */
   status?: string;
   integrationId?: string | null;
+  config?: WorkflowActionConfig | null;
+}
+
+/**
+ * One data condition — `DataCondition` in
+ * `types/workflowEngine/dataConditions.tsx:85-90`.
+ *
+ * `type` is a `DataConditionType`, and `comparison` is whatever that type's
+ * handler stored: a bare number for `issue_priority_greater_or_equal`, an
+ * object for `age_comparison`, an array of stages for `seer_activity_trigger`.
+ * It stays `unknown` here and is narrowed where it becomes text, in
+ * `core/workflows.ts`.
+ */
+export interface WorkflowCondition {
+  id?: string;
+  type: string;
+  comparison?: unknown;
+  conditionResult?: unknown;
 }
 
 /**
  * A data condition group: the workflow's trigger, or one of its action
- * filters. Only the actions matter to the list.
+ * filters.
+ *
+ * The list column reads only the actions; the Seer alert embed reads the
+ * conditions as well, which is why both sit on the one shape rather than in a
+ * second interface that would drift from it.
  */
 export interface WorkflowConditionGroup {
   id: string;
   logicType?: string;
+  conditions?: WorkflowCondition[];
   actions?: WorkflowAction[];
 }
 
@@ -83,6 +121,12 @@ export interface Workflow {
   dateUpdated?: string;
   createdBy?: string | null;
   owner?: string | null;
+  /**
+   * The workflow's own settings. `frequency` is its throttle in minutes; an
+   * absent one means every trigger fires (`config` in
+   * `workflow_serializer.py`, camel-cased on the way out).
+   */
+  config?: { frequency?: number | null } | null;
 }
 
 /**
@@ -189,11 +233,38 @@ export async function listWorkflows(
 }
 
 /**
+ * Fetch one workflow by id.
+ *
+ * `GET /organizations/{org}/workflows/{id}/`, the detail behind a Seer
+ * `{% alert %}` of kind `issue` — the one alert kind the workflow engine
+ * models as an automation rather than a detector. Nothing else needs it: the
+ * list screen already has every field it draws.
+ */
+export async function fetchWorkflow(
+  client: SentryClient,
+  { org, workflowId, signal }: { org: string; workflowId: string; signal?: AbortSignal },
+): Promise<Workflow> {
+  const { data } = await getOrganizationWorkflow({
+    ...client.generatedOptions(signal),
+    path: { organization_id_or_slug: org, workflow_id: Number(workflowId) },
+  });
+  return workflowFromResponse(data, workflowId);
+}
+
+/**
  * Retain action details that the generated response leaves open, while still
  * rejecting a malformed non-array response at the boundary.
  */
 function workflowsFromResponse(data: unknown): Workflow[] {
   return Array.isArray(data) ? (data as Workflow[]) : [];
+}
+
+/** The same widening for a single workflow, naming the id it failed on. */
+function workflowFromResponse(data: unknown, workflowId: string): Workflow {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error(`Alert ${workflowId} was not found.`);
+  }
+  return data as Workflow;
 }
 
 // ---------------------------------------------------------------------------

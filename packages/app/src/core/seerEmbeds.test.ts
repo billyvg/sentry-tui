@@ -216,8 +216,13 @@ describe("inline text", () => {
     expect(inlineSeerEmbed("spansQuery", {})).toBe("**All spans**");
   });
 
-  test("an alert names its kind when it has no name", () => {
-    expect(inlineSeerEmbed("alert", { id: "4521", kind: "metric" })).toBe("**metric alert 4521**");
+  test("an alert names its kind when it has no name, as the product names it", () => {
+    expect(inlineSeerEmbed("alert", { id: "4521", kind: "metric" })).toBe(
+      "**Metric monitor 4521**",
+    );
+    expect(inlineSeerEmbed("alert", { id: "881", kind: "issue" })).toBe("**Issue alert 881**");
+    // A kind outside the schema's enum decides nothing, so the noun stays generic.
+    expect(inlineSeerEmbed("alert", { id: "12", kind: "spooky" })).toBe("**Alert 12**");
   });
 
   test("relative timestamps render without a live timer", () => {
