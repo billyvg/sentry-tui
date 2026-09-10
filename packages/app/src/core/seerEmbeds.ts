@@ -226,6 +226,84 @@ export function readQueryEmbed(data: Record<string, unknown>): SeerQueryEmbed {
 }
 
 // ---------------------------------------------------------------------------
+// Metrics
+// ---------------------------------------------------------------------------
+
+/**
+ * The aggregate the Metrics UI opens a metric with, by type.
+ *
+ * `DEFAULT_YAXIS_BY_TYPE` in `views/explore/metrics/constants.tsx`, with the
+ * same `sum` fallback for a type neither side has seen before.
+ */
+const DEFAULT_METRIC_AGGREGATE: Readonly<Record<string, string>> = {
+  counter: "sum",
+  distribution: "sum",
+  gauge: "avg",
+};
+
+/** What a metric with no unit is filtered and aggregated as. */
+const NONE_UNIT = "none";
+
+/** Quote a filter value that is not a bare token, as the search syntax requires. */
+function searchValue(value: string): string {
+  return /^[\w.@:/-]+$/.test(value) ? value : JSON.stringify(value);
+}
+
+/**
+ * A metrics query embed, resolved against the metric it names.
+ *
+ * Explore does not take a metric as a parameter — it identifies one in two
+ * different places depending on the mode, and getting either wrong silently
+ * returns another metric's numbers:
+ *
+ * - **aggregate**: inside the aggregate's own arguments, so the bare
+ *   `p95(value)` Seer sends means nothing until it is qualified.
+ * - **samples**: in the search string, because a sample row has no aggregate
+ *   to carry the identity.
+ *
+ * Mirrors `metricsQueryUtils.ts` and the `views/explore/metrics/utils.tsx`
+ * helpers it calls.
+ */
+export interface MetricsEmbedRequest {
+  query: string;
+  yAxes: string[];
+}
+
+export function resolveMetricsEmbed(
+  data: Record<string, unknown>,
+  embed: SeerQueryEmbed,
+): MetricsEmbedRequest {
+  const name = embedText(data["name"]);
+  const type = embedText(data["type"]);
+  if (!name || !type) return { query: embed.query, yAxes: embed.yAxes };
+
+  const unit = embedText(data["unit"]);
+  // `-` is how the API spells "no unit"; both spellings filter as `none`.
+  const resolvedUnit = unit && unit !== "-" ? unit : NONE_UNIT;
+  const qualify = (aggregate: string) => `${aggregate}(value,${name},${type},${resolvedUnit})`;
+
+  const yAxes =
+    embed.yAxes.length > 0
+      ? embed.yAxes.map((yAxis) => {
+          const parsed = /^([A-Za-z_][\w]*)\s*\(/.exec(yAxis);
+          return parsed?.[1] ? qualify(parsed[1]) : yAxis;
+        })
+      : [qualify(DEFAULT_METRIC_AGGREGATE[type] ?? "sum")];
+
+  if (embed.mode === "aggregate") return { query: embed.query, yAxes };
+
+  // A metric with no unit matches rows that never carried the attribute as
+  // well as rows that carry it as `none`.
+  const unitFilter =
+    resolvedUnit === NONE_UNIT
+      ? `(!has:metric.unit OR metric.unit:${NONE_UNIT})`
+      : `metric.unit:${searchValue(resolvedUnit)}`;
+  const identity = `(metric.name:${searchValue(name)} metric.type:${searchValue(type)} ${unitFilter})`;
+
+  return { query: embed.query ? `${embed.query} ${identity}` : identity, yAxes };
+}
+
+// ---------------------------------------------------------------------------
 // Text
 // ---------------------------------------------------------------------------
 

@@ -8,6 +8,7 @@ import {
   isSeerEmbed,
   readEmbedFilters,
   readQueryEmbed,
+  resolveMetricsEmbed,
   SEER_EMBED_LEVELS,
   seerEmbedLevel,
 } from "~/core/seerEmbeds";
@@ -122,6 +123,56 @@ describe("reading agent-authored payloads", () => {
         start: undefined,
         end: undefined,
       },
+    });
+  });
+});
+
+/**
+ * Explore identifies a metric in two different places depending on the mode,
+ * and picking the wrong one silently answers with another metric's numbers —
+ * so these assert the exact strings `metricsQueryUtils.ts` builds.
+ */
+describe("metrics", () => {
+  const metric = { name: "checkout.latency", type: "distribution", unit: "millisecond" };
+
+  test("aggregate mode qualifies the aggregate and leaves the search alone", () => {
+    const data = { ...metric, mode: "aggregate", query: "env:prod", yAxes: ["p95(value)"] };
+    expect(resolveMetricsEmbed(data, readQueryEmbed(data))).toEqual({
+      query: "env:prod",
+      yAxes: ["p95(value,checkout.latency,distribution,millisecond)"],
+    });
+  });
+
+  test("an absent aggregate falls back to the one the Metrics UI opens with", () => {
+    const gauge = { name: "queue.depth", type: "gauge", mode: "aggregate" };
+    expect(resolveMetricsEmbed(gauge, readQueryEmbed(gauge)).yAxes).toEqual([
+      "avg(value,queue.depth,gauge,none)",
+    ]);
+    const counter = { name: "checkout.count", type: "counter", mode: "aggregate" };
+    expect(resolveMetricsEmbed(counter, readQueryEmbed(counter)).yAxes).toEqual([
+      "sum(value,checkout.count,counter,none)",
+    ]);
+  });
+
+  test("samples mode moves the metric's identity into the search string", () => {
+    const data = { ...metric, mode: "samples", query: "env:prod" };
+    expect(resolveMetricsEmbed(data, readQueryEmbed(data)).query).toBe(
+      "env:prod (metric.name:checkout.latency metric.type:distribution metric.unit:millisecond)",
+    );
+  });
+
+  test("a unitless metric matches rows that never carried the attribute", () => {
+    const data = { name: "checkout.count", type: "counter", unit: "-", mode: "samples" };
+    expect(resolveMetricsEmbed(data, readQueryEmbed(data)).query).toBe(
+      "(metric.name:checkout.count metric.type:counter (!has:metric.unit OR metric.unit:none))",
+    );
+  });
+
+  test("a payload with no metric is passed through untouched", () => {
+    const data = { mode: "samples", query: "env:prod" };
+    expect(resolveMetricsEmbed(data, readQueryEmbed(data))).toEqual({
+      query: "env:prod",
+      yAxes: [],
     });
   });
 });

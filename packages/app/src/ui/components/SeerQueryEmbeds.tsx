@@ -29,6 +29,7 @@ import {
   embedText,
   queryEmbedTitle,
   readQueryEmbed,
+  resolveMetricsEmbed,
   type SeerQueryEmbed as SeerQueryEmbedData,
 } from "~/core/seerEmbeds";
 import { fitText } from "~/lib/text";
@@ -242,10 +243,13 @@ function ReplaysQueryEmbed({ data, width, client, org, bare = false }: QueryEmbe
  * may name `fields`, and the dataset's own table columns stand in when it does
  * not.
  */
-function previewFields(embed: SeerQueryEmbedData, table: ExploreTable): readonly string[] {
+function previewFields(
+  embed: SeerQueryEmbedData,
+  table: ExploreTable,
+  yAxes: readonly string[],
+): readonly string[] {
   if (embed.mode === "aggregate") {
-    const yAxes = embed.yAxes.length > 0 ? embed.yAxes : [table.yAxis];
-    return [...new Set([...embed.groupBy, ...yAxes])];
+    return [...new Set([...embed.groupBy, ...(yAxes.length > 0 ? yAxes : [table.yAxis])])];
   }
   return embed.fields.length > 0 ? embed.fields : table.fields;
 }
@@ -286,14 +290,16 @@ function ExploreQueryEmbed({ name, data, width, client, org, bare = false }: Que
   const table = screenId ? getExploreTable(screenId) : undefined;
   const noun = NOUNS[name] ?? "rows";
 
-  // A metrics query is scoped to one metric, which the embed names separately
-  // from the search string; the dataset only ever answers for one at a time.
+  // Metrics is the one dataset that does not take its subject as a filter:
+  // the metric's identity rides in the aggregate's arguments, and only drops
+  // into the search string in samples mode. Every other dataset passes through.
   const metricName = name === "metricsQuery" ? embedText(data["name"]) : undefined;
-  const query = metricName
-    ? [`metric.name:${metricName}`, embed.query].filter(Boolean).join(" ")
-    : embed.query;
+  const { query, yAxes } =
+    name === "metricsQuery"
+      ? resolveMetricsEmbed(data, embed)
+      : { query: embed.query, yAxes: embed.yAxes };
 
-  const fields = table ? previewFields(embed, table) : [];
+  const fields = table ? previewFields(embed, table, yAxes) : [];
   // Both are effect dependencies in the hook, so a fresh object per render
   // would refetch forever.
   const request = useMemo<ResolvedExploreQuery>(
@@ -301,19 +307,12 @@ function ExploreQueryEmbed({ name, data, width, client, org, bare = false }: Que
       mode: embed.mode,
       fields,
       sort: embed.sort ?? table?.sort ?? "",
-      yAxis: embed.yAxes[0] ?? table?.yAxis ?? "",
+      yAxis: yAxes[0] ?? table?.yAxis ?? "",
       groupBys: embed.groupBy,
       idField: embed.mode === "aggregate" ? (embed.groupBy[0] ?? "") : (table?.idField ?? ""),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      embed.mode,
-      fields.join(","),
-      embed.sort,
-      embed.yAxes.join(","),
-      embed.groupBy.join(","),
-      table,
-    ],
+    [embed.mode, fields.join(","), embed.sort, yAxes.join(","), embed.groupBy.join(","), table],
   );
 
   const state = useExploreEvents(table ? client : null, table ?? FALLBACK_TABLE, {
@@ -366,7 +365,7 @@ function ErrorsQueryEmbed({ data, width, client, org, bare = false }: QueryEmbed
   const embed = readQueryEmbed(data);
   const table = getExploreTable("explore.errors");
   const fields = useMemo(
-    () => (table ? previewFields(embed, table) : []),
+    () => (table ? previewFields(embed, table, embed.yAxes) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [embed.mode, embed.fields.join(","), embed.groupBy.join(","), embed.yAxes.join(","), table],
   );
