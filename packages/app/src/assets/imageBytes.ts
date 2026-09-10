@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /** Bytes per asset path, so a path read once is never read again. */
 const cache = new Map<string, Uint8Array>();
@@ -19,13 +20,14 @@ const cache = new Map<string, Uint8Array>();
  *    is what keeps a re-render from re-decoding the same icon.
  *
  * Assets reach here through static imports, so the bundler (or Bun's loader in
- * dev) has already resolved and embedded them — a read failure here means the
- * build is broken, not that an icon is merely absent.
+ * dev) has already resolved and embedded them. The path is resolved relative to
+ * this module's directory (import.meta.dir) rather than the process CWD, so the
+ * app works regardless of which directory the user launched it from.
  */
 export function imageBytes(path: string): Uint8Array {
   let bytes = cache.get(path);
   if (!bytes) {
-    bytes = readFileSync(path);
+    bytes = readFileSync(join(import.meta.dir, path));
     cache.set(path, bytes);
   }
   return bytes;
