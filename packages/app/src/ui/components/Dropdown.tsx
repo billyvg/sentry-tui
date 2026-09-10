@@ -98,9 +98,10 @@ const MIN_FILTERABLE_WIDTH = 32;
  * A single-column dropdown list anchored at a given terminal position.
  *
  * Consumes nav keys while open so the parent list doesn't scroll. Selecting an
- * item calls `onSelect` with the new value. A single-select dropdown closes;
- * a multi-select dropdown stays open so more values can be toggled. Escape or
- * clicking outside closes without changing the selection further.
+ * item — with Enter, or by clicking its row — calls `onSelect` with the new
+ * value. A single-select dropdown closes; a multi-select dropdown stays open so
+ * more values can be toggled. Escape or clicking outside closes without
+ * changing the selection further.
  *
  * A `filterable` list adds a query box, which the search key focuses. It is
  * behind a key rather than focused on open because the list is navigated far
@@ -408,6 +409,15 @@ export function Dropdown({
                   flexDirection: "row",
                   alignSelf: "flex-start",
                   backgroundColor: isCursor ? theme.selected : undefined,
+                }}
+                // Rows take the press on mouse-up, the way the command
+                // palette's do. On mouse-down an item that opens a modal would
+                // hand the matching mouse-up to that modal's scrim, closing it
+                // the instant it appeared.
+                onMouseUp={(event) => {
+                  event.stopPropagation();
+                  setCursor(realIndex);
+                  handleSelect(realIndex);
                 }}
               >
                 {showSelection ? <text fg={fg}>{isActive ? "● " : "  "}</text> : <text> </text>}

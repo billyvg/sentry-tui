@@ -443,6 +443,26 @@ test("the Actions chip opens bookmark, review, and Autofix", async () => {
   }
 });
 
+test("clicking an Actions row runs it, the way Enter on it does", async () => {
+  const sent: Array<Record<string, unknown>> = [];
+  const h = await openFirstIssue(stubClient({ seerMessages: sent }));
+  try {
+    await h.waitForFrame((f) => f.includes("Issues › Feed › PUMP-STATION-1"));
+    await h.press((input) => input.pressKey("A", { shift: true }));
+    await h.waitForFrame((f) => f.includes("Autofix"));
+
+    const lines = h.frame().split("\n");
+    const y = lines.findIndex((line) => line.includes("Autofix"));
+    await h.click(lines[y]!.indexOf("Autofix"), y);
+
+    await h.waitForFrame((frame) => frame.includes("Autofix · PUMP-STATION-1"));
+    expect(h.frame()).toContain("Seer Agent");
+    expect(sent).toHaveLength(1);
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("Autofix opens Seer over the issue and sends issue context", async () => {
   const sent: Array<Record<string, unknown>> = [];
   const h = await openFirstIssue(stubClient({ seerMessages: sent }));
