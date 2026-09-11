@@ -299,3 +299,54 @@ export const savedViewsFixture: {
     },
   ],
 };
+
+/** Trace endpoint data with nested spans; durations include child time. */
+export const traceSpansFixture = [
+  {
+    event_type: "span",
+    event_id: "root",
+    name: "GET /checkout",
+    op: "http.server",
+    project_slug: "checkout",
+    start_timestamp: 10,
+    end_timestamp: 11,
+    children: [
+      {
+        event_type: "span",
+        event_id: "db",
+        name: "SELECT orders",
+        op: "db",
+        start_timestamp: 10.1,
+        end_timestamp: 10.7,
+      },
+      {
+        event_type: "span",
+        event_id: "cache",
+        name: "cache lookup",
+        op: "cache",
+        start_timestamp: 10.2,
+        end_timestamp: 10.3,
+      },
+    ],
+  },
+];
+
+/** Leaf-first Sentry stacks with interleaved samples on two threads. */
+export const sampledProfileFixture = {
+  transaction: { name: "GET /checkout" },
+  profile: {
+    frames: [
+      { function: "json_decode", module: "json", lineno: 20 },
+      { function: "checkout", module: "app" },
+      { function: "background" },
+    ],
+    stacks: [[0, 1], [1], [2]],
+    samples: [
+      { thread_id: "main", stack_id: 0, elapsed_since_start_ns: 0 },
+      { thread_id: "worker", stack_id: 2, elapsed_since_start_ns: 0 },
+      { thread_id: "main", stack_id: 1, elapsed_since_start_ns: 20_000_000 },
+      { thread_id: "worker", stack_id: 2, elapsed_since_start_ns: 5_000_000 },
+      { thread_id: "main", stack_id: 0, elapsed_since_start_ns: 30_000_000 },
+    ],
+  },
+};
