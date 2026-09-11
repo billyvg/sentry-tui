@@ -4,7 +4,6 @@ import { createRoot } from "@opentui/react";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { APP_VERSION } from "@sentry-tui/app/version";
 import { flushConfigWrites } from "@sentry-tui/runtime-host/config/index";
 import type { AppContext } from "@sentry-tui/runtime-host/startup/startup";
 import { openBrowser } from "@sentry-tui/runtime-host/startup/openBrowser";
@@ -14,7 +13,12 @@ import {
   setTerminalRestore,
   shutdownTelemetry,
 } from "@sentry-tui/runtime-host/telemetry/index";
-import { discardFailedPayload, restartInto } from "@sentry-tui/runtime-host/update/selfUpdate";
+import {
+  activeAppVersion,
+  discardFailedPayload,
+  restartInto,
+  setActivePayload,
+} from "@sentry-tui/runtime-host/update/selfUpdate";
 import { reportUpdateFailure } from "@sentry-tui/runtime-host/update/telemetry";
 import { ErrorBoundary } from "@sentry-tui/runtime-host/ui/ErrorBoundary";
 import { loadAppPayload } from "@sentry-tui/runtime-host/ui/loadPayload";
@@ -43,13 +47,20 @@ export async function runApp({
   if (payloadPath) {
     try {
       initialPayload = await loadAppPayload(payloadPath);
+      // The manifest is the authority on what we just loaded: a payload found
+      // beside the binary arrives with no environment at all, and the update
+      // check has to compare against this rather than the compiled-in version.
+      setActivePayload({ path: payloadPath, version: initialPayload.metadata.version });
     } catch (error) {
       reportUpdateFailure(error, {
         kind: "payload",
-        version: process.env.SENTRY_TUI_APP_VERSION || APP_VERSION,
+        version: activeAppVersion(),
         stage: "startup",
       });
       discardFailedPayload(payloadPath);
+      // The session runs the app compiled into this host from here on, so the
+      // version it checks against is that one and not the payload it declined.
+      setActivePayload(undefined);
     }
   }
 

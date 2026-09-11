@@ -474,6 +474,34 @@ describe("what the running app is offered", () => {
     }
   });
 
+  test("the payload the launcher started us on is not an update to itself", () => {
+    // The regression this guards: the host and the app are separate release
+    // lines, so host 0.15 routinely runs payload 0.17. Comparing the cache
+    // against the app compiled into the host offered 0.17 in every session,
+    // and applying it changed nothing about the comparison — a pill that
+    // could not be dismissed.
+    const running = bumped(APP_VERSION);
+    const { env, dir } = payloadCacheWith([running]);
+    try {
+      expect(readyUpdate({ ...env, SENTRY_TUI_APP_VERSION: running })).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a payload newer than the running one is still offered to a lagging host", () => {
+    const running = bumped(APP_VERSION);
+    const next = bumped(running);
+    const { env, dir } = payloadCacheWith([running, next]);
+    try {
+      const ready = readyUpdate({ ...env, SENTRY_TUI_APP_VERSION: running });
+      expect(ready?.version).toBe(next);
+      expect(ready?.kind).toBe("payload");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("an empty cache offers nothing rather than throwing", () => {
     expect(
       readyUpdate({ SENTRY_TUI_CACHE_DIR: join(tmpdir(), "sentry-tui-not-a-directory") }),

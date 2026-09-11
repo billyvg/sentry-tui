@@ -20,6 +20,7 @@ import { installUpdateService, type ReadyUpdate } from "@sentry-tui/runtime-cont
 import { App } from "~/ui/App";
 import { BOLD } from "~/ui/lib/attributes";
 import * as telemetry from "@sentry-tui/runtime-host/telemetry/index";
+import { readyUpdate } from "@sentry-tui/runtime-host/update/selfUpdate";
 import { RuntimeHost } from "@sentry-tui/runtime-host/ui/RuntimeHost";
 import { renderHarness } from "./helpers";
 
@@ -41,6 +42,9 @@ const OWNED = [
   "SENTRY_TUI_NO_UPDATE",
   "NO_UPDATE_NOTIFIER",
   "CI",
+  // Applying a payload records it here, the way the launcher does at startup.
+  "SENTRY_TUI_APP_PAYLOAD",
+  "SENTRY_TUI_APP_VERSION",
 ] as const;
 
 let cacheDir: string;
@@ -236,6 +240,30 @@ test("the runtime host swaps a compatible payload without replacing the renderer
     await h.wait(25);
     expect(h.frame()).toContain("payload swapped in process");
     expect(h.frame()).toContain("https://acme.sentry.io/explore/logs/");
+
+    // The swapped-in tree checks again the moment it mounts, so the applied
+    // payload has to have stopped being an update by now — otherwise the pill
+    // comes straight back and pressing it does the same nothing forever.
+    expect(readyUpdate()).toBeUndefined();
+    // And a host restart from here inherits the payload that was applied,
+    // rather than reverting to the one the launcher chose at startup.
+    expect(process.env.SENTRY_TUI_APP_PAYLOAD).toBe(path);
+    expect(process.env.SENTRY_TUI_APP_VERSION).toBe(NEWER);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("a launcher-supplied payload is not offered back as its own update", async () => {
+  // What a real launch looks like when the host lags the app release line: the
+  // launcher pairs an older compiled host with the newest cached payload and
+  // says so in the environment. Nothing here is an update.
+  const path = cacheBuild(NEWER);
+  process.env.SENTRY_TUI_APP_PAYLOAD = path;
+  process.env.SENTRY_TUI_APP_VERSION = NEWER;
+  const h = await renderApp(() => true);
+  try {
+    expect(h.frame()).not.toContain("Update");
   } finally {
     await h.cleanup();
   }
