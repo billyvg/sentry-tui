@@ -441,3 +441,25 @@ test("adoption chart groups project and release bars on one scale", () => {
   expect(cells.map((cell) => cell.series)).toEqual(["project", "release", "project", "release"]);
   expect(cells.map((cell) => cell.glyph).join("")).toBe("█▂██");
 });
+
+test("the releases search box still accepts, cancels and submits keyboard input", async () => {
+  const h = await openReleases();
+  try {
+    await h.waitForFrame((f) => f.includes("Search releases"));
+    await h.press((i) => i.pressKey("/"));
+    expect(h.frame()).toContain("submit");
+    await h.press((i) => i.pressKey("testquery"));
+    expect(h.frame()).toContain("testquery");
+    await h.pressEscape();
+    expect(h.frame()).not.toContain("testquery");
+    expect(h.frame()).not.toContain("submit");
+
+    await h.press((i) => i.pressKey("/"));
+    await h.press((i) => i.pressKey("committedquery"));
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("committedquery");
+    expect(h.frame()).not.toContain("submit");
+  } finally {
+    await h.cleanup();
+  }
+});

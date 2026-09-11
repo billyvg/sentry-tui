@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { RenderableEvents, type InputRenderable, type ScrollBoxRenderable } from "@opentui/core";
+import { type ScrollBoxRenderable } from "@opentui/core";
 
 import { projectParams } from "~/api/projectParams";
 import {
@@ -39,7 +39,7 @@ import { padText } from "~/lib/text";
 import type { Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
-import { SearchInputHint } from "~/ui/components/SearchInputHint";
+import { SearchInput } from "~/ui/components/SearchInput";
 import { useCardScrollFollow } from "~/ui/hooks/useCardScrollFollow";
 import { useReleaseAdoption } from "~/ui/hooks/useReleaseAdoption";
 import { useReleaseHealth, useReleases } from "~/ui/hooks/useReleases";
@@ -171,38 +171,8 @@ export function ReleaseCards({
   activateRow,
 }: ScreenProps) {
   const theme = useTheme();
-  const { dispatch, focusSearch, handleSearchBlur } = state;
+  const { dispatch } = state;
   const listRef = useRef<ScrollBoxRenderable>(null);
-  const inputRef = useRef<InputRenderable>(null);
-
-  /**
-   * TODO: migrate this screen to `src/ui/components/SearchInput.tsx`.
-   *
-   * The configured Explore tables already use the shared input. Once this
-   * screen does too, delete this callback and the box that uses it — nothing
-   * else in this file touches `inputRef`.
-   *
-   * Left working rather than stubbed out: `committedQuery` is the version
-   * filter the release list is fetched with, so a placeholder that couldn't
-   * commit a query would take the filter away with it.
-   *
-   * Syncs native focus/blur (a mouse click) back to the app's search state.
-   */
-  const inputRefCallback = useCallback(
-    (node: InputRenderable | null) => {
-      const previous = inputRef.current;
-      if (previous) {
-        previous.removeAllListeners(RenderableEvents.FOCUSED);
-        previous.removeAllListeners(RenderableEvents.BLURRED);
-      }
-      inputRef.current = node;
-      if (node) {
-        node.on(RenderableEvents.FOCUSED, () => focusSearch());
-        node.on(RenderableEvents.BLURRED, () => handleSearchBlur());
-      }
-    },
-    [focusSearch, handleSearchBlur],
-  );
 
   const query = state.committedQuery;
   const project = useMemo(() => projectParams(state.selectedProjects), [state.selectedProjects]);
@@ -321,38 +291,15 @@ export function ReleaseCards({
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
-      {/* PLACEHOLDER: replaced by `SearchInput` — see `inputRefCallback` above. */}
-      <box
-        style={{
-          flexDirection: "row",
-          width,
-          flexShrink: 0,
-          height: SEARCH_ROWS,
-          border: true,
-          borderStyle: "rounded",
-          borderColor: state.searchFocused ? theme.accent : theme.border,
-          backgroundColor: theme.panel,
-          paddingLeft: 1,
-          paddingRight: 1,
-        }}
-      >
-        <SearchInputHint />
-        <input
-          ref={inputRefCallback}
-          value={state.searchQuery}
-          placeholder="Search releases…"
-          focused={state.searchFocused}
-          onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
-          style={{
-            flexGrow: 1,
-            textColor: theme.text,
-            backgroundColor: theme.panel,
-            focusedTextColor: theme.text,
-            focusedBackgroundColor: theme.panel,
-            placeholderColor: theme.subText,
-          }}
-        />
-      </box>
+      <SearchInput
+        value={state.searchQuery}
+        placeholder="Search releases…"
+        focused={state.searchFocused}
+        width={width}
+        onInput={(query) => state.dispatch({ type: "setSearchQuery", payload: query })}
+        onFocus={state.focusSearch}
+        onBlur={state.handleSearchBlur}
+      />
 
       <FilterBar
         client={client}

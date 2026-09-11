@@ -30,6 +30,7 @@ import {
 } from "@sentry-tui/runtime-contract/telemetry";
 import { CommandPalette } from "~/ui/components/CommandPalette";
 import { DetailBackRow } from "~/ui/components/DetailBackRow";
+import { isSearchInputMounted } from "~/ui/components/SearchInput";
 import { isFilterBarMounted } from "~/ui/components/FilterBar";
 import { HelpDialog } from "~/ui/components/HelpDialog";
 import { IssueAutofixModal } from "~/ui/components/IssueAutofixModal";
@@ -610,6 +611,7 @@ export function App({
           runUpdate();
           return;
         case "sentry.nav.search":
+          if (!isSearchInputMounted()) return;
           focus.focus("content");
           state.focusSearch();
           return;

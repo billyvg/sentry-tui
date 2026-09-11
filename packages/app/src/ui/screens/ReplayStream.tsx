@@ -18,8 +18,6 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { RenderableEvents, type InputRenderable } from "@opentui/core";
-
 import {
   DEFAULT_REPLAY_PERIOD,
   fetchReplay,
@@ -42,7 +40,7 @@ import { DataTable, type Column } from "~/ui/components/DataTable";
 import { DirectDetailStatus } from "~/ui/components/DirectDetailStatus";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
-import { SearchInputHint } from "~/ui/components/SearchInputHint";
+import { SearchInput } from "~/ui/components/SearchInput";
 import { useProjectSlugs } from "~/ui/hooks/useProjects";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useReplayErrors, useReplays } from "~/ui/hooks/useReplays";
@@ -269,7 +267,15 @@ export function ReplayStream({
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
-      <SearchInputPlaceholder state={state} width={width} placeholder="Search replays…" />
+      <SearchInput
+        value={state.searchQuery}
+        placeholder="Search replays…"
+        focused={state.searchFocused}
+        width={width}
+        onInput={(query) => state.dispatch({ type: "setSearchQuery", payload: query })}
+        onFocus={state.focusSearch}
+        onBlur={state.handleSearchBlur}
+      />
 
       <FilterBar
         client={client}
@@ -730,84 +736,4 @@ function clockOf(iso: string): string {
   if (!iso) return "--:--:--";
   const match = /T(\d{2}:\d{2}:\d{2})/.exec(iso);
   return match?.[1] ?? (iso.slice(11, 19) || "--:--:--");
-}
-
-// ---------------------------------------------------------------------------
-// Search input — provisional
-// ---------------------------------------------------------------------------
-
-/**
- * The bordered `/`-prefixed search box, kept local on purpose.
- *
- * This is the same widget the issue stream and the log stream each draw
- * inline, and it is being extracted into a shared
- * `src/ui/components/SearchInput.tsx` on the saved-queries branch. Rather than
- * add a third inline copy to the pile, it is isolated here behind the props
- * that component will take — `state`, `width`, `placeholder` — so adopting the
- * shared one is deleting this function and changing an import, not unpicking
- * markup from the middle of a screen.
- */
-function SearchInputPlaceholder({
-  state,
-  width,
-  placeholder,
-}: {
-  state: ScreenState;
-  width: number;
-  placeholder: string;
-}) {
-  const theme = useTheme();
-  const { focusSearch, handleSearchBlur } = state;
-  const inputRef = useRef<InputRenderable>(null);
-
-  // Sync native focus/blur (a mouse click, say) back to the app's search state.
-  const inputRefCallback = useCallback(
-    (node: InputRenderable | null) => {
-      const previous = inputRef.current;
-      if (previous) {
-        previous.removeAllListeners(RenderableEvents.FOCUSED);
-        previous.removeAllListeners(RenderableEvents.BLURRED);
-      }
-      inputRef.current = node;
-      if (node) {
-        node.on(RenderableEvents.FOCUSED, () => focusSearch());
-        node.on(RenderableEvents.BLURRED, () => handleSearchBlur());
-      }
-    },
-    [focusSearch, handleSearchBlur],
-  );
-
-  return (
-    <box
-      style={{
-        flexDirection: "row",
-        width,
-        flexShrink: 0,
-        height: SEARCH_ROWS,
-        border: true,
-        borderStyle: "rounded",
-        borderColor: state.searchFocused ? theme.accent : theme.border,
-        backgroundColor: theme.panel,
-        paddingLeft: 1,
-        paddingRight: 1,
-      }}
-    >
-      <SearchInputHint />
-      <input
-        ref={inputRefCallback}
-        value={state.searchQuery}
-        placeholder={placeholder}
-        focused={state.searchFocused}
-        onInput={(query) => state.dispatch({ type: "setSearchQuery", payload: query })}
-        style={{
-          flexGrow: 1,
-          textColor: theme.text,
-          backgroundColor: theme.panel,
-          focusedTextColor: theme.text,
-          focusedBackgroundColor: theme.panel,
-          placeholderColor: theme.subText,
-        }}
-      />
-    </box>
-  );
 }

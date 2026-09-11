@@ -9,6 +9,7 @@ import type { ScreenSessionSnapshot } from "~/core/sessionSnapshot";
 import { breadcrumbTrail } from "~/lib/breadcrumb";
 import { detailBackWidth } from "~/ui/components/DetailBackRow";
 import { COLLAPSED_NAV_RAIL_WIDTH, NAV_RAIL_WIDTH } from "~/ui/components/NavRail";
+import { useSearchInputMounted } from "~/ui/components/SearchInput";
 import { SECONDARY_NAV_WIDTH } from "~/ui/components/SecondaryNav";
 import { useScreenState, type ScreenState, type ScreenStateSeed } from "~/ui/hooks/useScreenState";
 import { useSecondaryNavExtras } from "~/ui/hooks/useSecondaryNavExtras";
@@ -278,6 +279,7 @@ export function useNavigation({
     return trail ? ` ${trail} ` : undefined;
   }, [viewStack, activeGroup, activeItem, contentWidth, backTarget]);
 
+  const searchMounted = useSearchInputMounted();
   const statusHints = useMemo(() => {
     if (gotoMode) return [{ command: "sentry.nav.back", label: "cancel" }];
     if (state.searchFocused) {
@@ -301,7 +303,7 @@ export function useNavigation({
                 },
               ]
             : []),
-          { command: "sentry.nav.search", label: "search" },
+          ...(searchMounted ? [{ command: "sentry.nav.search", label: "search" }] : []),
         ];
 
     return [
@@ -312,7 +314,16 @@ export function useNavigation({
       { command: "sentry.app.help", label: "help" },
       ...(topView ? [] : [{ command: "sentry.app.quit", label: "quit" }]),
     ];
-  }, [gotoMode, state.searchFocused, state.detailOpen, topView, detailView, screen, canOpen]);
+  }, [
+    gotoMode,
+    state.searchFocused,
+    state.detailOpen,
+    topView,
+    detailView,
+    screen,
+    canOpen,
+    searchMounted,
+  ]);
 
   return {
     ...navigation,
