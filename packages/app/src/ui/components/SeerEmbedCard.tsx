@@ -9,11 +9,21 @@
 
 import type { ReactNode } from "react";
 
+import type { SentryClient } from "~/api/client";
+
 import { errorOf, isInitialLoad, type AsyncStatus } from "~/core/async";
 import { fitText, wrapText } from "~/lib/text";
 import { BODY_INDENT, Field } from "~/ui/components/DetailSections";
 import { BOLD, DIM } from "~/ui/lib/attributes";
 import { useTheme } from "~/ui/theme";
+
+/** Everything a block embed needs to draw itself. */
+export interface SeerEmbedProps {
+  data: Record<string, unknown>;
+  width: number;
+  client: SentryClient | null;
+  org: string;
+}
 
 /** Space the border and its padding take from the width an embed is given. */
 export const CARD_CHROME = 3;

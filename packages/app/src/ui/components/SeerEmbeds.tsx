@@ -17,7 +17,6 @@
 
 import { useMemo } from "react";
 
-import type { SentryClient } from "~/api/client";
 import { getDashboard, type DashboardDetails } from "~/api/dashboards";
 import { widgetRenderKind } from "~/api/dashboardWidgets";
 import { fetchDetector, type Detector } from "~/api/detectors";
@@ -54,9 +53,11 @@ import { sparkline } from "~/lib/sparkline";
 import { fitText } from "~/lib/text";
 import { dateTimeText } from "~/lib/time";
 import { BODY_INDENT } from "~/ui/components/DetailSections";
+import { TraceEmbed, ProfileEmbed } from "~/ui/components/SeerPerformanceEmbeds";
 import { SeerIssueEmbed } from "~/ui/components/SeerIssueEmbed";
 import {
   CARD_CHROME,
+  type SeerEmbedProps,
   SeerEmbedCard,
   SeerEmbedFields,
   SeerEmbedStatus,
@@ -72,14 +73,6 @@ import { BOLD, DIM } from "~/ui/lib/attributes";
 import { orderWidgets, widgetCardHeight } from "~/ui/lib/widgetStack";
 import { useTheme } from "~/ui/theme";
 import { SeerQueryEmbed } from "~/ui/components/SeerQueryEmbeds";
-
-/** Everything a block embed needs to draw itself. */
-export interface SeerEmbedProps {
-  data: Record<string, unknown>;
-  width: number;
-  client: SentryClient | null;
-  org: string;
-}
 
 /**
  * Draw one block-level embed.
@@ -298,41 +291,6 @@ function AgentWriteApprovalEmbed({ data, width }: SeerEmbedProps) {
       */}
       {status === "pending" ? <text fg={theme.accent}>[y] approve · [x] reject</text> : null}
     </box>
-  );
-}
-
-/**
- * A trace reference.
- *
- * No fetch: the terminal has no waterfall to draw into a transcript, and the
- * span tree behind a trace id is the one piece of Sentry data that is all
- * structure — reduced to a card it would say less than the id does.
- */
-function TraceEmbed({ data, width }: SeerEmbedProps) {
-  const traceId = embedText(data["traceId"]);
-  return (
-    <SeerEmbedCard label="Trace" title={traceId} width={width}>
-      <SeerEmbedFields
-        fields={[
-          ["Span", embedText(data["spanId"])],
-          ["Timestamp", dateTimeText(embedText(data["timestamp"]))],
-        ]}
-        width={width - CARD_CHROME}
-      />
-    </SeerEmbedCard>
-  );
-}
-
-/** A profile reference — a flamegraph is as terminal-hostile as a waterfall. */
-function ProfileEmbed({ data, width }: SeerEmbedProps) {
-  const profileId = embedText(data["profileId"]);
-  return (
-    <SeerEmbedCard label="Profile" title={profileId} width={width}>
-      <SeerEmbedFields
-        fields={[["Project", embedText(data["projectSlug"])]]}
-        width={width - CARD_CHROME}
-      />
-    </SeerEmbedCard>
   );
 }
 
