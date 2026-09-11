@@ -96,7 +96,7 @@ export function summarizeProfile(value: unknown): ProfileSummary {
       }
     }
   } else if (legacy) {
-    const countOnly = legacy.every((raw) => record(raw)["unit"] === "count");
+    const countOnly = legacy.length > 0 && legacy.every((raw) => record(raw)["unit"] === "count");
     unit = countOnly ? "samples" : "ms";
     for (const raw of legacy) {
       const thread = record(raw);

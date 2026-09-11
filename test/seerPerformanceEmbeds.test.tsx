@@ -111,6 +111,14 @@ test("legacy sampled and evented profiles use root-first stacks and explicit tim
   expect(counts.frames[0]!.weight).toBe(7);
 });
 
+test("empty legacy profiles retain the default time unit", () => {
+  expect(summarizeProfile({ shared: { frames: [] }, profiles: [] })).toEqual({
+    transaction: undefined,
+    unit: "ms",
+    frames: [],
+  });
+});
+
 test("profile normalizer skips broken references and rejects unsupported payloads", () => {
   expect(
     summarizeProfile({
