@@ -4,6 +4,7 @@ import { TRIAGE_ACTIONS } from "~/core/triage";
 import type { NavGroup } from "~/core/nav";
 import { isDropdownMounted } from "~/ui/components/Dropdown";
 import { isFilterBarMounted, type FilterKind } from "~/ui/components/FilterBar";
+import { isSearchInputMounted } from "~/ui/components/SearchInput";
 import { isSortSelectorMounted } from "~/ui/components/SortSelector";
 import type { AppRegion, NavigationState } from "~/ui/hooks/useNavigation";
 import type { ScreenState } from "~/ui/hooks/useScreenState";
@@ -449,7 +450,7 @@ export function createSearchFocusHandler({
 }: Pick<AppKeyHandlerOptions, "navigation" | "state" | "focus">): KeyOwnerHandler {
   return (key) => {
     if (!navigation.listActive || focus.focusedRef.current !== "content") return "notMine";
-    if (!matchesCommand("sentry.nav.search", key)) return "notMine";
+    if (!matchesCommand("sentry.nav.search", key) || !isSearchInputMounted()) return "notMine";
     state.focusSearch();
     return "mine";
   };

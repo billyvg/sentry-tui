@@ -13,8 +13,6 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
-import { RenderableEvents, type InputRenderable } from "@opentui/core";
-
 import {
   PROFILE_FUNCTION_SORT_OPTIONS,
   profileFunctionSort,
@@ -28,7 +26,7 @@ import { fitText, padText } from "~/lib/text";
 import { DataTable, type Column } from "~/ui/components/DataTable";
 import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { ResultFooter } from "~/ui/components/ResultFooter";
-import { SearchInputHint } from "~/ui/components/SearchInputHint";
+import { SearchInput } from "~/ui/components/SearchInput";
 import { useProfileFunctions } from "~/ui/hooks/useProfileFunctions";
 import { useScreenActions } from "~/ui/hooks/useScreenActions";
 import { BOLD } from "~/ui/lib/attributes";
@@ -131,37 +129,7 @@ export function ProfileFunctions({
   activateRow,
 }: ScreenProps) {
   const theme = useTheme();
-  const { dispatch, focusSearch, handleSearchBlur } = state;
-  const inputRef = useRef<InputRenderable>(null);
-
-  /**
-   * TODO: migrate this screen to `src/ui/components/SearchInput.tsx`.
-   *
-   * The configured Explore tables already use the shared input. Once this
-   * screen does too, delete this callback and the box that uses it — nothing
-   * else in this file touches `inputRef`.
-   *
-   * Left working rather than stubbed out: `committedQuery` is what the
-   * function list is fetched with, so a placeholder that couldn't commit a
-   * query would take the filter away with it.
-   *
-   * Syncs native focus/blur (a mouse click) back to the app's search state.
-   */
-  const inputRefCallback = useCallback(
-    (node: InputRenderable | null) => {
-      const previous = inputRef.current;
-      if (previous) {
-        previous.removeAllListeners(RenderableEvents.FOCUSED);
-        previous.removeAllListeners(RenderableEvents.BLURRED);
-      }
-      inputRef.current = node;
-      if (node) {
-        node.on(RenderableEvents.FOCUSED, () => focusSearch());
-        node.on(RenderableEvents.BLURRED, () => handleSearchBlur());
-      }
-    },
-    [focusSearch, handleSearchBlur],
-  );
+  const { dispatch } = state;
 
   const query = state.committedQuery;
   const sort = profileFunctionSort(state.sort);
@@ -238,38 +206,15 @@ export function ProfileFunctions({
 
   return (
     <box style={{ flexDirection: "column", width, height }}>
-      {/* PLACEHOLDER: replaced by `SearchInput` — see `inputRefCallback` above. */}
-      <box
-        style={{
-          flexDirection: "row",
-          width,
-          flexShrink: 0,
-          height: SEARCH_ROWS,
-          border: true,
-          borderStyle: "rounded",
-          borderColor: state.searchFocused ? theme.accent : theme.border,
-          backgroundColor: theme.panel,
-          paddingLeft: 1,
-          paddingRight: 1,
-        }}
-      >
-        <SearchInputHint />
-        <input
-          ref={inputRefCallback}
-          value={state.searchQuery}
-          placeholder="Search functions…"
-          focused={state.searchFocused}
-          onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
-          style={{
-            flexGrow: 1,
-            textColor: theme.text,
-            backgroundColor: theme.panel,
-            focusedTextColor: theme.text,
-            focusedBackgroundColor: theme.panel,
-            placeholderColor: theme.subText,
-          }}
-        />
-      </box>
+      <SearchInput
+        value={state.searchQuery}
+        placeholder="Search functions…"
+        focused={state.searchFocused}
+        width={width}
+        onInput={(query) => state.dispatch({ type: "setSearchQuery", payload: query })}
+        onFocus={state.focusSearch}
+        onBlur={state.handleSearchBlur}
+      />
 
       <FilterBar
         client={client}

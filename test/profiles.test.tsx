@@ -181,3 +181,25 @@ test("nanoseconds are rendered in the largest unit that keeps three figures", ()
   expect(formatNanoseconds(1_000_000_000)).toBe("1s");
   expect(formatNanoseconds(42_100_000_000)).toBe("42.1s");
 });
+
+test("the functions search box still accepts, cancels and submits keyboard input", async () => {
+  const h = await openProfiles();
+  try {
+    await h.waitForFrame((f) => f.includes("Search functions"));
+    await h.press((i) => i.pressKey("/"));
+    expect(h.frame()).toContain("submit");
+    await h.press((i) => i.pressKey("testquery"));
+    expect(h.frame()).toContain("testquery");
+    await h.pressEscape();
+    expect(h.frame()).not.toContain("testquery");
+    expect(h.frame()).not.toContain("submit");
+
+    await h.press((i) => i.pressKey("/"));
+    await h.press((i) => i.pressKey("committedquery"));
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).toContain("committedquery");
+    expect(h.frame()).not.toContain("submit");
+  } finally {
+    await h.cleanup();
+  }
+});

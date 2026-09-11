@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { RenderableEvents, type InputRenderable, type ScrollBoxRenderable } from "@opentui/core";
+import { type ScrollBoxRenderable } from "@opentui/core";
 
 import { fetchIssue, issueSort, PAGE_SIZE, SORT_OPTIONS } from "~/api/issues";
 import type { Group } from "~/api/types";
@@ -22,7 +22,7 @@ import { FilterBar, SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { IssueListHeader, IssueRow, ROW_HEIGHT } from "~/ui/components/IssueRow";
 import { IssueListEmpty, IssueListError, IssueListSkeleton } from "~/ui/components/IssueListStates";
 import { ResultFooter } from "~/ui/components/ResultFooter";
-import { SearchInputHint } from "~/ui/components/SearchInputHint";
+import { SearchInput } from "~/ui/components/SearchInput";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
 import { useIssues } from "~/ui/hooks/useIssues";
 import { useMemberAvatars } from "~/ui/hooks/useMemberAvatars";
@@ -79,7 +79,6 @@ export function IssueFeed(props: IssueFeedProps) {
     "screen" in props
       ? props.onProjectSelect
       : (projects: string[]) => dispatch({ type: "setSelectedProjects", payload: projects });
-  const inputRef = useRef<InputRenderable>(null);
   const listRef = useRef<ScrollBoxRenderable>(null);
 
   const open = useCallback(
@@ -92,23 +91,6 @@ export function IssueFeed(props: IssueFeedProps) {
   const closeDropdown = useCallback(
     () => dispatch({ type: "setOpenDropdown", payload: null }),
     [dispatch],
-  );
-
-  // Sync native focus/blur (for example, mouse clicks) back to screen state.
-  const inputRefCallback = useCallback(
-    (node: InputRenderable | null) => {
-      const previous = inputRef.current;
-      if (previous) {
-        previous.removeAllListeners(RenderableEvents.FOCUSED);
-        previous.removeAllListeners(RenderableEvents.BLURRED);
-      }
-      inputRef.current = node;
-      if (node) {
-        node.on(RenderableEvents.FOCUSED, state.focusSearch);
-        node.on(RenderableEvents.BLURRED, state.handleSearchBlur);
-      }
-    },
-    [state.focusSearch, state.handleSearchBlur],
   );
 
   const sort = issueSort(state.sort);
@@ -190,37 +172,15 @@ export function IssueFeed(props: IssueFeedProps) {
         </box>
       ) : null}
 
-      <box
-        style={{
-          flexDirection: "row",
-          width,
-          flexShrink: 0,
-          height: 3,
-          border: true,
-          borderStyle: "rounded",
-          borderColor: state.searchFocused ? theme.accent : theme.border,
-          backgroundColor: theme.panel,
-          paddingLeft: 1,
-          paddingRight: 1,
-        }}
-      >
-        <SearchInputHint />
-        <input
-          ref={inputRefCallback}
-          value={state.searchQuery}
-          placeholder="Search issues…"
-          focused={state.searchFocused}
-          onInput={(query) => dispatch({ type: "setSearchQuery", payload: query })}
-          style={{
-            flexGrow: 1,
-            textColor: theme.text,
-            backgroundColor: theme.panel,
-            focusedTextColor: theme.text,
-            focusedBackgroundColor: theme.panel,
-            placeholderColor: theme.subText,
-          }}
-        />
-      </box>
+      <SearchInput
+        value={state.searchQuery}
+        placeholder="Search issues…"
+        focused={state.searchFocused}
+        width={width}
+        onInput={(query) => state.dispatch({ type: "setSearchQuery", payload: query })}
+        onFocus={state.focusSearch}
+        onBlur={state.handleSearchBlur}
+      />
 
       <FilterBar
         client={client}

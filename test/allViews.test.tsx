@@ -207,3 +207,59 @@ test("the filter chip shows the project's slug once the list lands", async () =>
     await h.cleanup();
   }
 });
+
+test("search only focuses a mounted box when opening and leaving a saved view", async () => {
+  const { client } = stubClient();
+  const h = await renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
+    width: WIDTH,
+    height: HEIGHT,
+  });
+  try {
+    await h.waitForFrame((f) => f.includes("TypeError"));
+    await openAllViews(h);
+    await h.waitForFrame((f) => f.includes("Prod errors"));
+
+    await h.press((i) => i.pressKey("/"));
+    expect(h.frame()).not.toContain("submit");
+    expect(h.frame()).not.toContain("/ search");
+    // No Escape needed: the next key still opens the selected saved view.
+    await h.press((i) => i.pressEnter());
+    await h.waitForFrame((f) => f.includes("Last Seen"));
+    expect(h.frame()).toContain("/ search");
+    await h.press((i) => i.pressKey("/"));
+    expect(h.frame()).toContain("submit");
+    await h.press((i) => i.pressKey("testquery"));
+    expect(h.frame()).toContain("testquery");
+    await h.pressEscape();
+    await h.pressEscape();
+    await h.waitForFrame((f) => f.includes("Created by Others"));
+
+    await h.press((i) => i.pressKey("/"));
+    expect(h.frame()).not.toContain("submit");
+    expect(h.frame()).not.toContain("/ search");
+    await h.press((i) => i.pressKey("?"));
+    expect(h.frame()).toContain("Keyboard");
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("the palette search command cannot focus an invisible input on All Views", async () => {
+  const { client } = stubClient();
+  const h = await renderHarness(<App onQuit={() => {}} client={client} org="acme" />, {
+    width: WIDTH,
+    height: HEIGHT,
+  });
+  try {
+    await openAllViews(h);
+    await h.waitForFrame((f) => f.includes("Prod errors"));
+    await h.press((i) => i.pressKey("k", { ctrl: true }));
+    await h.press((i) => i.pressKey("search"));
+    await h.press((i) => i.pressEnter());
+    expect(h.frame()).not.toContain("submit");
+    await h.press((i) => i.pressKey("?"));
+    expect(h.frame()).toContain("Keyboard");
+  } finally {
+    await h.cleanup();
+  }
+});

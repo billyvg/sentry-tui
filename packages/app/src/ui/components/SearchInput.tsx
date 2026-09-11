@@ -28,13 +28,34 @@
  * router owns `/`, Enter and Escape — a screen registers no keys for this.
  */
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import { RenderableEvents, type InputRenderable } from "@opentui/core";
 
 import { useTheme } from "~/ui/theme";
 import { SEARCH_ROWS } from "~/ui/components/FilterBar";
 import { SearchInputHint } from "~/ui/components/SearchInputHint";
+
+let mountedSearchInputs = 0;
+const mountListeners = new Set<() => void>();
+
+/** Is a list search box on screen to answer the global search shortcut? */
+export function isSearchInputMounted(): boolean {
+  return mountedSearchInputs > 0;
+}
+
+/** Subscribe status hints to the same availability the key router checks. */
+function subscribeToMounts(listener: () => void): () => void {
+  mountListeners.add(listener);
+  return () => {
+    mountListeners.delete(listener);
+  };
+}
+
+/** Update rendered shortcut hints when a search box mounts or unmounts. */
+export function useSearchInputMounted(): boolean {
+  return useSyncExternalStore(subscribeToMounts, isSearchInputMounted);
+}
 
 export interface SearchInputProps {
   /** Live value of the input: `state.searchQuery`, not the committed one. */
@@ -58,6 +79,15 @@ export function SearchInput({
   onFocus,
   onBlur,
 }: SearchInputProps) {
+  useEffect(() => {
+    mountedSearchInputs += 1;
+    for (const listener of mountListeners) listener();
+    return () => {
+      mountedSearchInputs -= 1;
+      for (const listener of mountListeners) listener();
+    };
+  }, []);
+
   const theme = useTheme();
   const inputRef = useRef<InputRenderable>(null);
 
