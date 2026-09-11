@@ -9,14 +9,10 @@
  * when it fires, what has to match, what it then does — become three headings
  * with their members indented under them.
  *
- * Every condition sentence here is the web's `details` component for that
- * `DataConditionType` reduced to a string. Two of them lose something in the
- * reduction and say so at their case: `assigned_to` names the kind of
- * assignee rather than fetching the team or the member behind the id, and the
- * frequency conditions drop their subfilters. Everything else the terminal
- * does not recognise falls back to the condition's own type, humanised, which
- * is still a truthful line — Sentry ships condition types faster than a
- * released binary learns to phrase them.
+ * Conditions retain assignee identities and flag frequency subfilters before
+ * the sentence, so clipping a narrow card cannot hide that qualification.
+ * Unknown condition types still get a readable fallback until a released
+ * binary learns to phrase them.
  */
 
 import type { Workflow, WorkflowAction, WorkflowCondition } from "~/api/workflows";
@@ -185,6 +181,41 @@ function humanize(value: string): string {
   return value.replace(/_/g, " ");
 }
 
+/** Names resolved by the UI's shared organization directories. */
+export interface WorkflowAssignees {
+  teams?: ReadonlyMap<string, string>;
+  members?: ReadonlyMap<string, string>;
+}
+
+/** Collect each assignee once across trigger and action-filter conditions. */
+export function workflowAssigneeTargets(workflow: Workflow | undefined): {
+  teams: string[];
+  members: string[];
+} {
+  const teams = new Set<string>();
+  const members = new Set<string>();
+  const conditions = [
+    ...(workflow?.triggers?.conditions ?? []),
+    ...(workflow?.actionFilters ?? []).flatMap((group) => group.conditions ?? []),
+  ];
+  for (const condition of conditions) {
+    if (condition.type !== "assigned_to") continue;
+    const comparison = comparisonObject(condition);
+    const id = part(comparison, "targetIdentifier");
+    if (!id) continue;
+    if (comparison["targetType"] === "Team") teams.add(id);
+    if (comparison["targetType"] === "Member") members.add(id);
+  }
+  return { teams: [...teams].sort(), members: [...members].sort() };
+}
+
+/** Keep the presence of subfilters visible even when a card clips the sentence. */
+function frequencyFilterPrefix(comparison: Record<string, unknown>): string {
+  const filters = comparison["filters"];
+  if (!Array.isArray(filters) || filters.length === 0) return "";
+  return `[${plural(filters.length, "subfilter")}] `;
+}
+
 /**
  * One data condition as a sentence.
  *
@@ -193,7 +224,10 @@ function humanize(value: string): string {
  * line is still better than a missing condition, because a card that silently
  * drops a filter misrepresents when the alert fires.
  */
-export function workflowConditionText(condition: WorkflowCondition): string {
+export function workflowConditionText(
+  condition: WorkflowCondition,
+  assignees: WorkflowAssignees = {},
+): string {
   const standalone = STANDALONE_CONDITIONS[condition.type];
   if (standalone) return standalone;
 
@@ -212,13 +246,14 @@ export function workflowConditionText(condition: WorkflowCondition): string {
       return `The issue is ${direction} ${age}`.trimEnd();
     }
 
-    // The web resolves the team or the member behind `targetIdentifier` with a
-    // second request each. A transcript card is not worth two more fetches, so
-    // this names the kind of assignee and stops.
     case "assigned_to": {
       const target = part(comparison, "targetType");
-      if (target === "Team") return "The issue is assigned to a team";
-      if (target === "Member") return "The issue is assigned to a member";
+      const id = part(comparison, "targetIdentifier");
+      if (target === "Team" || target === "Member") {
+        const name = id && (target === "Team" ? assignees.teams : assignees.members)?.get(id);
+        const label = name ? (target === "Team" ? `#${name}` : name) : id ? `ID ${id}` : "unknown";
+        return `The issue is assigned to ${target.toLowerCase()} ${label}`;
+      }
       return "The issue is unassigned";
     }
 
@@ -255,20 +290,18 @@ export function workflowConditionText(condition: WorkflowCondition): string {
     }
 
     // The four frequency pairs differ only in what they count and whether the
-    // threshold is absolute or relative, so they share two sentences. Their
-    // `filters` subfilters are dropped: each is a condition of its own, and a
-    // card that nests them stops being one line per rule.
+    // threshold is absolute or relative, so they share two sentences.
     case "event_frequency_count":
     case "event_unique_user_frequency_count":
     case "event_unique_user_frequency_with_conditions_count":
     case "percent_sessions_count":
-      return `${frequencySubject(condition.type)} is more than ${part(comparison, "value") ?? "?"} ${choice(INTERVAL_LABELS, part(comparison, "interval"))}`;
+      return `${frequencyFilterPrefix(comparison)}${frequencySubject(condition.type)} is more than ${part(comparison, "value") ?? "?"} ${choice(INTERVAL_LABELS, part(comparison, "interval"))}`;
 
     case "event_frequency_percent":
     case "event_unique_user_frequency_percent":
     case "event_unique_user_frequency_with_conditions_percent":
     case "percent_sessions_percent":
-      return `${frequencySubject(condition.type)} is ${part(comparison, "value") ?? "?"}% higher ${choice(INTERVAL_LABELS, part(comparison, "interval"))} compared to ${choice(COMPARISON_INTERVAL_LABELS, part(comparison, "comparisonInterval"))}`;
+      return `${frequencyFilterPrefix(comparison)}${frequencySubject(condition.type)} is ${part(comparison, "value") ?? "?"}% higher ${choice(INTERVAL_LABELS, part(comparison, "interval"))} compared to ${choice(COMPARISON_INTERVAL_LABELS, part(comparison, "comparisonInterval"))}`;
 
     default: {
       const scalar = comparisonScalar(condition);
@@ -335,6 +368,7 @@ export const WORKFLOW_CONDITION_LINE_LIMIT = 12;
 export function workflowConditionLines(
   workflow: Workflow,
   limit: number = WORKFLOW_CONDITION_LINE_LIMIT,
+  assignees: WorkflowAssignees = {},
 ): WorkflowConditionLine[] {
   const lines: WorkflowConditionLine[] = [];
 
@@ -348,7 +382,7 @@ export function workflowConditionLines(
         : "When an event or issue activity is captured",
   });
   for (const condition of triggerConditions) {
-    lines.push({ heading: false, text: workflowConditionText(condition) });
+    lines.push({ heading: false, text: workflowConditionText(condition, assignees) });
   }
 
   for (const filter of workflow.actionFilters ?? []) {
@@ -361,7 +395,7 @@ export function workflowConditionLines(
       lines.push({ heading: false, text: "Any event" });
     } else {
       for (const condition of conditions) {
-        lines.push({ heading: false, text: workflowConditionText(condition) });
+        lines.push({ heading: false, text: workflowConditionText(condition, assignees) });
       }
     }
 

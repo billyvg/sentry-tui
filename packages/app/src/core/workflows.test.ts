@@ -88,6 +88,42 @@ describe("workflowConditionText", () => {
     ).toBe("Percentage of sessions affected by an issue is more than 5 in 30 minutes");
   });
 
+  test("every frequency family qualifies its subfilters, including unknown future shapes", () => {
+    for (const family of [
+      "event_frequency",
+      "event_unique_user_frequency",
+      "event_unique_user_frequency_with_conditions",
+      "percent_sessions",
+    ]) {
+      for (const threshold of ["count", "percent"]) {
+        const type = `${family}_${threshold}`;
+        expect(
+          workflowConditionText(condition(type, { value: 1, filters: [{ future: true }] })),
+        ).toStartWith("[1 subfilter] ");
+        expect(workflowConditionText(condition(type, { value: 1, filters: [] }))).not.toContain(
+          "subfilter",
+        );
+        expect(workflowConditionText(condition(type, { value: 1, filters: null }))).not.toContain(
+          "subfilter",
+        );
+      }
+    }
+  });
+
+  test("missing assignee names retain their ids and unassigned remains explicit", () => {
+    expect(
+      workflowConditionText(
+        condition("assigned_to", { targetType: "Member", targetIdentifier: 42 }),
+      ),
+    ).toBe("The issue is assigned to member ID 42");
+    expect(workflowConditionText(condition("assigned_to", { targetType: "Team" }))).toBe(
+      "The issue is assigned to team unknown",
+    );
+    expect(workflowConditionText(condition("assigned_to", { targetType: "Unassigned" }))).toBe(
+      "The issue is unassigned",
+    );
+  });
+
   test("an unrecognised condition type still says what it is", () => {
     expect(workflowConditionText(condition("some_new_trigger"))).toBe("some new trigger");
     expect(workflowConditionText(condition("some_new_trigger", 12))).toBe("some new trigger 12");

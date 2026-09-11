@@ -66,6 +66,7 @@ import { WidgetCard } from "~/ui/components/WidgetCard";
 import { useWidgetData, widgetKey } from "~/ui/hooks/useDashboardDetail";
 import { useDetectorWorkflows } from "~/ui/hooks/useDetectorDetail";
 import { useDirectResource, type DirectResourceLoader } from "~/ui/hooks/useDirectResource";
+import { useWorkflowAssignees } from "~/ui/hooks/useWorkflowAssignees";
 import { useReleases } from "~/ui/hooks/useReleases";
 import { BOLD, DIM } from "~/ui/lib/attributes";
 import { orderWidgets, widgetCardHeight } from "~/ui/lib/widgetStack";
@@ -543,6 +544,7 @@ function IssueAlertEmbed({ data, width, client, org }: SeerEmbedProps) {
   const id = embedText(data["id"]) ?? "";
   const status = useDirectResource(id ? client : null, { org, id, load: loadWorkflow });
   const workflow = valueOf(status);
+  const assignees = useWorkflowAssignees(client, org, workflow);
   const inner = width - CARD_CHROME;
 
   return (
@@ -571,7 +573,7 @@ function IssueAlertEmbed({ data, width, client, org }: SeerEmbedProps) {
             ]}
             width={inner}
           />
-          {workflowConditionLines(workflow).map((line, index) => (
+          {workflowConditionLines(workflow, undefined, assignees).map((line, index) => (
             <text
               key={index}
               fg={line.heading ? theme.subText : theme.text}
